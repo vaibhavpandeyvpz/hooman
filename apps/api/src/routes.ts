@@ -4,7 +4,7 @@ import type { EventRouter } from "./lib/event-router/index.js";
 
 const debug = createDebug("hooman:chat");
 import type { ContextStore } from "./lib/context/index.js";
-import type { HoomanRuntime } from "./lib/hooman-runtime/index.js";
+import type { AuditLog } from "./lib/audit/index.js";
 import type { ColleagueEngine } from "./lib/colleagues/index.js";
 import type { Scheduler } from "./lib/scheduler/index.js";
 import type { MCPConnectionsStore } from "./lib/mcp-connections/store.js";
@@ -21,7 +21,7 @@ import { getConfig, updateConfig } from "./config.js";
 interface AppContext {
   eventRouter: EventRouter;
   context: ContextStore;
-  hooman: HoomanRuntime;
+  auditLog: AuditLog;
   colleagueEngine: ColleagueEngine;
   responseStore: Map<
     string,
@@ -51,7 +51,7 @@ export function registerRoutes(app: Express, ctx: AppContext): void {
   const {
     eventRouter,
     context,
-    hooman,
+    auditLog,
     colleagueEngine,
     scheduler,
     pendingChatResults,
@@ -168,7 +168,7 @@ export function registerRoutes(app: Express, ctx: AppContext): void {
     res.setHeader("Cache-Control", "no-cache");
     res.setHeader("Connection", "keep-alive");
     res.flushHeaders();
-    const unsub = hooman.onResponseReceived(
+    const unsub = auditLog.onResponseReceived(
       (payload: { type: string; text?: string }) => {
         if (payload.type === "response") {
           res.write(
@@ -230,7 +230,7 @@ export function registerRoutes(app: Express, ctx: AppContext): void {
 
   // Audit log
   app.get("/api/audit", (_req: Request, res: Response) => {
-    res.json({ entries: hooman.getAuditLog() });
+    res.json({ entries: auditLog.getAuditLog() });
   });
 
   // Kill switch

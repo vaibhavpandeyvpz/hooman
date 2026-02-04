@@ -12,12 +12,11 @@ import {
 import { HumanFriendlyConsoleExporter } from "./lib/tracing/console-exporter.js";
 import { EventRouter } from "./lib/event-router/index.js";
 import { createMemoryService } from "./lib/memory/index.js";
-import { LLMGateway } from "./lib/llm-gateway/index.js";
-import { HoomanRuntime } from "./lib/hooman-runtime/index.js";
+import { AuditLog } from "./lib/audit/index.js";
 import { ColleagueEngine } from "./lib/colleagues/index.js";
 import { Scheduler } from "./lib/scheduler/index.js";
 import type { RawDispatchInput } from "./lib/types/index.js";
-import type { HoomanResponsePayload } from "./lib/hooman-runtime/index.js";
+import type { ResponsePayload } from "./lib/audit/index.js";
 import { getConfig, loadPersisted } from "./config.js";
 import { registerRoutes } from "./routes.js";
 import { initChatHistory } from "./lib/chat-history/index.js";
@@ -83,22 +82,7 @@ eventRouter.register(async (event) => {
   }
 });
 
-function getLLM(): LLMGateway {
-  const c = getConfig();
-  return new LLMGateway({
-    apiKey: c.OPENAI_API_KEY,
-    model: c.OPENAI_MODEL,
-    webSearch: c.OPENAI_WEB_SEARCH,
-  });
-}
-
-const hooman = new HoomanRuntime({
-  eventRouter,
-  memory,
-  getLLM,
-  getColleagues: () => colleagueEngine.getAll(),
-  userId: "default",
-});
+const auditLog = new AuditLog();
 
 // In-memory store for UI-bound responses (eventId -> messages)
 const responseStore: Map<
@@ -162,7 +146,7 @@ eventRouter.register(async (event) => {
         (i) =>
           i.type === "handoff_call_item" || i.type === "handoff_output_item",
       );
-      hooman.appendAuditEntry({
+      auditLog.appendAuditEntry({
         type: "agent_run",
         payload: {
           userInput: text,
@@ -174,6 +158,12 @@ eventRouter.register(async (event) => {
             to: h.targetAgent?.name,
           })),
         },
+      });
+      auditLog.emitResponse({
+        type: "response",
+        text: assistantText,
+        eventId: event.id,
+        userInput: text,
       });
       await eventRouter.dispatch({
         source: "api",
@@ -214,6 +204,106 @@ eventRouter.register(async (event) => {
   }
 });
 
+// Scheduled task handler: run composed Hooman agents (same as chat) with handoffs and MCP
+eventRouter.register(async (event) => {
+  if (event.payload.kind !== "scheduled_task") return;
+  const payload = event.payload;
+  const contextStr =
+    Object.keys(payload.context).length === 0
+      ? "(none)"
+      : Object.entries(payload.context)
+          .map(([k, v]) => `${k}=${String(v)}`)
+          .join(", ");
+  const text = `Scheduled task: ${payload.intent}. Context: ${contextStr}.`;
+  const apiConfig = getConfig();
+  try {
+    const memories = await context.search(text, {
+      userId: "default",
+      limit: 5,
+    });
+    const memoryContext =
+      memories.length > 0
+        ? memories.map((m) => `- ${m.memory}`).join("\n")
+        : "";
+    const colleagues = colleagueEngine.getAll();
+    const connections = await mcpConnectionsStore.getAll();
+    const { agent, closeMcp } = await createHoomanAgentWithMcp(
+      colleagues,
+      connections,
+      {
+        apiKey: apiConfig.OPENAI_API_KEY || undefined,
+        model: apiConfig.OPENAI_MODEL,
+      },
+    );
+    try {
+      const { finalOutput, lastAgentName, newItems } = await runChat(
+        agent,
+        [],
+        text,
+        {
+          memoryContext,
+          apiKey: apiConfig.OPENAI_API_KEY || undefined,
+          model: apiConfig.OPENAI_MODEL || undefined,
+        },
+      );
+      const assistantText =
+        finalOutput?.trim() ||
+        "Scheduled task completed (no clear response from agent).";
+      const handoffs = (newItems ?? []).filter(
+        (i) =>
+          i.type === "handoff_call_item" || i.type === "handoff_output_item",
+      );
+      auditLog.appendAuditEntry({
+        type: "scheduled_task",
+        payload: {
+          execute_at: payload.execute_at,
+          intent: payload.intent,
+          context: payload.context,
+        },
+      });
+      auditLog.appendAuditEntry({
+        type: "agent_run",
+        payload: {
+          userInput: text,
+          response: assistantText,
+          lastAgentName: lastAgentName ?? "Hooman",
+          handoffs: handoffs.map((h) => ({
+            type: h.type,
+            from: h.agent?.name ?? h.sourceAgent?.name,
+            to: h.targetAgent?.name,
+          })),
+        },
+      });
+      auditLog.emitResponse({
+        type: "response",
+        text: assistantText,
+        eventId: event.id,
+        userInput: text,
+      });
+    } finally {
+      await closeMcp();
+    }
+  } catch (err) {
+    debug("scheduled task handler error: %o", err);
+    const msg = (err as Error).message;
+    auditLog.appendAuditEntry({
+      type: "scheduled_task",
+      payload: {
+        execute_at: payload.execute_at,
+        intent: payload.intent,
+        context: payload.context,
+        error: msg,
+      },
+    });
+    auditLog.emitResponse({
+      type: "response",
+      text: `Scheduled task failed: ${msg}. Check API logs.`,
+      eventId: event.id,
+      userInput: text,
+    });
+  }
+});
+
 const scheduler = new Scheduler(
   (raw: RawDispatchInput) => eventRouter.dispatch(raw),
   scheduleStore,
@@ -221,7 +311,7 @@ const scheduler = new Scheduler(
 await scheduler.load();
 scheduler.start();
 
-hooman.onResponseReceived((payload: HoomanResponsePayload) => {
+auditLog.onResponseReceived((payload: ResponsePayload) => {
   if (payload.type === "response") {
     const list = responseStore.get(payload.eventId) ?? [];
     list.push({ role: "assistant", text: payload.text });
@@ -236,7 +326,7 @@ app.use(express.json());
 registerRoutes(app, {
   eventRouter,
   context,
-  hooman,
+  auditLog,
   colleagueEngine,
   responseStore,
   scheduler,
