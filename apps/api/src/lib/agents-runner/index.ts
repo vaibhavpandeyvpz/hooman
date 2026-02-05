@@ -3,26 +3,45 @@ import { Agent, Runner, run } from "@openai/agents";
 /** Simple thread item for building input; we convert to SDK format (content as array) before run(). */
 export type AgentInputItem = { role: "user" | "assistant"; content: string };
 
-/** SDK protocol: user content part. */
+/** SDK protocol: user content parts. */
 const inputText = (text: string) => ({ type: "input_text" as const, text });
+const inputImage = (image: string) => ({ type: "input_image" as const, image });
+const inputFile = (file: string, filename?: string) => ({
+  type: "input_file" as const,
+  file,
+  ...(filename ? { filename } : {}),
+});
 /** SDK protocol: assistant content part. */
 const outputText = (text: string) => ({ type: "output_text" as const, text });
+
+type UserContentPart =
+  | { type: "input_text"; text: string }
+  | { type: "input_image"; image: string }
+  | { type: "input_file"; file: string; filename?: string };
 
 /**
  * Convert simple { role, content: string } items to SDK format where content is an array of parts.
  * The OpenAI provider expects item.content to be an array (it calls item.content.map).
  */
-function toProtocolItems(items: AgentInputItem[]): Array<
-  | { role: "user"; content: Array<{ type: "input_text"; text: string }> }
+function toProtocolItems(
+  items: AgentInputItem[],
+  lastUserContent?: UserContentPart[],
+): Array<
+  | { role: "user"; content: UserContentPart[] }
   | {
       role: "assistant";
       content: Array<{ type: "output_text"; text: string }>;
       status: "completed";
     }
 > {
-  return items.map((item) => {
+  return items.map((item, i) => {
+    const isLastUser =
+      lastUserContent && i === items.length - 1 && item.role === "user";
     if (item.role === "user") {
-      return { role: "user" as const, content: [inputText(item.content)] };
+      return {
+        role: "user" as const,
+        content: isLastUser ? lastUserContent : [inputText(item.content)],
+      };
     }
     return {
       role: "assistant" as const,
@@ -30,6 +49,36 @@ function toProtocolItems(items: AgentInputItem[]): Array<
       status: "completed" as const,
     };
   });
+}
+
+/** MIME types sent as image (input_image); all others sent as file (input_file). */
+const IMAGE_MIME_TYPES = [
+  "image/jpeg",
+  "image/png",
+  "image/gif",
+  "image/webp",
+] as const;
+
+function buildAttachmentParts(
+  attachments: Array<{ name: string; contentType: string; data: string }>,
+): UserContentPart[] {
+  const parts: UserContentPart[] = [];
+  for (const a of attachments) {
+    const data = typeof a.data === "string" ? a.data.trim() : "";
+    if (!data) continue;
+    const contentType = a.contentType.toLowerCase().split(";")[0].trim();
+    const dataUrl = `data:${contentType};base64,${data}`;
+    if (
+      IMAGE_MIME_TYPES.includes(
+        contentType as (typeof IMAGE_MIME_TYPES)[number],
+      )
+    ) {
+      parts.push(inputImage(dataUrl));
+    } else {
+      parts.push(inputFile(dataUrl, a.name));
+    }
+  }
+  return parts;
 }
 
 /**
@@ -46,6 +95,7 @@ export async function runChat(
     apiKey?: string;
     model?: string;
     maxTurns?: number;
+    attachments?: Array<{ name: string; contentType: string; data: string }>;
   },
 ): Promise<{
   finalOutput: string;
@@ -69,6 +119,11 @@ export async function runChat(
   }
   input.push(...thread, { role: "user", content: newUserMessage });
 
+  const lastUserContent: UserContentPart[] | undefined = options?.attachments
+    ?.length
+    ? [inputText(newUserMessage), ...buildAttachmentParts(options.attachments)]
+    : undefined;
+
   const runOptions = {
     maxTurns: options?.maxTurns ?? 10,
     workflowName: "Hooman chat",
@@ -81,7 +136,7 @@ export async function runChat(
     : undefined;
 
   // SDK expects content as array of parts (e.g. input_text / output_text); string content causes item.content.map to throw.
-  const protocolInput = toProtocolItems(input);
+  const protocolInput = toProtocolItems(input, lastUserContent);
   const result = runner
     ? await runner.run(
         agent,

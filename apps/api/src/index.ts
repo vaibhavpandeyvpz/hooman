@@ -2,6 +2,8 @@ import "dotenv/config";
 import createDebug from "debug";
 import express from "express";
 import cors from "cors";
+import { join, dirname } from "path";
+import { fileURLToPath } from "url";
 
 const debug = createDebug("hooman:api");
 import {
@@ -20,12 +22,16 @@ import type { ResponsePayload } from "./lib/audit/index.js";
 import { getConfig, loadPersisted } from "./config.js";
 import { registerRoutes } from "./routes.js";
 import { initChatHistory } from "./lib/chat-history/index.js";
+import { initAttachmentStore } from "./lib/attachment-store/index.js";
 import { createContext } from "./lib/context/index.js";
 import { initColleagueStore } from "./lib/colleagues/store.js";
 import { initScheduleStore } from "./lib/schedule-store/index.js";
 import { initMCPConnectionsStore } from "./lib/mcp-connections/store.js";
 import { runChat } from "./lib/agents-runner/index.js";
 import { createHoomanAgentWithMcp } from "./lib/agents-runner/mcp-for-agents.js";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const ATTACHMENTS_DATA_DIR = join(__dirname, "data", "attachments");
 
 const CHAT_THREAD_LIMIT = 30;
 
@@ -52,6 +58,12 @@ if (!mongoUri) {
 const chatHistory = await initChatHistory(mongoUri);
 debug("Chat history using MongoDB");
 
+const attachmentStore = await initAttachmentStore(
+  mongoUri,
+  ATTACHMENTS_DATA_DIR,
+);
+debug("Attachment store using MongoDB and %s", ATTACHMENTS_DATA_DIR);
+
 const context = createContext(memory, chatHistory);
 
 const colleagueStore = await initColleagueStore(mongoUri);
@@ -76,9 +88,10 @@ eventRouter.register(async (event) => {
       userId: string;
       userText: string;
       assistantText: string;
+      userAttachmentIds?: string[];
     };
-    const { userId, userText, assistantText } = data;
-    await context.addTurn(userId, userText, assistantText);
+    const { userId, userText, assistantText, userAttachmentIds } = data;
+    await context.addTurn(userId, userText, assistantText, userAttachmentIds);
   }
 });
 
@@ -106,7 +119,7 @@ const pendingChatResults = new Map<
 // Chat handler: API-originated message.sent → run agents-runner, resolve pending promise (PRD: Event Router → Hooman path)
 eventRouter.register(async (event) => {
   if (event.source !== "api" || event.payload.kind !== "message") return;
-  const { text, userId } = event.payload;
+  const { text, userId, attachments, attachment_ids } = event.payload;
   const pending = pendingChatResults.get(event.id);
   const config = getConfig();
   let assistantText = "";
@@ -137,6 +150,7 @@ eventRouter.register(async (event) => {
           memoryContext,
           apiKey: config.OPENAI_API_KEY || undefined,
           model: config.OPENAI_MODEL || undefined,
+          attachments,
         },
       );
       assistantText =
@@ -168,7 +182,14 @@ eventRouter.register(async (event) => {
       await eventRouter.dispatch({
         source: "api",
         type: "chat.turn_completed",
-        payload: { userId, userText: text, assistantText },
+        payload: {
+          userId,
+          userText: text,
+          assistantText,
+          ...(attachment_ids?.length
+            ? { userAttachmentIds: attachment_ids }
+            : {}),
+        },
       });
       if (pending) {
         pending.resolve({
@@ -192,7 +213,14 @@ eventRouter.register(async (event) => {
     await eventRouter.dispatch({
       source: "api",
       type: "chat.turn_completed",
-      payload: { userId, userText: text, assistantText },
+      payload: {
+        userId,
+        userText: text,
+        assistantText,
+        ...(attachment_ids?.length
+          ? { userAttachmentIds: attachment_ids }
+          : {}),
+      },
     });
     if (pending) {
       pending.resolve({
@@ -332,6 +360,7 @@ registerRoutes(app, {
   scheduler,
   pendingChatResults,
   mcpConnectionsStore,
+  attachmentStore,
 });
 
 const PORT = getConfig().PORT;

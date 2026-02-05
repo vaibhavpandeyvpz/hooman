@@ -12,6 +12,10 @@ export interface ChatMessage {
   text: string;
   /** Set when the response came from a colleague (handoff). */
   lastAgentName?: string;
+  /** Attachment IDs (for user messages); used when loaded from history. */
+  attachment_ids?: string[];
+  /** Attachment meta for display (from history or after upload). */
+  attachment_metas?: { id: string; originalName: string; mimeType: string }[];
 }
 
 export interface ColleagueConfig {

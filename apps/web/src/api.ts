@@ -8,8 +8,21 @@ function apiError(res: Response, body: string): string {
   return msg;
 }
 
+export interface ChatAttachmentMeta {
+  id: string;
+  originalName: string;
+  mimeType: string;
+}
+
+export interface ChatHistoryMessage {
+  role: "user" | "assistant";
+  text: string;
+  attachment_ids?: string[];
+  attachment_metas?: ChatAttachmentMeta[];
+}
+
 export interface ChatHistoryResponse {
-  messages: { role: "user" | "assistant"; text: string }[];
+  messages: ChatHistoryMessage[];
   total: number;
   page: number;
   pageSize: number;
@@ -46,14 +59,48 @@ export async function clearChatHistory(): Promise<{ cleared: boolean }> {
   return res.json();
 }
 
-export async function sendMessage(text: string): Promise<{
+/** Upload files; returns server attachment ids and meta for state/send. */
+export async function uploadAttachments(
+  files: File[],
+): Promise<{ attachments: ChatAttachmentMeta[] }> {
+  const form = new FormData();
+  files.forEach((f) => form.append("files", f));
+  const res = await fetch(`${BASE}/api/chat/attachments`, {
+    method: "POST",
+    body: form,
+  });
+  const body = await res.text();
+  if (!res.ok) throw new Error(apiError(res, body));
+  const data = JSON.parse(body) as {
+    attachments?: { id: string; originalName: string; mimeType: string }[];
+  };
+  return {
+    attachments: (data.attachments ?? []).map((a) => ({
+      id: a.id,
+      originalName: a.originalName,
+      mimeType: a.mimeType,
+    })),
+  };
+}
+
+/** URL to load an attachment (image src or download link). */
+export function getAttachmentUrl(id: string): string {
+  return `${BASE}/api/chat/attachments/${encodeURIComponent(id)}`;
+}
+
+export async function sendMessage(
+  text: string,
+  attachment_ids?: string[],
+): Promise<{
   eventId: string;
   message: { role: "assistant"; text: string; lastAgentName?: string };
 }> {
   const res = await fetch(`${BASE}/api/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ text }),
+    body: JSON.stringify(
+      attachment_ids?.length ? { text, attachment_ids } : { text },
+    ),
   });
   const body = await res.text();
   if (!res.ok) throw new Error(apiError(res, body));

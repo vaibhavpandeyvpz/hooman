@@ -42,7 +42,7 @@ export function Sidebar({ view, setView, open = true, onClose }: SidebarProps) {
         <div>
           <h1 className="text-lg font-semibold text-white">Hooman</h1>
           <p className="text-xs text-hooman-muted mt-0.5">
-            Your autonomous digital self
+            Your digital concierge
           </p>
         </div>
         {onClose && (

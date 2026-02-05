@@ -1,11 +1,77 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Trash2, ListOrdered, X, Loader2 } from "lucide-react";
+import {
+  Trash2,
+  ListOrdered,
+  X,
+  Loader2,
+  Paperclip,
+  FileText,
+  Plus,
+} from "lucide-react";
 import type { ChatMessage } from "../types";
-import { sendMessage } from "../api";
+import {
+  sendMessage,
+  uploadAttachments,
+  getAttachmentUrl,
+  type ChatAttachmentMeta,
+} from "../api";
 import { useDialog } from "./Dialog";
 import { Button } from "./Button";
+
+const MAX_ATTACHMENTS = 10;
+const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+
+/** Allowed attachment MIME types (OpenAI supported files + 4 image types + SVG). Text/* must be utf-8, utf-16, or ascii. */
+const ALLOWED_ATTACHMENT_MIME_TYPES = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/gif",
+  "image/webp",
+  "image/svg+xml",
+  "text/x-c",
+  "text/x-c++",
+  "text/x-csharp",
+  "text/css",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "text/x-golang",
+  "text/html",
+  "text/x-java",
+  "text/javascript",
+  "application/json",
+  "text/markdown",
+  "application/pdf",
+  "text/x-php",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  "text/x-python",
+  "text/x-script.python",
+  "text/x-ruby",
+  "application/x-sh",
+  "text/x-tex",
+  "application/typescript",
+  "text/plain",
+]);
+
+const ACCEPT_ATTRIBUTE = [...ALLOWED_ATTACHMENT_MIME_TYPES].sort().join(",");
+
+function isAllowedMime(type: string): boolean {
+  const normalized = type.toLowerCase().split(";")[0].trim();
+  return ALLOWED_ATTACHMENT_MIME_TYPES.has(normalized);
+}
+
+function isImageMime(mimeType: string): boolean {
+  return mimeType.startsWith("image/");
+}
+
+interface PendingAttachment {
+  id: string;
+  originalName: string;
+  mimeType: string;
+  preview?: string;
+  uploading?: boolean;
+}
 
 interface ChatProps {
   messages: ChatMessage[];
@@ -28,19 +94,77 @@ export function Chat({
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [clearing, setClearing] = useState(false);
-  const [queue, setQueue] = useState<string[]>([]);
-  const queueRef = useRef<string[]>([]);
+  const [queue, setQueue] = useState<
+    Array<{
+      text: string;
+      attachment_ids?: string[];
+      attachment_metas?: ChatAttachmentMeta[];
+    }>
+  >([]);
+  const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
+  const queueRef = useRef<
+    Array<{
+      text: string;
+      attachment_ids?: string[];
+      attachment_metas?: ChatAttachmentMeta[];
+    }>
+  >([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  const addFiles = useCallback((files: FileList | File[]) => {
+    const list = Array.from(files).filter(
+      (f) => f.size <= MAX_FILE_SIZE && isAllowedMime(f.type),
+    );
+    if (list.length === 0) return;
+    setAttachments((prev) => {
+      const space = MAX_ATTACHMENTS - prev.length;
+      const toAdd = list.slice(0, space).map((file) => ({
+        id: `upload-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        originalName: file.name,
+        mimeType: file.type || "application/octet-stream",
+        uploading: true as const,
+      }));
+      return [...prev, ...toAdd];
+    });
+    (async () => {
+      try {
+        const { attachments: serverAttachments } =
+          await uploadAttachments(list);
+        setAttachments((prev) => {
+          const withoutUploading = prev.filter((a) => !a.uploading);
+          const uploaded = serverAttachments.map(
+            (a: ChatAttachmentMeta) =>
+              ({
+                id: a.id,
+                originalName: a.originalName,
+                mimeType: a.mimeType,
+                preview: isImageMime(a.mimeType)
+                  ? getAttachmentUrl(a.id)
+                  : undefined,
+              }) as PendingAttachment,
+          );
+          return [...withoutUploading, ...uploaded];
+        });
+      } catch {
+        setAttachments((prev) => prev.filter((a) => !a.uploading));
+      }
+    })();
+  }, []);
+
+  const removeAttachment = useCallback((id: string) => {
+    setAttachments((prev) => prev.filter((x) => x.id !== id));
+  }, []);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
   const sendOne = useCallback(
-    async (text: string) => {
+    async (text: string, attachmentIds?: string[]) => {
       setLoading(true);
       try {
-        const { message } = await sendMessage(text);
+        const { message } = await sendMessage(text, attachmentIds);
         setMessages((prev) => [...prev, message]);
       } catch (err) {
         const msg = (err as Error).message;
@@ -64,8 +188,20 @@ export function Chat({
         if (queueRef.current.length > 0) {
           const next = queueRef.current.shift()!;
           setQueue((q) => q.slice(1));
-          setMessages((prev) => [...prev, { role: "user", text: next }]);
-          sendOne(next);
+          setMessages((prev) => [
+            ...prev,
+            {
+              role: "user",
+              text: next.text,
+              ...(next.attachment_ids?.length
+                ? {
+                    attachment_ids: next.attachment_ids,
+                    attachment_metas: next.attachment_metas,
+                  }
+                : {}),
+            },
+          ]);
+          sendOne(next.text, next.attachment_ids);
         }
       }
     },
@@ -75,15 +211,39 @@ export function Chat({
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const text = input.trim();
-    if (!text) return;
+    const ready = attachments.filter((a) => !a.uploading);
+    if (!text && ready.length === 0) return;
+    if (attachments.some((a) => a.uploading)) return;
+    const messageText = text || "(attachments)";
     setInput("");
+    const attachmentIds = ready.length ? ready.map((a) => a.id) : undefined;
+    const attachmentMetas = ready.length
+      ? ready.map((a) => ({
+          id: a.id,
+          originalName: a.originalName,
+          mimeType: a.mimeType,
+        }))
+      : undefined;
+    setAttachments([]);
+    const userMessage: ChatMessage = {
+      role: "user",
+      text: messageText,
+      ...(attachmentIds?.length
+        ? { attachment_ids: attachmentIds, attachment_metas: attachmentMetas }
+        : {}),
+    };
+    setMessages((prev) => [...prev, userMessage]);
     if (loading) {
-      setQueue((prev) => [...prev, text]);
-      queueRef.current = [...queueRef.current, text];
+      const queued = {
+        text: messageText,
+        attachment_ids: attachmentIds,
+        attachment_metas: attachmentMetas,
+      };
+      setQueue((prev) => [...prev, queued]);
+      queueRef.current = [...queueRef.current, queued];
       return;
     }
-    setMessages((prev) => [...prev, { role: "user", text }]);
-    sendOne(text);
+    sendOne(messageText, attachmentIds);
   }
 
   function removeFromQueue(index: number) {
@@ -179,6 +339,40 @@ export function Chat({
                   {m.text}
                 </ReactMarkdown>
               </div>
+              {(m.attachment_metas?.length ?? 0) > 0 && (
+                <div className="mt-2 flex flex-wrap gap-2 border-t border-white/10 pt-2">
+                  {m.attachment_metas!.map((att) => (
+                    <div
+                      key={att.id}
+                      className="rounded-lg overflow-hidden bg-black/20 max-w-[120px]"
+                    >
+                      {isImageMime(att.mimeType) ? (
+                        <a
+                          href={getAttachmentUrl(att.id)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="block"
+                        >
+                          <img
+                            src={getAttachmentUrl(att.id)}
+                            alt={att.originalName}
+                            className="w-full h-20 object-cover"
+                          />
+                        </a>
+                      ) : (
+                        <a
+                          href={getAttachmentUrl(att.id)}
+                          download={att.originalName}
+                          className="flex items-center gap-1.5 px-2 py-1.5 text-xs text-zinc-300 hover:text-white"
+                        >
+                          <FileText className="w-4 h-4 shrink-0" />
+                          <span className="truncate">{att.originalName}</span>
+                        </a>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
               {m.role === "assistant" &&
                 m.lastAgentName &&
                 m.lastAgentName !== "Hooman" && (
@@ -201,8 +395,74 @@ export function Chat({
       </div>
       <form
         onSubmit={handleSubmit}
-        className="p-3 md:p-4 border-t border-hooman-border shrink-0"
+        onDragOver={(e) => {
+          e.preventDefault();
+          e.currentTarget.classList.add("ring-2", "ring-hooman-accent/50");
+        }}
+        onDragLeave={(e) => {
+          e.preventDefault();
+          if (!e.currentTarget.contains(e.relatedTarget as Node))
+            e.currentTarget.classList.remove("ring-2", "ring-hooman-accent/50");
+        }}
+        onDrop={(e) => {
+          e.preventDefault();
+          e.currentTarget.classList.remove("ring-2", "ring-hooman-accent/50");
+          if (e.dataTransfer.files.length) addFiles(e.dataTransfer.files);
+        }}
+        className="p-3 md:p-4 border-t border-hooman-border shrink-0 rounded-lg transition-shadow"
       >
+        {attachments.length > 0 && (
+          <div className="mb-3 pb-3 border-b border-hooman-border/50">
+            <p className="flex items-center gap-2 text-xs text-hooman-muted mb-2">
+              <Paperclip className="w-3.5 h-3.5" />
+              {attachments.length} attached
+              {attachments.some((a) => a.uploading) && (
+                <span className="flex items-center gap-1.5 text-hooman-accent">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden />
+                  Uploading…
+                </span>
+              )}
+            </p>
+            <ul className="flex flex-wrap gap-2">
+              {attachments.map((a) => (
+                <li
+                  key={a.id}
+                  className="flex items-center gap-2 rounded-lg bg-hooman-surface border border-hooman-border overflow-hidden group"
+                >
+                  {a.uploading ? (
+                    <span className="w-12 h-12 flex items-center justify-center shrink-0 bg-hooman-border/50 text-hooman-muted">
+                      <Loader2 className="w-5 h-5 animate-spin" aria-hidden />
+                    </span>
+                  ) : a.preview ? (
+                    <img
+                      src={a.preview}
+                      alt=""
+                      className="w-12 h-12 object-cover shrink-0"
+                    />
+                  ) : (
+                    <span className="w-12 h-12 flex items-center justify-center shrink-0 bg-hooman-border/50 text-hooman-muted">
+                      <FileText className="w-5 h-5" />
+                    </span>
+                  )}
+                  <span className="max-w-[120px] truncate text-sm text-zinc-300 px-1">
+                    {a.originalName}
+                  </span>
+                  <Button
+                    variant="ghost"
+                    iconOnly
+                    size="icon"
+                    icon={<X className="w-4 h-4" />}
+                    onClick={() => removeAttachment(a.id)}
+                    title="Remove attachment"
+                    aria-label="Remove attachment"
+                    disabled={a.uploading}
+                    className="shrink-0 p-1 opacity-70 hover:opacity-100"
+                  />
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
         {queue.length > 0 && (
           <div className="mb-3 pb-3 border-b border-hooman-border/50">
             <p className="flex items-center gap-2 text-xs text-hooman-muted mb-2">
@@ -210,12 +470,17 @@ export function Chat({
               {queue.length} queued
             </p>
             <ul className="space-y-1.5">
-              {queue.map((text, i) => (
+              {queue.map((item, i) => (
                 <li
                   key={i}
                   className="flex items-center gap-2 rounded-lg bg-hooman-surface/80 border border-hooman-border px-3 py-2 text-sm text-zinc-300"
                 >
-                  <span className="flex-1 truncate">{text}</span>
+                  <span className="flex-1 truncate">
+                    {item.text}
+                    {item.attachment_ids?.length
+                      ? ` (+${item.attachment_ids.length} attachment${item.attachment_ids.length === 1 ? "" : "s"})`
+                      : ""}
+                  </span>
                   <Button
                     variant="danger"
                     iconOnly
@@ -233,15 +498,53 @@ export function Chat({
         )}
         <div className="flex gap-2 min-w-0">
           <input
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="Type a message…"
-            className="flex-1 min-w-0 rounded-xl bg-hooman-surface border border-hooman-border px-3 md:px-4 py-2.5 md:py-3 text-sm md:text-base text-zinc-200 placeholder:text-hooman-muted focus:outline-none focus:ring-2 focus:ring-hooman-accent/50"
+            ref={fileInputRef}
+            type="file"
+            multiple
+            accept={ACCEPT_ATTRIBUTE}
+            className="hidden"
+            onChange={(e) => {
+              const files = e.target.files;
+              if (files?.length) addFiles(files);
+              e.target.value = "";
+            }}
+            aria-hidden
           />
+          <div className="flex-1 min-w-0 relative">
+            <input
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onPaste={(e) => {
+                const items = e.clipboardData?.items;
+                if (!items) return;
+                const files: File[] = [];
+                for (let i = 0; i < items.length; i++) {
+                  const file = items[i].getAsFile();
+                  if (file) files.push(file);
+                }
+                if (files.length) {
+                  e.preventDefault();
+                  addFiles(files);
+                }
+              }}
+              placeholder="Type a message or drag & drop / paste files…"
+              className="w-full rounded-xl bg-hooman-surface border border-hooman-border pl-11 pr-3 md:pl-12 md:pr-4 py-2.5 md:py-3 text-sm md:text-base text-zinc-200 placeholder:text-hooman-muted focus:outline-none focus:ring-2 focus:ring-hooman-accent/50"
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              title="Attach files"
+              aria-label="Attach files"
+              disabled={attachments.length >= MAX_ATTACHMENTS}
+              className="absolute left-1.5 top-1/2 -translate-y-1/2 w-8 h-8 md:w-9 md:h-9 rounded-full flex items-center justify-center bg-hooman-surface text-hooman-muted hover:text-zinc-200 hover:bg-hooman-surface/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Plus className="w-4 h-4 md:w-5 md:h-5 shrink-0" />
+            </button>
+          </div>
           <button
             type="submit"
-            disabled={!input.trim()}
+            disabled={!input.trim() && attachments.length === 0}
             className="rounded-xl bg-hooman-accent px-4 md:px-5 py-2.5 md:py-3 text-sm md:text-base text-white font-medium hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
           >
             Send

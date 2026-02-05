@@ -41,7 +41,26 @@ function normalizePayload(
     const text = typeof payload.text === "string" ? payload.text : "";
     const userId =
       typeof payload.userId === "string" ? payload.userId : "default";
-    return { kind: "message", text, userId };
+    const attachments = Array.isArray(payload.attachments)
+      ? (
+          payload.attachments as Array<{
+            name: string;
+            contentType: string;
+            data: string;
+          }>
+        ).filter(
+          (a) =>
+            typeof a?.name === "string" &&
+            typeof a?.contentType === "string" &&
+            typeof a?.data === "string",
+        )
+      : undefined;
+    const attachment_ids = Array.isArray(payload.attachment_ids)
+      ? (payload.attachment_ids as string[]).filter(
+          (id) => typeof id === "string",
+        )
+      : undefined;
+    return { kind: "message", text, userId, attachments, attachment_ids };
   }
   if (type === "task.scheduled") {
     const execute_at =

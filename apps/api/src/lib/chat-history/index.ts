@@ -9,11 +9,16 @@ export interface ChatMessageDoc {
   userId: string;
   role: "user" | "assistant";
   text: string;
+  attachment_ids?: string[];
   createdAt: Date;
 }
 
 export interface GetMessagesResult {
-  messages: Array<{ role: "user" | "assistant"; text: string }>;
+  messages: Array<{
+    role: "user" | "assistant";
+    text: string;
+    attachment_ids?: string[];
+  }>;
   total: number;
   page: number;
   pageSize: number;
@@ -24,6 +29,7 @@ export interface ChatHistoryStore {
     userId: string,
     role: "user" | "assistant",
     text: string,
+    attachment_ids?: string[],
   ): Promise<void>;
   getMessages(
     userId: string,
@@ -33,7 +39,13 @@ export interface ChatHistoryStore {
   getRecentMessages(
     userId: string,
     limit: number,
-  ): Promise<Array<{ role: "user" | "assistant"; text: string }>>;
+  ): Promise<
+    Array<{
+      role: "user" | "assistant";
+      text: string;
+      attachment_ids?: string[];
+    }>
+  >;
   clearAll(userId: string): Promise<void>;
 }
 
@@ -48,8 +60,19 @@ export async function initChatHistory(uri: string): Promise<ChatHistoryStore> {
   await coll.createIndex({ userId: 1, createdAt: 1 });
 
   return {
-    async addMessage(userId: string, role: "user" | "assistant", text: string) {
-      await coll!.insertOne({ userId, role, text, createdAt: new Date() });
+    async addMessage(
+      userId: string,
+      role: "user" | "assistant",
+      text: string,
+      attachment_ids?: string[],
+    ) {
+      await coll!.insertOne({
+        userId,
+        role,
+        text,
+        ...(attachment_ids?.length ? { attachment_ids } : {}),
+        createdAt: new Date(),
+      });
     },
     async getMessages(
       userId: string,
@@ -70,7 +93,8 @@ export async function initChatHistory(uri: string): Promise<ChatHistoryStore> {
           .project<{
             role: "user" | "assistant";
             text: string;
-          }>({ role: 1, text: 1, _id: 0 })
+            attachment_ids?: string[];
+          }>({ role: 1, text: 1, attachment_ids: 1, _id: 0 })
           .toArray(),
         coll!.countDocuments({ userId }),
       ]);
@@ -85,7 +109,8 @@ export async function initChatHistory(uri: string): Promise<ChatHistoryStore> {
         .project<{
           role: "user" | "assistant";
           text: string;
-        }>({ role: 1, text: 1, _id: 0 })
+          attachment_ids?: string[];
+        }>({ role: 1, text: 1, attachment_ids: 1, _id: 0 })
         .toArray();
       return messages.reverse();
     },

@@ -35,10 +35,19 @@ export type NormalizedPayloadKind =
   | "integration_event"
   | "internal";
 
+export interface ChatAttachment {
+  name: string;
+  contentType: string;
+  data: string; // base64
+}
+
 export interface NormalizedMessagePayload {
   kind: "message";
   text: string;
   userId: string;
+  attachments?: ChatAttachment[];
+  /** IDs of uploaded files (for persisting with chat history). */
+  attachment_ids?: string[];
 }
 
 export interface NormalizedScheduledTaskPayload {

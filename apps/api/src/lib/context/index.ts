@@ -9,12 +9,19 @@ export interface ContextStore {
     userId: string,
     userText: string,
     assistantText: string,
+    userAttachmentIds?: string[],
   ): Promise<void>;
   /** Last N messages in chronological order for agent thread. */
   getRecentMessages(
     userId: string,
     limit: number,
-  ): Promise<Array<{ role: "user" | "assistant"; text: string }>>;
+  ): Promise<
+    Array<{
+      role: "user" | "assistant";
+      text: string;
+      attachment_ids?: string[];
+    }>
+  >;
   /** Paginated messages for GET /api/chat/history. */
   getMessages(
     userId: string,
@@ -38,6 +45,7 @@ export function createContext(
       userId: string,
       userText: string,
       assistantText: string,
+      userAttachmentIds?: string[],
     ): Promise<void> {
       const createdAt = new Date().toISOString();
       await memory.add([{ role: "user", content: userText }], {
@@ -48,7 +56,7 @@ export function createContext(
         userId,
         metadata: { createdAt, role: "assistant", messageIndex: 1 },
       });
-      await chatHistory.addMessage(userId, "user", userText);
+      await chatHistory.addMessage(userId, "user", userText, userAttachmentIds);
       await chatHistory.addMessage(userId, "assistant", assistantText);
     },
 

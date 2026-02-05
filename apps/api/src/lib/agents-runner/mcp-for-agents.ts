@@ -18,7 +18,7 @@ import type {
   MCPConnectionStdio,
 } from "../types/index.js";
 
-const HOOMAN_INSTRUCTIONS = `You are Hooman, an autonomous digital self that operates on behalf of the user.
+const HOOMAN_INSTRUCTIONS = `You are Hooman, a digital concierge that operates on behalf of the user.
 Be conversational and human-first. Use memory context when provided to tailor and remember preferences.
 When the user's request fits a specialized colleague you can hand off to, do so. Otherwise respond yourself.
 If you need an external capability (e.g. send email, Slack), say so and ask for approval; never assume.`;
@@ -99,6 +99,9 @@ function getDefaultMcpConnections(): MCPConnectionStdio[] {
 const defaultMcpConnections = getDefaultMcpConnections();
 const defaultMcpConnectionIds = defaultMcpConnections.map((c) => c.id);
 
+/** Default connection timeout for stdio MCP (ms). Longer than SDK default to allow cold starts in Docker (uvx/npx). */
+const STDIO_MCP_TIMEOUT_MS = 30_000;
+
 /** Build one MCP server instance from a stdio connection config. */
 function buildStdioServer(c: MCPConnectionStdio): MCPServerStdio {
   const hasArgs = Array.isArray(c.args) && c.args.length > 0;
@@ -113,6 +116,7 @@ function buildStdioServer(c: MCPConnectionStdio): MCPServerStdio {
             : "echo",
         }),
     cacheToolsList: true,
+    timeout: STDIO_MCP_TIMEOUT_MS,
     ...(c.env && Object.keys(c.env).length > 0 ? { env: c.env } : {}),
     ...(cwd ? { cwd } : {}),
   });
@@ -240,7 +244,10 @@ export async function createHoomanAgentWithMcp(
 
   const mcpServersWrapper =
     servers.length > 0
-      ? await connectMcpServers(servers, { connectInParallel: true })
+      ? await connectMcpServers(servers, {
+          connectInParallel: true,
+          connectTimeoutMs: STDIO_MCP_TIMEOUT_MS,
+        })
       : null;
 
   const activeServers = mcpServersWrapper?.active ?? [];

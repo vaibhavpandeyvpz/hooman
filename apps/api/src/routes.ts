@@ -8,6 +8,7 @@ import type { AuditLog } from "./lib/audit/index.js";
 import type { ColleagueEngine } from "./lib/colleagues/index.js";
 import type { Scheduler } from "./lib/scheduler/index.js";
 import type { MCPConnectionsStore } from "./lib/mcp-connections/store.js";
+import type { AttachmentStore } from "./lib/attachment-store/index.js";
 import type {
   ColleagueConfig,
   MCPConnection,
@@ -16,6 +17,7 @@ import type {
   MCPConnectionStdio,
 } from "./lib/types/index.js";
 import { randomUUID } from "crypto";
+import multer from "multer";
 import { getConfig, updateConfig } from "./config.js";
 import {
   listSkillsFromFs,
@@ -49,6 +51,7 @@ interface AppContext {
     }
   >;
   mcpConnectionsStore: MCPConnectionsStore;
+  attachmentStore: AttachmentStore;
 }
 
 let killSwitchEnabled = false;
@@ -67,7 +70,10 @@ export function registerRoutes(app: Express, ctx: AppContext): void {
     scheduler,
     pendingChatResults,
     mcpConnectionsStore,
+    attachmentStore,
   } = ctx;
+
+  const upload = multer({ storage: multer.memoryStorage() });
 
   // Health
   app.get("/health", (_req: Request, res: Response) => {
@@ -106,7 +112,7 @@ export function registerRoutes(app: Express, ctx: AppContext): void {
     res.json(updated);
   });
 
-  // Chat history (context reads from MongoDB when set, else Mem0)
+  // Chat history (context reads from MongoDB when set, else Mem0); enriches messages with attachment meta for UI
   app.get("/api/chat/history", async (req: Request, res: Response) => {
     const userId = (req.query.userId as string) || "default";
     const page = Math.max(1, parseInt(String(req.query.page), 10) || 1);
@@ -115,7 +121,40 @@ export function registerRoutes(app: Express, ctx: AppContext): void {
       Math.max(1, parseInt(String(req.query.pageSize), 10) || 50),
     );
     const result = await context.getMessages(userId, { page, pageSize });
-    res.json(result);
+    const messagesWithMeta = await Promise.all(
+      result.messages.map(async (m) => {
+        const ids = m.attachment_ids ?? [];
+        if (ids.length === 0)
+          return {
+            role: m.role,
+            text: m.text,
+            attachment_ids: m.attachment_ids,
+          };
+        const attachment_metas = await Promise.all(
+          ids.map(async (id) => {
+            const doc = await attachmentStore.getById(id, userId);
+            return doc
+              ? { id, originalName: doc.originalName, mimeType: doc.mimeType }
+              : null;
+          }),
+        );
+        return {
+          role: m.role,
+          text: m.text,
+          attachment_ids: m.attachment_ids,
+          attachment_metas: attachment_metas.filter(
+            (a): a is { id: string; originalName: string; mimeType: string } =>
+              a !== null,
+          ),
+        };
+      }),
+    );
+    res.json({
+      messages: messagesWithMeta,
+      total: result.total,
+      page: result.page,
+      pageSize: result.pageSize,
+    });
   });
 
   // Clear chat history and Mem0 memory (via context)
@@ -123,6 +162,57 @@ export function registerRoutes(app: Express, ctx: AppContext): void {
     const userId = (req.query.userId as string) || "default";
     await context.clearAll(userId);
     res.json({ cleared: true });
+  });
+
+  // Upload chat attachments (multipart); stored on server and in Mongo; returns IDs for sending with messages
+  app.post(
+    "/api/chat/attachments",
+    upload.array("files", 10),
+    async (req: Request, res: Response) => {
+      const userId = "default";
+      const files = (req as Request & { files?: Express.Multer.File[] }).files;
+      if (!Array.isArray(files) || files.length === 0) {
+        res.status(400).json({ error: "No files uploaded." });
+        return;
+      }
+      try {
+        const result = await Promise.all(
+          files.map((f) =>
+            attachmentStore.save(userId, {
+              buffer: f.buffer,
+              originalname: f.originalname,
+              mimetype: f.mimetype || "application/octet-stream",
+            }),
+          ),
+        );
+        res.json({ attachments: result });
+      } catch (err) {
+        debug("attachment upload error: %o", err);
+        res.status(500).json({ error: "Failed to store attachments." });
+      }
+    },
+  );
+
+  // Get attachment file by ID (for displaying in chat UI)
+  app.get("/api/chat/attachments/:id", async (req: Request, res: Response) => {
+    const id = getParam(req, "id");
+    const userId = "default";
+    const doc = await attachmentStore.getById(id, userId);
+    if (!doc) {
+      res.status(404).json({ error: "Attachment not found." });
+      return;
+    }
+    const buffer = await attachmentStore.getBuffer(id, userId);
+    if (!buffer) {
+      res.status(404).json({ error: "Attachment file not found." });
+      return;
+    }
+    res.setHeader("Content-Type", doc.mimeType);
+    res.setHeader(
+      "Content-Disposition",
+      `inline; filename="${encodeURIComponent(doc.originalName)}"`,
+    );
+    res.send(buffer);
   });
 
   // Chat: dispatch message.sent to Event Router → chat handler runs agents-runner and resolves pending (PRD: event-driven path)
@@ -136,6 +226,38 @@ export function registerRoutes(app: Express, ctx: AppContext): void {
       res.status(400).json({ error: "Missing or invalid 'text'." });
       return;
     }
+    const rawIds = req.body?.attachment_ids;
+    const attachment_ids = Array.isArray(rawIds)
+      ? ((rawIds as unknown[]).filter(
+          (id) => typeof id === "string",
+        ) as string[])
+      : undefined;
+
+    let attachments:
+      | Array<{ name: string; contentType: string; data: string }>
+      | undefined;
+    if (attachment_ids?.length) {
+      const userId = "default";
+      const resolved = await Promise.all(
+        attachment_ids.map(async (id) => {
+          const doc = await attachmentStore.getById(id, userId);
+          const buffer = doc
+            ? await attachmentStore.getBuffer(id, userId)
+            : null;
+          if (!doc || !buffer) return null;
+          return {
+            name: doc.originalName,
+            contentType: doc.mimeType,
+            data: buffer.toString("base64"),
+          };
+        }),
+      );
+      attachments = resolved.filter(
+        (a): a is { name: string; contentType: string; data: string } =>
+          a !== null,
+      );
+    }
+
     const eventId = randomUUID();
     const userId = "default";
 
@@ -150,7 +272,12 @@ export function registerRoutes(app: Express, ctx: AppContext): void {
       {
         source: "api",
         type: "message.sent",
-        payload: { text, userId },
+        payload: {
+          text,
+          userId,
+          ...(attachments?.length ? { attachments } : {}),
+          ...(attachment_ids?.length ? { attachment_ids } : {}),
+        },
       },
       { correlationId: eventId },
     );
