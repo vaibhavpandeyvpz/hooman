@@ -207,6 +207,10 @@ export interface MCPConnectionStdio {
   name: string;
   command: string;
   args: string[];
+  /** Optional env vars for the process (Agents SDK MCPServerStdio env). */
+  env?: Record<string, string>;
+  /** Optional working directory (Agents SDK MCPServerStdio cwd). */
+  cwd?: string;
   created_at?: string;
 }
 

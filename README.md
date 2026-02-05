@@ -67,10 +67,10 @@ The stack is TypeScript (Node.js API + React + Vite + Tailwind), with MongoDB fo
 
 The app runs with Qdrant and MongoDB via Docker Compose. Use profiles to choose dev or prod.
 
-| Mode        | Command                            | Result                                                                                                         |
-| ----------- | ---------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| Development | `docker compose --profile dev up`  | Qdrant, MongoDB, API (tsx watch), Web (Vite). Ports: 3000 (API), 5173 (UI). Mounted source for live reload.   |
-| Production  | `docker compose --profile prod up` | Qdrant, MongoDB, API (built), Web (built React via nginx). Ports: 3000 (API), 5173 (nginx).                   |
+| Mode        | Command                            | Result                                                                                                      |
+| ----------- | ---------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| Development | `docker compose --profile dev up`  | Qdrant, MongoDB, API (tsx watch), Web (Vite). Ports: 3000 (API), 5173 (UI). Mounted source for live reload. |
+| Production  | `docker compose --profile prod up` | Qdrant, MongoDB, API (built), Web (built React via nginx). Ports: 3000 (API), 5173 (nginx).                 |
 
 Without a profile, `docker compose up` starts only Qdrant and MongoDB (shared infrastructure).
 

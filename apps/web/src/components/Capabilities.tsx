@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Plus } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import { useDialog } from "./Dialog";
 import { Button } from "./Button";
 import { Input } from "./Input";
@@ -47,6 +47,9 @@ export function Capabilities() {
   const [editing, setEditing] = useState<string | null>(null);
   const [form, setForm] = useState<Partial<MCPConnection>>({});
   const [argsRaw, setArgsRaw] = useState("");
+  const [envEntries, setEnvEntries] = useState<
+    { key: string; value: string }[]
+  >([]);
   const [error, setError] = useState<string | null>(null);
 
   function load() {
@@ -65,6 +68,7 @@ export function Capabilities() {
   function startAdd() {
     setEditing("new");
     setArgsRaw("");
+    setEnvEntries([]);
     setForm({
       type: "hosted",
       server_label: "",
@@ -78,6 +82,13 @@ export function Capabilities() {
     setForm({ ...c });
     if (c.type === "stdio") {
       setArgsRaw(Array.isArray(c.args) ? c.args.join(", ") : "");
+      setEnvEntries(
+        c.env && typeof c.env === "object"
+          ? Object.entries(c.env).map(([key, value]) => ({ key, value }))
+          : [],
+      );
+    } else {
+      setEnvEntries([]);
     }
   }
 
@@ -121,6 +132,15 @@ export function Capabilities() {
         if (editing === "new") await createMCPConnection(conn);
         else await updateMCPConnection(conn.id, conn);
       } else if (form.type === "stdio") {
+        const env =
+          envEntries.length > 0
+            ? envEntries
+                .filter((e) => e.key.trim() !== "")
+                .reduce(
+                  (acc, e) => ({ ...acc, [e.key.trim()]: e.value }),
+                  {} as Record<string, string>,
+                )
+            : undefined;
         const conn: MCPConnectionStdio = {
           ...base,
           type: "stdio",
@@ -130,6 +150,8 @@ export function Capabilities() {
             .split(",")
             .map((s) => s.trim())
             .filter(Boolean),
+          ...(Object.keys(env ?? {}).length > 0 ? { env } : {}),
+          ...(form.cwd?.trim() ? { cwd: form.cwd.trim() } : {}),
         };
         if (editing === "new") await createMCPConnection(conn);
         else await updateMCPConnection(conn.id, conn);
@@ -200,7 +222,10 @@ export function Capabilities() {
             value={form.type ?? "hosted"}
             options={CONNECTION_TYPE_OPTIONS}
             onChange={(type) => {
-              if (type === "stdio") setArgsRaw("");
+              if (type === "stdio") {
+                setArgsRaw("");
+                setEnvEntries([]);
+              }
               setForm((f) => ({
                 ...f,
                 type,
@@ -212,7 +237,13 @@ export function Capabilities() {
                     }
                   : type === "streamable_http"
                     ? { name: "", url: "", cache_tools_list: true }
-                    : { name: "", command: "", args: [] }),
+                    : {
+                        name: "",
+                        command: "",
+                        args: [],
+                        env: undefined,
+                        cwd: undefined,
+                      }),
               }));
             }}
           />
@@ -342,6 +373,76 @@ export function Capabilities() {
                 value={argsRaw}
                 onChange={(e) => setArgsRaw(e.target.value)}
               />
+              <Input
+                label="Working directory (optional)"
+                placeholder="/path/to/cwd"
+                value={form.cwd ?? ""}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, cwd: e.target.value }))
+                }
+              />
+              <div>
+                <div className="block text-xs text-hooman-muted uppercase tracking-wide mb-1">
+                  Environment variables (optional)
+                </div>
+                <div className="space-y-2">
+                  {envEntries.map((entry, i) => (
+                    <div key={i} className="flex gap-2 items-center flex-wrap">
+                      <Input
+                        placeholder="Key"
+                        value={entry.key}
+                        onChange={(e) =>
+                          setEnvEntries((prev) =>
+                            prev.map((p, j) =>
+                              j === i ? { ...p, key: e.target.value } : p,
+                            ),
+                          )
+                        }
+                        className="flex-1 min-w-[100px]"
+                      />
+                      <Input
+                        placeholder="Value"
+                        value={entry.value}
+                        onChange={(e) =>
+                          setEnvEntries((prev) =>
+                            prev.map((p, j) =>
+                              j === i ? { ...p, value: e.target.value } : p,
+                            ),
+                          )
+                        }
+                        className="flex-1 min-w-[100px]"
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        iconOnly
+                        icon={<Trash2 />}
+                        aria-label="Remove variable"
+                        onClick={() =>
+                          setEnvEntries((prev) =>
+                            prev.filter((_, j) => j !== i),
+                          )
+                        }
+                        className="text-red-400 hover:text-red-300"
+                      >
+                        Remove
+                      </Button>
+                    </div>
+                  ))}
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    icon={<Plus />}
+                    onClick={() =>
+                      setEnvEntries((prev) => [...prev, { key: "", value: "" }])
+                    }
+                  >
+                    Add variable
+                  </Button>
+                </div>
+              </div>
             </>
           )}
 

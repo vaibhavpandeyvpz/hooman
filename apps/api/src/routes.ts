@@ -321,6 +321,14 @@ export function registerRoutes(app: Express, ctx: AppContext): void {
           name: body.name ?? "",
           command: body.command ?? "",
           args: Array.isArray(body.args) ? body.args : [],
+          env:
+            body.env && typeof body.env === "object"
+              ? (body.env as Record<string, string>)
+              : undefined,
+          cwd:
+            typeof body.cwd === "string" && body.cwd.trim()
+              ? body.cwd.trim()
+              : undefined,
           created_at,
         };
         conn = c;

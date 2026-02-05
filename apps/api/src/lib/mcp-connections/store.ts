@@ -52,6 +52,8 @@ function toConnection(doc: MCPConnectionDoc): MCPConnection {
     name: d.name,
     command: d.command,
     args: Array.isArray(d.args) ? d.args : [],
+    env: d.env && typeof d.env === "object" ? d.env : undefined,
+    cwd: typeof d.cwd === "string" ? d.cwd : undefined,
     created_at: d.created_at,
   };
 }

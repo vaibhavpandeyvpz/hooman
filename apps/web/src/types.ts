@@ -61,6 +61,8 @@ export interface MCPConnectionStdio {
   name: string;
   command: string;
   args: string[];
+  env?: Record<string, string>;
+  cwd?: string;
   created_at?: string;
 }
 

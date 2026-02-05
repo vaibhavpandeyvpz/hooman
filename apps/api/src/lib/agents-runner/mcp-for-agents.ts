@@ -45,6 +45,8 @@ function buildStdioServer(c: MCPConnectionStdio): MCPServerStdio {
             : "echo",
         }),
     cacheToolsList: true,
+    ...(c.env && Object.keys(c.env).length > 0 ? { env: c.env } : {}),
+    ...(c.cwd?.trim() ? { cwd: c.cwd.trim() } : {}),
   });
 }
 
