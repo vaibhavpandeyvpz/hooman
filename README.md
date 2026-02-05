@@ -1,123 +1,108 @@
 # Hooman
 
-**Hooman** is an event-driven autonomous system that reasons over memory, delegates to config-defined Colleagues, and operates through a conversational UI. It is built to be explainable and controllable: you chat with Hooman, manage Colleagues and schedules, and inspect decisions and actions in an audit log.
+**Your virtual workforce, one concierge.** 🧑‍💼
+
+Build a team of AI colleagues—each with their own capabilities and skills—and talk only to **Hooman**. Hooman is the concierge: they remember context, decide when to handle something themselves or hand off to the right colleague, and keep you in control with approvals and a full audit trail.
+
+> ⚠️ **Experimental / work in progress.** This project is not production-ready. Use with caution and only in a properly sandboxed environment.
 
 ---
 
-## What it is
+## Why Hooman? ✨
 
-- **Primary agent (Hooman)** — A single reasoning layer that receives events (chat messages, scheduled tasks), consults memory (mem0 + Qdrant), and decides whether to respond directly, delegate to a Colleague, ask for approval, or ignore.
-- **Colleagues** — Role-defined sub-agents configured entirely via the UI or API (id, description, responsibilities). Hooman can hand off conversations to them when appropriate; handoffs are executed via the OpenAI Agents SDK.
-- **React UI** — The main way to interact: chat with Hooman, manage Colleagues, create and cancel scheduled tasks, view the audit log, toggle a global kill switch, and configure API key and models in Settings.
+You don’t manage a dozen bots. You have **one conversation** with Hooman. Want a report drafted? A meeting summarized? Research done? You say it. Hooman either does it or delegates to a colleague who can (fetch, filesystem, custom MCP servers, installed skills). You get one place to chat, schedule tasks, and see what happened—without talking to individual agents.
 
-The stack is TypeScript (Node.js API + React + Vite + Tailwind), with MongoDB for chat history and Colleagues, Qdrant for vector memory (mem0), and an internal scheduler whose tasks are persisted in MongoDB.
-
----
-
-## Purpose
-
-- **Delegate work** — You tell Hooman what you want; it can answer itself or hand off to a Colleague.
-- **Stay in control** — Global kill switch pauses all processing; capability approvals and a full audit log keep actions visible.
-- **Run continuously** — Scheduler fires tasks at set times; each task is processed like a chat message (reasoning, memory, optional handoff).
+- **🚪 One front door** — Chat, schedule, and inspect everything through Hooman.
+- **🦸 Colleagues with superpowers** — Give each colleague a role (e.g. researcher, writer) and attach MCP connections and skills. Hooman hands off when it makes sense.
+- **🎛️ Under your control** — Kill switch, capability approvals, and an audit log so you see who did what and when.
 
 ---
 
-## Implemented features
+## How it works ⚙️
 
-- **Chat** — Send messages to Hooman. Chat history is stored (MongoDB when available; otherwise in-memory). Memory search (mem0) and Colleague handoffs run when configured.
-- **Colleagues** — Add, edit, and remove Colleagues (MongoDB). Each has id, description, responsibilities; Hooman can delegate to one by id.
-- **Scheduling** — Create one-off scheduled tasks (execute-at time, intent, optional context). Stored in MongoDB; when the scheduler fires, the task is processed like a user message (memory + LLM + optional handoff). Cancel with confirmation.
-- **Audit log** — In-memory log of decisions, responses, capability requests, scheduled tasks, and agent runs. Each entry type shows relevant detail (e.g. input prompt, response, “Responded by”, handoffs for agent runs; triggered-by and reasoning for decisions).
-- **Safety** — Global kill switch (Hooman paused / resumed). List and approve/revoke capabilities (integration + capability); grant/revoke is API-backed, list visible in Safety UI.
-- **Settings** — Configure OpenAI API key, LLM model, embedding model, and web search (persisted via API). Qdrant URL and port are env-only.
-- **Memory** — mem0 with Qdrant for vector store. When API key or Qdrant is missing, the API still starts with a no-op memory so the UI (e.g. Settings) works. Mem0 history DB (SQLite) is stored under the API `data/` directory.
-- **MCP client layer** — Capability grant/revoke and a stub for tool calls (no real MCP server connections yet).
-- **Event router** — Normalizes, deduplicates, and prioritizes events (e.g. UI messages, scheduler) and dispatches to the Hooman runtime.
+| Concept             | What it is                                                                                                                                           |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **🤖 Hooman**       | The main agent. Reasons over memory, handles your messages and scheduled tasks, and delegates to colleagues when needed.                             |
+| **👥 Colleagues**   | Role-based sub-agents you define (id, description, responsibilities). Each can have specific MCP connections and skills. Hooman routes work to them. |
+| **🔌 Capabilities** | MCP servers (fetch, time, filesystem, or your own) and skills. You assign which colleagues get which capabilities.                                   |
+| **🧠 Memory**       | mem0 + Qdrant so Hooman (and colleagues) can use past context.                                                                                       |
 
----
-
-## How to run
-
-### Prerequisites
-
-- **Node.js** ≥ 20
-- **Yarn** (package manager)
-- **Docker** and **Docker Compose** (for running with Qdrant, MongoDB)
-
-### Local (no Docker)
-
-1. Clone the repo and install dependencies:
-
-   ```bash
-   yarn install
-   ```
-
-2. Create a `.env` in the project root (see [Environment](#environment)). At minimum, set `MONGO_URI` and `QDRANT_URL` if you want persistence and memory. Configure OpenAI API key and models in the **Settings** UI after starting.
-
-3. Start the API and the web app (two terminals, or use `yarn dev:all`):
-
-   ```bash
-   yarn dev        # API on http://localhost:3000
-   yarn dev:web    # UI on http://localhost:5173
-   ```
-
-4. Open **http://localhost:5173** and use Chat, Colleagues, Schedule, Audit, Safety, and Settings as needed.
-
-### Docker (recommended)
-
-The app runs with Qdrant and MongoDB via Docker Compose. Use profiles to choose dev or prod.
-
-| Mode        | Command                            | Result                                                                                                      |
-| ----------- | ---------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| Development | `docker compose --profile dev up`  | Qdrant, MongoDB, API (tsx watch), Web (Vite). Ports: 3000 (API), 5173 (UI). Mounted source for live reload. |
-| Production  | `docker compose --profile prod up` | Qdrant, MongoDB, API (built), Web (built React via nginx). Ports: 3000 (API), 5173 (nginx).                 |
-
-Without a profile, `docker compose up` starts only Qdrant and MongoDB (shared infrastructure).
-
-Create a `.env` with at least `MONGO_URI` (e.g. `mongodb://mongodb:27017` when using the compose MongoDB service). Other variables are documented below.
+You chat with Hooman; Hooman uses memory, may call a colleague, and responds. Scheduled tasks run the same way—at a set time, Hooman processes the task like a message (reasoning, handoff, audit).
 
 ---
 
-## Environment
+## Quick start 🚀
 
-| Variable     | Required | Description                                                                                                                     |
-| ------------ | -------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| `MONGO_URI`  | Yes      | MongoDB connection string (e.g. `mongodb://localhost:27017` or `mongodb://mongodb:27017` in Docker).                            |
-| `QDRANT_URL` | No\*     | Qdrant URL (e.g. `http://localhost:6333`). If omitted (and no API key in Settings), memory is a no-op and the API still starts. |
-| `PORT`       | No       | API port (default 3000).                                                                                                        |
+**Prerequisites:** Node.js ≥ 20, Yarn, Docker & Docker Compose (for MongoDB and Qdrant).
 
-OpenAI API key, LLM model, and embedding model are **configurable only via the Settings UI** (persisted by the API). They are not read from environment variables.
+For general usage, run the **production** stack (after cloning the repo):
 
-\*Required for full functionality (memory + LLM), but the app can start without it for configuration and UI.
+```bash
+docker compose --profile prod up
+```
 
-Copy `.env.example` to `.env` and adjust. The example includes commented placeholders for `MONGO_URI`, `QDRANT_URL`, and `PORT`.
+✅ No `.env` needed—MongoDB and Qdrant URLs are set in Compose. Open **http://localhost:5173** (or **http://localhost:3000** for the API). Set your OpenAI API key and models in **Settings**, then chat with Hooman and add Colleagues in the UI.
 
----
-
-## How to use
-
-- **Chat** — Type a message and send. Replies may come from Hooman or a Colleague (shown as “Responded by …”). Use “Clear chat” to wipe history (and, when using the default context, clear stored memory for that user).
-- **Colleagues** — Add a Colleague (id, description, responsibilities). Edit or delete existing ones. Hooman uses these when deciding to delegate.
-- **Schedule** — Create a task with date/time, intent, and optional context. It runs once at that time and is processed like a chat message. You can cancel a task (with confirmation).
-- **Audit** — Browse the in-memory audit log: agent runs (input, response, who responded, handoffs), responses, decisions (with “Triggered by” when present), capability requests, scheduled tasks, etc. Log resets on API restart.
-- **Safety** — See API status, turn the global kill switch on (Hooman paused) or off, and view currently approved capabilities (grant/revoke is via API).
-- **Settings** — Set OpenAI API key, LLM model, embedding model, and web search. These are persisted by the API.
+To run only Qdrant and MongoDB (e.g. before running the API and web app locally), use `docker compose up` with no profile.
 
 ---
 
-## Scripts
+## Development 🛠️
 
-| Command            | Description                                      |
-| ------------------ | ------------------------------------------------ |
-| `yarn dev`         | Start API (port 3000).                           |
-| `yarn dev:web`     | Start UI (port 5173).                            |
-| `yarn dev:all`     | Start API and UI concurrently.                   |
-| `yarn build`       | Build API and web app.                           |
-| `yarn docker:up`   | `docker compose up -d` (no profile: infra only). |
-| `yarn docker:down` | `docker compose down`.                           |
+For active development with live reload:
+
+**🐳 Docker (API + web in containers, source mounted):**
+
+```bash
+docker compose --profile dev up
+```
+
+API on port 3000, Vite dev server on 5173. Source is mounted so changes reload.
+
+**💻 Local (API and web on your machine):**
+
+Create a `.env` from `.env.example` and set at least `MONGO_URI` (and `QDRANT_URL` if you use memory). Optionally set `VITE_PROXY_TARGET` and `MCP_STDIO_DEFAULT_CWD` for local API. Then:
+
+```bash
+yarn install
+yarn dev:all   # API :3000, UI :5173
+```
+
+Use `VITE_PROXY_TARGET=http://api-dev:3000` in `.env` if the web app runs locally but the API runs in Docker (e.g. only `api-dev` from compose).
 
 ---
 
-## License
+## Environment 📋
 
-This project is licensed under the **GNU General Public License v3.0**. See [LICENSE](LICENSE) for the full text.
+When running the API and web **locally** (not via Docker), create a `.env` from `.env.example`. Key variables:
+
+| Variable                | Required | Description                                                                                                          |
+| ----------------------- | -------- | -------------------------------------------------------------------------------------------------------------------- |
+| `MONGO_URI`             | Yes      | MongoDB connection (e.g. `mongodb://localhost:27017` or `mongodb://mongodb:27017` in Docker).                        |
+| `QDRANT_URL`            | No\*     | Qdrant URL for vector memory (e.g. `http://localhost:6333`).                                                         |
+| `PORT`                  | No       | API port (default 3000).                                                                                             |
+| `VITE_PROXY_TARGET`     | No       | API URL for the web dev server proxy (default `http://localhost:3000`; in Docker dev use `http://api-dev:3000`).     |
+| `MCP_STDIO_DEFAULT_CWD` | No       | Working directory for stdio MCP / filesystem server (in Docker: `/app/mcp-cwd`; for local API use e.g. `./mcp-cwd`). |
+
+\*Needed for memory; app starts without it for config and UI.
+
+OpenAI API key, models, and web search are set in the **Settings** UI (persisted by the API), not via env.
+
+---
+
+## Scripts 📜
+
+| Command            | Description                          |
+| ------------------ | ------------------------------------ |
+| `yarn dev`         | Start API (port 3000).               |
+| `yarn dev:web`     | Start UI (port 5173).                |
+| `yarn dev:all`     | Start API and UI together.           |
+| `yarn build`       | Build API and web app.               |
+| `yarn docker:up`   | Start infra only (Qdrant + MongoDB). |
+| `yarn docker:down` | Stop Docker Compose services.        |
+
+---
+
+## License 📄
+
+[GNU General Public License v3.0](LICENSE).
