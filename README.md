@@ -1,8 +1,14 @@
+<div align="center">
+
+<img src="apps/web/public/favicon.svg" alt="Hooman" width="80" />
+
 # Hooman
 
 **Your virtual workforce, one concierge.** 🧑‍💼
 
 Build a team of AI colleagues—each with their own capabilities and skills—and talk only to **Hooman**. Hooman is the concierge: they remember context, decide when to handle something themselves or hand off to the right colleague, and keep you in control with approvals and a full audit trail.
+
+</div>
 
 > ⚠️ **Experimental / work in progress.** This project is not production-ready. Use with caution and only in a properly sandboxed environment.
 
