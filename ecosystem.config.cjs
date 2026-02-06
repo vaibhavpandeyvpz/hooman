@@ -1,18 +1,46 @@
-/** PM2 ecosystem: start API and web (built static). Run `yarn build` first. CWD is project root. */
+/** PM2 ecosystem: backend (API), frontend, and workers (slack, whatsapp, cron, event-queue). Email runs as a cron job. Run `yarn build` first. CWD is project root. */
 module.exports = {
   apps: [
     {
       name: "api",
       cwd: ".",
       script: "node",
-      args: "apps/api/dist/index.js",
+      args: "apps/backend/dist/index.js",
       env: { NODE_ENV: "production" },
     },
     {
       name: "web",
       cwd: ".",
       script: "npx",
-      args: "serve apps/web/dist -l 5173",
+      args: "serve apps/frontend/dist -l 5173",
+      env: { NODE_ENV: "production" },
+    },
+    {
+      name: "slack",
+      cwd: ".",
+      script: "npx",
+      args: "tsx apps/backend/src/workers/slack.ts",
+      env: { NODE_ENV: "production" },
+    },
+    {
+      name: "whatsapp",
+      cwd: ".",
+      script: "npx",
+      args: "tsx apps/backend/src/workers/whatsapp.ts",
+      env: { NODE_ENV: "production" },
+    },
+    {
+      name: "cron",
+      cwd: ".",
+      script: "npx",
+      args: "tsx apps/backend/src/workers/cron.ts",
+      env: { NODE_ENV: "production" },
+    },
+    {
+      name: "event-queue",
+      cwd: ".",
+      script: "npx",
+      args: "tsx apps/backend/src/workers/event-queue.ts",
       env: { NODE_ENV: "production" },
     },
   ],

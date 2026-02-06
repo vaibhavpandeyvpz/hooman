@@ -1,0 +1,314 @@
+// Events
+export type EventSource =
+  | "ui"
+  | "api"
+  | "mcp"
+  | "scheduler"
+  | "internal"
+  | "slack"
+  | "email"
+  | "whatsapp";
+
+export interface BaseEvent {
+  id: string;
+  source: EventSource;
+  type: string;
+  payload: Record<string, unknown>;
+  timestamp: string;
+  priority?: number;
+}
+
+export interface UIChatEvent extends BaseEvent {
+  source: "ui";
+  type: "message.sent";
+  payload: { text: string; userId?: string };
+}
+
+export interface ScheduledEvent extends BaseEvent {
+  source: "scheduler";
+  type: "task.scheduled";
+  payload: {
+    execute_at: string;
+    intent: string;
+    context: Record<string, unknown>;
+  };
+}
+
+export type IncomingEvent = BaseEvent | UIChatEvent | ScheduledEvent;
+
+// Channel configuration (load/save in config; used by adapters and Channels API)
+export type FilterMode = "all" | "allowlist" | "blocklist";
+
+export interface SlackChannelConfig {
+  enabled: boolean;
+  /** App-level token (xapp-...) for Socket Mode connection. */
+  appToken: string;
+  /** Bot (xoxb) or User (xoxp) token for API and event subscription. */
+  userToken: string;
+  designatedUserId?: string;
+  filterMode?: FilterMode;
+  filterList?: string[];
+}
+
+export interface EmailChannelConfig {
+  enabled: boolean;
+  imap: {
+    host: string;
+    port: number;
+    user: string;
+    password: string;
+    tls?: boolean;
+  };
+  pollIntervalMs: number;
+  folders?: string[];
+  identityAddresses?: string[];
+  filterMode?: FilterMode;
+  filterList?: string[];
+}
+
+export interface WhatsAppChannelConfig {
+  enabled: boolean;
+  sessionPath?: string;
+  filterMode?: FilterMode;
+  filterList?: string[];
+}
+
+export interface ChannelsConfig {
+  slack?: SlackChannelConfig;
+  email?: EmailChannelConfig;
+  whatsapp?: WhatsAppChannelConfig;
+}
+
+// Normalized events: common payload shape regardless of source (PRD §8)
+export type NormalizedPayloadKind =
+  | "message"
+  | "scheduled_task"
+  | "integration_event"
+  | "internal";
+
+export interface ChatAttachment {
+  name: string;
+  contentType: string;
+  data: string; // base64
+}
+
+/** Original message info when the inbound message is a reply (thread/quote). */
+export interface OriginalMessageInfo {
+  senderId?: string;
+  senderName?: string;
+  from?: string;
+  fromName?: string;
+  content?: string;
+  messageId?: string;
+  timestamp?: string;
+}
+
+/** Channel metadata for non-api sources: who/where/message ID, directness, optional original message. Delivered in run context to colleagues. */
+export interface ChannelMeta {
+  channel: "slack" | "email" | "whatsapp";
+  /** e.g. channelId (Slack), to/from (email), chatId (WhatsApp). */
+  [key: string]: unknown;
+  directness: "direct" | "neutral";
+  directnessReason?: string;
+  originalMessage?: OriginalMessageInfo;
+}
+
+export interface NormalizedMessagePayload {
+  kind: "message";
+  text: string;
+  userId: string;
+  attachments?: ChatAttachment[];
+  /** IDs of uploaded files (for persisting with chat history). */
+  attachment_ids?: string[];
+  /** Present for slack/email/whatsapp; who, where, message ID, directness. Passed in run context to colleagues. */
+  channelMeta?: ChannelMeta;
+}
+
+export interface NormalizedScheduledTaskPayload {
+  kind: "scheduled_task";
+  execute_at: string;
+  intent: string;
+  context: Record<string, unknown>;
+}
+
+export interface NormalizedIntegrationEventPayload {
+  kind: "integration_event";
+  integrationId: string;
+  originalType: string;
+  payload: Record<string, unknown>;
+}
+
+export interface NormalizedInternalPayload {
+  kind: "internal";
+  data: Record<string, unknown>;
+}
+
+export type NormalizedPayload =
+  | NormalizedMessagePayload
+  | NormalizedScheduledTaskPayload
+  | NormalizedIntegrationEventPayload
+  | NormalizedInternalPayload;
+
+export interface NormalizedEvent {
+  id: string;
+  source: EventSource;
+  type: string;
+  payload: NormalizedPayload;
+  timestamp: string;
+  priority: number;
+}
+
+/** Raw input for dispatch; normalizer converts to NormalizedEvent. */
+export interface RawDispatchInput {
+  source: EventSource;
+  type: string;
+  payload: Record<string, unknown>;
+  priority?: number;
+}
+
+/** Used by channel adapters: in-process (eventRouter) or remote (dispatch client). */
+export type EventDispatcher = {
+  dispatch(
+    raw: RawDispatchInput,
+    options?: { correlationId?: string },
+  ): Promise<string>;
+};
+
+// Decisions
+export type DecisionType =
+  | "ignore"
+  | "respond_directly"
+  | "delegate_single"
+  | "delegate_multiple"
+  | "schedule_future"
+  | "ask_user"
+  | "escalate_risk";
+
+export interface Decision {
+  type: DecisionType;
+  eventId: string;
+  reasoning?: string;
+  payload?: {
+    colleagueIds?: string[];
+    response?: string;
+    scheduledAt?: string;
+    intent?: string;
+    context?: Record<string, unknown>;
+    capabilityRequest?: {
+      integration: string;
+      capability: string;
+      reason: string;
+    };
+  };
+}
+
+// Memory
+export type MemoryType =
+  | "short_term"
+  | "episodic"
+  | "long_term"
+  | "colleague_scoped"
+  | "summary";
+
+export interface MemoryEntry {
+  id: string;
+  type: MemoryType;
+  content: string;
+  metadata?: Record<string, unknown>;
+  colleagueId?: string;
+  createdAt: string;
+}
+
+// Colleagues
+export interface ColleagueConfig {
+  id: string;
+  description: string;
+  responsibilities: string;
+  /** MCP connection IDs attached to this colleague. */
+  allowed_connections: string[];
+  /** Installed skill IDs attached to this colleague. */
+  allowed_skills?: string[];
+  memory: { scope: "role" | "global" };
+  reporting: {
+    on: ("task_complete" | "uncertainty" | "error")[];
+  };
+}
+
+// Integrations & capabilities
+export interface IntegrationCapability {
+  integrationId: string;
+  capability: string;
+  granted: boolean;
+  grantedAt?: string;
+}
+
+// Audit & safety
+export interface AuditLogEntry {
+  id: string;
+  timestamp: string;
+  type:
+    | "decision"
+    | "action"
+    | "permission"
+    | "memory_write"
+    | "escalation"
+    | "agent_run"
+    | "scheduled_task";
+  payload: Record<string, unknown>;
+}
+
+export interface KillSwitchState {
+  enabled: boolean;
+  reason?: string;
+  at?: string;
+}
+
+// MCP connection configs (aligned with OpenAI Agents SDK MCP: Hosted, Streamable HTTP, Stdio)
+export type MCPRequireApproval =
+  | "always"
+  | "never"
+  | Record<string, "always" | "never">;
+
+export interface MCPConnectionHosted {
+  id: string;
+  type: "hosted";
+  /** Server label exposed to the model (e.g. "gitmcp"). */
+  server_label: string;
+  /** Public MCP server URL (required). */
+  server_url: string;
+  /** "always" | "never" or per-tool map. */
+  require_approval: MCPRequireApproval;
+  /** When true, use streaming for hosted MCP results. */
+  streaming?: boolean;
+  created_at?: string;
+}
+
+export interface MCPConnectionStreamableHttp {
+  id: string;
+  type: "streamable_http";
+  name: string;
+  url: string;
+  headers?: Record<string, string>;
+  timeout_seconds?: number;
+  cache_tools_list?: boolean;
+  max_retry_attempts?: number;
+  created_at?: string;
+}
+
+export interface MCPConnectionStdio {
+  id: string;
+  type: "stdio";
+  name: string;
+  command: string;
+  args: string[];
+  /** Optional env vars for the process (Agents SDK MCPServerStdio env). */
+  env?: Record<string, string>;
+  /** Optional working directory (Agents SDK MCPServerStdio cwd). */
+  cwd?: string;
+  created_at?: string;
+}
+
+export type MCPConnection =
+  | MCPConnectionHosted
+  | MCPConnectionStreamableHttp
+  | MCPConnectionStdio;
