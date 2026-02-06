@@ -25,6 +25,11 @@ import { initScheduleStore } from "../lib/data/schedule-store.js";
 import { initMCPConnectionsStore } from "../lib/data/mcp-connections-store.js";
 import { initDb } from "../lib/data/db.js";
 import { initChatHistory } from "../lib/data/chat-history.js";
+import {
+  createAuditStore,
+  AUDIT_ENTRY_ADDED_CHANNEL,
+} from "../lib/data/audit-store.js";
+import { publish } from "../lib/data/pubsub.js";
 import { initRedis, closeRedis } from "../lib/data/redis.js";
 import { initKillSwitch, closeKillSwitch } from "../lib/agents/kill-switch.js";
 import { env } from "../env.js";
@@ -34,9 +39,7 @@ const debug = createDebug("hooman:workers:event-queue");
 
 async function main() {
   if (!env.REDIS_URL) {
-    console.error(
-      "REDIS_URL is required for the event-queue worker. Set it in .env.",
-    );
+    debug("REDIS_URL is required for the event-queue worker. Set it in .env.");
     process.exit(1);
   }
 
@@ -65,10 +68,20 @@ async function main() {
   await colleagueEngine.load();
   const mcpConnectionsStore = await initMCPConnectionsStore();
   await initScheduleStore();
-  const auditLog = new AuditLog();
+  const auditStore = createAuditStore({
+    onAppend: () => publish(AUDIT_ENTRY_ADDED_CHANNEL, "1"),
+  });
+  const auditLog = new AuditLog(auditStore);
 
   const eventRouter = new EventRouter();
-  const chatResultUrl = `${env.API_BASE_URL.replace(/\/$/, "")}/api/internal/chat-result`;
+  const apiBase = env.API_BASE_URL.replace(/\/$/, "");
+  const chatResultUrl = `${apiBase}/api/internal/chat-result`;
+  const internalHeaders: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(env.INTERNAL_SECRET
+      ? { "X-Internal-Secret": env.INTERNAL_SECRET }
+      : {}),
+  };
   registerEventHandlers({
     eventRouter,
     context,
@@ -79,12 +92,7 @@ async function main() {
     deliverApiResult: async (eventId, message) => {
       const res = await fetch(chatResultUrl, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(env.INTERNAL_SECRET
-            ? { "X-Internal-Secret": env.INTERNAL_SECRET }
-            : {}),
-        },
+        headers: internalHeaders,
         body: JSON.stringify({ eventId, message }),
       });
       if (!res.ok) {
@@ -95,7 +103,15 @@ async function main() {
   });
 
   const eventQueue = createEventQueue({ connection: env.REDIS_URL });
-  eventQueue.startWorker((event) => eventRouter.runHandlersForEvent(event));
+  eventQueue.startWorker(async (event) => {
+    debug(
+      "Event received: type=%s source=%s id=%s",
+      event.type,
+      event.source,
+      event.id,
+    );
+    await eventRouter.runHandlersForEvent(event);
+  });
   debug(
     "Event-queue worker started (agents run here); chat results to %s",
     chatResultUrl,
@@ -113,6 +129,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error("Event-queue worker failed:", err);
+  debug("Event-queue worker failed: %o", err);
   process.exit(1);
 });

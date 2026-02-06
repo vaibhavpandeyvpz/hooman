@@ -1,37 +1,62 @@
 /**
- * Redis-backed reload flag so the API can signal cron and channel workers to reload
- * (schedules from DB, or channel config). Uses shared client from data/redis; call initRedis(redisUrl) first.
+ * Redis-backed reload flags per scope so the API can signal only the affected workers.
+ * Scopes: schedule (cron tasks), slack, whatsapp, email (cron email poll).
+ * Uses shared client from data/redis; call initRedis(redisUrl) first.
  */
 import { initRedis, getRedis } from "../data/redis.js";
 
-const REDIS_KEY = "hooman:workers:reload";
+export type ReloadScope = "schedule" | "slack" | "whatsapp" | "email";
+
+const REDIS_KEY_PREFIX = "hooman:workers:reload:";
 const POLL_MS = 2000;
+
+function key(scope: ReloadScope): string {
+  return REDIS_KEY_PREFIX + scope;
+}
 
 let pollTimer: ReturnType<typeof setInterval> | null = null;
 
 /**
- * Set the reload flag. Call from API after schedule add/cancel or channels update.
- * Uses shared Redis client if initRedis was called; otherwise no-op.
+ * Set the reload flag for a scope. Call from API after schedule add/cancel or when a channel's config is updated.
  */
-export async function setReloadFlag(redisUrl: string): Promise<void> {
+export async function setReloadFlag(
+  redisUrl: string,
+  scope: ReloadScope,
+): Promise<void> {
   const url = redisUrl?.trim();
   if (!url) return;
   initRedis(redisUrl);
   const redis = getRedis();
   if (!redis) return;
-  await redis.set(REDIS_KEY, "1");
+  await redis.set(key(scope), "1");
 }
 
 /**
- * Start watching the reload flag and invoke onReload when it is set, then clear it.
- * Call from cron worker. Requires initRedis(redisUrl) to have been called first.
+ * Set reload flags for multiple scopes (e.g. when multiple channels are updated in one PATCH).
+ */
+export async function setReloadFlags(
+  redisUrl: string,
+  scopes: ReloadScope[],
+): Promise<void> {
+  const url = redisUrl?.trim();
+  if (!url || scopes.length === 0) return;
+  initRedis(redisUrl);
+  const r = getRedis();
+  if (!r) return;
+  await Promise.all(scopes.map((scope) => r.set(key(scope), "1")));
+}
+
+/**
+ * Start watching the given scopes and invoke onReload when any of them is set, then clear those keys.
+ * Each worker passes only the scope(s) it cares about (e.g. slack worker passes ['slack']).
  */
 export function initReloadWatch(
   redisUrl: string,
+  scopes: ReloadScope[],
   onReload: () => void | Promise<void>,
 ): void {
   const url = redisUrl.trim();
-  if (!url) return;
+  if (!url || scopes.length === 0) return;
 
   if (pollTimer) {
     clearInterval(pollTimer);
@@ -42,11 +67,14 @@ export function initReloadWatch(
   const redis = getRedis();
   if (!redis) return;
 
+  const keys = scopes.map(key);
+
   pollTimer = setInterval(async () => {
     try {
-      const v = await redis.get(REDIS_KEY);
-      if (v === "1") {
-        await redis.del(REDIS_KEY);
+      const values = await redis.mget(...keys);
+      const hit = values.some((v) => v === "1");
+      if (hit) {
+        await redis.del(...keys);
         await onReload();
       }
     } catch {

@@ -109,8 +109,13 @@ function runEmailJob(client: ReturnType<typeof createDispatchClient>): {
       !config?.enabled ||
       !config.imap?.host?.trim() ||
       !config.imap?.user?.trim()
-    )
+    ) {
+      if (config?.enabled)
+        debug(
+          "Email channel enabled but IMAP host/user missing; poll not started",
+        );
       return;
+    }
     runEmailPoll(client, config);
     const intervalMs = Math.max(60_000, config.pollIntervalMs ?? 60_000);
     const intervalMinutes = intervalMs / 60_000;
@@ -118,7 +123,10 @@ function runEmailJob(client: ReturnType<typeof createDispatchClient>): {
     job = schedule.scheduleJob(EMAIL_JOB_ID, cron, () => {
       runEmailPoll(client, getChannelsConfig().email);
     });
-    debug("Email poll job started (every %s min)", intervalMinutes);
+    debug(
+      "Email channel on; polling every %s min (next at minute 0)",
+      intervalMinutes,
+    );
   }
 
   return { start, stop };
@@ -145,19 +153,20 @@ async function main() {
   emailJob.start();
 
   async function onReload(): Promise<void> {
+    debug("Reload flag received; reloading scheduled tasks and email job");
     await scheduler.reload();
     emailJob.start();
   }
 
   if (env.REDIS_URL) {
-    initReloadWatch(env.REDIS_URL, onReload);
+    initReloadWatch(env.REDIS_URL, ["schedule", "email"], onReload);
     debug(
-      "Cron worker started; dispatching to %s; email poll + tasks; watching Redis reload flag",
+      "Cron worker started; dispatching to %s; email poll + scheduled tasks; watching Redis reload flag",
       env.API_BASE_URL,
     );
   } else {
     debug(
-      "Cron worker started; dispatching to %s; email poll + tasks (no Redis, no reload watch)",
+      "Cron worker started; dispatching to %s; email poll + scheduled tasks (no Redis, no reload watch)",
       env.API_BASE_URL,
     );
   }
@@ -175,6 +184,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error("Cron worker failed:", err);
+  debug("Cron worker failed: %o", err);
   process.exit(1);
 });

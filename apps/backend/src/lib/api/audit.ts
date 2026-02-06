@@ -1,4 +1,5 @@
 import type { AuditLogEntry } from "../core/types.js";
+import type { AuditStore } from "../data/audit-store.js";
 import { randomUUID } from "crypto";
 
 export type ResponsePayload =
@@ -26,12 +27,17 @@ export type ResponsePayload =
 export type ResponseHandler = (payload: ResponsePayload) => void;
 
 /**
- * In-memory audit log and response emission. Handlers (chat, scheduled tasks)
- * call appendAuditEntry and emitResponse after each agent run.
+ * Audit log and response emission. When a store is provided (Prisma), entries
+ * are persisted and shared across API and workers. Otherwise in-memory only.
  */
 export class AuditLog {
   private onResponse: ResponseHandler[] = [];
   private entries: AuditLogEntry[] = [];
+  private store?: AuditStore;
+
+  constructor(store?: AuditStore) {
+    this.store = store;
+  }
 
   onResponseReceived(handler: ResponseHandler): () => void {
     this.onResponse.push(handler);
@@ -42,20 +48,34 @@ export class AuditLog {
 
   /** Call after an agent run to push response to SSE / responseStore. */
   emitResponse(payload: ResponsePayload): void {
-    this.entries.push({
-      id: randomUUID(),
-      timestamp: new Date().toISOString(),
-      type: "decision",
-      payload: payload as unknown as Record<string, unknown>,
-    });
+    if (this.store) {
+      void this.appendAuditEntry({
+        type: "decision",
+        payload: payload as unknown as Record<string, unknown>,
+      });
+    } else {
+      this.entries.push({
+        id: randomUUID(),
+        timestamp: new Date().toISOString(),
+        type: "decision",
+        payload: payload as unknown as Record<string, unknown>,
+      });
+    }
     this.onResponse.forEach((h) => h(payload));
   }
 
-  getAuditLog(): AuditLogEntry[] {
+  async getAuditLog(): Promise<AuditLogEntry[]> {
+    if (this.store) return this.store.getAuditLog();
     return [...this.entries];
   }
 
-  appendAuditEntry(entry: Omit<AuditLogEntry, "id" | "timestamp">): void {
+  async appendAuditEntry(
+    entry: Omit<AuditLogEntry, "id" | "timestamp">,
+  ): Promise<void> {
+    if (this.store) {
+      await this.store.append(entry);
+      return;
+    }
     this.entries.push({
       ...entry,
       id: randomUUID(),

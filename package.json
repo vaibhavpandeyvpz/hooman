@@ -8,9 +8,13 @@
     "build": "yarn build:backend && yarn build:frontend",
     "build:backend": "prisma generate --schema=apps/backend/prisma/schema.prisma && tsc -p apps/backend",
     "build:frontend": "cd apps/frontend && vite build",
-    "dev": "tsx watch apps/backend/src/index.ts",
+    "dev:api": "tsx watch apps/backend/src/index.ts",
     "dev:frontend": "cd apps/frontend && vite",
-    "dev:all": "concurrently \"yarn dev\" \"yarn dev:frontend\"",
+    "dev:slack": "tsx watch apps/backend/src/workers/slack.ts",
+    "dev:whatsapp": "tsx watch apps/backend/src/workers/whatsapp.ts",
+    "dev:cron": "tsx watch apps/backend/src/workers/cron.ts",
+    "dev:event-queue": "tsx watch apps/backend/src/workers/event-queue.ts",
+    "dev": "cross-env DEBUG=hooman:* concurrently -n api,web,slack,whatsapp,cron,event-queue \"yarn dev:api\" \"yarn dev:frontend\" \"yarn dev:slack\" \"yarn dev:whatsapp\" \"yarn dev:cron\" \"yarn dev:event-queue\"",
     "start": "pm2 start ecosystem.config.cjs",
     "stop": "pm2 stop ecosystem.config.cjs",
     "restart": "pm2 restart ecosystem.config.cjs"
@@ -46,6 +50,7 @@
     "ollama": "^0.6.3",
     "openai": "^6.17.0",
     "prisma": "5",
+    "qrcode.react": "^4.2.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-markdown": "^10.1.0",
@@ -53,7 +58,8 @@
     "remark-gfm": "^4.0.1",
     "socket.io": "^4.8.1",
     "socket.io-client": "^4.8.1",
-    "sqlite3": "5.1.7"
+    "sqlite3": "5.1.7",
+    "whatsapp-web.js": "^1.34.6"
   },
   "devDependencies": {
     "@tailwindcss/typography": "^0.5.19",
@@ -68,6 +74,7 @@
     "@vitejs/plugin-react": "^5.1.3",
     "autoprefixer": "^10.4.24",
     "concurrently": "^9.2.1",
+    "cross-env": "^10.1.0",
     "pm2": "^6.0.14",
     "postcss": "^8.5.6",
     "serve": "^14.2.5",

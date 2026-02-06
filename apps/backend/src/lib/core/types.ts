@@ -39,12 +39,17 @@ export type IncomingEvent = BaseEvent | UIChatEvent | ScheduledEvent;
 // Channel configuration (load/save in config; used by adapters and Channels API)
 export type FilterMode = "all" | "allowlist" | "blocklist";
 
+export type SlackConnectAs = "bot" | "user";
+
 export interface SlackChannelConfig {
   enabled: boolean;
   /** App-level token (xapp-...) for Socket Mode connection. */
   appToken: string;
   /** Bot (xoxb) or User (xoxp) token for API and event subscription. */
   userToken: string;
+  /** Whether the token is a bot or user token. Affects UI only; adapter uses userToken for both. */
+  connectAs?: SlackConnectAs;
+  /** Required when connectAs is "user" (identity for directness). Optional when bot. */
   designatedUserId?: string;
   filterMode?: FilterMode;
   filterList?: string[];
@@ -68,6 +73,7 @@ export interface EmailChannelConfig {
 
 export interface WhatsAppChannelConfig {
   enabled: boolean;
+  /** Folder name only; session is stored under workspace/whatsapp/<sessionPath>. Defaults to "default". */
   sessionPath?: string;
   filterMode?: FilterMode;
   filterList?: string[];
@@ -253,7 +259,8 @@ export interface AuditLogEntry {
     | "memory_write"
     | "escalation"
     | "agent_run"
-    | "scheduled_task";
+    | "scheduled_task"
+    | "incoming_message";
   payload: Record<string, unknown>;
 }
 

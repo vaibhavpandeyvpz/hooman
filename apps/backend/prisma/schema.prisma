@@ -51,3 +51,11 @@ model MCPConnection {
   type    String
   payload String
 }
+
+model AuditEntry {
+  id        String   @id @default(cuid())
+  timestamp String
+  type      String
+  payload   String   // JSON
+  @@index([timestamp])
+}

@@ -7,7 +7,8 @@ import { Redis } from "ioredis";
 let client: Redis | null = null;
 let currentUrl = "";
 
-const DEFAULT_OPTIONS = { maxRetriesPerRequest: 3 };
+/** Required by BullMQ for blocking commands; safe for get/set/del elsewhere. */
+const DEFAULT_OPTIONS = { maxRetriesPerRequest: null as number | null };
 
 /**
  * Initialize the shared Redis client. Idempotent: same URL is a no-op; different URL replaces the client.

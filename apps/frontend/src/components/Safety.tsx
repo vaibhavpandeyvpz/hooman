@@ -1,5 +1,8 @@
 import { useState, useEffect } from "react";
+import createDebug from "debug";
 import { getKillSwitch, setKillSwitch } from "../api";
+
+const debug = createDebug("hooman:Safety");
 
 export function Safety() {
   const [killSwitch, setKillSwitchState] = useState(false);
@@ -18,7 +21,7 @@ export function Safety() {
       await setKillSwitch(next);
       setKillSwitchState(next);
     } catch (e) {
-      console.error(e);
+      debug("%o", e);
     }
   }
 

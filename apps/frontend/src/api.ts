@@ -226,6 +226,16 @@ export async function patchChannels(patch: {
   return res.json();
 }
 
+/** WhatsApp connection status (for showing QR in Settings when linking device). */
+export async function getWhatsAppConnection(): Promise<{
+  status: "disconnected" | "pairing" | "connected";
+  qr?: string;
+}> {
+  const res = await fetch(`${BASE}/api/channels/whatsapp/connection`);
+  if (!res.ok) return { status: "disconnected" };
+  return res.json();
+}
+
 export async function getHealth(): Promise<{
   status: string;
   killSwitch?: boolean;

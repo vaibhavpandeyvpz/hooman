@@ -1,6 +1,9 @@
 import { useState, useRef, useEffect, useCallback } from "react";
+import createDebug from "debug";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+
+const debug = createDebug("hooman:Chat");
 import {
   Trash2,
   ListOrdered,
@@ -389,7 +392,7 @@ export function Chat({
     try {
       await onClearChat();
     } catch (e) {
-      console.error(e);
+      debug("%o", e);
     } finally {
       setClearing(false);
     }

@@ -15,6 +15,15 @@ import type { RawDispatchInput } from "../core/types.js";
 const debug = createDebug("hooman:event-handlers");
 
 const CHAT_THREAD_LIMIT = 30;
+/** Max time to wait for runChat (e.g. handoffs to WebBrowser can block). After this we deliver a timeout message so the UI doesn't stay on "Thinking...". */
+const CHAT_TIMEOUT_MS = 90_000;
+
+class ChatTimeoutError extends Error {
+  constructor() {
+    super("Chat timed out");
+    this.name = "ChatTimeoutError";
+  }
+}
 
 export interface EventHandlerDeps {
   eventRouter: EventRouter;
@@ -62,7 +71,19 @@ export function registerEventHandlers(deps: EventHandlerDeps): void {
   // Chat handler: message.sent → run agents; for api source call deliverApiResult when set
   eventRouter.register(async (event) => {
     if (event.payload.kind !== "message") return;
-    const { text, userId, attachments, attachment_ids } = event.payload;
+    const { text, userId, attachments, attachment_ids, channelMeta } =
+      event.payload;
+    const textPreview = text.length > 100 ? `${text.slice(0, 100)}…` : text;
+    await auditLog.appendAuditEntry({
+      type: "incoming_message",
+      payload: {
+        source: event.source,
+        userId,
+        textPreview,
+        channel: (channelMeta as { channel?: string } | undefined)?.channel,
+        eventId: event.id,
+      },
+    });
     const sourceLabel = event.source === "api" ? "ui" : event.source;
     await context.addToMemory(
       [{ role: "user", content: `[${sourceLabel}] ${text}` }],
@@ -89,17 +110,19 @@ export function registerEventHandlers(deps: EventHandlerDeps): void {
         },
       );
       try {
-        const { finalOutput, lastAgentName, newItems } = await runChat(
-          agent,
-          thread,
-          text,
-          {
-            memoryContext,
-            apiKey: config.OPENAI_API_KEY || undefined,
-            model: config.OPENAI_MODEL || undefined,
-            attachments,
-          },
-        );
+        const runPromise = runChat(agent, thread, text, {
+          memoryContext,
+          apiKey: config.OPENAI_API_KEY || undefined,
+          model: config.OPENAI_MODEL || undefined,
+          attachments,
+        });
+        const timeoutPromise = new Promise<never>((_, reject) => {
+          setTimeout(() => reject(new ChatTimeoutError()), CHAT_TIMEOUT_MS);
+        });
+        const { finalOutput, lastAgentName, newItems } = await Promise.race([
+          runPromise,
+          timeoutPromise,
+        ]);
         assistantText =
           finalOutput?.trim() ||
           "I didn't get a clear response. Try rephrasing or check your API key and model settings.";
@@ -107,7 +130,7 @@ export function registerEventHandlers(deps: EventHandlerDeps): void {
           (i) =>
             i.type === "handoff_call_item" || i.type === "handoff_output_item",
         );
-        auditLog.appendAuditEntry({
+        await auditLog.appendAuditEntry({
           type: "agent_run",
           payload: {
             userInput: text,
@@ -153,10 +176,19 @@ export function registerEventHandlers(deps: EventHandlerDeps): void {
         await closeMcp();
       }
     } catch (err) {
-      const msg = (err as Error).message;
-      assistantText = !config.OPENAI_API_KEY?.trim()
-        ? "[Hooman] No LLM API key configured. Set it in Settings to enable chat."
-        : `Something went wrong: ${msg}. Check API logs.`;
+      if (err instanceof ChatTimeoutError) {
+        debug(
+          "Chat timed out after %s ms (handoff may still be running)",
+          CHAT_TIMEOUT_MS,
+        );
+        assistantText =
+          "This is taking longer than expected. The agent may be using a tool or waiting on a handoff. You can try again or rephrase.";
+      } else {
+        const msg = (err as Error).message;
+        assistantText = !config.OPENAI_API_KEY?.trim()
+          ? "[Hooman] No LLM API key configured. Set it in Settings to enable chat."
+          : `Something went wrong: ${msg}. Check API logs.`;
+      }
       await context.addToMemory(
         [{ role: "assistant", content: assistantText }],
         { userId, metadata: { source: event.source } },
@@ -235,7 +267,7 @@ export function registerEventHandlers(deps: EventHandlerDeps): void {
           (i) =>
             i.type === "handoff_call_item" || i.type === "handoff_output_item",
         );
-        auditLog.appendAuditEntry({
+        await auditLog.appendAuditEntry({
           type: "scheduled_task",
           payload: {
             execute_at: payload.execute_at,
@@ -243,7 +275,7 @@ export function registerEventHandlers(deps: EventHandlerDeps): void {
             context: payload.context,
           },
         });
-        auditLog.appendAuditEntry({
+        await auditLog.appendAuditEntry({
           type: "agent_run",
           payload: {
             userInput: text,
@@ -276,7 +308,7 @@ export function registerEventHandlers(deps: EventHandlerDeps): void {
         [{ role: "assistant", content: `Scheduled task failed: ${msg}` }],
         { userId: "default", metadata: { source: "scheduler", error: true } },
       );
-      auditLog.appendAuditEntry({
+      await auditLog.appendAuditEntry({
         type: "scheduled_task",
         payload: {
           execute_at: payload.execute_at,

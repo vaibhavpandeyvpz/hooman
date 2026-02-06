@@ -42,7 +42,7 @@ export class HumanFriendlyConsoleExporter implements TracingExporter {
     for (const item of items) {
       if (isTrace(item)) {
         const group = item.groupId ? ` [${item.groupId}]` : "";
-        console.log(`[Trace] ${item.name} (${item.traceId})${group}`);
+        debug("[Trace] %s (%s)%s", item.name, item.traceId, group);
         continue;
       }
       if (isSpan(item)) {

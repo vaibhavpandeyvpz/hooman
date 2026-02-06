@@ -25,7 +25,15 @@ import {
   getChannelsConfig,
   updateChannelsConfig,
 } from "../core/config.js";
-import { setReloadFlag } from "../schedule/reload-flag.js";
+import {
+  setReloadFlag,
+  setReloadFlags,
+  type ReloadScope,
+} from "../schedule/reload-flag.js";
+import {
+  getWhatsAppConnection,
+  setWhatsAppConnection,
+} from "../channels/whatsapp-connection.js";
 import {
   listSkillsFromFs,
   getSkillContent,
@@ -495,8 +503,9 @@ export function registerRoutes(app: Express, ctx: AppContext): void {
   );
 
   // Audit log
-  app.get("/api/audit", (_req: Request, res: Response) => {
-    res.json({ entries: auditLog.getAuditLog() });
+  app.get("/api/audit", async (_req: Request, res: Response) => {
+    const entries = await auditLog.getAuditLog();
+    res.json({ entries });
   });
 
   // Kill switch
@@ -633,8 +642,47 @@ export function registerRoutes(app: Express, ctx: AppContext): void {
           ...body.whatsapp,
         } as ChannelsConfig["whatsapp"];
       updateChannelsConfig(patch);
-      await setReloadFlag(env.REDIS_URL);
+      const channelScopes: ReloadScope[] = [];
+      if (body.slack !== undefined) channelScopes.push("slack");
+      if (body.email !== undefined) channelScopes.push("email");
+      if (body.whatsapp !== undefined) channelScopes.push("whatsapp");
+      if (channelScopes.length)
+        await setReloadFlags(env.REDIS_URL, channelScopes);
       res.json({ channels: getChannelsConfig() });
+    },
+  );
+
+  // WhatsApp connection status (QR etc.) for Settings UI
+  app.get(
+    "/api/channels/whatsapp/connection",
+    (_req: Request, res: Response) => {
+      res.json(getWhatsAppConnection());
+    },
+  );
+
+  // Internal: WhatsApp worker posts QR/status here so the API can serve it to the frontend
+  app.post(
+    "/api/internal/whatsapp-connection",
+    (req: Request, res: Response) => {
+      const secret = env.INTERNAL_SECRET;
+      if (secret != null && secret !== "") {
+        const header = req.headers["x-internal-secret"];
+        if (header !== secret) {
+          res.status(401).json({ error: "Unauthorized" });
+          return;
+        }
+      }
+      const body = req.body as { status?: string; qr?: string };
+      const status = body?.status ?? "disconnected";
+      const qr = typeof body?.qr === "string" ? body.qr : undefined;
+      setWhatsAppConnection(
+        status === "connected"
+          ? { status: "connected" }
+          : status === "pairing" && qr
+            ? { status: "pairing", qr }
+            : { status: "disconnected" },
+      );
+      res.json({ ok: true });
     },
   );
 
@@ -874,7 +922,7 @@ export function registerRoutes(app: Express, ctx: AppContext): void {
         intent,
         context: typeof context === "object" ? context : {},
       });
-      await setReloadFlag(env.REDIS_URL);
+      await setReloadFlag(env.REDIS_URL, "schedule");
       res.status(201).json({ id, execute_at, intent, context: context ?? {} });
     },
   );
@@ -887,7 +935,7 @@ export function registerRoutes(app: Express, ctx: AppContext): void {
         res.status(404).json({ error: "Scheduled task not found." });
         return;
       }
-      await setReloadFlag(env.REDIS_URL);
+      await setReloadFlag(env.REDIS_URL, "schedule");
       res.status(204).send();
     },
   );

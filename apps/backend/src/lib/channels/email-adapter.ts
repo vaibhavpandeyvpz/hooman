@@ -97,6 +97,7 @@ function poll(dispatcher: EventDispatcher, config: EmailChannelConfig): void {
     .filter(Boolean);
   if (folderList.length === 0) return;
 
+  debug("Checking for emails (%s)", folderList.join(", "));
   const imap = new Imap({
     user: imapConfig.user,
     password: imapConfig.password,
@@ -111,8 +112,13 @@ function poll(dispatcher: EventDispatcher, config: EmailChannelConfig): void {
   });
 
   imap.once("ready", () => {
+    debug("IMAP connected successfully");
+    let totalDispatched = 0;
     const openNext = (idx: number) => {
       if (idx >= folderList.length) {
+        if (totalDispatched > 0)
+          debug("Poll done; dispatched %s message(s)", totalDispatched);
+        else debug("No unseen emails");
         imap.end();
         return;
       }
@@ -210,6 +216,7 @@ function poll(dispatcher: EventDispatcher, config: EmailChannelConfig): void {
                     },
                     {},
                   );
+                  totalDispatched += 1;
                   debug(
                     "Email message.sent dispatched: from=%s messageId=%s",
                     from.address,

@@ -1,9 +1,63 @@
-import { useState, useEffect } from "react";
-import { SlidersHorizontal } from "lucide-react";
-import { getChannels, patchChannels } from "../api";
+import { useState, useEffect, useCallback } from "react";
+import createDebug from "debug";
+import { SlidersHorizontal, FileJson } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
+import { getChannels, patchChannels, getWhatsAppConnection } from "../api";
+
+const debug = createDebug("hooman:Channels");
+
+/** Slack app manifest for creating an app with Socket Mode and scopes required by Hooman. */
+const SLACK_APP_MANIFEST = {
+  _metadata: { major_version: 1 },
+  display_information: {
+    name: "Hooman",
+    description:
+      "Inbound Slack channel for Hooman. Receives messages in DMs, channels, and groups.",
+    background_color: "#1a1a2e",
+  },
+  features: {
+    bot_user: {
+      display_name: "Hooman",
+      always_online: false,
+    },
+  },
+  oauth_config: {
+    scopes: {
+      bot: [
+        "app_mentions:read",
+        "chat:write",
+        "channels:history",
+        "channels:read",
+        "groups:history",
+        "groups:read",
+        "im:history",
+        "im:read",
+        "users:read",
+      ],
+      user: [
+        "channels:history",
+        "channels:read",
+        "groups:history",
+        "groups:read",
+        "im:history",
+        "im:read",
+        "users:read",
+      ],
+    },
+  },
+  settings: {
+    event_subscriptions: {
+      bot_events: ["message.channels", "message.groups", "message.im"],
+    },
+    org_deploy_enabled: false,
+    socket_mode_enabled: true,
+    token_rotation_enabled: false,
+  },
+} as const;
 import type { ChannelEntry } from "../api";
 import { Button } from "./Button";
 import { Checkbox } from "./Checkbox";
+import { Radio } from "./Radio";
 import { useDialog } from "./Dialog";
 import { Input } from "./Input";
 import { Modal } from "./Modal";
@@ -18,6 +72,7 @@ export function Channels() {
   const [configModalChannel, setConfigModalChannel] = useState<string | null>(
     null,
   );
+  const [slackManifestOpen, setSlackManifestOpen] = useState(false);
   const [saving, setSaving] = useState<string | null>(null);
 
   function load() {
@@ -58,7 +113,7 @@ export function Channels() {
       await patchChannels(patch);
       load();
     } catch (e) {
-      console.error(e);
+      debug("%o", e);
     } finally {
       setSaving(null);
     }
@@ -75,7 +130,7 @@ export function Channels() {
       setConfigModalChannel(null);
       load();
     } catch (e) {
-      console.error(e);
+      debug("%o", e);
     } finally {
       setSaving(null);
     }
@@ -111,6 +166,9 @@ export function Channels() {
             key={ch.id}
             channel={ch}
             onOpenConfigure={() => setConfigModalChannel(ch.id)}
+            onOpenManifest={
+              ch.id === "slack" ? () => setSlackManifestOpen(true) : undefined
+            }
             onToggleEnabled={(next) => toggleEnabled(ch.id, ch, next)}
             saving={saving === ch.id}
           />
@@ -124,6 +182,9 @@ export function Channels() {
           saving={saving === configModalChannel}
         />
       )}
+      {slackManifestOpen && (
+        <SlackManifestModal onClose={() => setSlackManifestOpen(false)} />
+      )}
     </div>
   );
 }
@@ -131,11 +192,13 @@ export function Channels() {
 function ChannelCard({
   channel: ch,
   onOpenConfigure,
+  onOpenManifest,
   onToggleEnabled,
   saving,
 }: {
   channel: ChannelEntry;
   onOpenConfigure: () => void;
+  onOpenManifest?: () => void;
   onToggleEnabled: (next: boolean) => void;
   saving: boolean;
 }) {
@@ -176,11 +239,70 @@ function ChannelCard({
               Configure
             </Button>
           )}
+          {onOpenManifest && (
+            <Button
+              variant="secondary"
+              size="sm"
+              icon={<FileJson className="w-4 h-4" />}
+              onClick={onOpenManifest}
+            >
+              Manifest
+            </Button>
+          )}
         </div>
       </div>
     </div>
   );
 }
+
+function SlackManifestModal({ onClose }: { onClose: () => void }) {
+  const manifestJson = JSON.stringify(SLACK_APP_MANIFEST, null, 2);
+  const [copied, setCopied] = useState(false);
+
+  const copy = () => {
+    navigator.clipboard.writeText(manifestJson);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title="Slack app manifest"
+      maxWidth="2xl"
+      footer={
+        <div className="flex gap-2">
+          <Button variant="secondary" onClick={copy}>
+            {copied ? "Copied!" : "Copy to clipboard"}
+          </Button>
+          <Button variant="secondary" onClick={onClose}>
+            Close
+          </Button>
+        </div>
+      }
+    >
+      <p className="text-sm text-hooman-muted mb-3">
+        Create a Slack app from this manifest to get the right scopes for Hooman
+        (Socket Mode, read messages in channels/DMs/groups). In Slack: Create an
+        app → From an app manifest → paste the JSON below. Then create an
+        App-level token with{" "}
+        <code className="text-xs bg-hooman-muted/20 px-1 rounded">
+          connections:write
+        </code>{" "}
+        and install the app to get the User OAuth token.
+      </p>
+      <pre className="text-xs text-zinc-400 bg-hooman-muted/10 border border-hooman-border rounded-lg p-4 overflow-x-auto overflow-y-auto max-h-[60vh] font-mono whitespace-pre-wrap select-text">
+        {manifestJson}
+      </pre>
+    </Modal>
+  );
+}
+
+type WhatsAppConnection = {
+  status: "disconnected" | "pairing" | "connected";
+  qr?: string;
+};
 
 function ConfigModal({
   channel,
@@ -195,6 +317,23 @@ function ConfigModal({
 }) {
   const config = channel.config ?? {};
   const formId = "channel-config-form";
+  const [whatsAppConn, setWhatsAppConn] = useState<WhatsAppConnection | null>(
+    null,
+  );
+  const isWhatsApp = channel.id === "whatsapp";
+
+  const fetchWhatsAppConnection = useCallback(async () => {
+    const data = await getWhatsAppConnection();
+    setWhatsAppConn(data);
+  }, []);
+
+  useEffect(() => {
+    if (!isWhatsApp || !channel.enabled) return;
+    void fetchWhatsAppConnection();
+    const t = setInterval(fetchWhatsAppConnection, 2500);
+    return () => clearInterval(t);
+  }, [isWhatsApp, channel.enabled, fetchWhatsAppConnection]);
+
   return (
     <Modal
       open
@@ -217,6 +356,12 @@ function ConfigModal({
         </div>
       }
     >
+      {isWhatsApp && (
+        <WhatsAppConnectionBlock
+          connection={whatsAppConn}
+          enabled={!!channel.enabled}
+        />
+      )}
       {channel.id === "slack" && (
         <SlackConfigForm
           id={formId}
@@ -245,6 +390,51 @@ function ConfigModal({
   );
 }
 
+function WhatsAppConnectionBlock({
+  connection,
+  enabled,
+}: {
+  connection: WhatsAppConnection | null;
+  enabled: boolean;
+}) {
+  if (!enabled) {
+    return (
+      <div className="mb-4 p-4 rounded-lg bg-hooman-muted/10 border border-hooman-border">
+        <p className="text-sm text-hooman-muted">
+          Enable the channel and save to start linking your WhatsApp device.
+        </p>
+      </div>
+    );
+  }
+  const status = connection?.status ?? "disconnected";
+  return (
+    <div className="mb-4 p-4 rounded-lg bg-hooman-muted/10 border border-hooman-border">
+      <p className="text-sm font-medium text-white mb-2">Link device</p>
+      {status === "connected" && (
+        <p className="text-sm text-green-500">
+          Linked — WhatsApp is connected.
+        </p>
+      )}
+      {status === "pairing" && connection?.qr && (
+        <div className="flex flex-col items-center gap-2">
+          <p className="text-sm text-hooman-muted">
+            Scan this QR code with WhatsApp on your phone (Linked Devices).
+          </p>
+          <div className="p-3 bg-white rounded-lg inline-block">
+            <QRCodeSVG value={connection.qr} size={256} level="M" />
+          </div>
+        </div>
+      )}
+      {(status === "disconnected" || (!connection && enabled)) && (
+        <p className="text-sm text-hooman-muted">
+          Connecting… Make sure the channel is enabled and the worker is
+          running.
+        </p>
+      )}
+    </div>
+  );
+}
+
 function SlackConfigForm({
   id,
   config,
@@ -256,6 +446,13 @@ function SlackConfigForm({
   onSave: (c: Record<string, unknown>) => void;
   saving: boolean;
 }) {
+  const connectAsOptions = [
+    { value: "bot", label: "Bot" },
+    { value: "user", label: "User" },
+  ] as const;
+  const [connectAs, setConnectAs] = useState<"bot" | "user">(
+    (config.connectAs as "bot" | "user") ?? "user",
+  );
   const [appToken, setAppToken] = useState(String(config.appToken ?? ""));
   const [userToken, setUserToken] = useState(String(config.userToken ?? ""));
   const [designatedUserId, setDesignatedUserId] = useState(
@@ -277,9 +474,13 @@ function SlackConfigForm({
         onSave({
           ...config,
           enabled: config.enabled ?? false,
+          connectAs,
           appToken: appToken.trim() || undefined,
           userToken: userToken.trim() || undefined,
-          designatedUserId: designatedUserId.trim() || undefined,
+          designatedUserId:
+            connectAs === "user"
+              ? designatedUserId.trim() || undefined
+              : undefined,
           filterMode: filterMode || "all",
           filterList: filterList
             ? filterList
@@ -290,6 +491,23 @@ function SlackConfigForm({
         });
       }}
     >
+      <div>
+        <span className="block text-sm font-medium text-zinc-300 mb-2">
+          Connect as
+        </span>
+        <div className="flex gap-4">
+          {connectAsOptions.map((opt) => (
+            <Radio
+              key={opt.value}
+              name="slack-connect-as"
+              value={opt.value}
+              checked={connectAs === opt.value}
+              onChange={() => setConnectAs(opt.value)}
+              label={opt.label}
+            />
+          ))}
+        </div>
+      </div>
       <Input
         label="App token (xapp-…)"
         type="password"
@@ -298,17 +516,22 @@ function SlackConfigForm({
         onChange={(e) => setAppToken(e.target.value)}
       />
       <Input
-        label="Bot/User token (xoxb-… / xoxp-…)"
+        label={
+          connectAs === "bot" ? "Bot token (xoxb-…)" : "User token (xoxp-…)"
+        }
         type="password"
         placeholder="Leave blank to keep current"
         value={userToken}
         onChange={(e) => setUserToken(e.target.value)}
       />
-      <Input
-        label="Designated user ID (optional)"
-        value={designatedUserId}
-        onChange={(e) => setDesignatedUserId(e.target.value)}
-      />
+      {connectAs === "user" && (
+        <Input
+          label="Designated user ID (optional)"
+          placeholder="Slack user ID for directness (e.g. U01234…)"
+          value={designatedUserId}
+          onChange={(e) => setDesignatedUserId(e.target.value)}
+        />
+      )}
       <Select
         label="Filter mode"
         value={filterMode}
@@ -499,7 +722,7 @@ function WhatsAppConfigForm({
         onSave({
           ...config,
           enabled: config.enabled ?? false,
-          sessionPath: sessionPath.trim() || undefined,
+          sessionPath: sessionPath.trim(),
           filterMode: filterMode || "all",
           filterList: filterList
             ? filterList
@@ -511,8 +734,8 @@ function WhatsAppConfigForm({
       }}
     >
       <Input
-        label="Session path (optional)"
-        placeholder="workspace/whatsapp-session"
+        label="Session folder (optional)"
+        placeholder="default"
         value={sessionPath}
         onChange={(e) => setSessionPath(e.target.value)}
       />

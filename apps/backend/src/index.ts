@@ -24,6 +24,11 @@ import { createContext } from "./lib/agents/context.js";
 import { initColleagueStore } from "./lib/data/colleagues-store.js";
 import { initScheduleStore } from "./lib/data/schedule-store.js";
 import { initMCPConnectionsStore } from "./lib/data/mcp-connections-store.js";
+import {
+  createAuditStore,
+  AUDIT_ENTRY_ADDED_CHANNEL,
+} from "./lib/data/audit-store.js";
+import { createSubscriber, publish } from "./lib/data/pubsub.js";
 import { createEventQueue } from "./lib/events/event-queue.js";
 import { initRedis } from "./lib/data/redis.js";
 import { initKillSwitch } from "./lib/agents/kill-switch.js";
@@ -35,107 +40,117 @@ import {
 } from "./lib/core/workspace.js";
 import { mkdirSync } from "fs";
 
-const ATTACHMENTS_DATA_DIR = getWorkspaceAttachmentsDir();
-// Ensure workspace dirs exist (config, db, memory, attachments, MCP cwd)
-mkdirSync(WORKSPACE_ROOT, { recursive: true });
-mkdirSync(WORKSPACE_MCPCWD, { recursive: true });
+async function main() {
+  const ATTACHMENTS_DATA_DIR = getWorkspaceAttachmentsDir();
+  mkdirSync(WORKSPACE_ROOT, { recursive: true });
+  mkdirSync(WORKSPACE_MCPCWD, { recursive: true });
 
-await loadPersisted();
+  await loadPersisted();
 
-if (!env.REDIS_URL) {
-  console.error(
-    "REDIS_URL is required. Set it in .env (e.g. redis://localhost:6379).",
-  );
-  process.exit(1);
-}
-const redisUrl = env.REDIS_URL;
-initRedis(redisUrl);
+  const redisUrl = env.REDIS_URL;
+  initRedis(redisUrl);
 
-const eventRouter = new EventRouter();
-initKillSwitch(redisUrl);
-const eventQueue = createEventQueue({ connection: redisUrl });
-eventRouter.setQueueAdapter(eventQueue);
-debug(
-  "Event queue: Redis + BullMQ; kill switch in Redis; workers process events",
-);
-
-const config = getConfig();
-const memory = await createMemoryService({
-  openaiApiKey: config.OPENAI_API_KEY,
-  embeddingModel: config.OPENAI_EMBEDDING_MODEL,
-  llmModel: config.OPENAI_MODEL,
-});
-
-await initDb();
-debug("Database (Prisma + SQLite) ready");
-
-const chatHistory = await initChatHistory();
-const attachmentStore = await initAttachmentStore(ATTACHMENTS_DATA_DIR);
-const context = createContext(memory, chatHistory);
-
-const colleagueStore = await initColleagueStore();
-const colleagueEngine = new ColleagueEngine(colleagueStore);
-await colleagueEngine.load();
-
-const scheduleStore = await initScheduleStore();
-const mcpConnectionsStore = await initMCPConnectionsStore();
-
-/** Schedule CRUD only; node-schedule runs in the cron PM2 process. */
-const scheduler: ScheduleService = {
-  list: () => scheduleStore.getAll(),
-  schedule: async (task: Omit<ScheduledTask, "id">) => {
-    const id = randomUUID();
-    await scheduleStore.add({ ...task, id });
-    return id;
-  },
-  cancel: (id) => scheduleStore.remove(id),
-};
-
-const auditLog = new AuditLog();
-
-// In-memory store for UI-bound responses (eventId -> messages)
-const responseStore: Map<
-  string,
-  Array<{ role: "user" | "assistant"; text: string }>
-> = new Map();
-
-// Event processing runs only in the event-queue worker. API returns 202 + eventId; worker POSTs result to /api/internal/chat-result; API emits on Socket.IO so frontend gets the reply without blocking.
-// Cron (node-schedule) runs in its own PM2 process and dispatches via POST /api/internal/dispatch.
-
-auditLog.onResponseReceived((payload: ResponsePayload) => {
-  if (payload.type === "response") {
-    const list = responseStore.get(payload.eventId) ?? [];
-    list.push({ role: "assistant", text: payload.text });
-    responseStore.set(payload.eventId, list);
-  }
-});
-
-const app = express();
-app.use(cors({ origin: true }));
-app.use(express.json());
-
-const server = http.createServer(app);
-const io = new SocketServer(server, {
-  cors: { origin: true },
-  path: "/socket.io",
-});
-
-registerRoutes(app, {
-  eventRouter,
-  context,
-  auditLog,
-  colleagueEngine,
-  responseStore,
-  scheduler,
-  io,
-  mcpConnectionsStore,
-  attachmentStore,
-});
-
-const PORT = getConfig().PORT;
-server.listen(PORT, () => {
+  const eventRouter = new EventRouter();
+  initKillSwitch(redisUrl);
+  const eventQueue = createEventQueue({ connection: redisUrl });
+  eventRouter.setQueueAdapter(eventQueue);
   debug(
-    "Hooman API listening on http://localhost:%s (Socket.IO on same server)",
-    PORT,
+    "Event queue: Redis + BullMQ; kill switch in Redis; workers process events",
   );
+
+  const config = getConfig();
+  const memory = await createMemoryService({
+    openaiApiKey: config.OPENAI_API_KEY,
+    embeddingModel: config.OPENAI_EMBEDDING_MODEL,
+    llmModel: config.OPENAI_MODEL,
+  });
+
+  await initDb();
+  debug("Database (Prisma + SQLite) ready");
+
+  const chatHistory = await initChatHistory();
+  const attachmentStore = await initAttachmentStore(ATTACHMENTS_DATA_DIR);
+  const context = createContext(memory, chatHistory);
+
+  const colleagueStore = await initColleagueStore();
+  const colleagueEngine = new ColleagueEngine(colleagueStore);
+  await colleagueEngine.load();
+
+  const scheduleStore = await initScheduleStore();
+  const mcpConnectionsStore = await initMCPConnectionsStore();
+  const auditStore = createAuditStore({
+    onAppend: () => publish(AUDIT_ENTRY_ADDED_CHANNEL, "1"),
+  });
+  const auditLog = new AuditLog(auditStore);
+
+  const scheduler: ScheduleService = {
+    list: () => scheduleStore.getAll(),
+    schedule: async (task: Omit<ScheduledTask, "id">) => {
+      const id = randomUUID();
+      await scheduleStore.add({ ...task, id });
+      return id;
+    },
+    cancel: (id) => scheduleStore.remove(id),
+  };
+
+  const responseStore: Map<
+    string,
+    Array<{ role: "user" | "assistant"; text: string }>
+  > = new Map();
+
+  auditLog.onResponseReceived((payload: ResponsePayload) => {
+    if (payload.type === "response") {
+      const list = responseStore.get(payload.eventId) ?? [];
+      list.push({ role: "assistant", text: payload.text });
+      responseStore.set(payload.eventId, list);
+    }
+  });
+
+  const app = express();
+  app.use(cors({ origin: true }));
+  app.use(express.json());
+
+  const server = http.createServer(app);
+  const io = new SocketServer(server, {
+    cors: { origin: true },
+    path: "/socket.io",
+  });
+
+  // Subscribe to audit channel so worker-added entries trigger Socket.IO emit to refresh Audit UI
+  const pubsub = createSubscriber();
+  if (pubsub) {
+    pubsub.subscribe(AUDIT_ENTRY_ADDED_CHANNEL, () => {
+      debug("audit-entry-added from Redis, emitting to Socket.IO");
+      io.emit("audit-entry-added");
+    });
+  } else {
+    debug(
+      "No Redis subscriber (REDIS_URL empty?); audit log will not auto-refresh when workers add entries",
+    );
+  }
+
+  registerRoutes(app, {
+    eventRouter,
+    context,
+    auditLog,
+    colleagueEngine,
+    responseStore,
+    scheduler,
+    io,
+    mcpConnectionsStore,
+    attachmentStore,
+  });
+
+  const PORT = getConfig().PORT;
+  server.listen(PORT, () => {
+    debug(
+      "Hooman API listening on http://localhost:%s (Socket.IO on same server)",
+      PORT,
+    );
+  });
+}
+
+main().catch((err) => {
+  debug("API startup failed: %o", err);
+  process.exit(1);
 });

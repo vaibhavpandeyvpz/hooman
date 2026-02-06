@@ -27,10 +27,16 @@ export interface EventQueueAdapter {
   close(): Promise<void>;
 }
 
+/** BullMQ requires maxRetriesPerRequest: null for blocking commands. */
+const BULLMQ_CONNECTION: { maxRetriesPerRequest: null } = {
+  maxRetriesPerRequest: null,
+};
+
 function connectionFromOpts(opts: EventQueueOptions["connection"]): {
   host: string;
   port: number;
   password?: string;
+  maxRetriesPerRequest: null;
 } {
   if (typeof opts === "string") {
     const u = new URL(opts);
@@ -38,12 +44,14 @@ function connectionFromOpts(opts: EventQueueOptions["connection"]): {
       host: u.hostname || "localhost",
       port: u.port ? parseInt(u.port, 10) : 6379,
       password: u.password || undefined,
+      ...BULLMQ_CONNECTION,
     };
   }
   return {
     host: opts.host ?? "localhost",
     port: opts.port ?? 6379,
     password: opts.password,
+    ...BULLMQ_CONNECTION,
   };
 }
 

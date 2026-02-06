@@ -36,10 +36,9 @@ async function main() {
 
   if (env.REDIS_URL) {
     initRedis(env.REDIS_URL);
-    initReloadWatch(env.REDIS_URL, () => {
-      debug(
-        "Reload flag set; restarting Slack adapter (respects enabled/disabled)",
-      );
+    initReloadWatch(env.REDIS_URL, ["slack"], async () => {
+      debug("Reload flag set; reloading config and restarting adapter");
+      await loadPersisted();
       void runSlackAdapter(client);
     });
   }
@@ -58,6 +57,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error("Slack worker failed:", err);
+  debug("Slack worker failed: %o", err);
   process.exit(1);
 });
