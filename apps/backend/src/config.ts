@@ -99,14 +99,13 @@ export type LLMProviderId =
 /** Transcription provider identifier (separate from LLM provider). */
 export type TranscriptionProviderId = "openai" | "azure" | "deepgram";
 
-/** Settings UI / persisted config (API key, embedding model, LLM model, web search, MCP, transcription, agent). */
+/** Settings UI / persisted config (API key, LLM model, web search, MCP, transcription, agent). */
 export interface PersistedConfig {
   LLM_PROVIDER: LLMProviderId;
   /** Transcription provider (for audio/voice message transcription). */
   TRANSCRIPTION_PROVIDER: TranscriptionProviderId;
   OPENAI_API_KEY: string;
   OPENAI_MODEL: string;
-  OPENAI_EMBEDDING_MODEL: string;
   OPENAI_WEB_SEARCH: boolean;
   MCP_USE_SERVER_MANAGER: boolean;
   OPENAI_TRANSCRIPTION_MODEL: string;
@@ -150,7 +149,6 @@ const DEFAULTS: PersistedConfig = {
   TRANSCRIPTION_PROVIDER: "openai",
   OPENAI_API_KEY: "",
   OPENAI_MODEL: "gpt-5.2",
-  OPENAI_EMBEDDING_MODEL: "text-embedding-3-small",
   OPENAI_WEB_SEARCH: false,
   MCP_USE_SERVER_MANAGER: false,
   OPENAI_TRANSCRIPTION_MODEL: "gpt-4o-transcribe",
@@ -223,10 +221,6 @@ export function updateConfig(patch: Partial<PersistedConfig>): PersistedConfig {
   if (patch.OPENAI_MODEL !== undefined)
     store.OPENAI_MODEL =
       String(patch.OPENAI_MODEL).trim() || DEFAULTS.OPENAI_MODEL;
-  if (patch.OPENAI_EMBEDDING_MODEL !== undefined)
-    store.OPENAI_EMBEDDING_MODEL =
-      String(patch.OPENAI_EMBEDDING_MODEL).trim() ||
-      DEFAULTS.OPENAI_EMBEDDING_MODEL;
   if (patch.OPENAI_WEB_SEARCH !== undefined)
     store.OPENAI_WEB_SEARCH = Boolean(patch.OPENAI_WEB_SEARCH);
   if (patch.MCP_USE_SERVER_MANAGER !== undefined)
@@ -321,10 +315,6 @@ export async function loadPersisted(): Promise<void> {
       if (parsed.OPENAI_MODEL !== undefined)
         store.OPENAI_MODEL =
           String(parsed.OPENAI_MODEL).trim() || DEFAULTS.OPENAI_MODEL;
-      if (parsed.OPENAI_EMBEDDING_MODEL !== undefined)
-        store.OPENAI_EMBEDDING_MODEL =
-          String(parsed.OPENAI_EMBEDDING_MODEL).trim() ||
-          DEFAULTS.OPENAI_EMBEDDING_MODEL;
       if (parsed.OPENAI_WEB_SEARCH !== undefined)
         store.OPENAI_WEB_SEARCH = Boolean(parsed.OPENAI_WEB_SEARCH);
       if (parsed.MCP_USE_SERVER_MANAGER !== undefined)

@@ -60,7 +60,6 @@ async function main() {
   const config = getConfig();
   const memory = await createMemoryService({
     openaiApiKey: config.OPENAI_API_KEY,
-    embeddingModel: config.OPENAI_EMBEDDING_MODEL,
     llmModel: config.OPENAI_MODEL,
   });
   const chatHistory = await initChatHistory();

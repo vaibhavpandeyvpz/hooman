@@ -15,10 +15,8 @@ export interface MemorySearchResult {
 }
 
 export interface MemoryServiceConfig {
-  /** OpenAI API key (required for Mem0 embeddings). */
+  /** OpenAI API key (required for Mem0 LLM; embeddings are local via embeddings.js). */
   openaiApiKey: string;
-  /** Embedding model for Mem0 (e.g. text-embedding-3-small). Default: text-embedding-3-small. */
-  embeddingModel?: string;
   /** LLM model for Mem0 (e.g. gpt-5.2). Default: gpt-5.2. */
   llmModel?: string;
 }
@@ -44,14 +42,27 @@ export interface IMemoryService {
   deleteAll(options?: { userId?: string; personaId?: string }): Promise<void>;
 }
 
-const DEFAULT_EMBEDDING_MODEL = "text-embedding-3-small";
 const DEFAULT_LLM_MODEL = "gpt-5.2";
 
-/** Embedding dimension for known OpenAI models; default 1536. */
-function embeddingDimsForModel(model: string): number {
-  const m = (model || "").toLowerCase();
-  if (m.includes("3-large") || m.includes("embedding-3-large")) return 3072;
-  return 1536;
+/** Local embeddings via @themaximalist/embeddings.js (Xenova/all-MiniLM-L6-v2). */
+const LOCAL_EMBEDDING_DIMS = 384;
+
+/**
+ * Adapter that implements the interface Mem0's LangchainEmbedder expects
+ * (embedQuery, embedDocuments) using @themaximalist/embeddings.js for local generation.
+ */
+async function createLocalEmbedder(): Promise<{
+  embedQuery: (text: string) => Promise<number[]>;
+  embedDocuments: (texts: string[]) => Promise<number[][]>;
+}> {
+  const embeddings = (await import("@themaximalist/embeddings.js")).default;
+  return {
+    embedQuery: (text: string) => embeddings(text, { service: "transformers" }),
+    embedDocuments: (texts: string[]) =>
+      Promise.all(
+        texts.map((text) => embeddings(text, { service: "transformers" })),
+      ),
+  };
 }
 
 interface Mem0Like {
@@ -171,6 +182,7 @@ class StubMemoryService implements IMemoryService {
 
 /**
  * Create a Mem0-backed memory service.
+ * - Embeddings: local via @themaximalist/embeddings.js (Xenova/all-MiniLM-L6-v2), no API.
  * - Vector store: SQLite at workspace/vector.db.
  * - History store: SQLite at workspace/memory.db.
  * If openaiApiKey is missing, returns a no-op stub so the API (and Settings page) can start.
@@ -183,19 +195,18 @@ export async function createMemoryService(
     return new StubMemoryService();
   }
 
-  const mod = await import("mem0ai/oss");
+  const [mod, localEmbedder] = await Promise.all([
+    import("mem0ai/oss"),
+    createLocalEmbedder(),
+  ]);
   const Memory = (
     mod as unknown as {
       Memory: new (opts: Record<string, unknown>) => Mem0Like;
     }
   ).Memory;
 
-  const embeddingModel =
-    (config.embeddingModel ?? DEFAULT_EMBEDDING_MODEL).trim() ||
-    DEFAULT_EMBEDDING_MODEL;
   const llmModel =
     (config.llmModel ?? DEFAULT_LLM_MODEL).trim() || DEFAULT_LLM_MODEL;
-  const embeddingDims = embeddingDimsForModel(embeddingModel);
 
   fs.mkdirSync(WORKSPACE_ROOT, { recursive: true });
   const memoryDbPath = getWorkspaceMemoryDbPath();
@@ -203,14 +214,14 @@ export async function createMemoryService(
   const memory = new Memory({
     version: "v1.1",
     embedder: {
-      provider: "openai",
-      config: { apiKey, model: embeddingModel },
+      provider: "langchain",
+      config: { model: localEmbedder },
     },
     vectorStore: {
       provider: "memory",
       config: {
         collectionName: "hooman_memories",
-        dimension: embeddingDims,
+        dimension: LOCAL_EMBEDDING_DIMS,
         dbPath: getWorkspaceVectorDbPath(),
       },
     },

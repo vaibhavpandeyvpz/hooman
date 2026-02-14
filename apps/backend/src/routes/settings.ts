@@ -18,7 +18,6 @@ export function registerSettingsRoutes(app: Express, _ctx: AppContext): void {
       TRANSCRIPTION_PROVIDER: c.TRANSCRIPTION_PROVIDER,
       OPENAI_API_KEY: c.OPENAI_API_KEY,
       OPENAI_MODEL: c.OPENAI_MODEL,
-      OPENAI_EMBEDDING_MODEL: c.OPENAI_EMBEDDING_MODEL,
       OPENAI_WEB_SEARCH: c.OPENAI_WEB_SEARCH,
       MCP_USE_SERVER_MANAGER: c.MCP_USE_SERVER_MANAGER,
       OPENAI_TRANSCRIPTION_MODEL: c.OPENAI_TRANSCRIPTION_MODEL,
@@ -57,9 +56,6 @@ export function registerSettingsRoutes(app: Express, _ctx: AppContext): void {
         | undefined,
       OPENAI_API_KEY: patch.OPENAI_API_KEY as string | undefined,
       OPENAI_MODEL: patch.OPENAI_MODEL as string | undefined,
-      OPENAI_EMBEDDING_MODEL: patch.OPENAI_EMBEDDING_MODEL as
-        | string
-        | undefined,
       OPENAI_WEB_SEARCH: patch.OPENAI_WEB_SEARCH as boolean | undefined,
       MCP_USE_SERVER_MANAGER: patch.MCP_USE_SERVER_MANAGER as
         | boolean

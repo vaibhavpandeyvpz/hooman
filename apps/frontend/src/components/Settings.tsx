@@ -61,7 +61,6 @@ export function Settings() {
         TRANSCRIPTION_PROVIDER: form.TRANSCRIPTION_PROVIDER ?? "openai",
         OPENAI_API_KEY: form.OPENAI_API_KEY,
         OPENAI_MODEL: form.OPENAI_MODEL,
-        OPENAI_EMBEDDING_MODEL: form.OPENAI_EMBEDDING_MODEL,
         OPENAI_WEB_SEARCH: form.OPENAI_WEB_SEARCH,
         MCP_USE_SERVER_MANAGER: form.MCP_USE_SERVER_MANAGER,
         OPENAI_TRANSCRIPTION_MODEL: form.OPENAI_TRANSCRIPTION_MODEL,
@@ -245,27 +244,6 @@ export function Settings() {
                       />
                       <p className="text-xs text-hooman-muted mt-1">
                         Model ID for chat and Mem0 memory.
-                      </p>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-zinc-300 mb-1">
-                        OpenAI – Embedding model
-                      </label>
-                      <Input
-                        type="text"
-                        value={form.OPENAI_EMBEDDING_MODEL}
-                        onChange={(e) =>
-                          setForm((f) =>
-                            f
-                              ? { ...f, OPENAI_EMBEDDING_MODEL: e.target.value }
-                              : f,
-                          )
-                        }
-                        placeholder="text-embedding-3-small"
-                        className="bg-hooman-surface focus:ring-offset-hooman-surface"
-                      />
-                      <p className="text-xs text-hooman-muted mt-1">
-                        Used for Mem0 embeddings only.
                       </p>
                     </div>
                   </>
