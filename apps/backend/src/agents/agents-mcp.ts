@@ -30,7 +30,7 @@ import {
   getChannelsConfig,
   getConfig,
   DEFAULT_AGENT_INSTRUCTIONS,
-  STATIC_AGENT_INSTRUCTIONS_APPEND,
+  getFullStaticAgentInstructionsAppend,
 } from "../config.js";
 import type { ScheduleService } from "../data/scheduler.js";
 import { setReloadFlag } from "../data/reload-flag.js";
@@ -711,7 +711,7 @@ export async function createHoomanAgentWithMcp(
   const userInstructions =
     (instructions ?? "").trim() || DEFAULT_AGENT_INSTRUCTIONS;
   const fullInstructions =
-    userInstructions.trim() + STATIC_AGENT_INSTRUCTIONS_APPEND;
+    userInstructions.trim() + getFullStaticAgentInstructionsAppend();
 
   const agent = Agent.create({
     name: agentName?.trim() || "Hooman",

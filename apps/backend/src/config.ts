@@ -15,7 +15,8 @@ When a task fits a specialized persona (by role and capabilities), hand off to t
 
 /**
  * Static instructions always appended to the agent (not user-configurable).
- * Covers channel replies and WhatsApp chat ID so the agent always follows these rules.
+ * Covers channel replies, time tool usage, and tool-result honesty. Channel-specific
+ * rules (e.g. WhatsApp chat ID, Slack/WhatsApp/Email formatting) are appended only when enabled.
  */
 export const STATIC_AGENT_INSTRUCTIONS_APPEND = `
 ## Channel replies (IMPORTANT)
@@ -33,6 +34,28 @@ Steps when channel context is present:
    - Email → call the email MCP tool to reply to the message.
 4. Your final text output should be the same reply you sent via the tool.
 
+## Current time and time-critical operations
+
+Before doing any time-critical operation or anything that involves the current date/time (e.g. scheduling, reminders, "in 2 hours", "by tomorrow", interpreting "now" or "today"), use the available time tool to get the current time. Use get_current_time from the _default_time MCP server (or the equivalent time tool if exposed under another name) so your answers and scheduled tasks are based on the actual current time, not guesswork.
+
+Never fabricate tool results. If a tool call fails, report the actual error.`;
+
+/**
+ * Channel-specific formatting instructions appended only when the channel is enabled.
+ * See: https://docs.slack.dev/messaging/formatting-message-text/
+ * See: https://faq.whatsapp.com/539178204879377/?cms_platform=web
+ */
+function getChannelFormattingInstructions(): string {
+  const channels = getChannelsConfig();
+  const parts: string[] = [];
+  if (channels.slack?.enabled) {
+    parts.push(`
+## Formatting replies for Slack
+
+When posting to Slack, use Slack mrkdwn (or plain text). Syntax: *bold* with asterisks, _italic_ with underscores, ~strikethrough~ with tildes, \`inline code\` with backticks, \`\`\`multi-line code block\`\`\` with triple backticks. Links: <url|link text>. Newlines: \\n. Escape & < > as &amp; &lt; &gt;. User mentions: <@USER_ID>, channels: <#CHANNEL_ID>.`);
+  }
+  if (channels.whatsapp?.enabled) {
+    parts.push(`
 ## WhatsApp chat ID from phone number
 
 When the user asks you to message them (or someone) on WhatsApp and gives a phone number, you can derive the chatId yourself. Format: digits only (country code + number, no + or spaces) followed by @c.us. Examples:
@@ -41,11 +64,26 @@ When the user asks you to message them (or someone) on WhatsApp and gives a phon
 - 44 20 7123 4567 → 442071234567@c.us
 Strip all non-digits from the number, then append @c.us. Use that as chatId in whatsapp_send_message. Do not ask the user to "share the chat ID" or "message first" if they have already provided a phone number.
 
-## Current time and time-critical operations
+## Formatting replies for WhatsApp
 
-Before doing any time-critical operation or anything that involves the current date/time (e.g. scheduling, reminders, "in 2 hours", "by tomorrow", interpreting "now" or "today"), use the available time tool to get the current time. Use get_current_time from the _default_time MCP server (or the equivalent time tool if exposed under another name) so your answers and scheduled tasks are based on the actual current time, not guesswork.
+When sending via WhatsApp, use WhatsApp formatting (or plain text): *bold*, _italic_, ~strikethrough~, \`\`\`monospace\`\`\` (triple backticks).`);
+  }
+  if (channels.email?.enabled) {
+    parts.push(`
+## Formatting replies for Email
 
-Never fabricate tool results. If a tool call fails, report the actual error.`;
+When replying by email, prefer HTML or plain text for the reply body. Do not use Markdown in the body sent to the email tool; convert to HTML or plain text as appropriate.`);
+  }
+  return parts.join("");
+}
+
+/**
+ * Full static instructions: base + channel-specific formatting (only for enabled channels).
+ * Use this when building the Hooman agent instructions.
+ */
+export function getFullStaticAgentInstructionsAppend(): string {
+  return STATIC_AGENT_INSTRUCTIONS_APPEND + getChannelFormattingInstructions();
+}
 
 /** LLM provider identifier for agent chat model. */
 export type LLMProviderId =
