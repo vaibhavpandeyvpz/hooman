@@ -140,10 +140,6 @@ export function registerEventHandlers(deps: EventHandlerDeps): void {
       const { agent, closeMcp } = await createHoomanAgentWithMcp(
         personas,
         connections,
-        {
-          apiKey: config.OPENAI_API_KEY || undefined,
-          model: config.OPENAI_MODEL,
-        },
       );
       try {
         const channelContext = buildChannelContext(
@@ -152,8 +148,6 @@ export function registerEventHandlers(deps: EventHandlerDeps): void {
         const runPromise = runChat(agent, thread, text, {
           memoryContext,
           channelContext,
-          apiKey: config.OPENAI_API_KEY || undefined,
-          model: config.OPENAI_MODEL || undefined,
           attachments,
         });
         const timeoutPromise = new Promise<never>((_, reject) => {
@@ -269,7 +263,6 @@ export function registerEventHandlers(deps: EventHandlerDeps): void {
       [{ role: "user", content: `[scheduler] ${text}` }],
       { userId: "default", metadata: { source: "scheduler" } },
     );
-    const apiConfig = getConfig();
     try {
       const memories = await context.search(text, {
         userId: "default",
@@ -284,21 +277,13 @@ export function registerEventHandlers(deps: EventHandlerDeps): void {
       const { agent, closeMcp } = await createHoomanAgentWithMcp(
         personas,
         connections,
-        {
-          apiKey: apiConfig.OPENAI_API_KEY || undefined,
-          model: apiConfig.OPENAI_MODEL,
-        },
       );
       try {
         const { finalOutput, lastAgentName, newItems } = await runChat(
           agent,
           [],
           text,
-          {
-            memoryContext,
-            apiKey: apiConfig.OPENAI_API_KEY || undefined,
-            model: apiConfig.OPENAI_MODEL || undefined,
-          },
+          { memoryContext },
         );
         const assistantText =
           finalOutput?.trim() ||

@@ -1,6 +1,7 @@
 import type { Express, Request, Response } from "express";
 import createDebug from "debug";
 import type { AppContext } from "./helpers.js";
+import type { LLMProviderId } from "../config.js";
 import { getConfig, updateConfig } from "../config.js";
 import {
   getKillSwitchEnabled,
@@ -13,6 +14,7 @@ export function registerSettingsRoutes(app: Express, _ctx: AppContext): void {
   app.get("/api/config", (_req: Request, res: Response) => {
     const c = getConfig();
     res.json({
+      LLM_PROVIDER: c.LLM_PROVIDER,
       OPENAI_API_KEY: c.OPENAI_API_KEY,
       OPENAI_MODEL: c.OPENAI_MODEL,
       OPENAI_EMBEDDING_MODEL: c.OPENAI_EMBEDDING_MODEL,
@@ -21,6 +23,20 @@ export function registerSettingsRoutes(app: Express, _ctx: AppContext): void {
       OPENAI_TRANSCRIPTION_MODEL: c.OPENAI_TRANSCRIPTION_MODEL,
       AGENT_NAME: c.AGENT_NAME,
       AGENT_INSTRUCTIONS: c.AGENT_INSTRUCTIONS,
+      AZURE_RESOURCE_NAME: c.AZURE_RESOURCE_NAME,
+      AZURE_API_KEY: c.AZURE_API_KEY,
+      AZURE_API_VERSION: c.AZURE_API_VERSION,
+      ANTHROPIC_API_KEY: c.ANTHROPIC_API_KEY,
+      AWS_REGION: c.AWS_REGION,
+      AWS_ACCESS_KEY_ID: c.AWS_ACCESS_KEY_ID,
+      AWS_SECRET_ACCESS_KEY: c.AWS_SECRET_ACCESS_KEY,
+      AWS_SESSION_TOKEN: c.AWS_SESSION_TOKEN,
+      GOOGLE_GENERATIVE_AI_API_KEY: c.GOOGLE_GENERATIVE_AI_API_KEY,
+      GOOGLE_VERTEX_PROJECT: c.GOOGLE_VERTEX_PROJECT,
+      GOOGLE_VERTEX_LOCATION: c.GOOGLE_VERTEX_LOCATION,
+      GOOGLE_VERTEX_API_KEY: c.GOOGLE_VERTEX_API_KEY,
+      MISTRAL_API_KEY: c.MISTRAL_API_KEY,
+      DEEPSEEK_API_KEY: c.DEEPSEEK_API_KEY,
     });
   });
 
@@ -31,6 +47,7 @@ export function registerSettingsRoutes(app: Express, _ctx: AppContext): void {
       return;
     }
     const updated = updateConfig({
+      LLM_PROVIDER: patch.LLM_PROVIDER as LLMProviderId | undefined,
       OPENAI_API_KEY: patch.OPENAI_API_KEY as string | undefined,
       OPENAI_MODEL: patch.OPENAI_MODEL as string | undefined,
       OPENAI_EMBEDDING_MODEL: patch.OPENAI_EMBEDDING_MODEL as
@@ -45,6 +62,24 @@ export function registerSettingsRoutes(app: Express, _ctx: AppContext): void {
         | undefined,
       AGENT_NAME: patch.AGENT_NAME as string | undefined,
       AGENT_INSTRUCTIONS: patch.AGENT_INSTRUCTIONS as string | undefined,
+      AZURE_RESOURCE_NAME: patch.AZURE_RESOURCE_NAME as string | undefined,
+      AZURE_API_KEY: patch.AZURE_API_KEY as string | undefined,
+      AZURE_API_VERSION: patch.AZURE_API_VERSION as string | undefined,
+      ANTHROPIC_API_KEY: patch.ANTHROPIC_API_KEY as string | undefined,
+      AWS_REGION: patch.AWS_REGION as string | undefined,
+      AWS_ACCESS_KEY_ID: patch.AWS_ACCESS_KEY_ID as string | undefined,
+      AWS_SECRET_ACCESS_KEY: patch.AWS_SECRET_ACCESS_KEY as string | undefined,
+      AWS_SESSION_TOKEN: patch.AWS_SESSION_TOKEN as string | undefined,
+      GOOGLE_GENERATIVE_AI_API_KEY: patch.GOOGLE_GENERATIVE_AI_API_KEY as
+        | string
+        | undefined,
+      GOOGLE_VERTEX_PROJECT: patch.GOOGLE_VERTEX_PROJECT as string | undefined,
+      GOOGLE_VERTEX_LOCATION: patch.GOOGLE_VERTEX_LOCATION as
+        | string
+        | undefined,
+      GOOGLE_VERTEX_API_KEY: patch.GOOGLE_VERTEX_API_KEY as string | undefined,
+      MISTRAL_API_KEY: patch.MISTRAL_API_KEY as string | undefined,
+      DEEPSEEK_API_KEY: patch.DEEPSEEK_API_KEY as string | undefined,
     });
     res.json(updated);
   });

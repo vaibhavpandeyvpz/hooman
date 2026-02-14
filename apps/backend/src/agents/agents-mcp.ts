@@ -8,6 +8,13 @@ import {
 } from "@openai/agents";
 import type { MCPServer } from "@openai/agents";
 import { createOpenAI } from "@ai-sdk/openai";
+import { createAzure } from "@ai-sdk/azure";
+import { createAnthropic } from "@ai-sdk/anthropic";
+import { createAmazonBedrock } from "@ai-sdk/amazon-bedrock";
+import { createGoogleGenerativeAI } from "@ai-sdk/google";
+import { createVertex } from "@ai-sdk/google-vertex";
+import { createMistral } from "@ai-sdk/mistral";
+import { createDeepSeek } from "@ai-sdk/deepseek";
 import { aisdk } from "@openai/agents-extensions/ai-sdk";
 import { listSkillsFromFs, getSkillContent } from "./skills-cli.js";
 import type { SkillEntry } from "./skills-cli.js";
@@ -18,6 +25,7 @@ import type {
   MCPConnectionStreamableHttp,
   MCPConnectionStdio,
 } from "../types.js";
+import type { AppConfig } from "../config.js";
 import {
   getChannelsConfig,
   getConfig,
@@ -325,6 +333,135 @@ function buildSkillsMetadataSection(
  * per persona based on their allowed_connections, and skill metadata (Level 1) from
  * their allowed_skills. Connects MCP servers before building the agent. Call closeMcp() after run to close servers.
  */
+
+const DEFAULT_CHAT_MODEL = "gpt-4o";
+
+/**
+ * Build the agent chat model from config (and optional overrides). Uses LLM_PROVIDER and provider-specific credentials.
+ */
+export function getAgentModel(
+  config: AppConfig,
+  overrides?: { apiKey?: string; model?: string },
+): ReturnType<typeof aisdk> {
+  const modelId =
+    overrides?.model?.trim() ||
+    config.OPENAI_MODEL?.trim() ||
+    DEFAULT_CHAT_MODEL;
+  const provider = config.LLM_PROVIDER ?? "openai";
+
+  switch (provider) {
+    case "openai": {
+      const apiKey = overrides?.apiKey ?? config.OPENAI_API_KEY;
+      const openaiProvider = createOpenAI({
+        apiKey: apiKey?.trim() || undefined,
+      });
+      return aisdk(openaiProvider(modelId));
+    }
+    case "azure": {
+      const resourceName = (config.AZURE_RESOURCE_NAME ?? "").trim();
+      const apiKey = (overrides?.apiKey ?? config.AZURE_API_KEY ?? "").trim();
+      if (!resourceName || !apiKey) {
+        throw new Error(
+          "Azure provider requires AZURE_RESOURCE_NAME and AZURE_API_KEY. Set them in Settings.",
+        );
+      }
+      const azureProvider = createAzure({
+        resourceName,
+        apiKey,
+        apiVersion: (config.AZURE_API_VERSION ?? "").trim() || undefined,
+      });
+      return aisdk(azureProvider(modelId));
+    }
+    case "anthropic": {
+      const apiKey = (
+        overrides?.apiKey ??
+        config.ANTHROPIC_API_KEY ??
+        ""
+      ).trim();
+      if (!apiKey) {
+        throw new Error(
+          "Anthropic provider requires ANTHROPIC_API_KEY. Set it in Settings.",
+        );
+      }
+      const anthropicProvider = createAnthropic({ apiKey });
+      return aisdk(anthropicProvider(modelId));
+    }
+    case "amazon-bedrock": {
+      const region = (config.AWS_REGION ?? "").trim();
+      const accessKeyId = (config.AWS_ACCESS_KEY_ID ?? "").trim();
+      const secretAccessKey = (config.AWS_SECRET_ACCESS_KEY ?? "").trim();
+      if (!region || !accessKeyId || !secretAccessKey) {
+        throw new Error(
+          "Amazon Bedrock provider requires AWS_REGION, AWS_ACCESS_KEY_ID, and AWS_SECRET_ACCESS_KEY. Set them in Settings.",
+        );
+      }
+      const bedrockProvider = createAmazonBedrock({
+        region,
+        accessKeyId,
+        secretAccessKey,
+        sessionToken: (config.AWS_SESSION_TOKEN ?? "").trim() || undefined,
+      });
+      return aisdk(bedrockProvider(modelId));
+    }
+    case "google": {
+      const apiKey = (
+        overrides?.apiKey ??
+        config.GOOGLE_GENERATIVE_AI_API_KEY ??
+        ""
+      ).trim();
+      if (!apiKey) {
+        throw new Error(
+          "Google Generative AI provider requires GOOGLE_GENERATIVE_AI_API_KEY. Set it in Settings.",
+        );
+      }
+      const googleProvider = createGoogleGenerativeAI({ apiKey });
+      return aisdk(googleProvider(modelId));
+    }
+    case "google-vertex": {
+      const project = (config.GOOGLE_VERTEX_PROJECT ?? "").trim();
+      const location = (config.GOOGLE_VERTEX_LOCATION ?? "").trim();
+      const apiKey = (config.GOOGLE_VERTEX_API_KEY ?? "").trim();
+      if (!project || !location) {
+        throw new Error(
+          "Google Vertex provider requires GOOGLE_VERTEX_PROJECT and GOOGLE_VERTEX_LOCATION. Set them in Settings (or use GOOGLE_APPLICATION_CREDENTIALS for service account).",
+        );
+      }
+      const vertexProvider = createVertex({
+        project,
+        location,
+        apiKey: apiKey || undefined,
+      });
+      return aisdk(vertexProvider(modelId));
+    }
+    case "mistral": {
+      const apiKey = (overrides?.apiKey ?? config.MISTRAL_API_KEY ?? "").trim();
+      if (!apiKey) {
+        throw new Error(
+          "Mistral provider requires MISTRAL_API_KEY. Set it in Settings.",
+        );
+      }
+      const mistralProvider = createMistral({ apiKey });
+      return aisdk(mistralProvider(modelId));
+    }
+    case "deepseek": {
+      const apiKey = (
+        overrides?.apiKey ??
+        config.DEEPSEEK_API_KEY ??
+        ""
+      ).trim();
+      if (!apiKey) {
+        throw new Error(
+          "DeepSeek provider requires DEEPSEEK_API_KEY. Set it in Settings.",
+        );
+      }
+      const deepseekProvider = createDeepSeek({ apiKey });
+      return aisdk(deepseekProvider(modelId));
+    }
+    default:
+      throw new Error(`Unknown LLM provider: ${String(provider)}`);
+  }
+}
+
 export async function createHoomanAgentWithMcp(
   personas: PersonaConfig[],
   connections: MCPConnection[],
@@ -334,10 +471,7 @@ export async function createHoomanAgentWithMcp(
   closeMcp: () => Promise<void>;
 }> {
   const config = getConfig();
-  const apiKey = options?.apiKey ?? config.OPENAI_API_KEY;
-  const modelId = options?.model?.trim() || config.OPENAI_MODEL || "gpt-4o";
-  const openaiProvider = createOpenAI({ apiKey: apiKey || undefined });
-  const model = aisdk(openaiProvider(modelId));
+  const model = getAgentModel(config, options);
 
   const allConnections: MCPConnection[] = [
     ...getAllDefaultMcpConnections(),

@@ -1,11 +1,28 @@
 import { useState, useEffect } from "react";
-import { getConfig, saveConfig, type AppConfig } from "../api";
+import {
+  getConfig,
+  saveConfig,
+  type AppConfig,
+  type LLMProviderId,
+} from "../api";
 import { Checkbox } from "./Checkbox";
 import { Button } from "./Button";
 import { Input } from "./Input";
+import { Select } from "./Select";
 import { Textarea } from "./Textarea";
 
 export type { AppConfig };
+
+const LLM_PROVIDER_OPTIONS: { value: LLMProviderId; label: string }[] = [
+  { value: "openai", label: "OpenAI" },
+  { value: "azure", label: "Azure OpenAI" },
+  { value: "anthropic", label: "Anthropic" },
+  { value: "amazon-bedrock", label: "Amazon Bedrock" },
+  { value: "google", label: "Google Generative AI" },
+  { value: "google-vertex", label: "Google Vertex" },
+  { value: "mistral", label: "Mistral" },
+  { value: "deepseek", label: "DeepSeek" },
+];
 
 export function Settings() {
   const [form, setForm] = useState<AppConfig | null>(null);
@@ -30,6 +47,7 @@ export function Settings() {
     setMessage(null);
     try {
       const updated = await saveConfig({
+        LLM_PROVIDER: form.LLM_PROVIDER ?? "openai",
         OPENAI_API_KEY: form.OPENAI_API_KEY,
         OPENAI_MODEL: form.OPENAI_MODEL,
         OPENAI_EMBEDDING_MODEL: form.OPENAI_EMBEDDING_MODEL,
@@ -38,6 +56,20 @@ export function Settings() {
         OPENAI_TRANSCRIPTION_MODEL: form.OPENAI_TRANSCRIPTION_MODEL,
         AGENT_NAME: form.AGENT_NAME,
         AGENT_INSTRUCTIONS: form.AGENT_INSTRUCTIONS,
+        AZURE_RESOURCE_NAME: form.AZURE_RESOURCE_NAME,
+        AZURE_API_KEY: form.AZURE_API_KEY,
+        AZURE_API_VERSION: form.AZURE_API_VERSION,
+        ANTHROPIC_API_KEY: form.ANTHROPIC_API_KEY,
+        AWS_REGION: form.AWS_REGION,
+        AWS_ACCESS_KEY_ID: form.AWS_ACCESS_KEY_ID,
+        AWS_SECRET_ACCESS_KEY: form.AWS_SECRET_ACCESS_KEY,
+        AWS_SESSION_TOKEN: form.AWS_SESSION_TOKEN,
+        GOOGLE_GENERATIVE_AI_API_KEY: form.GOOGLE_GENERATIVE_AI_API_KEY,
+        GOOGLE_VERTEX_PROJECT: form.GOOGLE_VERTEX_PROJECT,
+        GOOGLE_VERTEX_LOCATION: form.GOOGLE_VERTEX_LOCATION,
+        GOOGLE_VERTEX_API_KEY: form.GOOGLE_VERTEX_API_KEY,
+        MISTRAL_API_KEY: form.MISTRAL_API_KEY,
+        DEEPSEEK_API_KEY: form.DEEPSEEK_API_KEY,
       });
       setForm({ ...updated });
       setMessage({
@@ -121,45 +153,334 @@ export function Settings() {
             </div>
           </div>
           <div className="pt-4 border-t border-hooman-border">
-            <h3 className="text-sm font-medium text-zinc-300 mb-2">OpenAI</h3>
-            <div>
-              <label className="block text-sm font-medium text-zinc-300 mb-1">
-                API key
-              </label>
-              <Input
-                type="password"
-                value={form.OPENAI_API_KEY}
-                onChange={(e) =>
-                  setForm((f) =>
-                    f ? { ...f, OPENAI_API_KEY: e.target.value } : f,
-                  )
+            <h3 className="text-sm font-medium text-zinc-300 mb-2">LLM</h3>
+            <div className="space-y-3">
+              <Select<LLMProviderId>
+                label="Provider"
+                value={form.LLM_PROVIDER ?? "openai"}
+                options={LLM_PROVIDER_OPTIONS}
+                onChange={(value) =>
+                  setForm((f) => (f ? { ...f, LLM_PROVIDER: value } : f))
                 }
-                placeholder="sk-..."
-                className="bg-hooman-surface focus:ring-offset-hooman-surface"
-                autoComplete="off"
               />
-              <p className="text-xs text-hooman-muted mt-1">
-                Leave empty for no LLM; the agent will still chat with a
-                fallback.
+              <p className="text-xs text-hooman-muted">
+                Embedding and voice use OpenAI settings when configured.
               </p>
             </div>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-zinc-300 mb-1">
-              Chat and memory model
-            </label>
-            <Input
-              type="text"
-              value={form.OPENAI_MODEL}
-              onChange={(e) =>
-                setForm((f) => (f ? { ...f, OPENAI_MODEL: e.target.value } : f))
-              }
-              placeholder="gpt-5.2"
-              className="bg-hooman-surface focus:ring-offset-hooman-surface"
-            />
-            <p className="text-xs text-hooman-muted mt-1">
-              Used for general chat and for Mem0 memory.
-            </p>
+            {(form.LLM_PROVIDER ?? "openai") === "openai" && (
+              <div className="mt-3">
+                <label className="block text-sm font-medium text-zinc-300 mb-1">
+                  API key
+                </label>
+                <Input
+                  type="password"
+                  value={form.OPENAI_API_KEY}
+                  onChange={(e) =>
+                    setForm((f) =>
+                      f ? { ...f, OPENAI_API_KEY: e.target.value } : f,
+                    )
+                  }
+                  placeholder="sk-..."
+                  className="bg-hooman-surface focus:ring-offset-hooman-surface"
+                  autoComplete="off"
+                />
+                <p className="text-xs text-hooman-muted mt-1">
+                  Leave empty for no LLM; the agent will still chat with a
+                  fallback.
+                </p>
+              </div>
+            )}
+            {(form.LLM_PROVIDER ?? "openai") === "azure" && (
+              <div className="mt-3 space-y-3">
+                <div>
+                  <label className="block text-sm font-medium text-zinc-300 mb-1">
+                    Resource name
+                  </label>
+                  <Input
+                    type="text"
+                    value={form.AZURE_RESOURCE_NAME ?? ""}
+                    onChange={(e) =>
+                      setForm((f) =>
+                        f ? { ...f, AZURE_RESOURCE_NAME: e.target.value } : f,
+                      )
+                    }
+                    placeholder="my-resource"
+                    className="bg-hooman-surface focus:ring-offset-hooman-surface"
+                    autoComplete="off"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-zinc-300 mb-1">
+                    API key
+                  </label>
+                  <Input
+                    type="password"
+                    value={form.AZURE_API_KEY ?? ""}
+                    onChange={(e) =>
+                      setForm((f) =>
+                        f ? { ...f, AZURE_API_KEY: e.target.value } : f,
+                      )
+                    }
+                    placeholder="..."
+                    className="bg-hooman-surface focus:ring-offset-hooman-surface"
+                    autoComplete="off"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-zinc-300 mb-1">
+                    API version (optional)
+                  </label>
+                  <Input
+                    type="text"
+                    value={form.AZURE_API_VERSION ?? ""}
+                    onChange={(e) =>
+                      setForm((f) =>
+                        f ? { ...f, AZURE_API_VERSION: e.target.value } : f,
+                      )
+                    }
+                    placeholder="v1"
+                    className="bg-hooman-surface focus:ring-offset-hooman-surface"
+                  />
+                </div>
+              </div>
+            )}
+            {(form.LLM_PROVIDER ?? "openai") === "anthropic" && (
+              <div className="mt-3">
+                <label className="block text-sm font-medium text-zinc-300 mb-1">
+                  API key
+                </label>
+                <Input
+                  type="password"
+                  value={form.ANTHROPIC_API_KEY ?? ""}
+                  onChange={(e) =>
+                    setForm((f) =>
+                      f ? { ...f, ANTHROPIC_API_KEY: e.target.value } : f,
+                    )
+                  }
+                  placeholder="sk-ant-..."
+                  className="bg-hooman-surface focus:ring-offset-hooman-surface"
+                  autoComplete="off"
+                />
+              </div>
+            )}
+            {(form.LLM_PROVIDER ?? "openai") === "amazon-bedrock" && (
+              <div className="mt-3 space-y-3">
+                <div>
+                  <label className="block text-sm font-medium text-zinc-300 mb-1">
+                    Region
+                  </label>
+                  <Input
+                    type="text"
+                    value={form.AWS_REGION ?? ""}
+                    onChange={(e) =>
+                      setForm((f) =>
+                        f ? { ...f, AWS_REGION: e.target.value } : f,
+                      )
+                    }
+                    placeholder="us-east-1"
+                    className="bg-hooman-surface focus:ring-offset-hooman-surface"
+                    autoComplete="off"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-zinc-300 mb-1">
+                    Access key ID
+                  </label>
+                  <Input
+                    type="text"
+                    value={form.AWS_ACCESS_KEY_ID ?? ""}
+                    onChange={(e) =>
+                      setForm((f) =>
+                        f ? { ...f, AWS_ACCESS_KEY_ID: e.target.value } : f,
+                      )
+                    }
+                    placeholder="..."
+                    className="bg-hooman-surface focus:ring-offset-hooman-surface"
+                    autoComplete="off"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-zinc-300 mb-1">
+                    Secret access key
+                  </label>
+                  <Input
+                    type="password"
+                    value={form.AWS_SECRET_ACCESS_KEY ?? ""}
+                    onChange={(e) =>
+                      setForm((f) =>
+                        f ? { ...f, AWS_SECRET_ACCESS_KEY: e.target.value } : f,
+                      )
+                    }
+                    placeholder="..."
+                    className="bg-hooman-surface focus:ring-offset-hooman-surface"
+                    autoComplete="off"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-zinc-300 mb-1">
+                    Session token (optional)
+                  </label>
+                  <Input
+                    type="password"
+                    value={form.AWS_SESSION_TOKEN ?? ""}
+                    onChange={(e) =>
+                      setForm((f) =>
+                        f ? { ...f, AWS_SESSION_TOKEN: e.target.value } : f,
+                      )
+                    }
+                    placeholder="..."
+                    className="bg-hooman-surface focus:ring-offset-hooman-surface"
+                    autoComplete="off"
+                  />
+                </div>
+              </div>
+            )}
+            {(form.LLM_PROVIDER ?? "openai") === "google" && (
+              <div className="mt-3">
+                <label className="block text-sm font-medium text-zinc-300 mb-1">
+                  API key
+                </label>
+                <Input
+                  type="password"
+                  value={form.GOOGLE_GENERATIVE_AI_API_KEY ?? ""}
+                  onChange={(e) =>
+                    setForm((f) =>
+                      f
+                        ? {
+                            ...f,
+                            GOOGLE_GENERATIVE_AI_API_KEY: e.target.value,
+                          }
+                        : f,
+                    )
+                  }
+                  placeholder="..."
+                  className="bg-hooman-surface focus:ring-offset-hooman-surface"
+                  autoComplete="off"
+                />
+              </div>
+            )}
+            {(form.LLM_PROVIDER ?? "openai") === "google-vertex" && (
+              <div className="mt-3 space-y-3">
+                <div>
+                  <label className="block text-sm font-medium text-zinc-300 mb-1">
+                    Project
+                  </label>
+                  <Input
+                    type="text"
+                    value={form.GOOGLE_VERTEX_PROJECT ?? ""}
+                    onChange={(e) =>
+                      setForm((f) =>
+                        f ? { ...f, GOOGLE_VERTEX_PROJECT: e.target.value } : f,
+                      )
+                    }
+                    placeholder="my-project"
+                    className="bg-hooman-surface focus:ring-offset-hooman-surface"
+                    autoComplete="off"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-zinc-300 mb-1">
+                    Location
+                  </label>
+                  <Input
+                    type="text"
+                    value={form.GOOGLE_VERTEX_LOCATION ?? ""}
+                    onChange={(e) =>
+                      setForm((f) =>
+                        f
+                          ? { ...f, GOOGLE_VERTEX_LOCATION: e.target.value }
+                          : f,
+                      )
+                    }
+                    placeholder="us-central1"
+                    className="bg-hooman-surface focus:ring-offset-hooman-surface"
+                    autoComplete="off"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-zinc-300 mb-1">
+                    API key (optional, for express mode)
+                  </label>
+                  <Input
+                    type="password"
+                    value={form.GOOGLE_VERTEX_API_KEY ?? ""}
+                    onChange={(e) =>
+                      setForm((f) =>
+                        f ? { ...f, GOOGLE_VERTEX_API_KEY: e.target.value } : f,
+                      )
+                    }
+                    placeholder="..."
+                    className="bg-hooman-surface focus:ring-offset-hooman-surface"
+                    autoComplete="off"
+                  />
+                  <p className="text-xs text-hooman-muted mt-1">
+                    Or set GOOGLE_APPLICATION_CREDENTIALS for service account.
+                  </p>
+                </div>
+              </div>
+            )}
+            {(form.LLM_PROVIDER ?? "openai") === "mistral" && (
+              <div className="mt-3">
+                <label className="block text-sm font-medium text-zinc-300 mb-1">
+                  API key
+                </label>
+                <Input
+                  type="password"
+                  value={form.MISTRAL_API_KEY ?? ""}
+                  onChange={(e) =>
+                    setForm((f) =>
+                      f ? { ...f, MISTRAL_API_KEY: e.target.value } : f,
+                    )
+                  }
+                  placeholder="..."
+                  className="bg-hooman-surface focus:ring-offset-hooman-surface"
+                  autoComplete="off"
+                />
+              </div>
+            )}
+            {(form.LLM_PROVIDER ?? "openai") === "deepseek" && (
+              <div className="mt-3">
+                <label className="block text-sm font-medium text-zinc-300 mb-1">
+                  API key
+                </label>
+                <Input
+                  type="password"
+                  value={form.DEEPSEEK_API_KEY ?? ""}
+                  onChange={(e) =>
+                    setForm((f) =>
+                      f ? { ...f, DEEPSEEK_API_KEY: e.target.value } : f,
+                    )
+                  }
+                  placeholder="..."
+                  className="bg-hooman-surface focus:ring-offset-hooman-surface"
+                  autoComplete="off"
+                />
+              </div>
+            )}
+            <div className="mt-4">
+              <label className="block text-sm font-medium text-zinc-300 mb-1">
+                Chat model
+              </label>
+              <Input
+                type="text"
+                value={form.OPENAI_MODEL}
+                onChange={(e) =>
+                  setForm((f) =>
+                    f ? { ...f, OPENAI_MODEL: e.target.value } : f,
+                  )
+                }
+                placeholder={
+                  (form.LLM_PROVIDER ?? "openai") === "azure"
+                    ? "Deployment name"
+                    : "gpt-5.2, claude-3-haiku-..., gemini-2.5-flash, etc."
+                }
+                className="bg-hooman-surface focus:ring-offset-hooman-surface"
+              />
+              <p className="text-xs text-hooman-muted mt-1">
+                Model ID or deployment name. Used for general chat and for Mem0
+                memory.
+              </p>
+            </div>
           </div>
           <div>
             <label className="block text-sm font-medium text-zinc-300 mb-1">

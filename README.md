@@ -24,6 +24,7 @@ You don't manage a dozen bots. You have **one conversation** with Hooman. Want a
 
 - **🚪 One front door** — Chat, schedule, and inspect everything through Hooman.
 - **🦸 Personas with superpowers** — Give each persona a role (e.g. researcher, writer) and attach MCP connections and skills. Hooman hands off when a task fits.
+- **🔀 Multiple LLM providers** — In Settings, choose OpenAI, Azure OpenAI, Anthropic, Amazon Bedrock, Google Generative AI, Google Vertex, Mistral, or DeepSeek for the chat agent. Embedding and voice stay OpenAI when configured.
 - **🎛️ Under your control** — Kill switch, capability approvals, and an audit log so you see who did what and when.
 
 ---
@@ -78,7 +79,7 @@ npx pm2 start ecosystem.config.cjs
 - **API** → http://localhost:3000
 - **Web UI** → http://localhost:5173
 
-Set your OpenAI API key and models in **Settings**, then chat with Hooman and add Personas in the UI.
+Set your **LLM provider** and API key (or credentials) in **Settings**, then chat with Hooman and add Personas in the UI. Supported providers: OpenAI, Azure, Anthropic, Amazon Bedrock, Google, Google Vertex, Mistral, DeepSeek.
 
 To stop: `npx pm2 stop ecosystem.config.cjs` (or `yarn stop`).
 
@@ -109,7 +110,7 @@ When running locally, create a `.env` from `.env.example`. Key variables:
 | `MCP_STDIO_DEFAULT_CWD` | No       | Working directory for stdio MCP / filesystem server (default: `workspace/mcpcwd`).                                      |
 | `SKILLS_CWD`            | No       | Override project root for skills (default: repo root). Skills are installed and listed from `<project>/.agents/skills`. |
 
-All runtime data is stored under **`workspace/`** at project root: `hooman.db` (Prisma), `config.json` (Settings), `memory.db` (mem0 history), `vector.db` (mem0 vector store – created on first chat after you set an API key), and `attachments/`. Stdio MCP servers use `workspace/mcpcwd` by default. OpenAI API key, models, and web search are set in the **Settings** UI (persisted by the API), not via env.
+All runtime data is stored under **`workspace/`** at project root: `hooman.db` (Prisma), `config.json` (Settings), `memory.db` (mem0 history), `vector.db` (mem0 vector store – created on first chat after you set an API key), and `attachments/`. Stdio MCP servers use `workspace/mcpcwd` by default. **LLM provider** (OpenAI, Azure, Anthropic, Bedrock, Google, Google Vertex, Mistral, DeepSeek), API keys or credentials, models, and web search are set in the **Settings** UI (persisted by the API), not via env. Embedding and voice input use OpenAI settings when configured.
 
 ---
 

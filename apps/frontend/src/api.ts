@@ -249,7 +249,18 @@ export async function getHealth(): Promise<{
   return res.json();
 }
 
+export type LLMProviderId =
+  | "openai"
+  | "azure"
+  | "anthropic"
+  | "amazon-bedrock"
+  | "google"
+  | "google-vertex"
+  | "mistral"
+  | "deepseek";
+
 export interface AppConfig {
+  LLM_PROVIDER?: LLMProviderId;
   OPENAI_API_KEY: string;
   OPENAI_MODEL: string;
   OPENAI_EMBEDDING_MODEL: string;
@@ -258,6 +269,20 @@ export interface AppConfig {
   OPENAI_TRANSCRIPTION_MODEL: string;
   AGENT_NAME: string;
   AGENT_INSTRUCTIONS: string;
+  AZURE_RESOURCE_NAME?: string;
+  AZURE_API_KEY?: string;
+  AZURE_API_VERSION?: string;
+  ANTHROPIC_API_KEY?: string;
+  AWS_REGION?: string;
+  AWS_ACCESS_KEY_ID?: string;
+  AWS_SECRET_ACCESS_KEY?: string;
+  AWS_SESSION_TOKEN?: string;
+  GOOGLE_GENERATIVE_AI_API_KEY?: string;
+  GOOGLE_VERTEX_PROJECT?: string;
+  GOOGLE_VERTEX_LOCATION?: string;
+  GOOGLE_VERTEX_API_KEY?: string;
+  MISTRAL_API_KEY?: string;
+  DEEPSEEK_API_KEY?: string;
 }
 
 export async function getConfig(): Promise<AppConfig> {
