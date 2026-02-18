@@ -109,14 +109,6 @@ export function Chat() {
     attachmentIds?: string[],
     attachmentMetas?: ChatAttachmentMeta[],
   ) {
-    const userMessage: ChatMessageType = {
-      role: "user",
-      text,
-      ...(attachmentIds?.length
-        ? { attachments: attachmentIds, attachment_metas: attachmentMetas }
-        : {}),
-    };
-    setMessages((prev) => [...prev, userMessage]);
     if (loading) {
       const queued: QueuedMessage = {
         text,
@@ -127,6 +119,14 @@ export function Chat() {
       queueRef.current = [...queueRef.current, queued];
       return;
     }
+    const userMessage: ChatMessageType = {
+      role: "user",
+      text,
+      ...(attachmentIds?.length
+        ? { attachments: attachmentIds, attachment_metas: attachmentMetas }
+        : {}),
+    };
+    setMessages((prev) => [...prev, userMessage]);
     sendOne(text, attachmentIds);
   }
 
