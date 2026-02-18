@@ -191,6 +191,7 @@ export async function startSlackAdapter(
       ...(senderName ? { senderName } : {}),
       ...(mentionedIds.length > 0 ? { mentionedIds } : {}),
       ...(selfMentioned ? { selfMentioned: true } : {}),
+      ...(designatedUserId ? { yourSlackUserId: designatedUserId } : {}),
       ...(originalMessage ? { originalMessage } : {}),
     };
 

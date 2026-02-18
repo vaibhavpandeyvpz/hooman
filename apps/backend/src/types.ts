@@ -109,6 +109,8 @@ export interface SlackChannelMeta extends ChannelMetaBase {
   destinationType: "dm" | "channel" | "group";
   mentionedIds?: string[];
   selfMentioned?: boolean;
+  /** Designated Slack user ID for the agent in this workspace; when present, messages or mentions to this ID are addressing you. */
+  yourSlackUserId?: string;
 }
 
 /** WhatsApp channel metadata. */

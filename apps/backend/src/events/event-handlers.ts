@@ -32,6 +32,9 @@ function buildChannelContext(
     lines.push(`destinationType: ${meta.destinationType}`);
     lines.push(`senderId: ${meta.senderId}`);
     if (meta.senderName) lines.push(`senderName: ${meta.senderName}`);
+    if (meta.yourSlackUserId)
+      lines.push(`yourSlackUserId: ${meta.yourSlackUserId}`);
+    if (meta.selfMentioned) lines.push(`selfMentioned: true`);
   }
   lines.push(`directness: ${meta.directness}`);
   if (meta.directnessReason)
