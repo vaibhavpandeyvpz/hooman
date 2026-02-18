@@ -1,6 +1,7 @@
 import type { Request, Response, NextFunction } from "express";
 import { jwtVerify, SignJWT } from "jose";
 import { env } from "../env.js";
+import { COMPLETION_ROUTES } from "../routes/completions.js";
 
 const JWT_ALG = "HS256";
 const JWT_EXPIRY = "7d";
@@ -51,6 +52,10 @@ export function authJwt(req: Request, res: Response, next: NextFunction): void {
     return;
   }
   if (req.method === "POST" && req.path === "/api/auth/login") {
+    next();
+    return;
+  }
+  if (COMPLETION_ROUTES.has(req.path)) {
     next();
     return;
   }

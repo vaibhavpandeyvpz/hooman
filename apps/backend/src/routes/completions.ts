@@ -5,6 +5,12 @@ import { getKillSwitchEnabled } from "../agents/kill-switch.js";
 import { getConfig } from "../config.js";
 import { completionsAuth } from "../middleware/completions-auth.js";
 
+/** Paths for the completions API; excluded from JWT and used as public paths when exposed (e.g. ngrok). */
+export const COMPLETION_ROUTES = new Set([
+  "/v1/chat/completions",
+  "/chat/completions",
+]);
+
 const POLL_INTERVAL_MS = 200;
 const WAIT_TIMEOUT_MS = 90_000;
 
@@ -132,6 +138,7 @@ export function registerCompletionsRoutes(app: Express, ctx: AppContext): void {
     });
   };
 
-  app.post("/v1/chat/completions", completionsAuth, completionsHandler);
-  app.post("/chat/completions", completionsAuth, completionsHandler);
+  for (const path of COMPLETION_ROUTES) {
+    app.post(path, completionsAuth, completionsHandler);
+  }
 }
