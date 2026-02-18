@@ -6,7 +6,6 @@ import { Server as SocketServer } from "socket.io";
 
 const debug = createDebug("hooman:api");
 import { EventRouter } from "./events/event-router.js";
-import { createMemoryService } from "./data/memory.js";
 import { AuditLog } from "./audit.js";
 import type { ScheduleService, ScheduledTask } from "./data/scheduler.js";
 import { randomUUID } from "crypto";
@@ -57,18 +56,12 @@ async function main() {
     "Event queue: Redis + BullMQ; kill switch in Redis; workers process events",
   );
 
-  const config = getConfig();
-  const memory = await createMemoryService({
-    openaiApiKey: config.OPENAI_API_KEY,
-    llmModel: config.OPENAI_MODEL,
-  });
-
   await initDb();
   debug("Database (Prisma + SQLite) ready");
 
   const chatHistory = await initChatHistory();
   const attachmentStore = await initAttachmentStore(ATTACHMENTS_DATA_DIR);
-  const context = createContext(memory, chatHistory);
+  const context = createContext(chatHistory);
 
   const scheduleStore = await initScheduleStore();
   const mcpConnectionsStore = await initMCPConnectionsStore();

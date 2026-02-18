@@ -1,5 +1,5 @@
 /**
- * Token-based context trimming so thread + memory stay under the model context window.
+ * Token-based context trimming so thread stays under the model context window.
  * Uses ai-tokenizer for counting; no character heuristics.
  */
 import Tokenizer, { models } from "ai-tokenizer";
@@ -59,56 +59,35 @@ export function getTokenizerForConfig(): {
 export type ThreadMessage = { role: "user" | "assistant"; content: string };
 
 /**
- * Trim thread and memory so total tokens stay under (maxInputTokens - reservedTokens).
+ * Trim thread so total tokens stay under (maxInputTokens - reservedTokens).
  * When maxInputTokens is 0 or unset, effective max is 100_000. Always uses token counting; no character fallback.
  */
 export function trimContextToTokenBudget(
   thread: ThreadMessage[],
-  memoryContext: string,
   maxInputTokens: number,
   reservedTokens: number = RESERVED_TOKENS,
-): { thread: ThreadMessage[]; memoryContext: string } {
+): ThreadMessage[] {
   const effectiveMax = maxInputTokens > 0 ? maxInputTokens : 100_000;
   const budget = effectiveMax - reservedTokens;
   const pair = getTokenizerForConfig();
   if (!pair) {
-    return { thread, memoryContext };
+    return thread;
   }
   const { tokenizer, model } = pair;
 
   let threadMessages: ThreadMessage[] = [...thread];
-  let memory = memoryContext;
-
-  function buildMessages(): ThreadMessage[] {
-    const out = [...threadMessages];
-    if (memory.trim().length > 0)
-      out.push({
-        role: "user",
-        content: `[Relevant memory from past conversations]\n${memory}\n\n---`,
-      });
-    return out;
-  }
-
-  let messages = buildMessages();
-  if (messages.length === 0)
-    return { thread: threadMessages, memoryContext: memory };
+  if (threadMessages.length === 0) return threadMessages;
 
   const countOpts: CountOptions = {
     tokenizer: tokenizer as unknown as CountOptions["tokenizer"],
     model,
-    messages,
+    messages: threadMessages,
   };
   let result = count(countOpts);
-  while (result.total > budget && messages.length > 1) {
-    messages.shift();
-    threadMessages = threadMessages.length > 0 ? threadMessages.slice(1) : [];
-    messages = buildMessages();
-    if (messages.length === 0) break;
-    result = count({ ...countOpts, messages });
-  }
-  if (messages.length === 1 && result.total > budget) {
-    memory = "";
+  while (result.total > budget && threadMessages.length > 1) {
+    threadMessages = threadMessages.slice(1);
+    result = count({ ...countOpts, messages: threadMessages });
   }
 
-  return { thread: threadMessages, memoryContext: memory };
+  return threadMessages;
 }

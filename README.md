@@ -24,7 +24,7 @@ You don’t juggle a dozen bots. You have **one conversation** with Hooman. Need
 
 - **One front door** — Chat, schedule, and inspect everything through Hooman.
 - **MCP and skills** — Capabilities (MCP servers and skills) are attached to Hooman. Add connections and skills in the UI; Hooman uses them when relevant.
-- **Multiple LLM providers** — In Settings, choose an LLM provider (OpenAI, Azure OpenAI, Anthropic, Amazon Bedrock, Google Generative AI, Google Vertex, Mistral, or DeepSeek) for chat and memory. Choose a transcription provider (OpenAI, Azure, or Deepgram) for voice and audio (e.g. WhatsApp voice notes). Memory embeddings are generated locally (embeddings.js); no extra API.
+- **Multiple LLM providers** — In Settings, choose an LLM provider (OpenAI, Azure OpenAI, Anthropic, Amazon Bedrock, Google Generative AI, Google Vertex, Mistral, or DeepSeek) for chat. Choose a transcription provider (OpenAI, Azure, or Deepgram) for voice and audio (e.g. WhatsApp voice notes).
 - **Under your control** — Kill switch, capability approvals, and a full audit log so you see who did what and when.
 
 ---
@@ -49,7 +49,7 @@ One identity, one memory, one audit trail—whether you message from the web, Sl
 | ---------------- | -------------------------------------------------------------------------------------------------------------------------- |
 | **Hooman**       | A virtual identity. Reasons over memory, handles messages and scheduled tasks, and uses MCP tools and skills as needed.    |
 | **Capabilities** | MCP servers (fetch, time, filesystem, or your own) and skills. Attached to Hooman; configure in Capabilities and Settings. |
-| **Memory**       | mem0: in-memory vector store and SQLite history (`memory.db`) so Hooman can use past context.                              |
+| **Memory**       | Chat history (Prisma) so Hooman can use past context.                                                                      |
 
 You chat with Hooman; Hooman uses memory, MCP tools, and skills, and responds. Scheduled tasks run the same way—at a set time, Hooman processes the task like a message (reasoning, tools, audit).
 
@@ -71,7 +71,7 @@ You chat with Hooman; Hooman uses memory, MCP tools, and skills, and responds. S
   ```
   Ensure the Go bin directory (e.g. `$HOME/go/bin`) is on your `PATH` so `slack-mcp-server` is available.
 
-No separate database server: the app uses Prisma + SQLite and mem0 (in-memory + SQLite history).
+No separate database server: the app uses Prisma + SQLite.
 
 ---
 
@@ -185,7 +185,7 @@ When running locally, create a `.env` from `.env.example`. Key variables:
 | `WEB_AUTH_PASSWORD_HASH` | No       | Argon2id hash of password. Generate with `yarn hash-password` and add the printed line to `.env`.               |
 | `JWT_SECRET`             | No       | Secret to sign JWTs when web auth is enabled. Use a strong value (e.g. 32+ random bytes).                       |
 
-All runtime data is stored under **`workspace/`** at project root: `hooman.db` (Prisma), `config.json` (Settings), `memory.db` (mem0 history), `vector.db` (mem0 vectors, created on first chat after you set an API key), and `attachments/`. Stdio MCP servers use `workspace/mcpcwd` by default. LLM provider, transcription provider, API keys or credentials, models, and web search are set in the **Settings** UI (persisted by the API), not via env.
+All runtime data is stored under **`workspace/`** at project root: `hooman.db` (Prisma), `config.json` (Settings), and `attachments/`. Stdio MCP servers use `workspace/mcpcwd` by default. LLM provider, transcription provider, API keys or credentials, models, and web search are set in the **Settings** UI (persisted by the API), not via env.
 
 ---
 

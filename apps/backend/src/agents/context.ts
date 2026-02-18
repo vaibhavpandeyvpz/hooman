@@ -1,22 +1,15 @@
-import type { IMemoryService } from "../data/memory.js";
 import type {
   ChatHistoryStore,
   GetMessagesResult,
 } from "../data/chat-history.js";
-import type { MemorySearchResult } from "../data/memory.js";
 
 export interface ContextStore {
-  /** Add messages to Mem0 only (no chat history). Use for all events so agents can recall them. */
-  addToMemory(
-    messages: Array<{ role: string; content: string }>,
-    options?: { userId?: string; metadata?: Record<string, unknown> },
-  ): Promise<void>;
   /** Persist one user/assistant turn to chat history only (UI). Call only for api-source chat. */
   addTurn(
     userId: string,
     userText: string,
     assistantText: string,
-    userAttachmentIds?: string[],
+    userAttachments?: string[],
   ): Promise<void>;
   /** Last N messages in chronological order for agent thread. */
   getRecentMessages(
@@ -26,7 +19,7 @@ export interface ContextStore {
     Array<{
       role: "user" | "assistant";
       text: string;
-      attachment_ids?: string[];
+      attachments?: string[];
     }>
   >;
   /** Paginated messages for GET /api/chat/history. */
@@ -34,41 +27,19 @@ export interface ContextStore {
     userId: string,
     options?: { page?: number; pageSize?: number },
   ): Promise<GetMessagesResult>;
-  /** Clear all messages and memory for the user. */
+  /** Clear all messages for the user. */
   clearAll(userId: string): Promise<void>;
-  /** Semantic search over memory for agent context. */
-  search(
-    query: string,
-    options?: { userId?: string; limit?: number },
-  ): Promise<MemorySearchResult[]>;
 }
 
-export function createContext(
-  memory: IMemoryService,
-  chatHistory: ChatHistoryStore,
-): ContextStore {
+export function createContext(chatHistory: ChatHistoryStore): ContextStore {
   return {
-    async addToMemory(
-      messages: Array<{ role: string; content: string }>,
-      options?: { userId?: string; metadata?: Record<string, unknown> },
-    ): Promise<void> {
-      const userId = options?.userId ?? "default";
-      const createdAt = new Date().toISOString();
-      for (let i = 0; i < messages.length; i++) {
-        await memory.add([messages[i]], {
-          userId,
-          metadata: { ...options?.metadata, createdAt, messageIndex: i },
-        });
-      }
-    },
-
     async addTurn(
       userId: string,
       userText: string,
       assistantText: string,
-      userAttachmentIds?: string[],
+      userAttachments?: string[],
     ): Promise<void> {
-      await chatHistory.addMessage(userId, "user", userText, userAttachmentIds);
+      await chatHistory.addMessage(userId, "user", userText, userAttachments);
       await chatHistory.addMessage(userId, "assistant", assistantText);
     },
 
@@ -88,17 +59,6 @@ export function createContext(
 
     async clearAll(userId: string): Promise<void> {
       await chatHistory.clearAll(userId);
-      await memory.deleteAll({ userId });
-    },
-
-    async search(
-      query: string,
-      options?: { userId?: string; limit?: number },
-    ): Promise<MemorySearchResult[]> {
-      return memory.search(query, {
-        userId: options?.userId ?? "default",
-        limit: options?.limit ?? 10,
-      });
     },
   };
 }

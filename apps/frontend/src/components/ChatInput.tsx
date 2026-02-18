@@ -70,7 +70,7 @@ interface PendingAttachment {
 
 export interface QueuedMessage {
   text: string;
-  attachment_ids?: string[];
+  attachments?: string[];
   attachment_metas?: ChatAttachmentMeta[];
 }
 
@@ -264,8 +264,8 @@ export function ChatInput({
               >
                 <span className="flex-1 truncate">
                   {item.text}
-                  {item.attachment_ids?.length
-                    ? ` (+${item.attachment_ids.length} attachment${item.attachment_ids.length === 1 ? "" : "s"})`
+                  {item.attachments?.length
+                    ? ` (+${item.attachments.length} attachment${item.attachments.length === 1 ? "" : "s"})`
                     : ""}
                 </span>
                 <Button

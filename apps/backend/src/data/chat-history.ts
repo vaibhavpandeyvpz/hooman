@@ -7,7 +7,7 @@ export interface GetMessagesResult {
   messages: Array<{
     role: "user" | "assistant";
     text: string;
-    attachment_ids?: string[];
+    attachments?: string[];
   }>;
   total: number;
   page: number;
@@ -19,7 +19,7 @@ export interface ChatHistoryStore {
     userId: string,
     role: "user" | "assistant",
     text: string,
-    attachment_ids?: string[],
+    attachments?: string[],
   ): Promise<void>;
   getMessages(
     userId: string,
@@ -32,7 +32,7 @@ export interface ChatHistoryStore {
     Array<{
       role: "user" | "assistant";
       text: string;
-      attachment_ids?: string[];
+      attachments?: string[];
     }>
   >;
   clearAll(userId: string): Promise<void>;
@@ -56,17 +56,15 @@ export async function initChatHistory(): Promise<ChatHistoryStore> {
       userId: string,
       role: "user" | "assistant",
       text: string,
-      attachment_ids?: string[],
+      attachments?: string[],
     ) {
       await prisma.chatMessage.create({
         data: {
           userId,
           role,
           text,
-          ...(attachment_ids?.length
-            ? {
-                attachment_ids: JSON.stringify(attachment_ids),
-              }
+          ...(attachments?.length
+            ? { attachments: JSON.stringify(attachments) }
             : {}),
         },
       });
@@ -89,7 +87,7 @@ export async function initChatHistory(): Promise<ChatHistoryStore> {
           orderBy: { createdAt: "asc" },
           skip,
           take: pageSize,
-          select: { role: true, text: true, attachment_ids: true },
+          select: { role: true, text: true, attachments: true },
         }),
         prisma.chatMessage.count({ where: { userId } }),
       ]);
@@ -97,7 +95,7 @@ export async function initChatHistory(): Promise<ChatHistoryStore> {
       const messages = rows.map((r) => ({
         role: r.role as "user" | "assistant",
         text: r.text,
-        attachment_ids: parseAttachmentIds(r.attachment_ids),
+        attachments: parseAttachmentIds(r.attachments),
       }));
 
       return { messages, total, page, pageSize };
@@ -109,13 +107,13 @@ export async function initChatHistory(): Promise<ChatHistoryStore> {
         where: { userId },
         orderBy: { createdAt: "desc" },
         take: n,
-        select: { role: true, text: true, attachment_ids: true },
+        select: { role: true, text: true, attachments: true },
       });
 
       return rows.reverse().map((r) => ({
         role: r.role as "user" | "assistant",
         text: r.text,
-        attachment_ids: parseAttachmentIds(r.attachment_ids),
+        attachments: parseAttachmentIds(r.attachments),
       }));
     },
 

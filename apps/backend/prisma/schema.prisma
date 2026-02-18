@@ -12,7 +12,7 @@ model ChatMessage {
   userId         String
   role           String
   text           String
-  attachment_ids String?  // JSON array
+  attachments    String?  // JSON array of attachment IDs
   createdAt      DateTime @default(now())
 
   @@index([userId, createdAt])

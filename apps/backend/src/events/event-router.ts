@@ -43,9 +43,9 @@ function normalizePayload(
     const text = typeof payload.text === "string" ? payload.text : "";
     const userId =
       typeof payload.userId === "string" ? payload.userId : "default";
-    const attachments = Array.isArray(payload.attachments)
+    const attachmentContents = Array.isArray(payload.attachmentContents)
       ? (
-          payload.attachments as Array<{
+          payload.attachmentContents as Array<{
             name: string;
             contentType: string;
             data: string;
@@ -57,10 +57,8 @@ function normalizePayload(
             typeof a?.data === "string",
         )
       : undefined;
-    const attachment_ids = Array.isArray(payload.attachment_ids)
-      ? (payload.attachment_ids as string[]).filter(
-          (id) => typeof id === "string",
-        )
+    const attachments = Array.isArray(payload.attachments)
+      ? (payload.attachments as string[]).filter((id) => typeof id === "string")
       : undefined;
     const channelMeta =
       payload.channelMeta &&
@@ -76,8 +74,8 @@ function normalizePayload(
       kind: "message",
       text,
       userId,
-      attachments,
-      attachment_ids,
+      ...(attachmentContents?.length ? { attachmentContents } : {}),
+      ...(attachments?.length ? { attachments } : {}),
       ...(channelMeta ? { channelMeta } : {}),
       ...(sourceMessageType ? { sourceMessageType } : {}),
     };

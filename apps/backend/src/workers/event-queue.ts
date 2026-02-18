@@ -6,11 +6,10 @@
 import createDebug from "debug";
 import { randomUUID } from "crypto";
 import { mkdirSync } from "fs";
-import { loadPersisted, getConfig } from "../config.js";
+import { loadPersisted } from "../config.js";
 import { createEventQueue } from "../events/event-queue.js";
 import { EventRouter } from "../events/event-router.js";
 import { registerEventHandlers } from "../events/event-handlers.js";
-import { createMemoryService } from "../data/memory.js";
 import { AuditLog } from "../audit.js";
 import { createContext } from "../agents/context.js";
 import type { ScheduleService, ScheduledTask } from "../data/scheduler.js";
@@ -43,13 +42,8 @@ async function main() {
   initRedis(env.REDIS_URL);
   initKillSwitch(env.REDIS_URL);
 
-  const config = getConfig();
-  const memory = await createMemoryService({
-    openaiApiKey: config.OPENAI_API_KEY,
-    llmModel: config.OPENAI_MODEL,
-  });
   const chatHistory = await initChatHistory();
-  const context = createContext(memory, chatHistory);
+  const context = createContext(chatHistory);
   const mcpConnectionsStore = await initMCPConnectionsStore();
   const scheduleStore = await initScheduleStore();
   const scheduler: ScheduleService = {

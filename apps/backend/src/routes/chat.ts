@@ -23,12 +23,12 @@ export function registerChatRoutes(app: Express, ctx: AppContext): void {
     const result = await context.getMessages(userId, { page, pageSize });
     const messagesWithMeta = await Promise.all(
       result.messages.map(async (m) => {
-        const ids = m.attachment_ids ?? [];
+        const ids = m.attachments ?? [];
         if (ids.length === 0)
           return {
             role: m.role,
             text: m.text,
-            attachment_ids: m.attachment_ids,
+            attachments: m.attachments,
           };
         const attachment_metas = await Promise.all(
           ids.map(async (id) => {
@@ -41,7 +41,7 @@ export function registerChatRoutes(app: Express, ctx: AppContext): void {
         return {
           role: m.role,
           text: m.text,
-          attachment_ids: m.attachment_ids,
+          attachments: m.attachments,
           attachment_metas: attachment_metas.filter(
             (a): a is { id: string; originalName: string; mimeType: string } =>
               a !== null,
@@ -124,20 +124,20 @@ export function registerChatRoutes(app: Express, ctx: AppContext): void {
       res.status(400).json({ error: "Missing or invalid 'text'." });
       return;
     }
-    const rawIds = req.body?.attachment_ids;
-    const attachment_ids = Array.isArray(rawIds)
+    const rawIds = req.body?.attachments;
+    const attachmentIds = Array.isArray(rawIds)
       ? ((rawIds as unknown[]).filter(
           (id) => typeof id === "string",
         ) as string[])
       : undefined;
 
-    let attachments:
+    let attachmentContents:
       | Array<{ name: string; contentType: string; data: string }>
       | undefined;
-    if (attachment_ids?.length) {
+    if (attachmentIds?.length) {
       const userId = "default";
       const resolved = await Promise.all(
-        attachment_ids.map(async (id) => {
+        attachmentIds.map(async (id) => {
           const doc = await attachmentStore.getById(id, userId);
           const buffer = doc
             ? await attachmentStore.getBuffer(id, userId)
@@ -150,7 +150,7 @@ export function registerChatRoutes(app: Express, ctx: AppContext): void {
           };
         }),
       );
-      attachments = resolved.filter(
+      attachmentContents = resolved.filter(
         (a): a is { name: string; contentType: string; data: string } =>
           a !== null,
       );
@@ -166,8 +166,8 @@ export function registerChatRoutes(app: Express, ctx: AppContext): void {
         payload: {
           text,
           userId,
-          ...(attachments?.length ? { attachments } : {}),
-          ...(attachment_ids?.length ? { attachment_ids } : {}),
+          ...(attachmentContents?.length ? { attachmentContents } : {}),
+          ...(attachmentIds?.length ? { attachments: attachmentIds } : {}),
         },
       },
       { correlationId: eventId },

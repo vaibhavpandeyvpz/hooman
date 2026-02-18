@@ -11,7 +11,7 @@ export interface ChatMessage {
   role: "user" | "assistant";
   text: string;
   /** Attachment IDs (for user messages); used when loaded from history. */
-  attachment_ids?: string[];
+  attachments?: string[];
   /** Attachment meta for display (from history or after upload). */
   attachment_metas?: { id: string; originalName: string; mimeType: string }[];
 }

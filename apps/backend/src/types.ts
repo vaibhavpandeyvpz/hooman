@@ -131,9 +131,10 @@ export interface NormalizedMessagePayload {
   kind: "message";
   text: string;
   userId: string;
-  attachments?: ChatAttachment[];
+  /** Resolved attachment content for the agent (name, contentType, data). */
+  attachmentContents?: ChatAttachment[];
   /** IDs of uploaded files (for persisting with chat history). */
-  attachment_ids?: string[];
+  attachments?: string[];
   /** Present for slack/whatsapp; who, where, message ID, directness. Passed in run context to the agent. */
   channelMeta?: ChannelMeta;
   /** Set when the message text was transcribed from an audio/voice message. */

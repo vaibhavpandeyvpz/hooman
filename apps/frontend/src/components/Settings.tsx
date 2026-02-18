@@ -211,9 +211,7 @@ export function Settings() {
                     setForm((f) => (f ? { ...f, LLM_PROVIDER: value } : f))
                   }
                 />
-                <p className="text-xs text-hooman-muted mt-1">
-                  Used for chat and Mem0 memory.
-                </p>
+                <p className="text-xs text-hooman-muted mt-1">Used for chat.</p>
               </div>
               <div>
                 <Select<TranscriptionProviderId>
@@ -275,7 +273,7 @@ export function Settings() {
                         className="bg-hooman-surface focus:ring-offset-hooman-surface"
                       />
                       <p className="text-xs text-hooman-muted mt-1">
-                        Model ID for chat and Mem0 memory.
+                        Model ID for chat.
                       </p>
                     </div>
                   </>
@@ -382,7 +380,7 @@ export function Settings() {
                       className="bg-hooman-surface focus:ring-offset-hooman-surface"
                     />
                     <p className="text-xs text-hooman-muted mt-1">
-                      Used for chat and Mem0 memory.
+                      Used for chat.
                     </p>
                   </div>
                 )}
@@ -450,7 +448,7 @@ export function Settings() {
                     className="bg-hooman-surface focus:ring-offset-hooman-surface"
                   />
                   <p className="text-xs text-hooman-muted mt-1">
-                    Model ID for chat and Mem0 memory.
+                    Model ID for chat.
                   </p>
                 </div>
               </div>
@@ -541,7 +539,7 @@ export function Settings() {
                     className="bg-hooman-surface focus:ring-offset-hooman-surface"
                   />
                   <p className="text-xs text-hooman-muted mt-1">
-                    Model ID for chat and Mem0 memory.
+                    Model ID for chat.
                   </p>
                 </div>
               </div>
@@ -586,7 +584,7 @@ export function Settings() {
                     className="bg-hooman-surface focus:ring-offset-hooman-surface"
                   />
                   <p className="text-xs text-hooman-muted mt-1">
-                    Model ID for chat and Mem0 memory.
+                    Model ID for chat.
                   </p>
                 </div>
               </div>
@@ -665,7 +663,7 @@ export function Settings() {
                     className="bg-hooman-surface focus:ring-offset-hooman-surface"
                   />
                   <p className="text-xs text-hooman-muted mt-1">
-                    Model ID for chat and Mem0 memory.
+                    Model ID for chat.
                   </p>
                 </div>
               </div>
@@ -705,7 +703,7 @@ export function Settings() {
                     className="bg-hooman-surface focus:ring-offset-hooman-surface"
                   />
                   <p className="text-xs text-hooman-muted mt-1">
-                    Model ID for chat and Mem0 memory.
+                    Model ID for chat.
                   </p>
                 </div>
               </div>
@@ -745,7 +743,7 @@ export function Settings() {
                     className="bg-hooman-surface focus:ring-offset-hooman-surface"
                   />
                   <p className="text-xs text-hooman-muted mt-1">
-                    Model ID for chat and Mem0 memory.
+                    Model ID for chat.
                   </p>
                 </div>
               </div>

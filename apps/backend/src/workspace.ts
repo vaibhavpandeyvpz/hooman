@@ -8,14 +8,6 @@ export function getWorkspaceDbPath(): string {
   return join(WORKSPACE_ROOT, "hooman.db");
 }
 
-export function getWorkspaceMemoryDbPath(): string {
-  return join(WORKSPACE_ROOT, "memory.db");
-}
-
-export function getWorkspaceVectorDbPath(): string {
-  return join(WORKSPACE_ROOT, "vector.db");
-}
-
 export function getWorkspaceConfigPath(): string {
   return join(WORKSPACE_ROOT, "config.json");
 }

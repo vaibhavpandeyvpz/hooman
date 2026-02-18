@@ -47,10 +47,53 @@ function buildChannelContext(
   return lines.join("\n");
 }
 
-const CHAT_THREAD_LIMIT = 20;
+/** Chunk size when loading history for agent context. Fetch 50, trim to budget, then fetch older 50 and trim again until no space or no more messages. */
+const CHAT_CONTEXT_CHUNK_SIZE = 50;
 
 /** Max time to wait for runChat. After this we deliver a timeout message so the UI doesn't stay on "Thinking...". */
-const CHAT_TIMEOUT_MS = 90_000;
+const CHAT_TIMEOUT_MS = 300_000;
+
+/** Load messages in chunks of 50 via getMessages (last page first): fetch last 50, trim to budget; if there's space, fetch next 50 older, trim again; repeat until budget full or no more messages. Returns thread for runChat. */
+async function getThreadForAgent(
+  context: ContextStore,
+  userId: string,
+): Promise<{
+  thread: Array<{ role: "user" | "assistant"; content: string }>;
+}> {
+  const effectiveMax = getConfig().MAX_INPUT_TOKENS ?? 100_000;
+  let thread: Array<{ role: "user" | "assistant"; content: string }> = [];
+
+  const first = await context.getMessages(userId, {
+    page: 1,
+    pageSize: CHAT_CONTEXT_CHUNK_SIZE,
+  });
+  if (first.total === 0) return { thread };
+
+  const lastPage = Math.ceil(first.total / CHAT_CONTEXT_CHUNK_SIZE) || 1;
+  for (let page = lastPage; page >= 1; page--) {
+    const messages =
+      page === 1 && lastPage === 1
+        ? first.messages
+        : (
+            await context.getMessages(userId, {
+              page,
+              pageSize: CHAT_CONTEXT_CHUNK_SIZE,
+            })
+          ).messages;
+    if (messages.length === 0) break;
+
+    const chunkAsThread = messages.map((m) => ({
+      role: m.role,
+      content: m.text,
+    }));
+    thread = [...chunkAsThread, ...thread];
+    const previousLen = thread.length - chunkAsThread.length;
+    thread = trimContextToTokenBudget(thread, effectiveMax, RESERVED_TOKENS);
+    if (thread.length <= previousLen) break;
+  }
+
+  return { thread };
+}
 
 class ChatTimeoutError extends Error {
   constructor() {
@@ -94,10 +137,10 @@ export function registerEventHandlers(deps: EventHandlerDeps): void {
         userId: string;
         userText: string;
         assistantText: string;
-        userAttachmentIds?: string[];
+        userAttachments?: string[];
       };
-      const { userId, userText, assistantText, userAttachmentIds } = data;
-      await context.addTurn(userId, userText, assistantText, userAttachmentIds);
+      const { userId, userText, assistantText, userAttachments } = data;
+      await context.addTurn(userId, userText, assistantText, userAttachments);
     }
   });
 
@@ -107,8 +150,8 @@ export function registerEventHandlers(deps: EventHandlerDeps): void {
     const {
       text,
       userId,
+      attachmentContents,
       attachments,
-      attachment_ids,
       channelMeta,
       sourceMessageType,
     } = event.payload;
@@ -124,32 +167,9 @@ export function registerEventHandlers(deps: EventHandlerDeps): void {
         ...(sourceMessageType ? { sourceMessageType } : {}),
       },
     });
-    const sourceLabel =
-      event.source === "api"
-        ? "ui"
-        : sourceMessageType === "audio"
-          ? `${event.source} (voice)`
-          : event.source;
-    await context.addToMemory(
-      [{ role: "user", content: `[${sourceLabel}] ${text}` }],
-      { userId, metadata: { source: event.source } },
-    );
     let assistantText = "";
     try {
-      const recent = await context.getRecentMessages(userId, CHAT_THREAD_LIMIT);
-      let thread = recent.map((m) => ({ role: m.role, content: m.text }));
-      const memories = await context.search(text, { userId, limit: 5 });
-      let memoryContext =
-        memories.length > 0
-          ? memories.map((m) => `- ${m.memory}`).join("\n")
-          : "";
-      const effectiveMax = getConfig().MAX_INPUT_TOKENS ?? 100_000;
-      ({ thread, memoryContext } = trimContextToTokenBudget(
-        thread,
-        memoryContext,
-        effectiveMax,
-        RESERVED_TOKENS,
-      ));
+      const { thread } = await getThreadForAgent(context, userId);
       const connections = await mcpConnectionsStore.getAll();
       const session = await createHoomanRunner({
         connections,
@@ -161,9 +181,8 @@ export function registerEventHandlers(deps: EventHandlerDeps): void {
           channelMeta as ChannelMeta | undefined,
         );
         const runPromise = session.runChat(thread, text, {
-          memoryContext,
           channelContext,
-          attachments,
+          attachments: attachmentContents,
         });
         const timeoutPromise = new Promise<never>((_, reject) => {
           setTimeout(() => reject(new ChatTimeoutError()), CHAT_TIMEOUT_MS);
@@ -188,10 +207,6 @@ export function registerEventHandlers(deps: EventHandlerDeps): void {
           eventId: event.id,
           userInput: text,
         });
-        await context.addToMemory(
-          [{ role: "assistant", content: assistantText }],
-          { userId, metadata: { source: event.source } },
-        );
         await eventRouter.dispatch({
           source: "api",
           type: "chat.turn_completed",
@@ -199,9 +214,7 @@ export function registerEventHandlers(deps: EventHandlerDeps): void {
             userId,
             userText: text,
             assistantText,
-            ...(attachment_ids?.length
-              ? { userAttachmentIds: attachment_ids }
-              : {}),
+            ...(attachments?.length ? { userAttachments: attachments } : {}),
           },
         } as RawDispatchInput);
         if (deliverApiResult && event.source === "api") {
@@ -222,10 +235,6 @@ export function registerEventHandlers(deps: EventHandlerDeps): void {
         const msg = (err as Error).message;
         assistantText = `Something went wrong: ${msg}. Check API logs.`;
       }
-      await context.addToMemory(
-        [{ role: "assistant", content: assistantText }],
-        { userId, metadata: { source: event.source } },
-      );
       await eventRouter.dispatch({
         source: "api",
         type: "chat.turn_completed",
@@ -233,9 +242,7 @@ export function registerEventHandlers(deps: EventHandlerDeps): void {
           userId,
           userText: text,
           assistantText,
-          ...(attachment_ids?.length
-            ? { userAttachmentIds: attachment_ids }
-            : {}),
+          ...(attachments?.length ? { userAttachments: attachments } : {}),
         },
       } as RawDispatchInput);
       if (deliverApiResult && event.source === "api") {
@@ -258,26 +265,7 @@ export function registerEventHandlers(deps: EventHandlerDeps): void {
             .map(([k, v]) => `${k}=${String(v)}`)
             .join(", ");
     const text = `Scheduled task: ${payload.intent}. Context: ${contextStr}.`;
-    await context.addToMemory(
-      [{ role: "user", content: `[scheduler] ${text}` }],
-      { userId: "default", metadata: { source: "scheduler" } },
-    );
     try {
-      const memories = await context.search(text, {
-        userId: "default",
-        limit: 5,
-      });
-      let memoryContext =
-        memories.length > 0
-          ? memories.map((m) => `- ${m.memory}`).join("\n")
-          : "";
-      const effectiveMax = getConfig().MAX_INPUT_TOKENS ?? 100_000;
-      ({ memoryContext } = trimContextToTokenBudget(
-        [],
-        memoryContext,
-        effectiveMax,
-        RESERVED_TOKENS,
-      ));
       const connections = await mcpConnectionsStore.getAll();
       const session = await createHoomanRunner({
         connections,
@@ -285,9 +273,7 @@ export function registerEventHandlers(deps: EventHandlerDeps): void {
         mcpConnectionsStore,
       });
       try {
-        const { finalOutput } = await session.runChat([], text, {
-          memoryContext,
-        });
+        const { finalOutput } = await session.runChat([], text, {});
         const assistantText =
           finalOutput?.trim() ||
           "Scheduled task completed (no clear response from agent).";
@@ -312,20 +298,12 @@ export function registerEventHandlers(deps: EventHandlerDeps): void {
           eventId: event.id,
           userInput: text,
         });
-        await context.addToMemory(
-          [{ role: "assistant", content: assistantText }],
-          { userId: "default", metadata: { source: "scheduler" } },
-        );
       } finally {
         await session.closeMcp();
       }
     } catch (err) {
       debug("scheduled task handler error: %o", err);
       const msg = (err as Error).message;
-      await context.addToMemory(
-        [{ role: "assistant", content: `Scheduled task failed: ${msg}` }],
-        { userId: "default", metadata: { source: "scheduler", error: true } },
-      );
       await auditLog.appendAuditEntry({
         type: "scheduled_task",
         payload: {

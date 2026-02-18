@@ -57,7 +57,7 @@ export interface ChatAttachmentMeta {
 export interface ChatHistoryMessage {
   role: "user" | "assistant";
   text: string;
-  attachment_ids?: string[];
+  attachments?: string[];
   attachment_metas?: ChatAttachmentMeta[];
 }
 
@@ -145,13 +145,13 @@ export async function getRealtimeClientSecret(model?: string): Promise<{
 /** POST /api/chat returns 202 with eventId; the actual reply is delivered via Socket.IO (use waitForChatResult in socket.ts). */
 export async function sendMessage(
   text: string,
-  attachment_ids?: string[],
+  attachments?: string[],
 ): Promise<{ eventId: string }> {
   const res = await authFetch(`${BASE}/api/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(
-      attachment_ids?.length ? { text, attachment_ids } : { text },
+      attachments?.length ? { text, attachments } : { text },
     ),
   });
   const body = await res.text();
