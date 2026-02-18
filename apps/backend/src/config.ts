@@ -3,86 +3,21 @@ import { readFile, writeFile } from "fs/promises";
 import { getWorkspaceConfigPath, WORKSPACE_ROOT } from "./workspace.js";
 import type { ChannelsConfig } from "./types.js";
 import { env } from "./env.js";
+import {
+  getDefaultAgentInstructions,
+  getFullStaticAgentInstructionsAppend as buildFullStaticAppend,
+} from "./prompts.js";
 
 const debug = createDebug("hooman:config");
 
 const CONFIG_PATH = getWorkspaceConfigPath();
-
-/** Default configurable system instructions. User can override in Settings. */
-export const DEFAULT_AGENT_INSTRUCTIONS = `You are Hooman, a virtual identity capable of doing things yourself as needed.
-Be conversational and human-first. Use memory context when provided to tailor and remember preferences.`;
-
-/**
- * Static instructions always appended to the agent (not user-configurable).
- * Covers channel replies, time tool usage, and tool-result honesty. Channel-specific
- * rules (e.g. WhatsApp chat ID, Slack/WhatsApp formatting) are appended only when enabled.
- */
-export const STATIC_AGENT_INSTRUCTIONS_APPEND = `
-## Channel replies (IMPORTANT)
-
-You receive messages from different channels (web chat, Slack, WhatsApp).
-When a "[Channel context]" block is present in the conversation, you MUST reply on that channel
-using the available MCP tools. This is mandatory — do not skip it or just respond in text.
-
-Steps when channel context is present:
-1. Read the source_channel and identifiers (chatId, channelId, messageId, etc.) from the channel context.
-2. Compose your reply text.
-3. Call the appropriate MCP tool to send the reply on the source channel:
-   - WhatsApp → call whatsapp_send_message with the chatId and your reply text.
-   - Slack → call the Slack MCP tool to post a message in the channelId. Using threadTs to reply in-thread is optional — use your judgment (e.g. DMs often feel more natural without threading).
-4. Your final text output should be the same reply you sent via the tool.
-
-## Current time and time-critical operations
-
-Before doing any time-critical operation or anything that involves the current date/time (e.g. scheduling, reminders, "in 2 hours", "by tomorrow", interpreting "now" or "today"), use the available time tool to get the current time. Use get_current_time from the _default_time MCP server (or the equivalent time tool if exposed under another name) so your answers and scheduled tasks are based on the actual current time, not guesswork.
-
-Never fabricate tool results. If a tool call fails, report the actual error.
-
-## Pagination and result size
-
-When a tool accepts pagination or limit parameters (e.g. max_results, limit, per_page, page_size, page), use them. Prefer smaller page sizes (e.g. a few items per request) to stay within context limits.
-If the user asks for "last N" or "recent N" items, pass that as the limit/max (e.g. max_results: N) instead of fetching a large default.
-When a tool has an option to include or exclude full payloads (e.g. include_payload), set it to false or omit full bodies unless the user explicitly needs full content; prefer summaries or metadata when answering "what's in my inbox" or similar.`;
-
-/**
- * Channel-specific formatting instructions appended only when the channel is enabled.
- * See: https://docs.slack.dev/messaging/formatting-message-text/
- * See: https://faq.whatsapp.com/539178204879377/?cms_platform=web
- */
-function getChannelFormattingInstructions(): string {
-  const channels = getChannelsConfig();
-  const parts: string[] = [];
-  if (channels.slack?.enabled) {
-    parts.push(`
-## Formatting replies for Slack
-
-When posting to Slack, use Slack mrkdwn (or plain text). Syntax: *bold* with asterisks, _italic_ with underscores, ~strikethrough~ with tildes, \`inline code\` with backticks, \`\`\`multi-line code block\`\`\` with triple backticks. Links: <url|link text>. Newlines: \\n. Escape & < > as &amp; &lt; &gt;. User mentions: <@USER_ID>, channels: <#CHANNEL_ID>.
-
-When channel context includes yourSlackUserId, that is your identity in this Slack workspace; messages or mentions to that ID are addressing you.`);
-  }
-  if (channels.whatsapp?.enabled) {
-    parts.push(`
-## WhatsApp chat ID from phone number
-
-When the user asks you to message them (or someone) on WhatsApp and gives a phone number, you can derive the chatId yourself. Format: digits only (country code + number, no + or spaces) followed by @c.us. Examples:
-- +1 555 123 4567 → 15551234567@c.us
-- +91 98765 43210 → 919876543210@c.us
-- 44 20 7123 4567 → 442071234567@c.us
-Strip all non-digits from the number, then append @c.us. Use that as chatId in whatsapp_send_message. Do not ask the user to "share the chat ID" or "message first" if they have already provided a phone number.
-
-## Formatting replies for WhatsApp
-
-When sending via WhatsApp, use WhatsApp formatting (or plain text): *bold*, _italic_, ~strikethrough~, \`\`\`monospace\`\`\` (triple backticks).`);
-  }
-  return parts.join("");
-}
 
 /**
  * Full static instructions: base + channel-specific formatting (only for enabled channels).
  * Use this when building the Hooman agent instructions.
  */
 export function getFullStaticAgentInstructionsAppend(): string {
-  return STATIC_AGENT_INSTRUCTIONS_APPEND + getChannelFormattingInstructions();
+  return buildFullStaticAppend(getChannelsConfig());
 }
 
 /** LLM provider identifier for agent chat model. */
@@ -157,7 +92,7 @@ const DEFAULTS: PersistedConfig = {
   MCP_USE_SERVER_MANAGER: false,
   OPENAI_TRANSCRIPTION_MODEL: "gpt-4o-transcribe",
   AGENT_NAME: "Hooman",
-  AGENT_INSTRUCTIONS: DEFAULT_AGENT_INSTRUCTIONS,
+  AGENT_INSTRUCTIONS: getDefaultAgentInstructions(),
   AZURE_RESOURCE_NAME: "",
   AZURE_API_KEY: "",
   AZURE_API_VERSION: "",
@@ -183,7 +118,12 @@ let store: PersistedConfig = { ...DEFAULTS };
 let channelsStore: ChannelsConfig = {};
 
 export function getConfig(): AppConfig {
-  return { ...store, PORT: env.PORT };
+  return {
+    ...store,
+    PORT: env.PORT,
+    AGENT_INSTRUCTIONS:
+      store.AGENT_INSTRUCTIONS.trim() || getDefaultAgentInstructions(),
+  };
 }
 
 const LLM_PROVIDER_IDS: LLMProviderId[] = [
@@ -239,7 +179,7 @@ export function updateConfig(patch: Partial<PersistedConfig>): PersistedConfig {
     store.AGENT_NAME = String(patch.AGENT_NAME).trim() || DEFAULTS.AGENT_NAME;
   if (patch.AGENT_INSTRUCTIONS !== undefined)
     store.AGENT_INSTRUCTIONS =
-      String(patch.AGENT_INSTRUCTIONS).trim() || DEFAULTS.AGENT_INSTRUCTIONS;
+      String(patch.AGENT_INSTRUCTIONS).trim() || getDefaultAgentInstructions();
   if (patch.AZURE_RESOURCE_NAME !== undefined)
     store.AZURE_RESOURCE_NAME = String(patch.AZURE_RESOURCE_NAME);
   if (patch.AZURE_API_KEY !== undefined)
@@ -338,7 +278,7 @@ export async function loadPersisted(): Promise<void> {
       if (parsed.AGENT_INSTRUCTIONS !== undefined)
         store.AGENT_INSTRUCTIONS =
           String(parsed.AGENT_INSTRUCTIONS).trim() ||
-          DEFAULTS.AGENT_INSTRUCTIONS;
+          getDefaultAgentInstructions();
       if (
         parsed.LLM_PROVIDER !== undefined &&
         isLLMProviderId(parsed.LLM_PROVIDER)
