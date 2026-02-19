@@ -120,6 +120,8 @@ export interface EventHandlerDeps {
   publishResponseDelivery?: (payload: ResponseDeliveryPayload) => void;
   /** When set and MCP_USE_SERVER_MANAGER is true, use long-lived MCP session instead of per-run create/close. */
   mcpManager?: McpManager;
+  /** Prefer this over mcpManager so the worker can enable/disable the manager without restart. */
+  getMcpManager?: () => McpManager | undefined;
 }
 
 export function registerEventHandlers(deps: EventHandlerDeps): void {
@@ -130,7 +132,8 @@ export function registerEventHandlers(deps: EventHandlerDeps): void {
     auditLog,
     scheduler,
     publishResponseDelivery,
-    mcpManager,
+    mcpManager: mcpManagerDep,
+    getMcpManager,
   } = deps;
 
   function dispatchResponseToChannel(
@@ -214,6 +217,7 @@ export function registerEventHandlers(deps: EventHandlerDeps): void {
       },
     });
     let assistantText = "";
+    const mcpManager = getMcpManager?.() ?? mcpManagerDep;
     const useMcpManager =
       getConfig().MCP_USE_SERVER_MANAGER && mcpManager != null;
     try {
@@ -314,6 +318,7 @@ export function registerEventHandlers(deps: EventHandlerDeps): void {
             .map(([k, v]) => `${k}=${String(v)}`)
             .join(", ");
     const text = `Scheduled task: ${payload.intent}. Context: ${contextStr}.`;
+    const mcpManager = getMcpManager?.() ?? mcpManagerDep;
     const useMcpManager =
       getConfig().MCP_USE_SERVER_MANAGER && mcpManager != null;
     try {

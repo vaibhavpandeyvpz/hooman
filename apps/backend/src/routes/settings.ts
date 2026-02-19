@@ -3,6 +3,8 @@ import createDebug from "debug";
 import type { AppContext } from "./helpers.js";
 import type { LLMProviderId, TranscriptionProviderId } from "../config.js";
 import { getConfig, updateConfig } from "../config.js";
+import { setReloadFlag } from "../data/reload-flag.js";
+import { env } from "../env.js";
 import {
   getKillSwitchEnabled,
   setKillSwitchEnabled,
@@ -45,58 +47,70 @@ export function registerSettingsRoutes(app: Express, _ctx: AppContext): void {
     });
   });
 
-  app.patch("/api/config", (req: Request, res: Response): void => {
-    const patch = req.body as Record<string, unknown>;
-    if (!patch || typeof patch !== "object") {
-      res.status(400).json({ error: "Invalid body." });
-      return;
-    }
-    const updated = updateConfig({
-      LLM_PROVIDER: patch.LLM_PROVIDER as LLMProviderId | undefined,
-      TRANSCRIPTION_PROVIDER: patch.TRANSCRIPTION_PROVIDER as
-        | TranscriptionProviderId
-        | undefined,
-      OPENAI_API_KEY: patch.OPENAI_API_KEY as string | undefined,
-      OPENAI_MODEL: patch.OPENAI_MODEL as string | undefined,
-      OPENAI_WEB_SEARCH: patch.OPENAI_WEB_SEARCH as boolean | undefined,
-      MCP_USE_SERVER_MANAGER: patch.MCP_USE_SERVER_MANAGER as
-        | boolean
-        | undefined,
-      OPENAI_TRANSCRIPTION_MODEL: patch.OPENAI_TRANSCRIPTION_MODEL as
-        | string
-        | undefined,
-      AGENT_NAME: patch.AGENT_NAME as string | undefined,
-      AGENT_INSTRUCTIONS: patch.AGENT_INSTRUCTIONS as string | undefined,
-      AZURE_RESOURCE_NAME: patch.AZURE_RESOURCE_NAME as string | undefined,
-      AZURE_API_KEY: patch.AZURE_API_KEY as string | undefined,
-      AZURE_API_VERSION: patch.AZURE_API_VERSION as string | undefined,
-      AZURE_TRANSCRIPTION_DEPLOYMENT: patch.AZURE_TRANSCRIPTION_DEPLOYMENT as
-        | string
-        | undefined,
-      DEEPGRAM_API_KEY: patch.DEEPGRAM_API_KEY as string | undefined,
-      DEEPGRAM_TRANSCRIPTION_MODEL: patch.DEEPGRAM_TRANSCRIPTION_MODEL as
-        | string
-        | undefined,
-      ANTHROPIC_API_KEY: patch.ANTHROPIC_API_KEY as string | undefined,
-      AWS_REGION: patch.AWS_REGION as string | undefined,
-      AWS_ACCESS_KEY_ID: patch.AWS_ACCESS_KEY_ID as string | undefined,
-      AWS_SECRET_ACCESS_KEY: patch.AWS_SECRET_ACCESS_KEY as string | undefined,
-      AWS_SESSION_TOKEN: patch.AWS_SESSION_TOKEN as string | undefined,
-      GOOGLE_GENERATIVE_AI_API_KEY: patch.GOOGLE_GENERATIVE_AI_API_KEY as
-        | string
-        | undefined,
-      GOOGLE_VERTEX_PROJECT: patch.GOOGLE_VERTEX_PROJECT as string | undefined,
-      GOOGLE_VERTEX_LOCATION: patch.GOOGLE_VERTEX_LOCATION as
-        | string
-        | undefined,
-      GOOGLE_VERTEX_API_KEY: patch.GOOGLE_VERTEX_API_KEY as string | undefined,
-      MISTRAL_API_KEY: patch.MISTRAL_API_KEY as string | undefined,
-      DEEPSEEK_API_KEY: patch.DEEPSEEK_API_KEY as string | undefined,
-      COMPLETIONS_API_KEY: patch.COMPLETIONS_API_KEY as string | undefined,
-      MAX_INPUT_TOKENS: patch.MAX_INPUT_TOKENS as number | undefined,
-    });
-    res.json(updated);
-  });
+  app.patch(
+    "/api/config",
+    async (req: Request, res: Response): Promise<void> => {
+      const patch = req.body as Record<string, unknown>;
+      if (!patch || typeof patch !== "object") {
+        res.status(400).json({ error: "Invalid body." });
+        return;
+      }
+      const updated = updateConfig({
+        LLM_PROVIDER: patch.LLM_PROVIDER as LLMProviderId | undefined,
+        TRANSCRIPTION_PROVIDER: patch.TRANSCRIPTION_PROVIDER as
+          | TranscriptionProviderId
+          | undefined,
+        OPENAI_API_KEY: patch.OPENAI_API_KEY as string | undefined,
+        OPENAI_MODEL: patch.OPENAI_MODEL as string | undefined,
+        OPENAI_WEB_SEARCH: patch.OPENAI_WEB_SEARCH as boolean | undefined,
+        MCP_USE_SERVER_MANAGER: patch.MCP_USE_SERVER_MANAGER as
+          | boolean
+          | undefined,
+        OPENAI_TRANSCRIPTION_MODEL: patch.OPENAI_TRANSCRIPTION_MODEL as
+          | string
+          | undefined,
+        AGENT_NAME: patch.AGENT_NAME as string | undefined,
+        AGENT_INSTRUCTIONS: patch.AGENT_INSTRUCTIONS as string | undefined,
+        AZURE_RESOURCE_NAME: patch.AZURE_RESOURCE_NAME as string | undefined,
+        AZURE_API_KEY: patch.AZURE_API_KEY as string | undefined,
+        AZURE_API_VERSION: patch.AZURE_API_VERSION as string | undefined,
+        AZURE_TRANSCRIPTION_DEPLOYMENT: patch.AZURE_TRANSCRIPTION_DEPLOYMENT as
+          | string
+          | undefined,
+        DEEPGRAM_API_KEY: patch.DEEPGRAM_API_KEY as string | undefined,
+        DEEPGRAM_TRANSCRIPTION_MODEL: patch.DEEPGRAM_TRANSCRIPTION_MODEL as
+          | string
+          | undefined,
+        ANTHROPIC_API_KEY: patch.ANTHROPIC_API_KEY as string | undefined,
+        AWS_REGION: patch.AWS_REGION as string | undefined,
+        AWS_ACCESS_KEY_ID: patch.AWS_ACCESS_KEY_ID as string | undefined,
+        AWS_SECRET_ACCESS_KEY: patch.AWS_SECRET_ACCESS_KEY as
+          | string
+          | undefined,
+        AWS_SESSION_TOKEN: patch.AWS_SESSION_TOKEN as string | undefined,
+        GOOGLE_GENERATIVE_AI_API_KEY: patch.GOOGLE_GENERATIVE_AI_API_KEY as
+          | string
+          | undefined,
+        GOOGLE_VERTEX_PROJECT: patch.GOOGLE_VERTEX_PROJECT as
+          | string
+          | undefined,
+        GOOGLE_VERTEX_LOCATION: patch.GOOGLE_VERTEX_LOCATION as
+          | string
+          | undefined,
+        GOOGLE_VERTEX_API_KEY: patch.GOOGLE_VERTEX_API_KEY as
+          | string
+          | undefined,
+        MISTRAL_API_KEY: patch.MISTRAL_API_KEY as string | undefined,
+        DEEPSEEK_API_KEY: patch.DEEPSEEK_API_KEY as string | undefined,
+        COMPLETIONS_API_KEY: patch.COMPLETIONS_API_KEY as string | undefined,
+        MAX_INPUT_TOKENS: patch.MAX_INPUT_TOKENS as number | undefined,
+      });
+      if (patch.MCP_USE_SERVER_MANAGER !== undefined && env.REDIS_URL) {
+        await setReloadFlag(env.REDIS_URL, "mcp");
+      }
+      res.json(updated);
+    },
+  );
 
   app.post(
     "/api/realtime/client-secret",

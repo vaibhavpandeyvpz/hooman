@@ -63,20 +63,38 @@ async function main() {
   });
   const auditLog = new AuditLog(auditStore);
 
-  const useMcpManager = getConfig().MCP_USE_SERVER_MANAGER;
-  debug(
-    "MCP_USE_SERVER_MANAGER=%s (restart event-queue worker after changing in Settings)",
-    useMcpManager,
-  );
   let mcpManager: McpManager | undefined;
+  const useMcpManager = getConfig().MCP_USE_SERVER_MANAGER;
   if (useMcpManager) {
     mcpManager = new McpManager(mcpConnectionsStore, scheduler, {
       connectTimeoutMs: env.MCP_CONNECT_TIMEOUT_MS,
       closeTimeoutMs: env.MCP_CLOSE_TIMEOUT_MS,
     });
-    initReloadWatch(env.REDIS_URL, ["mcp"], () => mcpManager?.reload());
-    debug("MCP Server Manager enabled; watching reload scope 'mcp'");
+    debug("MCP Server Manager enabled");
   }
+  initReloadWatch(env.REDIS_URL, ["mcp"], async () => {
+    debug("MCP reload triggered; re-reading config");
+    await loadPersisted();
+    const use = getConfig().MCP_USE_SERVER_MANAGER;
+    if (use && !mcpManager) {
+      mcpManager = new McpManager(mcpConnectionsStore, scheduler, {
+        connectTimeoutMs: env.MCP_CONNECT_TIMEOUT_MS,
+        closeTimeoutMs: env.MCP_CLOSE_TIMEOUT_MS,
+      });
+      debug("MCP Server Manager reload: enabled, manager created");
+    } else if (use && mcpManager) {
+      await mcpManager.reload();
+      debug(
+        "MCP Server Manager reload: enabled, session reloaded (manager not cleared)",
+      );
+    } else if (!use && mcpManager) {
+      await mcpManager.reload();
+      mcpManager = undefined;
+      debug("MCP Server Manager reload: disabled, manager cleared");
+    } else {
+      debug("MCP Server Manager reload: disabled, no manager (no change)");
+    }
+  });
 
   const eventRouter = new EventRouter();
   registerEventHandlers({
@@ -88,7 +106,7 @@ async function main() {
     publishResponseDelivery: (payload) => {
       publish(RESPONSE_DELIVERY_CHANNEL, JSON.stringify(payload));
     },
-    mcpManager,
+    getMcpManager: () => mcpManager,
   });
 
   const eventQueue = createEventQueue({ connection: env.REDIS_URL });
