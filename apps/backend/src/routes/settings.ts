@@ -19,17 +19,15 @@ export function registerSettingsRoutes(app: Express, _ctx: AppContext): void {
       LLM_PROVIDER: c.LLM_PROVIDER,
       TRANSCRIPTION_PROVIDER: c.TRANSCRIPTION_PROVIDER,
       OPENAI_API_KEY: c.OPENAI_API_KEY,
-      OPENAI_MODEL: c.OPENAI_MODEL,
+      CHAT_MODEL: c.CHAT_MODEL,
       MCP_USE_SERVER_MANAGER: c.MCP_USE_SERVER_MANAGER,
-      OPENAI_TRANSCRIPTION_MODEL: c.OPENAI_TRANSCRIPTION_MODEL,
+      TRANSCRIPTION_MODEL: c.TRANSCRIPTION_MODEL,
       AGENT_NAME: c.AGENT_NAME,
       AGENT_INSTRUCTIONS: c.AGENT_INSTRUCTIONS,
       AZURE_RESOURCE_NAME: c.AZURE_RESOURCE_NAME,
       AZURE_API_KEY: c.AZURE_API_KEY,
       AZURE_API_VERSION: c.AZURE_API_VERSION,
-      AZURE_TRANSCRIPTION_DEPLOYMENT: c.AZURE_TRANSCRIPTION_DEPLOYMENT,
       DEEPGRAM_API_KEY: c.DEEPGRAM_API_KEY,
-      DEEPGRAM_TRANSCRIPTION_MODEL: c.DEEPGRAM_TRANSCRIPTION_MODEL,
       ANTHROPIC_API_KEY: c.ANTHROPIC_API_KEY,
       AWS_REGION: c.AWS_REGION,
       AWS_ACCESS_KEY_ID: c.AWS_ACCESS_KEY_ID,
@@ -60,25 +58,17 @@ export function registerSettingsRoutes(app: Express, _ctx: AppContext): void {
           | TranscriptionProviderId
           | undefined,
         OPENAI_API_KEY: patch.OPENAI_API_KEY as string | undefined,
-        OPENAI_MODEL: patch.OPENAI_MODEL as string | undefined,
+        CHAT_MODEL: patch.CHAT_MODEL as string | undefined,
         MCP_USE_SERVER_MANAGER: patch.MCP_USE_SERVER_MANAGER as
           | boolean
           | undefined,
-        OPENAI_TRANSCRIPTION_MODEL: patch.OPENAI_TRANSCRIPTION_MODEL as
-          | string
-          | undefined,
+        TRANSCRIPTION_MODEL: patch.TRANSCRIPTION_MODEL as string | undefined,
         AGENT_NAME: patch.AGENT_NAME as string | undefined,
         AGENT_INSTRUCTIONS: patch.AGENT_INSTRUCTIONS as string | undefined,
         AZURE_RESOURCE_NAME: patch.AZURE_RESOURCE_NAME as string | undefined,
         AZURE_API_KEY: patch.AZURE_API_KEY as string | undefined,
         AZURE_API_VERSION: patch.AZURE_API_VERSION as string | undefined,
-        AZURE_TRANSCRIPTION_DEPLOYMENT: patch.AZURE_TRANSCRIPTION_DEPLOYMENT as
-          | string
-          | undefined,
         DEEPGRAM_API_KEY: patch.DEEPGRAM_API_KEY as string | undefined,
-        DEEPGRAM_TRANSCRIPTION_MODEL: patch.DEEPGRAM_TRANSCRIPTION_MODEL as
-          | string
-          | undefined,
         ANTHROPIC_API_KEY: patch.ANTHROPIC_API_KEY as string | undefined,
         AWS_REGION: patch.AWS_REGION as string | undefined,
         AWS_ACCESS_KEY_ID: patch.AWS_ACCESS_KEY_ID as string | undefined,
@@ -122,8 +112,7 @@ export function registerSettingsRoutes(app: Express, _ctx: AppContext): void {
         return;
       }
       const model =
-        (req.body as { model?: string })?.model ??
-        config.OPENAI_TRANSCRIPTION_MODEL;
+        (req.body as { model?: string })?.model ?? config.TRANSCRIPTION_MODEL;
       try {
         const response = await fetch(
           "https://api.openai.com/v1/realtime/client_secrets",

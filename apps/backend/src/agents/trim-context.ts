@@ -42,7 +42,7 @@ export function getTokenizerForConfig(): {
     const c = getConfig();
     const modelKey = getModelKey(
       c.LLM_PROVIDER,
-      c.OPENAI_MODEL ?? "gpt-4o",
+      c.CHAT_MODEL ?? "gpt-4o",
     ) as keyof typeof models;
     const model =
       models[modelKey] ?? models[DEFAULT_MODEL_KEY as keyof typeof models];

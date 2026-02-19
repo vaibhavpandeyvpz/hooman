@@ -122,7 +122,7 @@ export function registerCompletionsRoutes(app: Express, ctx: AppContext): void {
       id: completionId,
       object: "chat.completion",
       created: Math.floor(Date.now() / 1000),
-      model: config.OPENAI_MODEL,
+      model: config.CHAT_MODEL,
       choices: [
         {
           index: 0,

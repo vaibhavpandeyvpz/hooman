@@ -67,7 +67,7 @@ export async function transcribeAudio(
     // OpenAI gpt-4o-transcribe can reject some WAV encodings (e.g. Slack voice clips).
     // Fall back to whisper-1 which accepts a wider range of formats.
     const configuredModel =
-      (config.OPENAI_TRANSCRIPTION_MODEL ?? "").trim() || "gpt-4o-transcribe";
+      (config.TRANSCRIPTION_MODEL ?? "").trim() || "gpt-4o-transcribe";
     if (
       provider === "openai" &&
       isUnsupportedFormatError(err) &&
@@ -111,7 +111,7 @@ function getTranscriptionModel(
         );
       }
       const modelId =
-        (config.OPENAI_TRANSCRIPTION_MODEL ?? "").trim() || "gpt-4o-transcribe";
+        (config.TRANSCRIPTION_MODEL ?? "").trim() || "gpt-4o-transcribe";
       const openai = createOpenAI({ apiKey });
       return openai.transcription(modelId);
     }
@@ -124,7 +124,7 @@ function getTranscriptionModel(
         );
       }
       const deployment =
-        (config.AZURE_TRANSCRIPTION_DEPLOYMENT ?? "").trim() || "whisper-1";
+        (config.TRANSCRIPTION_MODEL ?? "").trim() || "whisper-1";
       const azure = createAzure({
         resourceName,
         apiKey,
@@ -141,8 +141,7 @@ function getTranscriptionModel(
           "Transcription (Deepgram) requires DEEPGRAM_API_KEY. Set it in Settings.",
         );
       }
-      const modelId =
-        (config.DEEPGRAM_TRANSCRIPTION_MODEL ?? "").trim() || "nova-2";
+      const modelId = (config.TRANSCRIPTION_MODEL ?? "").trim() || "nova-2";
       const deepgram = createDeepgram({ apiKey });
       return deepgram.transcription(modelId) as ReturnType<
         ReturnType<typeof createOpenAI>["transcription"]

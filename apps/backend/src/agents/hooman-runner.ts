@@ -169,9 +169,7 @@ export function getHoomanModel(
   overrides?: { apiKey?: string; model?: string },
 ) {
   const modelId =
-    overrides?.model?.trim() ||
-    config.OPENAI_MODEL?.trim() ||
-    DEFAULT_CHAT_MODEL;
+    overrides?.model?.trim() || config.CHAT_MODEL?.trim() || DEFAULT_CHAT_MODEL;
   const provider = config.LLM_PROVIDER ?? "openai";
 
   switch (provider) {
