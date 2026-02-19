@@ -94,7 +94,14 @@ async function main() {
   });
 
   const app = express();
-  app.use(cors({ origin: true }));
+  app.use(
+    cors({
+      origin: true,
+      credentials: true,
+      allowedHeaders: ["Content-Type", "Authorization"],
+      methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+    }),
+  );
   app.use(express.json());
   if (!isWebAuthEnabled()) {
     app.use(localhostOnly);
