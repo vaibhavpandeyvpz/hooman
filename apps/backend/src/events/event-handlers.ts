@@ -14,7 +14,13 @@ import {
   RESERVED_TOKENS,
 } from "../agents/trim-context.js";
 import { getConfig } from "../config.js";
-import type { RawDispatchInput, ChannelMeta } from "../types.js";
+import type {
+  RawDispatchInput,
+  ChannelMeta,
+  ResponseDeliveryPayload,
+  SlackChannelMeta,
+  WhatsAppChannelMeta,
+} from "../types.js";
 
 const debug = createDebug("hooman:event-handlers");
 
@@ -109,11 +115,8 @@ export interface EventHandlerDeps {
   auditLog: AuditLog;
   /** Schedule service for main agent schedule tools (list/create/cancel). When set, worker passes it so the agent can schedule tasks. */
   scheduler?: ScheduleService;
-  /** When set, called for api-source chat to deliver result (API: resolve pending; worker: POST to API). */
-  deliverApiResult?: (
-    eventId: string,
-    message: { role: "assistant"; text: string },
-  ) => void | Promise<void>;
+  /** When set (event-queue worker), publishes response to Redis; API/Slack/WhatsApp subscribers deliver accordingly. */
+  publishResponseDelivery?: (payload: ResponseDeliveryPayload) => void;
 }
 
 export function registerEventHandlers(deps: EventHandlerDeps): void {
@@ -123,8 +126,47 @@ export function registerEventHandlers(deps: EventHandlerDeps): void {
     mcpConnectionsStore,
     auditLog,
     scheduler,
-    deliverApiResult,
+    publishResponseDelivery,
   } = deps;
+
+  function dispatchResponseToChannel(
+    eventId: string,
+    source: string,
+    channelMeta: ChannelMeta | undefined,
+    assistantText: string,
+  ): void | Promise<void> {
+    if (source === "api" && publishResponseDelivery) {
+      return publishResponseDelivery({
+        channel: "api",
+        eventId,
+        message: { role: "assistant", text: assistantText },
+      });
+    }
+    if (source === "slack" && publishResponseDelivery) {
+      const meta = channelMeta as SlackChannelMeta | undefined;
+      if (meta?.channel === "slack") {
+        const payload: ResponseDeliveryPayload = {
+          channel: "slack",
+          channelId: meta.channelId,
+          text: assistantText,
+          ...(meta.replyInThread && meta.threadTs
+            ? { threadTs: meta.threadTs }
+            : {}),
+        };
+        return publishResponseDelivery(payload);
+      }
+    }
+    if (source === "whatsapp" && publishResponseDelivery) {
+      const meta = channelMeta as WhatsAppChannelMeta | undefined;
+      if (meta?.channel === "whatsapp") {
+        return publishResponseDelivery({
+          channel: "whatsapp",
+          chatId: meta.chatId,
+          text: assistantText,
+        });
+      }
+    }
+  }
 
   // turn_completed: persist turn to chat history only for UI (api source)
   eventRouter.register(async (event) => {
@@ -144,7 +186,7 @@ export function registerEventHandlers(deps: EventHandlerDeps): void {
     }
   });
 
-  // Chat handler: message.sent → run agents; for api source call deliverApiResult when set
+  // Chat handler: message.sent → run agents; dispatch response via publishResponseDelivery when set (api → Socket.IO; slack/whatsapp → Redis)
   eventRouter.register(async (event) => {
     if (event.payload.kind !== "message") return;
     const {
@@ -217,12 +259,12 @@ export function registerEventHandlers(deps: EventHandlerDeps): void {
             ...(attachments?.length ? { userAttachments: attachments } : {}),
           },
         } as RawDispatchInput);
-        if (deliverApiResult && event.source === "api") {
-          await deliverApiResult(event.id, {
-            role: "assistant",
-            text: assistantText,
-          });
-        }
+        await dispatchResponseToChannel(
+          event.id,
+          event.source,
+          channelMeta as ChannelMeta | undefined,
+          assistantText,
+        );
       } finally {
         await session.closeMcp();
       }
@@ -245,12 +287,12 @@ export function registerEventHandlers(deps: EventHandlerDeps): void {
           ...(attachments?.length ? { userAttachments: attachments } : {}),
         },
       } as RawDispatchInput);
-      if (deliverApiResult && event.source === "api") {
-        await deliverApiResult(event.id, {
-          role: "assistant",
-          text: assistantText,
-        });
-      }
+      await dispatchResponseToChannel(
+        event.id,
+        event.source,
+        channelMeta as ChannelMeta | undefined,
+        assistantText,
+      );
     }
   });
 

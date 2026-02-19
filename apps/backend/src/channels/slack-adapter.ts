@@ -146,6 +146,15 @@ export async function startSlackAdapter(
       // ignore
     }
 
+    let replyInThread = true;
+    try {
+      const conv = await client.conversations.info({ channel: channelId });
+      const ch = conv.channel as { is_im?: boolean; is_mpim?: boolean };
+      replyInThread = !(ch?.is_im || ch?.is_mpim);
+    } catch {
+      // fallback: use thread when available
+    }
+
     let originalMessage: SlackChannelMeta["originalMessage"];
     if (threadTs && threadTs !== messageTs) {
       try {
@@ -187,6 +196,7 @@ export async function startSlackAdapter(
       destinationType,
       directness,
       directnessReason,
+      replyInThread,
       ...(threadTs ? { threadTs } : {}),
       ...(senderName ? { senderName } : {}),
       ...(mentionedIds.length > 0 ? { mentionedIds } : {}),
@@ -221,4 +231,24 @@ export async function stopSlackAdapter(): Promise<void> {
     slackApp = null;
     debug("Slack adapter stopped");
   }
+}
+
+/**
+ * Send a message to a Slack channel. Used by response delivery (event-queue publishes; slack worker subscribes).
+ * When threadTs is provided, posts in thread; otherwise posts to channel root (e.g. for im/mpim).
+ */
+export async function sendMessageToChannel(
+  channelId: string,
+  text: string,
+  threadTs?: string,
+): Promise<void> {
+  const app = slackApp;
+  if (!app?.client) {
+    throw new Error("Slack adapter not started or client unavailable");
+  }
+  await app.client.chat.postMessage({
+    channel: channelId,
+    text,
+    ...(threadTs ? { thread_ts: threadTs } : {}),
+  });
 }

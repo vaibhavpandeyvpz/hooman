@@ -89,9 +89,9 @@ yarn start
 ```
 
 - **API** → http://localhost:3000
-- **Web UI** → http://localhost:5173
+- With `yarn dev`: **Web UI** → http://localhost:5173
 
-Set your **LLM provider** and API key (or credentials) in **Settings**, then chat with Hooman. Configure MCP connections and skills in **Capabilities**. Supported providers: OpenAI, Azure, Anthropic, Amazon Bedrock, Google, Google Vertex, Mistral, DeepSeek.
+`yarn start` runs the API and workers only (no process on 5173). For the web UI locally, use `yarn dev` (which includes the frontend dev server) or serve the built `apps/frontend/dist` yourself. Set your **LLM provider** and API key (or credentials) in **Settings**, then chat with Hooman. Configure MCP connections and skills in **Capabilities**. Supported providers: OpenAI, Azure, Anthropic, Amazon Bedrock, Google, Google Vertex, Mistral, DeepSeek.
 
 To stop: `yarn stop` (or `npx pm2 stop ecosystem.config.cjs`).
 
@@ -213,7 +213,7 @@ cp .env.example .env
 yarn hash-password
 # Build API and frontend
 yarn build
-# Start API, web, and workers with PM2
+# Start API and workers with PM2
 yarn start
 # Configure PM2 to start on system boot (run the sudo command it prints)
 npx pm2 startup
@@ -265,7 +265,8 @@ When running locally, create a `.env` from `.env.example`. Key variables:
 | `DATABASE_URL`           | No       | Prisma SQLite URL (default: `workspace/hooman.db` at project root).                                             |
 | `PORT`                   | No       | API port (default 3000).                                                                                        |
 | `REDIS_URL`              | Yes\*    | Redis for event queue and kill switch (e.g. `redis://localhost:6379`). Start with `docker compose up -d redis`. |
-| `VITE_API_BASE`          | No       | Set when building for production so the web app can call the API (e.g. `http://localhost:3000`).                |
+| `API_BASE_URL`           | No       | API base URL for capabilities and similar (default `http://localhost:3000`).                                    |
+| `VITE_API_BASE`          | No       | Set when building for production so the web app can call the API (e.g. `https://api.hooman.example.com`).       |
 | `MCP_STDIO_DEFAULT_CWD`  | No       | Working directory for stdio MCP / filesystem server (default: `workspace/mcpcwd`).                              |
 | `SKILLS_CWD`             | No       | Override project root for skills (default: repo root). Skills are in `<project>/.agents/skills`.                |
 | `WEB_AUTH_USERNAME`      | No       | When set with `WEB_AUTH_PASSWORD_HASH` and `JWT_SECRET`, enables login; API is reachable from any host.         |
@@ -286,7 +287,7 @@ All runtime data is stored under **`workspace/`** at project root: `hooman.db` (
 | `yarn dev:slack`     | Slack worker only.                                                                              |
 | `yarn dev:whatsapp`  | WhatsApp worker only.                                                                           |
 | `yarn build`         | Build API and web app.                                                                          |
-| `yarn start`         | Start API and web with PM2 (production).                                                        |
+| `yarn start`         | Start API and workers with PM2 (production). Frontend is served by nginx in deployment.         |
 | `yarn stop`          | Stop PM2 processes.                                                                             |
 | `yarn restart`       | Restart PM2 processes.                                                                          |
 | `yarn hash-password` | Generate argon2id hash for `WEB_AUTH_PASSWORD_HASH`. Optionally pass `--password=yourpassword`. |

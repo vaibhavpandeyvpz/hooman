@@ -111,7 +111,22 @@ export interface SlackChannelMeta extends ChannelMetaBase {
   selfMentioned?: boolean;
   /** Designated Slack user ID for the agent in this workspace; when present, messages or mentions to this ID are addressing you. */
   yourSlackUserId?: string;
+  /** When true, response delivery should use thread_ts to reply in thread. When false (im/mpim), post to channel root. */
+  replyInThread?: boolean;
 }
+
+/** Payload published to Redis for response delivery. API emits via Socket.IO; Slack/WhatsApp send via their clients. */
+export type ResponseDeliveryPayload =
+  | {
+      channel: "api";
+      eventId: string;
+      message: { role: string; text: string };
+    }
+  | { channel: "slack"; channelId: string; threadTs?: string; text: string }
+  | { channel: "whatsapp"; chatId: string; text: string };
+
+/** Redis channel for response delivery (event-queue publishes; API, Slack and WhatsApp workers subscribe). */
+export const RESPONSE_DELIVERY_CHANNEL = "hooman:response_delivery";
 
 /** WhatsApp channel metadata. */
 export interface WhatsAppChannelMeta extends ChannelMetaBase {

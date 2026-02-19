@@ -1,4 +1,4 @@
-/** PM2 ecosystem: backend (API), frontend, and workers (slack, whatsapp, cron, event-queue). Cron runs scheduled tasks only. Run `yarn build` first. CWD is project root. */
+/** PM2 ecosystem: backend (API) and workers (slack, whatsapp, cron, event-queue). Frontend is served by nginx in deployment. Run `yarn build` first. CWD is project root. */
 module.exports = {
   apps: [
     {
@@ -6,13 +6,6 @@ module.exports = {
       cwd: ".",
       interpreter: "node_modules/.bin/tsx",
       script: "apps/backend/src/index.ts",
-      env: { NODE_ENV: "production" },
-    },
-    {
-      name: "web",
-      cwd: ".",
-      script: "npx",
-      args: "serve apps/frontend/dist -l 5173",
       env: { NODE_ENV: "production" },
     },
     {

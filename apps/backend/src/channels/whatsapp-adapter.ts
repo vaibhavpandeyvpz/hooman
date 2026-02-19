@@ -331,6 +331,20 @@ export async function stopWhatsAppAdapter(): Promise<void> {
   }
 }
 
+/**
+ * Send a text message to a WhatsApp chat. Used by response delivery (event-queue publishes; whatsapp worker subscribes).
+ */
+export async function sendMessageToChat(
+  chatId: string,
+  text: string,
+): Promise<void> {
+  const c = client;
+  if (!c) {
+    throw new Error("WhatsApp adapter not connected; cannot send message");
+  }
+  await c.sendMessage(chatId, text);
+}
+
 function serializedChatId(id: unknown): string {
   if (id && typeof id === "object" && "_serialized" in id)
     return String((id as { _serialized: string })._serialized);
