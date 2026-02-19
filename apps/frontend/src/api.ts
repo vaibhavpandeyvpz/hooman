@@ -57,6 +57,8 @@ export interface ChatAttachmentMeta {
 export interface ChatHistoryMessage {
   role: "user" | "assistant";
   text: string;
+  /** ISO timestamp from server. */
+  timestamp?: string;
   attachments?: string[];
   attachment_metas?: ChatAttachmentMeta[];
 }

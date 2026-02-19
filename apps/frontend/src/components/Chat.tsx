@@ -59,7 +59,13 @@ export function Chat() {
         const message = await waitForChatResult(eventId, {
           timeoutMs: 120_000,
         });
-        setMessages((prev) => [...prev, message]);
+        setMessages((prev) => [
+          ...prev,
+          {
+            ...message,
+            timestamp: new Date().toISOString(),
+          },
+        ]);
       } catch (err) {
         const msg = (err as Error).message;
         const hint =
@@ -77,6 +83,7 @@ export function Chat() {
           {
             role: "assistant",
             text: `Error: ${msg || "Could not reach the API."}${hint}`,
+            timestamp: new Date().toISOString(),
           },
         ]);
       } finally {
@@ -89,6 +96,7 @@ export function Chat() {
             {
               role: "user",
               text: next.text,
+              timestamp: new Date().toISOString(),
               ...(next.attachments?.length
                 ? {
                     attachments: next.attachments,
@@ -122,6 +130,7 @@ export function Chat() {
     const userMessage: ChatMessageType = {
       role: "user",
       text,
+      timestamp: new Date().toISOString(),
       ...(attachmentIds?.length
         ? { attachments: attachmentIds, attachment_metas: attachmentMetas }
         : {}),

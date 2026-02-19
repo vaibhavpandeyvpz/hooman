@@ -24,11 +24,16 @@ export function registerChatRoutes(app: Express, ctx: AppContext): void {
     const messagesWithMeta = await Promise.all(
       result.messages.map(async (m) => {
         const ids = m.attachments ?? [];
+        const timestamp =
+          m.createdAt instanceof Date
+            ? m.createdAt.toISOString()
+            : (m as { createdAt?: string }).createdAt;
         if (ids.length === 0)
           return {
             role: m.role,
             text: m.text,
             attachments: m.attachments,
+            ...(timestamp != null ? { timestamp } : {}),
           };
         const attachment_metas = await Promise.all(
           ids.map(async (id) => {
@@ -46,6 +51,7 @@ export function registerChatRoutes(app: Express, ctx: AppContext): void {
             (a): a is { id: string; originalName: string; mimeType: string } =>
               a !== null,
           ),
+          ...(timestamp != null ? { timestamp } : {}),
         };
       }),
     );

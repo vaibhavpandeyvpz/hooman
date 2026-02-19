@@ -8,6 +8,7 @@ export interface GetMessagesResult {
     role: "user" | "assistant";
     text: string;
     attachments?: string[];
+    createdAt: Date;
   }>;
   total: number;
   page: number;
@@ -87,7 +88,12 @@ export async function initChatHistory(): Promise<ChatHistoryStore> {
           orderBy: { createdAt: "asc" },
           skip,
           take: pageSize,
-          select: { role: true, text: true, attachments: true },
+          select: {
+            role: true,
+            text: true,
+            attachments: true,
+            createdAt: true,
+          },
         }),
         prisma.chatMessage.count({ where: { userId } }),
       ]);
@@ -96,6 +102,7 @@ export async function initChatHistory(): Promise<ChatHistoryStore> {
         role: r.role as "user" | "assistant",
         text: r.text,
         attachments: parseAttachmentIds(r.attachments),
+        createdAt: r.createdAt,
       }));
 
       return { messages, total, page, pageSize };
@@ -107,13 +114,14 @@ export async function initChatHistory(): Promise<ChatHistoryStore> {
         where: { userId },
         orderBy: { createdAt: "desc" },
         take: n,
-        select: { role: true, text: true, attachments: true },
+        select: { role: true, text: true, attachments: true, createdAt: true },
       });
 
       return rows.reverse().map((r) => ({
         role: r.role as "user" | "assistant",
         text: r.text,
         attachments: parseAttachmentIds(r.attachments),
+        createdAt: r.createdAt,
       }));
     },
 

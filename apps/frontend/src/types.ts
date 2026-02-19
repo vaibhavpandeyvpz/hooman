@@ -10,6 +10,8 @@ export type View =
 export interface ChatMessage {
   role: "user" | "assistant";
   text: string;
+  /** ISO timestamp; from history or set when sending. */
+  timestamp?: string;
   /** Attachment IDs (for user messages); used when loaded from history. */
   attachments?: string[];
   /** Attachment meta for display (from history or after upload). */
