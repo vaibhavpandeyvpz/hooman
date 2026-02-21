@@ -1,8 +1,8 @@
 import { readFile } from "fs/promises";
 import { join } from "path";
 import createDebug from "debug";
-import { BACKEND_ROOT } from "./env.js";
-import type { ChannelsConfig } from "./types.js";
+import { BACKEND_ROOT } from "../env.js";
+import type { ChannelsConfig } from "../types.js";
 
 const debug = createDebug("hooman:prompts");
 

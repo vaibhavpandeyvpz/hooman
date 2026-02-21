@@ -1,5 +1,5 @@
 import type { Express } from "express";
-import type { AppContext } from "./helpers.js";
+import type { AppContext } from "../utils/helpers.js";
 import { registerAuthRoutes } from "./auth.js";
 import { registerInternalRoutes } from "./internal.js";
 import { registerSettingsRoutes } from "./settings.js";

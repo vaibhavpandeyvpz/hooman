@@ -1,16 +1,9 @@
-import { getPrisma } from "./db.js";
-
-export interface ScheduledTaskDoc {
-  id: string;
-  execute_at?: string;
-  intent: string;
-  context: Record<string, unknown>;
-  cron?: string;
-}
+import { getPrisma } from "../data/db.js";
+import type { ScheduledTask } from "../types.js";
 
 export interface ScheduleStore {
-  getAll(): Promise<ScheduledTaskDoc[]>;
-  add(task: ScheduledTaskDoc): Promise<void>;
+  getAll(): Promise<ScheduledTask[]>;
+  add(task: ScheduledTask): Promise<void>;
   remove(id: string): Promise<boolean>;
 }
 
@@ -30,11 +23,11 @@ export async function initScheduleStore(): Promise<ScheduleStore> {
   const prisma = getPrisma();
 
   return {
-    async getAll(): Promise<ScheduledTaskDoc[]> {
+    async getAll(): Promise<ScheduledTask[]> {
       const rows = await prisma.schedule.findMany({
         orderBy: [{ execute_at: "asc" }, { id: "asc" }],
       });
-      return rows.map((r): ScheduledTaskDoc => {
+      return rows.map((r: any): ScheduledTask => {
         const cronRaw = (r as { cron?: string | null }).cron;
         const cron = cronRaw != null && cronRaw !== "" ? cronRaw : undefined;
         const executeAt =
@@ -51,7 +44,7 @@ export async function initScheduleStore(): Promise<ScheduleStore> {
       });
     },
 
-    async add(task: ScheduledTaskDoc): Promise<void> {
+    async add(task: ScheduledTask): Promise<void> {
       await prisma.schedule.create({
         data: {
           id: task.id,

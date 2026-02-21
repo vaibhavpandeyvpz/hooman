@@ -1,5 +1,5 @@
-import type { AuditLogEntry } from "./types.js";
-import type { AuditStore } from "./data/audit-store.js";
+import type { AuditLogEntry } from "../types.js";
+import type { AuditStore } from "./audit-store.js";
 import { randomUUID } from "crypto";
 
 export type ResponsePayload =

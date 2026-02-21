@@ -2,7 +2,7 @@ import { spawn } from "child_process";
 import { readdir, readFile } from "fs/promises";
 import { join } from "path";
 import matter from "gray-matter";
-import { env } from "../env.js";
+import { env } from "../../env.js";
 
 const PROJECT_ROOT = env.SKILLS_CWD;
 

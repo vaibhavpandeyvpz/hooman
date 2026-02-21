@@ -1,12 +1,12 @@
 import createDebug from "debug";
 import { readFile, writeFile } from "fs/promises";
-import { getWorkspaceConfigPath, WORKSPACE_ROOT } from "./workspace.js";
+import { getWorkspaceConfigPath, WORKSPACE_ROOT } from "./utils/workspace.js";
 import type { ChannelsConfig } from "./types.js";
 import { env } from "./env.js";
 import {
   getDefaultAgentInstructions,
   getFullStaticAgentInstructionsAppend as buildFullStaticAppend,
-} from "./prompts.js";
+} from "./utils/prompts.js";
 
 const debug = createDebug("hooman:config");
 
@@ -41,7 +41,6 @@ export interface PersistedConfig {
   TRANSCRIPTION_PROVIDER: TranscriptionProviderId;
   OPENAI_API_KEY: string;
   CHAT_MODEL: string;
-  MCP_USE_SERVER_MANAGER: boolean;
   /** Model/deployment id for the selected transcription provider. */
   TRANSCRIPTION_MODEL: string;
   AGENT_NAME: string;
@@ -73,6 +72,8 @@ export interface PersistedConfig {
   COMPLETIONS_API_KEY: string;
   /** Max input tokens (context window). 0 or unset = use 100_000 default. Conversation and memory are trimmed to stay under this. */
   MAX_INPUT_TOKENS?: number;
+  /** Max turns (steps) the agent can take per run. Default 999. */
+  MAX_TURNS?: number;
 }
 
 /** Full config: persisted + PORT from env. */
@@ -85,7 +86,6 @@ const DEFAULTS: PersistedConfig = {
   TRANSCRIPTION_PROVIDER: "openai",
   OPENAI_API_KEY: "",
   CHAT_MODEL: "gpt-5.2",
-  MCP_USE_SERVER_MANAGER: false,
   TRANSCRIPTION_MODEL: "gpt-4o-transcribe",
   AGENT_NAME: "Hooman",
   AGENT_INSTRUCTIONS: getDefaultAgentInstructions(),
@@ -106,6 +106,7 @@ const DEFAULTS: PersistedConfig = {
   DEEPSEEK_API_KEY: "",
   COMPLETIONS_API_KEY: "",
   MAX_INPUT_TOKENS: 0,
+  MAX_TURNS: 999,
 };
 
 let store: PersistedConfig = { ...DEFAULTS };
@@ -160,8 +161,7 @@ export function updateConfig(patch: Partial<PersistedConfig>): PersistedConfig {
     store.OPENAI_API_KEY = String(patch.OPENAI_API_KEY);
   if (patch.CHAT_MODEL !== undefined)
     store.CHAT_MODEL = String(patch.CHAT_MODEL).trim() || DEFAULTS.CHAT_MODEL;
-  if (patch.MCP_USE_SERVER_MANAGER !== undefined)
-    store.MCP_USE_SERVER_MANAGER = Boolean(patch.MCP_USE_SERVER_MANAGER);
+
   if (patch.TRANSCRIPTION_MODEL !== undefined)
     store.TRANSCRIPTION_MODEL =
       String(patch.TRANSCRIPTION_MODEL).trim() || DEFAULTS.TRANSCRIPTION_MODEL;
@@ -206,6 +206,11 @@ export function updateConfig(patch: Partial<PersistedConfig>): PersistedConfig {
     store.COMPLETIONS_API_KEY = String(patch.COMPLETIONS_API_KEY);
   if (patch.MAX_INPUT_TOKENS !== undefined)
     store.MAX_INPUT_TOKENS = Math.max(0, Number(patch.MAX_INPUT_TOKENS) || 0);
+  if (patch.MAX_TURNS !== undefined)
+    store.MAX_TURNS = Math.max(
+      1,
+      Number(patch.MAX_TURNS) || DEFAULTS.MAX_TURNS!,
+    );
   persist().catch((err) => debug("persist error: %o", err));
   return { ...store };
 }
@@ -246,8 +251,7 @@ export async function loadPersisted(): Promise<void> {
       if (parsed.CHAT_MODEL !== undefined)
         store.CHAT_MODEL =
           String(parsed.CHAT_MODEL).trim() || DEFAULTS.CHAT_MODEL;
-      if (parsed.MCP_USE_SERVER_MANAGER !== undefined)
-        store.MCP_USE_SERVER_MANAGER = Boolean(parsed.MCP_USE_SERVER_MANAGER);
+
       if (parsed.TRANSCRIPTION_MODEL !== undefined)
         store.TRANSCRIPTION_MODEL =
           String(parsed.TRANSCRIPTION_MODEL).trim() ||
@@ -307,6 +311,11 @@ export async function loadPersisted(): Promise<void> {
         store.MAX_INPUT_TOKENS = Math.max(
           0,
           Number(parsed.MAX_INPUT_TOKENS) || 0,
+        );
+      if (parsed.MAX_TURNS !== undefined)
+        store.MAX_TURNS = Math.max(
+          1,
+          Number(parsed.MAX_TURNS) || DEFAULTS.MAX_TURNS!,
         );
       if (parsed.channels && typeof parsed.channels === "object")
         channelsStore = { ...parsed.channels };

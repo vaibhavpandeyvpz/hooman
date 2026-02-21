@@ -10,10 +10,25 @@ import type {
   WhatsAppChannelMeta,
   WhatsAppChannelConfig,
 } from "../types.js";
-import { WORKSPACE_ROOT } from "../workspace.js";
+import { WORKSPACE_ROOT } from "../utils/workspace.js";
 import { env } from "../env.js";
 import { transcribeAudio } from "../agents/transcription.js";
 import wweb from "whatsapp-web.js";
+
+/**
+ * WhatsApp connection status type. Connection state is held by the WhatsApp worker
+ * and read by the API via Redis RPC (hooman:whatsapp:connection:request/response).
+ */
+export type WhatsAppConnectionStatus = "disconnected" | "pairing" | "connected";
+
+export interface WhatsAppConnection {
+  status: WhatsAppConnectionStatus;
+  qr?: string;
+  /** Current user's WhatsApp ID (e.g. 1234567890@c.us). */
+  selfId?: string;
+  /** Display number (e.g. +1234567890). */
+  selfNumber?: string;
+}
 
 const { Client, LocalAuth } = wweb;
 const debug = createDebug("hooman:whatsapp-adapter");
@@ -47,14 +62,7 @@ function applyWhatsAppFilter(
 
 export interface WhatsAppAdapterOptions {
   /** Called when connection state or QR changes; worker can POST to API so the UI can show the QR. When connected, includes self identity (logged-in number). */
-  onConnectionUpdate?: (data: {
-    status: "disconnected" | "pairing" | "connected";
-    qr?: string;
-    /** Logged-in user ID (e.g. 1234567890@c.us). */
-    selfId?: string;
-    /** Display number (e.g. +1234567890). */
-    selfNumber?: string;
-  }) => void;
+  onConnectionUpdate?: (data: WhatsAppConnection) => void;
 }
 
 export async function startWhatsAppAdapter(

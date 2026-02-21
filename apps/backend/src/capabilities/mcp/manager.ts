@@ -4,13 +4,13 @@
  * closes and clears cache so the next getSession() rebuilds from current connections.
  */
 import createDebug from "debug";
-import type { ScheduleService } from "../data/scheduler.js";
-import type { MCPConnectionsStore } from "../data/mcp-connections-store.js";
+import type { MCPConnectionsStore } from "./connections-store.js";
 import {
   createHoomanRunner,
   type AuditLogAppender,
   type HoomanRunnerSession,
-} from "./hooman-runner.js";
+} from "../../agents/hooman-runner.js";
+import { getAllDefaultMcpConnections } from "./system-mcps.js";
 
 const debug = createDebug("hooman:mcp-manager");
 
@@ -88,7 +88,6 @@ export class McpManager {
 
   constructor(
     private readonly mcpConnectionsStore: MCPConnectionsStore,
-    private readonly scheduleService: ScheduleService,
     options?: McpManagerOptions,
   ) {
     this.connectTimeoutMs =
@@ -119,10 +118,13 @@ export class McpManager {
     }
     const build = async (): Promise<HoomanRunnerSession> => {
       debug("Building MCP session (first use or after reload)");
-      const connections = await this.mcpConnectionsStore.getAll();
+      const userConnections = await this.mcpConnectionsStore.getAll();
+      const connections = [
+        ...getAllDefaultMcpConnections(),
+        ...userConnections,
+      ];
       return createHoomanRunner({
         connections,
-        scheduleService: this.scheduleService,
         mcpConnectionsStore: this.mcpConnectionsStore,
         auditLog: this.auditLog,
       });

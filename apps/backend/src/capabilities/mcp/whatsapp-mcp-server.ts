@@ -6,10 +6,8 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import { initRedis, waitForRedis } from "../data/redis.js";
-import { createRequestResponse } from "../data/pubsub.js";
-
-const log = (...args: unknown[]) => console.error("[whatsapp-mcp]", ...args);
+import { initRedis, waitForRedis } from "../../data/redis.js";
+import { createRequestResponse } from "../../utils/pubsub.js";
 
 const REQUEST_CHANNEL = "hooman:mcp:whatsapp:request";
 const RESPONSE_CHANNEL = "hooman:mcp:whatsapp:response";
@@ -17,13 +15,11 @@ const RPC_TIMEOUT_MS = 25_000;
 
 const redisUrl = process.env.REDIS_URL ?? "";
 if (!redisUrl) {
-  log("REDIS_URL is required");
   process.exit(1);
 }
 
 initRedis(redisUrl);
 await waitForRedis();
-log("Redis connected");
 
 const rpc = createRequestResponse(
   REQUEST_CHANNEL,
@@ -126,16 +122,13 @@ server.registerTool(
     }),
   },
   async (args) => {
-    log("send_message called: chatId=%s", args?.chatId);
     try {
       const result = await rpc("send_message", {
         chatId: args?.chatId,
         text: args?.text,
       });
-      log("send_message success");
       return { content: textContent(JSON.stringify(result, null, 2)) };
     } catch (err) {
-      log("send_message error: %s", (err as Error).message);
       throw err;
     }
   },

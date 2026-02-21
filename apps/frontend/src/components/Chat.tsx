@@ -8,7 +8,6 @@ import {
   clearChatHistory,
   type ChatAttachmentMeta,
 } from "../api";
-import { getToken } from "../auth";
 import { waitForChatResult } from "../socket";
 import { useDialog } from "./Dialog";
 import { Button } from "./Button";
@@ -31,7 +30,6 @@ export function Chat() {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!getToken()) return;
     getChatHistory({ page: 1, pageSize: CHAT_PAGE_SIZE }).then((r) => {
       setMessages(r.messages ?? []);
       setChatTotal(r.total ?? 0);

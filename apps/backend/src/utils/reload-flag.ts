@@ -3,7 +3,7 @@
  * Scopes: schedule (cron tasks), slack, whatsapp, mcp (MCP connections).
  * Uses shared client from data/redis; call initRedis(redisUrl) first.
  */
-import { initRedis, getRedis } from "./redis.js";
+import { initRedis, getRedis } from "../data/redis.js";
 
 export type ReloadScope = "schedule" | "slack" | "whatsapp" | "mcp";
 

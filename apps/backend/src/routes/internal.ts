@@ -1,5 +1,5 @@
 import type { Express, Request, Response } from "express";
-import type { AppContext } from "./helpers.js";
+import type { AppContext } from "../utils/helpers.js";
 import { getKillSwitchEnabled } from "../agents/kill-switch.js";
 
 export function registerInternalRoutes(app: Express, _ctx: AppContext): void {

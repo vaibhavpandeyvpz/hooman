@@ -10,7 +10,7 @@ import {
   initReloadWatch,
   closeReloadWatch,
   type ReloadScope,
-} from "../data/reload-flag.js";
+} from "../utils/reload-flag.js";
 import { env } from "../env.js";
 
 export interface BootstrapOptions {

@@ -11,10 +11,11 @@ import {
   stopWhatsAppAdapter,
   handleWhatsAppMcpRequest,
   sendMessageToChat,
+  type WhatsAppConnection,
 } from "../channels/whatsapp-adapter.js";
 import { createEventQueue } from "../events/event-queue.js";
 import { createQueueDispatcher } from "../events/enqueue.js";
-import { createSubscriber, createRpcMessageHandler } from "../data/pubsub.js";
+import { createSubscriber, createRpcMessageHandler } from "../utils/pubsub.js";
 import { env } from "../env.js";
 import { RESPONSE_DELIVERY_CHANNEL } from "../types.js";
 import { runWorker } from "./bootstrap.js";
@@ -30,12 +31,7 @@ let eventQueue: ReturnType<typeof createEventQueue> | null = null;
 let mcpSubscriber: ReturnType<typeof createSubscriber> | null = null;
 
 /** Connection state for WhatsApp (QR, status, self identity). API reads this via Redis RPC. */
-let connectionState: {
-  status: "disconnected" | "pairing" | "connected";
-  qr?: string;
-  selfId?: string;
-  selfNumber?: string;
-} = { status: "disconnected" };
+let connectionState: WhatsAppConnection = { status: "disconnected" };
 
 async function startAdapter(): Promise<void> {
   await stopWhatsAppAdapter();
@@ -46,7 +42,12 @@ async function startAdapter(): Promise<void> {
   eventQueue = createEventQueue({ connection: env.REDIS_URL });
   const dispatcher = createQueueDispatcher(eventQueue);
   await startWhatsAppAdapter(dispatcher, () => getChannelsConfig().whatsapp, {
-    onConnectionUpdate: ({ status, qr, selfId, selfNumber }) => {
+    onConnectionUpdate: ({
+      status,
+      qr,
+      selfId,
+      selfNumber,
+    }: WhatsAppConnection) => {
       connectionState =
         status === "connected"
           ? { status: "connected", selfId, selfNumber }
@@ -72,20 +73,24 @@ function setupMcpSubscriber(): void {
     MCP_REQUEST_CHANNEL,
     createRpcMessageHandler(
       MCP_RESPONSE_CHANNEL,
-      (method, params) => handleWhatsAppMcpRequest(method, params),
-      (msg) => debug(msg),
+      (method: string, params: Record<string, unknown>) =>
+        handleWhatsAppMcpRequest(method, params),
+      (msg: string) => debug(msg),
     ),
   );
   mcpSubscriber.subscribe(
     CONNECTION_REQUEST_CHANNEL,
-    createRpcMessageHandler(CONNECTION_RESPONSE_CHANNEL, async (method) => {
-      if (method !== "get_connection_status") {
-        throw new Error(`Unknown method: ${method}`);
-      }
-      return connectionState;
-    }),
+    createRpcMessageHandler(
+      CONNECTION_RESPONSE_CHANNEL,
+      async (method: string) => {
+        if (method !== "get_connection_status") {
+          throw new Error(`Unknown method: ${method}`);
+        }
+        return connectionState;
+      },
+    ),
   );
-  mcpSubscriber.subscribe(RESPONSE_DELIVERY_CHANNEL, (raw) => {
+  mcpSubscriber.subscribe(RESPONSE_DELIVERY_CHANNEL, (raw: string) => {
     try {
       const payload = JSON.parse(raw) as {
         channel?: string;

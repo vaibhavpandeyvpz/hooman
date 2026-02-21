@@ -4,13 +4,13 @@ import type {
   OAuthClientMetadata,
   OAuthTokens,
 } from "@ai-sdk/mcp";
-import type { MCPConnectionsStore } from "../data/mcp-connections-store.js";
+import type { MCPConnectionsStore } from "./connections-store.js";
 import type {
   MCPConnectionHosted,
   MCPConnectionStreamableHttp,
   MCPOAuthClientInformation,
   MCPOAuthTokens,
-} from "../types.js";
+} from "../../types.js";
 
 const PENDING_AUTH_TTL_MS = 10 * 60 * 1000; // 10 minutes
 const pendingAuthUrls = new Map<string, { url: string; expiresAt: number }>();

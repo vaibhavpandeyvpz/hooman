@@ -5,11 +5,11 @@
 import createDebug from "debug";
 import type { EventRouter } from "./event-router.js";
 import type { ContextStore } from "../agents/context.js";
-import type { MCPConnectionsStore } from "../data/mcp-connections-store.js";
-import type { ScheduleService } from "../data/scheduler.js";
-import type { AuditLog } from "../audit.js";
+import { MCPConnectionsStore } from "../capabilities/mcp/connections-store.js";
+import type { AuditLog } from "../audit/audit.js";
+import { McpManager } from "../capabilities/mcp/manager.js";
+import { getAllDefaultMcpConnections } from "../capabilities/mcp/system-mcps.js";
 import { createHoomanRunner } from "../agents/hooman-runner.js";
-import type { McpManager } from "../agents/mcp-manager.js";
 import {
   trimContextToTokenBudget,
   RESERVED_TOKENS,
@@ -114,8 +114,6 @@ export interface EventHandlerDeps {
   context: ContextStore;
   mcpConnectionsStore: MCPConnectionsStore;
   auditLog: AuditLog;
-  /** Schedule service for main agent schedule tools (list/create/cancel). When set, worker passes it so the agent can schedule tasks. */
-  scheduler?: ScheduleService;
   /** When set (event-queue worker), publishes response to Redis; API/Slack/WhatsApp subscribers deliver accordingly. */
   publishResponseDelivery?: (payload: ResponseDeliveryPayload) => void;
   /** When set and MCP_USE_SERVER_MANAGER is true, use long-lived MCP session instead of per-run create/close. */
@@ -130,7 +128,6 @@ export function registerEventHandlers(deps: EventHandlerDeps): void {
     context,
     mcpConnectionsStore,
     auditLog,
-    scheduler,
     publishResponseDelivery,
     mcpManager: mcpManagerDep,
     getMcpManager,
@@ -218,15 +215,15 @@ export function registerEventHandlers(deps: EventHandlerDeps): void {
     });
     let assistantText = "";
     const mcpManager = getMcpManager?.() ?? mcpManagerDep;
-    const useMcpManager =
-      getConfig().MCP_USE_SERVER_MANAGER && mcpManager != null;
     try {
       const { thread } = await getThreadForAgent(context, userId);
-      const session = useMcpManager
+      const session = mcpManager
         ? await mcpManager.getSession()
         : await createHoomanRunner({
-            connections: await mcpConnectionsStore.getAll(),
-            scheduleService: scheduler,
+            connections: [
+              ...getAllDefaultMcpConnections(),
+              ...(await mcpConnectionsStore.getAll()),
+            ],
             mcpConnectionsStore,
             auditLog,
           });
@@ -271,7 +268,7 @@ export function registerEventHandlers(deps: EventHandlerDeps): void {
           assistantText,
         );
       } finally {
-        if (!useMcpManager) await session.closeMcp();
+        if (!mcpManager) await session.closeMcp();
       }
     } catch (err) {
       if (err instanceof ChatTimeoutError) {
@@ -313,14 +310,11 @@ export function registerEventHandlers(deps: EventHandlerDeps): void {
             .join(", ");
     const text = `Scheduled task: ${payload.intent}. Context: ${contextStr}.`;
     const mcpManager = getMcpManager?.() ?? mcpManagerDep;
-    const useMcpManager =
-      getConfig().MCP_USE_SERVER_MANAGER && mcpManager != null;
     try {
-      const session = useMcpManager
+      const session = mcpManager
         ? await mcpManager.getSession()
         : await createHoomanRunner({
             connections: await mcpConnectionsStore.getAll(),
-            scheduleService: scheduler,
             mcpConnectionsStore,
             auditLog,
           });
@@ -345,7 +339,7 @@ export function registerEventHandlers(deps: EventHandlerDeps): void {
           userInput: text,
         });
       } finally {
-        if (!useMcpManager) await session.closeMcp();
+        if (!mcpManager) await session.closeMcp();
       }
     } catch (err) {
       debug("scheduled task handler error: %o", err);

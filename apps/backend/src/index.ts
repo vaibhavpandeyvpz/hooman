@@ -5,26 +5,29 @@ import cors from "cors";
 import { Server as SocketServer } from "socket.io";
 
 const debug = createDebug("hooman:api");
-import { AuditLog } from "./audit.js";
-import type { ScheduleService, ScheduledTask } from "./data/scheduler.js";
-import { randomUUID } from "crypto";
-import type { ResponsePayload } from "./audit.js";
+import { AuditLog } from "./audit/audit.js";
+import type { ResponsePayload } from "./audit/audit.js";
 import { getConfig, loadPersisted } from "./config.js";
-import { loadPrompts } from "./prompts.js";
+import { loadPrompts } from "./utils/prompts.js";
 import { registerRoutes } from "./routes/index.js";
 import { localhostOnly } from "./middleware/localhost-only.js";
 import { authJwt, verifyToken } from "./middleware/auth-jwt.js";
 import { initDb } from "./data/db.js";
-import { initChatHistory } from "./data/chat-history.js";
-import { initAttachmentStore } from "./data/attachment-store.js";
+import { initChatHistory } from "./chats/chat-history.js";
+import { initAttachmentStore } from "./attachments/attachment-store.js";
+import { createChatService } from "./chats/chat-service.js";
+import { createAttachmentService } from "./attachments/attachment-service.js";
 import { createContext } from "./agents/context.js";
-import { initScheduleStore } from "./data/schedule-store.js";
-import { initMCPConnectionsStore } from "./data/mcp-connections-store.js";
+import { initScheduleStore } from "./scheduling/schedule-store.js";
+import { initMCPConnectionsStore } from "./capabilities/mcp/connections-store.js";
 import {
   createAuditStore,
   AUDIT_ENTRY_ADDED_CHANNEL,
-} from "./data/audit-store.js";
-import { createSubscriber, publish } from "./data/pubsub.js";
+} from "./audit/audit-store.js";
+import { createSkillService } from "./capabilities/skills/skills-service.js";
+import { createMcpService } from "./capabilities/mcp/mcp-service.js";
+import { createChannelService } from "./channels/channel-service.js";
+import { createSubscriber, publish } from "./utils/pubsub.js";
 import { createEventQueue } from "./events/event-queue.js";
 import { enqueueRaw } from "./events/enqueue.js";
 import { EventRouter } from "./events/event-router.js";
@@ -40,7 +43,7 @@ import {
   getWorkspaceAttachmentsDir,
   WORKSPACE_ROOT,
   WORKSPACE_MCPCWD,
-} from "./workspace.js";
+} from "./utils/workspace.js";
 import { mkdirSync } from "fs";
 
 async function main() {
@@ -83,6 +86,8 @@ async function main() {
 
   const chatHistory = await initChatHistory();
   const attachmentStore = await initAttachmentStore(ATTACHMENTS_DATA_DIR);
+  const attachmentService = createAttachmentService(attachmentStore);
+  const chatService = createChatService(chatHistory, attachmentService);
   const context = createContext(chatHistory);
 
   const scheduleStore = await initScheduleStore();
@@ -92,15 +97,9 @@ async function main() {
   });
   const auditLog = new AuditLog(auditStore);
 
-  const scheduler: ScheduleService = {
-    list: () => scheduleStore.getAll(),
-    schedule: async (task: Omit<ScheduledTask, "id">) => {
-      const id = randomUUID();
-      await scheduleStore.add({ ...task, id });
-      return id;
-    },
-    cancel: (id) => scheduleStore.remove(id),
-  };
+  const { createScheduleService } =
+    await import("./scheduling/schedule-service.js");
+  const scheduler = createScheduleService(scheduleStore);
 
   const responseStore: Map<
     string,
@@ -199,7 +198,6 @@ async function main() {
       context,
       mcpConnectionsStore,
       auditLog,
-      scheduler,
       publishResponseDelivery: (payload) => {
         if (payload.channel !== "api") return;
         io.emit("chat-result", {
@@ -216,13 +214,16 @@ async function main() {
 
   registerRoutes(app, {
     enqueue,
-    context,
+    chatService,
+    attachmentService,
     auditLog,
     responseStore,
     scheduler,
     io,
     mcpConnectionsStore,
-    attachmentStore,
+    skillService: createSkillService(),
+    mcpService: createMcpService(mcpConnectionsStore),
+    channelService: createChannelService(),
   });
 
   const PORT = getConfig().PORT;

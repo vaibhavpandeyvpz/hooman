@@ -1,16 +1,15 @@
 import type { Express, Request, Response } from "express";
 import createDebug from "debug";
 import multer from "multer";
-import { randomUUID } from "crypto";
-import type { AppContext } from "./helpers.js";
-import { getParam } from "./helpers.js";
+import type { AppContext } from "../utils/helpers.js";
+import { getParam } from "../utils/helpers.js";
 import { getKillSwitchEnabled } from "../agents/kill-switch.js";
 import { getConfig } from "../config.js";
 
 const debug = createDebug("hooman:routes:chat");
 
 export function registerChatRoutes(app: Express, ctx: AppContext): void {
-  const { enqueue, context, auditLog, attachmentStore } = ctx;
+  const { enqueue, auditLog, chatService, attachmentService } = ctx;
   const upload = multer({ storage: multer.memoryStorage() });
 
   app.get("/api/chat/history", async (req: Request, res: Response) => {
@@ -20,50 +19,13 @@ export function registerChatRoutes(app: Express, ctx: AppContext): void {
       200,
       Math.max(1, parseInt(String(req.query.pageSize), 10) || 50),
     );
-    const result = await context.getMessages(userId, { page, pageSize });
-    const messagesWithMeta = await Promise.all(
-      result.messages.map(async (m) => {
-        const ids = m.attachments ?? [];
-        const timestamp =
-          m.createdAt instanceof Date ? m.createdAt.toISOString() : undefined;
-        if (ids.length === 0)
-          return {
-            role: m.role,
-            text: m.text,
-            attachments: m.attachments,
-            ...(timestamp != null ? { timestamp } : {}),
-          };
-        const attachment_metas = await Promise.all(
-          ids.map(async (id) => {
-            const doc = await attachmentStore.getById(id, userId);
-            return doc
-              ? { id, originalName: doc.originalName, mimeType: doc.mimeType }
-              : null;
-          }),
-        );
-        return {
-          role: m.role,
-          text: m.text,
-          attachments: m.attachments,
-          attachment_metas: attachment_metas.filter(
-            (a): a is { id: string; originalName: string; mimeType: string } =>
-              a !== null,
-          ),
-          ...(timestamp != null ? { timestamp } : {}),
-        };
-      }),
-    );
-    res.json({
-      messages: messagesWithMeta,
-      total: result.total,
-      page: result.page,
-      pageSize: result.pageSize,
-    });
+    const result = await chatService.getHistory(userId, { page, pageSize });
+    res.json(result);
   });
 
   app.delete("/api/chat/history", async (req: Request, res: Response) => {
     const userId = (req.query.userId as string) || "default";
-    await context.clearAll(userId);
+    await chatService.clearHistory(userId);
     res.json({ cleared: true });
   });
 
@@ -71,22 +33,14 @@ export function registerChatRoutes(app: Express, ctx: AppContext): void {
     "/api/chat/attachments",
     upload.array("files", 10),
     async (req: Request, res: Response) => {
-      const userId = "default";
+      const userId = (req.query.userId as string) || "default";
       const files = (req as Request & { files?: Express.Multer.File[] }).files;
       if (!Array.isArray(files) || files.length === 0) {
         res.status(400).json({ error: "No files uploaded." });
         return;
       }
       try {
-        const result = await Promise.all(
-          files.map((f) =>
-            attachmentStore.save(userId, {
-              buffer: f.buffer,
-              originalname: f.originalname,
-              mimetype: f.mimetype || "application/octet-stream",
-            }),
-          ),
-        );
+        const result = await attachmentService.saveAll(userId, files as any);
         res.json({ attachments: result });
       } catch (err) {
         debug("attachment upload error: %o", err);
@@ -98,12 +52,12 @@ export function registerChatRoutes(app: Express, ctx: AppContext): void {
   app.get("/api/chat/attachments/:id", async (req: Request, res: Response) => {
     const id = getParam(req, "id");
     const userId = "default";
-    const doc = await attachmentStore.getById(id, userId);
+    const doc = await attachmentService.getAttachmentDoc(id, userId);
     if (!doc) {
       res.status(404).json({ error: "Attachment not found." });
       return;
     }
-    const buffer = await attachmentStore.getBuffer(id, userId);
+    const buffer = await attachmentService.getAttachmentBuffer(id, userId);
     if (!buffer) {
       res.status(404).json({ error: "Attachment file not found." });
       return;
@@ -135,46 +89,12 @@ export function registerChatRoutes(app: Express, ctx: AppContext): void {
         ) as string[])
       : undefined;
 
-    let attachmentContents:
-      | Array<{ name: string; contentType: string; data: string }>
-      | undefined;
-    if (attachmentIds?.length) {
-      const userId = "default";
-      const resolved = await Promise.all(
-        attachmentIds.map(async (id) => {
-          const doc = await attachmentStore.getById(id, userId);
-          const buffer = doc
-            ? await attachmentStore.getBuffer(id, userId)
-            : null;
-          if (!doc || !buffer) return null;
-          return {
-            name: doc.originalName,
-            contentType: doc.mimeType,
-            data: buffer.toString("base64"),
-          };
-        }),
-      );
-      attachmentContents = resolved.filter(
-        (a): a is { name: string; contentType: string; data: string } =>
-          a !== null,
-      );
-    }
-
-    const eventId = randomUUID();
-    const userId = "default";
-
-    await enqueue(
-      {
-        source: "api",
-        type: "message.sent",
-        payload: {
-          text,
-          userId,
-          ...(attachmentContents?.length ? { attachmentContents } : {}),
-          ...(attachmentIds?.length ? { attachments: attachmentIds } : {}),
-        },
-      },
-      { correlationId: eventId },
+    const userId = (req.body?.userId as string) || "default";
+    const eventId = await chatService.sendMessage(
+      userId,
+      text,
+      attachmentIds,
+      enqueue,
     );
 
     res.status(202).json({ eventId });

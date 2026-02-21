@@ -1,18 +1,22 @@
 import type { Request } from "express";
 import type { Server as SocketServer } from "socket.io";
 import type { RawDispatchInput } from "../types.js";
-import type { ContextStore } from "../agents/context.js";
-import type { AuditLog } from "../audit.js";
-import type { ScheduleService } from "../data/scheduler.js";
-import type { MCPConnectionsStore } from "../data/mcp-connections-store.js";
-import type { AttachmentStore } from "../data/attachment-store.js";
+import type { ChatService } from "../chats/chat-service.js";
+import type { AttachmentService } from "../attachments/attachment-service.js";
+import type { AuditLog } from "../audit/audit.js";
+import type { ScheduleService } from "../scheduling/schedule-service.js";
+import type { MCPConnectionsStore } from "../capabilities/mcp/connections-store.js";
+import type { SkillService } from "../capabilities/skills/skills-service.js";
+import type { McpService } from "../capabilities/mcp/mcp-service.js";
+import type { ChannelService } from "../channels/channel-service.js";
 
 export interface AppContext {
   enqueue: (
     raw: RawDispatchInput,
     options?: { correlationId?: string },
   ) => Promise<string>;
-  context: ContextStore;
+  chatService: ChatService;
+  attachmentService: AttachmentService;
   auditLog: AuditLog;
   responseStore: Map<
     string,
@@ -21,7 +25,9 @@ export interface AppContext {
   scheduler: ScheduleService;
   io: SocketServer;
   mcpConnectionsStore: MCPConnectionsStore;
-  attachmentStore: AttachmentStore;
+  skillService: SkillService;
+  mcpService: McpService;
+  channelService: ChannelService;
 }
 
 export function getParam(req: Request, key: string): string {

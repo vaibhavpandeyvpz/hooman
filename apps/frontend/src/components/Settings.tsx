@@ -6,7 +6,7 @@ import {
   type LLMProviderId,
   type TranscriptionProviderId,
 } from "../api";
-import { Checkbox } from "./Checkbox";
+
 import { Button } from "./Button";
 import { Input } from "./Input";
 import { Select } from "./Select";
@@ -49,7 +49,6 @@ export function Settings() {
       .then((c) =>
         setForm({
           ...c,
-          MCP_USE_SERVER_MANAGER: Boolean(c.MCP_USE_SERVER_MANAGER),
         }),
       )
       .catch((e) => setMessage({ type: "err", text: (e as Error).message }))
@@ -67,7 +66,7 @@ export function Settings() {
         TRANSCRIPTION_PROVIDER: form.TRANSCRIPTION_PROVIDER ?? "openai",
         OPENAI_API_KEY: form.OPENAI_API_KEY,
         CHAT_MODEL: form.CHAT_MODEL,
-        MCP_USE_SERVER_MANAGER: form.MCP_USE_SERVER_MANAGER,
+
         TRANSCRIPTION_MODEL: form.TRANSCRIPTION_MODEL,
         AGENT_NAME: form.AGENT_NAME,
         AGENT_INSTRUCTIONS: form.AGENT_INSTRUCTIONS,
@@ -838,26 +837,6 @@ export function Settings() {
             </div>
           </div>
 
-          <div className="pt-4 border-t border-hooman-border">
-            <h3 className="text-sm font-medium text-zinc-300 mb-2">
-              MCP servers
-            </h3>
-            <Checkbox
-              id="use-mcp-server-manager"
-              label="Use server manager (graceful failures, reconnect)"
-              checked={form.MCP_USE_SERVER_MANAGER ?? false}
-              onChange={(checked) =>
-                setForm((prev) =>
-                  prev ? { ...prev, MCP_USE_SERVER_MANAGER: checked } : prev,
-                )
-              }
-            />
-            <p className="text-xs text-hooman-muted mt-1">
-              When enabled, multiple MCP servers are connected via a manager
-              (active_servers, drop_failed_servers, reconnect). When disabled,
-              servers are connected individually.
-            </p>
-          </div>
           <Button type="submit" disabled={saving}>
             {saving ? "Saving…" : "Save"}
           </Button>

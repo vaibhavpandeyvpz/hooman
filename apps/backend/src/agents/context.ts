@@ -1,7 +1,7 @@
 import type {
   ChatHistoryStore,
   GetMessagesResult,
-} from "../data/chat-history.js";
+} from "../chats/chat-history.js";
 
 export interface ContextStore {
   /** Persist one user/assistant turn to chat history only (UI). Call only for api-source chat. */

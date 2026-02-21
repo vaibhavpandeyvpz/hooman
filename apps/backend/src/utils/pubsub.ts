@@ -3,7 +3,7 @@
  * Publish uses the shared Redis client; subscribe uses a duplicate connection (subscriber mode).
  * Call initRedis() before using.
  */
-import { getRedis } from "./redis.js";
+import { getRedis } from "../data/redis.js";
 
 /** RPC request envelope (publish to request channel). */
 export interface RedisRpcRequest {

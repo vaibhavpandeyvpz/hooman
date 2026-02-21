@@ -1,6 +1,6 @@
 import type { Express, Request, Response } from "express";
 import { randomUUID } from "crypto";
-import type { AppContext } from "./helpers.js";
+import type { AppContext } from "../utils/helpers.js";
 import { getKillSwitchEnabled } from "../agents/kill-switch.js";
 import { getConfig } from "../config.js";
 import { completionsAuth } from "../middleware/completions-auth.js";

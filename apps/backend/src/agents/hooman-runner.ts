@@ -13,8 +13,11 @@ import { createMistral } from "@ai-sdk/mistral";
 import { createDeepSeek } from "@ai-sdk/deepseek";
 import { generateText, tool, stepCountIs, jsonSchema } from "ai";
 import type { ModelMessage } from "ai";
-import { listSkillsFromFs, getSkillContent } from "./skills-cli.js";
-import type { SkillEntry } from "./skills-cli.js";
+import {
+  listSkillsFromFs,
+  getSkillContent,
+} from "../capabilities/skills/skills-cli.js";
+import type { SkillEntry } from "../capabilities/skills/skills-cli.js";
 import type {
   AuditLogEntry,
   MCPConnection,
@@ -23,17 +26,10 @@ import type {
   MCPConnectionStdio,
 } from "../types.js";
 import type { AppConfig } from "../config.js";
-import {
-  getChannelsConfig,
-  getConfig,
-  getFullStaticAgentInstructionsAppend,
-} from "../config.js";
-import type { ScheduleService } from "../data/scheduler.js";
-import type { MCPConnectionsStore } from "../data/mcp-connections-store.js";
-import { setReloadFlag } from "../data/reload-flag.js";
-import { createOAuthProvider } from "./oauth-provider.js";
-import { env, BACKEND_ROOT } from "../env.js";
-import { join } from "path";
+import { getConfig, getFullStaticAgentInstructionsAppend } from "../config.js";
+import type { MCPConnectionsStore } from "../capabilities/mcp/connections-store.js";
+import { createOAuthProvider } from "../capabilities/mcp/oauth-provider.js";
+import { env } from "../env.js";
 import createDebug from "debug";
 
 const debug = createDebug("hooman:hooman-runner");
@@ -65,87 +61,7 @@ function truncateForAudit(value: unknown): string {
 const DEFAULT_CHAT_MODEL = "gpt-4o";
 const DEFAULT_MCP_CWD = env.MCP_STDIO_DEFAULT_CWD;
 
-const WHATSAPP_MCP_SERVER_PATH = join(
-  BACKEND_ROOT,
-  "src",
-  "channels",
-  "whatsapp-mcp-server.ts",
-);
-
 export type AgentInputItem = { role: "user" | "assistant"; content: string };
-
-function getSlackMcpEnv(): Record<string, string> | undefined {
-  const slack = getChannelsConfig().slack;
-  if (!slack?.enabled || !slack.userToken?.trim()) return undefined;
-  const token = slack.userToken.trim();
-  const env: Record<string, string> = { SLACK_MCP_ADD_MESSAGE_TOOL: "true" };
-  if (token.startsWith("xoxb-")) env.SLACK_MCP_XOXB_TOKEN = token;
-  else if (token.startsWith("xoxp-")) env.SLACK_MCP_XOXP_TOKEN = token;
-  else env.SLACK_MCP_XOXB_TOKEN = token;
-  return env;
-}
-
-function getDefaultMcpConnections(): MCPConnectionStdio[] {
-  return [
-    {
-      id: "_default_fetch",
-      type: "stdio",
-      name: "fetch",
-      command: "uvx",
-      args: ["mcp-server-fetch"],
-    },
-    {
-      id: "_default_time",
-      type: "stdio",
-      name: "time",
-      command: "uvx",
-      args: ["mcp-server-time"],
-    },
-    {
-      id: "_default_filesystem",
-      type: "stdio",
-      name: "filesystem",
-      command: "npx",
-      args: ["-y", "@modelcontextprotocol/server-filesystem", DEFAULT_MCP_CWD],
-    },
-  ];
-}
-
-function getChannelDefaultMcpConnections(): MCPConnectionStdio[] {
-  const channels = getChannelsConfig();
-  const out: MCPConnectionStdio[] = [];
-  const slackMcpEnv = getSlackMcpEnv();
-  if (slackMcpEnv) {
-    out.push({
-      id: "_default_slack",
-      type: "stdio",
-      name: "slack",
-      command: "go",
-      args: [
-        "run",
-        "github.com/korotovsky/slack-mcp-server/cmd/slack-mcp-server@latest",
-        "--transport",
-        "stdio",
-      ],
-      env: slackMcpEnv,
-    });
-  }
-  if (channels.whatsapp?.enabled && env.REDIS_URL) {
-    out.push({
-      id: "_default_whatsapp",
-      type: "stdio",
-      name: "whatsapp",
-      command: "npx",
-      args: ["tsx", WHATSAPP_MCP_SERVER_PATH],
-      env: { REDIS_URL: env.REDIS_URL },
-    });
-  }
-  return out;
-}
-
-function getAllDefaultMcpConnections(): MCPConnection[] {
-  return [...getDefaultMcpConnections(), ...getChannelDefaultMcpConnections()];
-}
 
 function buildSkillsMetadataSection(
   skillIds: string[],
@@ -302,129 +218,6 @@ const readSkillTool = tool({
   },
 });
 
-function buildScheduleTools(scheduleService: ScheduleService) {
-  return {
-    list_scheduled_tasks: tool({
-      description:
-        "List all scheduled tasks for the user. Returns each task's id, execute_at (ISO time or placeholder for recurring), optional cron (recurring expression), intent, and optional context. Use this to see what is already scheduled before creating or canceling tasks.",
-      inputSchema: jsonSchema({
-        type: "object",
-        properties: {},
-        required: [],
-        additionalProperties: false,
-      }),
-      execute: async () => {
-        const tasks = await scheduleService.list();
-        if (tasks.length === 0) return "No scheduled tasks.";
-        return JSON.stringify(
-          tasks.map((t) => ({
-            id: t.id,
-            intent: t.intent,
-            context: t.context,
-            ...(t.execute_at ? { execute_at: t.execute_at } : {}),
-            ...(t.cron ? { cron: t.cron } : {}),
-          })),
-          null,
-          2,
-        );
-      },
-    }),
-    create_scheduled_task: tool({
-      description:
-        "Create a scheduled task. One-shot: provide execute_at (ISO date-time, e.g. 2025-02-05T14:00:00Z) and the task runs once at that time. Recurring: provide cron (e.g. '*/5 * * * *' for every 5 minutes) and the task repeats. intent is required; context is optional. Use for follow-ups or deferred/recurring work.",
-      inputSchema: jsonSchema({
-        type: "object",
-        properties: {
-          execute_at: {
-            type: "string",
-            description:
-              "When to run the task once (ISO 8601 date-time). Omit if using cron for recurring.",
-          },
-          cron: {
-            type: "string",
-            description:
-              "Cron expression for recurring (e.g. '*/5 * * * *' every 5 min). If set, task repeats; otherwise runs once at execute_at.",
-          },
-          intent: {
-            type: "string",
-            description: "Short description of what the task should do",
-          },
-          context: {
-            type: "object",
-            description:
-              "Optional extra context (key-value object) for the task",
-          },
-        },
-        required: ["intent"],
-        additionalProperties: false,
-      }),
-      execute: async (input: unknown) => {
-        const raw = input as {
-          execute_at?: string;
-          cron?: string;
-          intent?: string;
-          context?: Record<string, unknown>;
-        };
-        const execute_at =
-          typeof raw?.execute_at === "string" ? raw.execute_at.trim() : "";
-        const cronStr = typeof raw?.cron === "string" ? raw.cron.trim() : "";
-        const intent = typeof raw?.intent === "string" ? raw.intent.trim() : "";
-        if (!intent) {
-          return "Error: intent is required.";
-        }
-        if (!execute_at && !cronStr) {
-          return "Error: provide either execute_at (one-shot) or cron (recurring).";
-        }
-        const context =
-          raw?.context &&
-          typeof raw.context === "object" &&
-          !Array.isArray(raw.context)
-            ? (raw.context as Record<string, unknown>)
-            : {};
-        const id = await scheduleService.schedule({
-          intent,
-          context,
-          ...(execute_at ? { execute_at } : {}),
-          ...(cronStr ? { cron: cronStr } : {}),
-        });
-        await setReloadFlag(env.REDIS_URL, "schedule");
-        if (cronStr) {
-          return `Scheduled recurring task with id: ${id}. Cron: ${cronStr}.`;
-        }
-        return `Scheduled task created with id: ${id}. It will run at ${execute_at}.`;
-      },
-    }),
-    cancel_scheduled_task: tool({
-      description:
-        "Cancel a scheduled task by id. Use the id from list_scheduled_tasks. Returns success or that the task was not found.",
-      inputSchema: jsonSchema({
-        type: "object",
-        properties: {
-          id: {
-            type: "string",
-            description: "The task id to cancel (from list_scheduled_tasks)",
-          },
-        },
-        required: ["id"],
-        additionalProperties: false,
-      }),
-      execute: async (input: unknown) => {
-        const id =
-          typeof (input as { id?: string })?.id === "string"
-            ? (input as { id: string }).id.trim()
-            : "";
-        if (!id) return "Error: id is required.";
-        const ok = await scheduleService.cancel(id);
-        if (ok) {
-          await setReloadFlag(env.REDIS_URL, "schedule");
-          return `Scheduled task ${id} has been cancelled.`;
-        }
-        return `Scheduled task with id "${id}" was not found.`;
-      },
-    }),
-  };
-}
-
 export interface RunChatOptions {
   memoryContext?: string;
   channelContext?: string;
@@ -515,7 +308,6 @@ export type AuditLogAppender = {
 
 export async function createHoomanRunner(options?: {
   connections?: MCPConnection[];
-  scheduleService?: ScheduleService;
   mcpConnectionsStore?: MCPConnectionsStore;
   apiKey?: string;
   model?: string;
@@ -527,10 +319,7 @@ export async function createHoomanRunner(options?: {
     model: options?.model,
   });
 
-  const allConnections: MCPConnection[] = [
-    ...getAllDefaultMcpConnections(),
-    ...(options?.connections ?? []),
-  ];
+  const allConnections: MCPConnection[] = options?.connections ?? [];
 
   const [allSkills, mcpClients] = await Promise.all([
     listSkillsFromFs(),
@@ -625,14 +414,9 @@ export async function createHoomanRunner(options?: {
     }
   }
 
-  const scheduleTools = options?.scheduleService
-    ? buildScheduleTools(options.scheduleService)
-    : {};
-
   const tools = {
     read_skill: readSkillTool,
     ...mcpTools,
-    ...scheduleTools,
   };
 
   const { AGENT_INSTRUCTIONS: instructions } = config;
@@ -684,7 +468,7 @@ export async function createHoomanRunner(options?: {
             : lastUserContent,
       });
 
-      const maxSteps = runOptions?.maxTurns ?? 10;
+      const maxSteps = runOptions?.maxTurns ?? getConfig().MAX_TURNS ?? 999;
       const result = await generateText({
         model,
         system: fullSystem,

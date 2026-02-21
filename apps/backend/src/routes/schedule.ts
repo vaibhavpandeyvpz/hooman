@@ -1,21 +1,8 @@
 import type { Express, Request, Response } from "express";
-import schedule from "node-schedule";
-import type { AppContext } from "./helpers.js";
-import { getParam } from "./helpers.js";
+import type { AppContext } from "../utils/helpers.js";
+import { getParam } from "../utils/helpers.js";
 import { getKillSwitchEnabled } from "../agents/kill-switch.js";
 import { getConfig } from "../config.js";
-import { setReloadFlag } from "../data/reload-flag.js";
-import { env } from "../env.js";
-
-function validateCron(cron: string): boolean {
-  try {
-    const job = schedule.scheduleJob("_validate", cron.trim(), () => {});
-    if (job) job.cancel();
-    return true;
-  } catch {
-    return false;
-  }
-}
 
 export function registerScheduleRoutes(app: Express, ctx: AppContext): void {
   const { scheduler } = ctx;
@@ -54,25 +41,29 @@ export function registerScheduleRoutes(app: Express, ctx: AppContext): void {
         });
         return;
       }
-      if (cronStr && !validateCron(cronStr)) {
-        res.status(400).json({ error: "Invalid cron expression." });
-        return;
+      if (cronStr && !executeAtStr) {
+        // Validation now happens inside scheduler.schedule()
       }
 
-      const id = await scheduler.schedule({
-        intent: typeof intent === "string" ? intent : String(intent),
-        context: typeof context === "object" ? context : {},
-        ...(executeAtStr ? { execute_at: executeAtStr } : {}),
-        ...(cronStr ? { cron: cronStr } : {}),
-      });
-      await setReloadFlag(env.REDIS_URL, "schedule");
-      res.status(201).json({
-        id,
-        intent: typeof intent === "string" ? intent : String(intent),
-        context: context ?? {},
-        ...(executeAtStr ? { execute_at: executeAtStr } : {}),
-        ...(cronStr ? { cron: cronStr } : {}),
-      });
+      try {
+        const id = await scheduler.schedule({
+          intent: typeof intent === "string" ? intent : String(intent),
+          context: typeof context === "object" ? context : {},
+          ...(executeAtStr ? { execute_at: executeAtStr } : {}),
+          ...(cronStr ? { cron: cronStr } : {}),
+        });
+        res.status(201).json({
+          id,
+          intent: typeof intent === "string" ? intent : String(intent),
+          context: context ?? {},
+          ...(executeAtStr ? { execute_at: executeAtStr } : {}),
+          ...(cronStr ? { cron: cronStr } : {}),
+        });
+      } catch (err) {
+        res.status(400).json({
+          error: err instanceof Error ? err.message : "Schedule failed.",
+        });
+      }
     },
   );
 
@@ -84,7 +75,6 @@ export function registerScheduleRoutes(app: Express, ctx: AppContext): void {
         res.status(404).json({ error: "Scheduled task not found." });
         return;
       }
-      await setReloadFlag(env.REDIS_URL, "schedule");
       res.status(204).send();
     },
   );

@@ -4,31 +4,28 @@
  * Run as a separate PM2 process (e.g. pm2 start ecosystem.config.cjs --only event-queue).
  */
 import createDebug from "debug";
-import { randomUUID } from "crypto";
 import { mkdirSync } from "fs";
-import { getConfig, loadPersisted } from "../config.js";
+import { loadPersisted } from "../config.js";
 import { createEventQueue } from "../events/event-queue.js";
 import { EventRouter } from "../events/event-router.js";
 import { registerEventHandlers } from "../events/event-handlers.js";
-import { AuditLog } from "../audit.js";
+import { AuditLog } from "../audit/audit.js";
 import { createContext } from "../agents/context.js";
-import type { ScheduleService, ScheduledTask } from "../data/scheduler.js";
-import { initScheduleStore } from "../data/schedule-store.js";
-import { initMCPConnectionsStore } from "../data/mcp-connections-store.js";
+import { initMCPConnectionsStore } from "../capabilities/mcp/connections-store.js";
 import { initDb } from "../data/db.js";
-import { initChatHistory } from "../data/chat-history.js";
+import { initChatHistory } from "../chats/chat-history.js";
 import {
   createAuditStore,
   AUDIT_ENTRY_ADDED_CHANNEL,
-} from "../data/audit-store.js";
-import { publish } from "../data/pubsub.js";
+} from "../audit/audit-store.js";
+import { publish } from "../utils/pubsub.js";
 import { initRedis, closeRedis } from "../data/redis.js";
 import { initKillSwitch, closeKillSwitch } from "../agents/kill-switch.js";
-import { McpManager } from "../agents/mcp-manager.js";
-import { initReloadWatch, closeReloadWatch } from "../data/reload-flag.js";
+import { McpManager } from "../capabilities/mcp/manager.js";
+import { initReloadWatch, closeReloadWatch } from "../utils/reload-flag.js";
 import { env } from "../env.js";
 import { RESPONSE_DELIVERY_CHANNEL } from "../types.js";
-import { WORKSPACE_ROOT, WORKSPACE_MCPCWD } from "../workspace.js";
+import { WORKSPACE_ROOT, WORKSPACE_MCPCWD } from "../utils/workspace.js";
 
 const debug = createDebug("hooman:workers:event-queue");
 
@@ -48,54 +45,23 @@ async function main() {
   const chatHistory = await initChatHistory();
   const context = createContext(chatHistory);
   const mcpConnectionsStore = await initMCPConnectionsStore();
-  const scheduleStore = await initScheduleStore();
-  const scheduler: ScheduleService = {
-    list: () => scheduleStore.getAll(),
-    schedule: async (task: Omit<ScheduledTask, "id">) => {
-      const id = randomUUID();
-      await scheduleStore.add({ ...task, id });
-      return id;
-    },
-    cancel: (id) => scheduleStore.remove(id),
-  };
   const auditStore = createAuditStore({
     onAppend: () => publish(AUDIT_ENTRY_ADDED_CHANNEL, "1"),
   });
   const auditLog = new AuditLog(auditStore);
 
-  let mcpManager: McpManager | undefined;
-  const useMcpManager = getConfig().MCP_USE_SERVER_MANAGER;
-  if (useMcpManager) {
-    mcpManager = new McpManager(mcpConnectionsStore, scheduler, {
-      connectTimeoutMs: env.MCP_CONNECT_TIMEOUT_MS,
-      closeTimeoutMs: env.MCP_CLOSE_TIMEOUT_MS,
-      auditLog,
-    });
-    debug("MCP Server Manager enabled");
-  }
+  const mcpManager = new McpManager(mcpConnectionsStore, {
+    connectTimeoutMs: env.MCP_CONNECT_TIMEOUT_MS,
+    closeTimeoutMs: env.MCP_CLOSE_TIMEOUT_MS,
+    auditLog,
+  });
+  debug("MCP Server Manager enabled");
+
   initReloadWatch(env.REDIS_URL, ["mcp"], async () => {
     debug("MCP reload triggered; re-reading config");
     await loadPersisted();
-    const use = getConfig().MCP_USE_SERVER_MANAGER;
-    if (use && !mcpManager) {
-      mcpManager = new McpManager(mcpConnectionsStore, scheduler, {
-        connectTimeoutMs: env.MCP_CONNECT_TIMEOUT_MS,
-        closeTimeoutMs: env.MCP_CLOSE_TIMEOUT_MS,
-        auditLog,
-      });
-      debug("MCP Server Manager reload: enabled, manager created");
-    } else if (use && mcpManager) {
-      await mcpManager.reload();
-      debug(
-        "MCP Server Manager reload: enabled, session reloaded (manager not cleared)",
-      );
-    } else if (!use && mcpManager) {
-      await mcpManager.reload();
-      mcpManager = undefined;
-      debug("MCP Server Manager reload: disabled, manager cleared");
-    } else {
-      debug("MCP Server Manager reload: disabled, no manager (no change)");
-    }
+    await mcpManager.reload();
+    debug("MCP Server Manager reloaded");
   });
 
   const eventRouter = new EventRouter();
@@ -104,7 +70,6 @@ async function main() {
     context,
     mcpConnectionsStore,
     auditLog,
-    scheduler,
     publishResponseDelivery: (payload) => {
       publish(RESPONSE_DELIVERY_CHANNEL, JSON.stringify(payload));
     },

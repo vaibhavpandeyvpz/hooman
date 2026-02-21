@@ -11,14 +11,14 @@ import { loadPersisted } from "../config.js";
 import { createEventQueue } from "../events/event-queue.js";
 import { createQueueDispatcher } from "../events/enqueue.js";
 import type { RawDispatchInput } from "../types.js";
-import type { ScheduledTask } from "../data/scheduler.js";
-import type { ScheduleStore } from "../data/schedule-store.js";
-import { initScheduleStore } from "../data/schedule-store.js";
 import { initDb } from "../data/db.js";
 import { initRedis, closeRedis } from "../data/redis.js";
-import { initReloadWatch, closeReloadWatch } from "../data/reload-flag.js";
+import { initReloadWatch, closeReloadWatch } from "../utils/reload-flag.js";
+import { initScheduleStore } from "../scheduling/schedule-store.js";
+import type { ScheduleStore } from "../scheduling/schedule-store.js";
+import type { ScheduledTask } from "../types.js";
 import { env } from "../env.js";
-import { WORKSPACE_ROOT } from "../workspace.js";
+import { WORKSPACE_ROOT } from "../utils/workspace.js";
 
 const debug = createDebug("hooman:workers:cron");
 
@@ -85,11 +85,13 @@ function runCronScheduler(
   async function load(): Promise<void> {
     const tasks = await store.getAll();
     const oneShot = tasks.filter(
-      (t) => (!t.cron || t.cron.trim() === "") && t.execute_at,
+      (t: ScheduledTask) => (!t.cron || t.cron.trim() === "") && t.execute_at,
     );
-    const recurring = tasks.filter((t) => t.cron && t.cron.trim() !== "");
+    const recurring = tasks.filter(
+      (t: ScheduledTask) => t.cron && t.cron.trim() !== "",
+    );
     oneShot.sort(
-      (a, b) =>
+      (a: ScheduledTask, b: ScheduledTask) =>
         new Date(a.execute_at!).getTime() - new Date(b.execute_at!).getTime(),
     );
     for (const t of [...oneShot, ...recurring]) scheduleOne(t);

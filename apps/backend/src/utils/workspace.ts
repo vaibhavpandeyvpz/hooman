@@ -1,5 +1,5 @@
 import { join } from "path";
-import { WORKSPACE_ROOT } from "./env.js";
+import { WORKSPACE_ROOT } from "../env.js";
 
 export { WORKSPACE_ROOT };
 export const WORKSPACE_MCPCWD = join(WORKSPACE_ROOT, "mcpcwd");

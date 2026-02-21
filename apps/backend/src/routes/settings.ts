@@ -1,10 +1,9 @@
 import type { Express, Request, Response } from "express";
 import createDebug from "debug";
-import type { AppContext } from "./helpers.js";
+import type { AppContext } from "../utils/helpers.js";
 import type { LLMProviderId, TranscriptionProviderId } from "../config.js";
 import { getConfig, updateConfig } from "../config.js";
-import { setReloadFlag } from "../data/reload-flag.js";
-import { env } from "../env.js";
+
 import {
   getKillSwitchEnabled,
   setKillSwitchEnabled,
@@ -20,7 +19,7 @@ export function registerSettingsRoutes(app: Express, _ctx: AppContext): void {
       TRANSCRIPTION_PROVIDER: c.TRANSCRIPTION_PROVIDER,
       OPENAI_API_KEY: c.OPENAI_API_KEY,
       CHAT_MODEL: c.CHAT_MODEL,
-      MCP_USE_SERVER_MANAGER: c.MCP_USE_SERVER_MANAGER,
+
       TRANSCRIPTION_MODEL: c.TRANSCRIPTION_MODEL,
       AGENT_NAME: c.AGENT_NAME,
       AGENT_INSTRUCTIONS: c.AGENT_INSTRUCTIONS,
@@ -59,9 +58,7 @@ export function registerSettingsRoutes(app: Express, _ctx: AppContext): void {
           | undefined,
         OPENAI_API_KEY: patch.OPENAI_API_KEY as string | undefined,
         CHAT_MODEL: patch.CHAT_MODEL as string | undefined,
-        MCP_USE_SERVER_MANAGER: patch.MCP_USE_SERVER_MANAGER as
-          | boolean
-          | undefined,
+
         TRANSCRIPTION_MODEL: patch.TRANSCRIPTION_MODEL as string | undefined,
         AGENT_NAME: patch.AGENT_NAME as string | undefined,
         AGENT_INSTRUCTIONS: patch.AGENT_INSTRUCTIONS as string | undefined,
@@ -93,9 +90,7 @@ export function registerSettingsRoutes(app: Express, _ctx: AppContext): void {
         COMPLETIONS_API_KEY: patch.COMPLETIONS_API_KEY as string | undefined,
         MAX_INPUT_TOKENS: patch.MAX_INPUT_TOKENS as number | undefined,
       });
-      if (patch.MCP_USE_SERVER_MANAGER !== undefined && env.REDIS_URL) {
-        await setReloadFlag(env.REDIS_URL, "mcp");
-      }
+
       res.json(updated);
     },
   );

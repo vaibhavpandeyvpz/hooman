@@ -164,6 +164,14 @@ export interface NormalizedScheduledTaskPayload {
   cron?: string;
 }
 
+export interface ScheduledTask {
+  id: string;
+  execute_at?: string; // ISO; required for one-shot, absent for recurring
+  intent: string;
+  context: Record<string, unknown>;
+  cron?: string; // when set, task is recurring
+}
+
 export interface NormalizedIntegrationEventPayload {
   kind: "integration_event";
   integrationId: string;

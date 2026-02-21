@@ -46,7 +46,7 @@ export async function verifyToken(token: string): Promise<AuthPayload | null> {
 const PUBLIC_PATHS = new Set([
   "/health",
   "/api/auth/login",
-  "/api/mcp/oauth/callback",
+  "/api/capabilities/mcp/oauth/callback",
 ]);
 
 /**

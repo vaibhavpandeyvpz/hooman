@@ -1,4 +1,4 @@
-import { getPrisma } from "./db.js";
+import { getPrisma } from "../data/db.js";
 
 const DEFAULT_PAGE_SIZE = 50;
 const MAX_PAGE_SIZE = 200;
@@ -98,7 +98,7 @@ export async function initChatHistory(): Promise<ChatHistoryStore> {
         prisma.chatMessage.count({ where: { userId } }),
       ]);
 
-      const messages = rows.map((r) => ({
+      const messages = rows.map((r: any) => ({
         role: r.role as "user" | "assistant",
         text: r.text,
         attachments: parseAttachmentIds(r.attachments),
@@ -117,7 +117,7 @@ export async function initChatHistory(): Promise<ChatHistoryStore> {
         select: { role: true, text: true, attachments: true, createdAt: true },
       });
 
-      return rows.reverse().map((r) => ({
+      return rows.reverse().map((r: any) => ({
         role: r.role as "user" | "assistant",
         text: r.text,
         attachments: parseAttachmentIds(r.attachments),

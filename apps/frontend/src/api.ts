@@ -268,7 +268,6 @@ export interface AppConfig {
   TRANSCRIPTION_PROVIDER?: TranscriptionProviderId;
   OPENAI_API_KEY: string;
   CHAT_MODEL: string;
-  MCP_USE_SERVER_MANAGER: boolean;
   TRANSCRIPTION_MODEL: string;
   AGENT_NAME: string;
   AGENT_INSTRUCTIONS: string;
@@ -358,7 +357,7 @@ export async function cancelScheduledTask(id: string): Promise<void> {
 export async function getMCPConnections(): Promise<{
   connections: import("./types").MCPConnection[];
 }> {
-  const res = await authFetch(`${BASE}/api/mcp/connections`);
+  const res = await authFetch(`${BASE}/api/capabilities/mcp/connections`);
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
@@ -366,7 +365,7 @@ export async function getMCPConnections(): Promise<{
 export async function createMCPConnection(
   connection: import("./types").MCPConnection,
 ): Promise<{ connection: import("./types").MCPConnection }> {
-  const res = await authFetch(`${BASE}/api/mcp/connections`, {
+  const res = await authFetch(`${BASE}/api/capabilities/mcp/connections`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(connection),
@@ -379,25 +378,33 @@ export async function updateMCPConnection(
   id: string,
   patch: Partial<import("./types").MCPConnection>,
 ): Promise<{ connection: import("./types").MCPConnection }> {
-  const res = await authFetch(`${BASE}/api/mcp/connections/${id}`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(patch),
-  });
+  const res = await authFetch(
+    `${BASE}/api/capabilities/mcp/connections/${id}`,
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+    },
+  );
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
 
 export async function deleteMCPConnection(id: string): Promise<void> {
-  const res = await authFetch(`${BASE}/api/mcp/connections/${id}`, {
-    method: "DELETE",
-  });
+  const res = await authFetch(
+    `${BASE}/api/capabilities/mcp/connections/${id}`,
+    {
+      method: "DELETE",
+    },
+  );
   if (!res.ok) throw new Error(await res.text());
 }
 
 /** OAuth callback URL for MCP (to prefill redirect_uri). */
 export async function getOAuthCallbackUrl(): Promise<{ callbackUrl: string }> {
-  const res = await authFetch(`${BASE}/api/mcp/oauth/callback-url`);
+  const res = await authFetch(
+    `${BASE}/api/capabilities/mcp/oauth/callback-url`,
+  );
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
@@ -406,7 +413,7 @@ export async function getOAuthCallbackUrl(): Promise<{ callbackUrl: string }> {
 export async function startMCPOAuth(
   connectionId: string,
 ): Promise<{ authorizationUrl: string } | { status: "already_authorized" }> {
-  const res = await authFetch(`${BASE}/api/mcp/oauth/start`, {
+  const res = await authFetch(`${BASE}/api/capabilities/mcp/oauth/start`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ connectionId }),

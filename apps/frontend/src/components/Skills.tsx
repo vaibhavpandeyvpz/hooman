@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { Plus, Loader2, FileText } from "lucide-react";
+import { useState, useEffect, forwardRef, useImperativeHandle } from "react";
+import { Loader2, FileText } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useDialog } from "./Dialog";
@@ -14,7 +14,11 @@ import {
 } from "../api";
 import type { SkillEntry } from "../api";
 
-export function Skills() {
+export interface SkillsHandle {
+  startAdd: () => void;
+}
+
+export const Skills = forwardRef<SkillsHandle>(function Skills(_props, ref) {
   const dialog = useDialog();
   const [skillsList, setSkillsList] = useState<SkillEntry[]>([]);
   const [skillsLoading, setSkillsLoading] = useState(false);
@@ -28,6 +32,15 @@ export function Skills() {
   const [addPackage, setAddPackage] = useState("");
   const [addSkillsRaw, setAddSkillsRaw] = useState("");
   const [skillsError, setSkillsError] = useState<string | null>(null);
+
+  function startAdd() {
+    setSkillsError(null);
+    setAddPackage("");
+    setAddSkillsRaw("");
+    setSkillsAddOpen(true);
+  }
+
+  useImperativeHandle(ref, () => ({ startAdd }));
 
   async function loadSkills() {
     setSkillsLoading(true);
@@ -160,19 +173,7 @@ export function Skills() {
           )}
         </div>
       </Modal>
-      <div className="flex justify-end mb-4">
-        <Button
-          onClick={() => {
-            setSkillsError(null);
-            setAddPackage("");
-            setAddSkillsRaw("");
-            setSkillsAddOpen(true);
-          }}
-          icon={<Plus className="w-4 h-4" />}
-        >
-          Add skill
-        </Button>
-      </div>
+
       <div className="space-y-4">
         {skillsError && !skillsAddOpen && (
           <div className="rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 px-4 py-2 text-sm">
@@ -251,4 +252,4 @@ export function Skills() {
       </div>
     </>
   );
-}
+});

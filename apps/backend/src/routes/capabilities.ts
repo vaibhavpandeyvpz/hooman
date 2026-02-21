@@ -1,52 +1,9 @@
 import type { Express, Request, Response } from "express";
 import createDebug from "debug";
-import { randomUUID } from "crypto";
-import { auth } from "@ai-sdk/mcp";
-import type { AppContext } from "./helpers.js";
-import { getParam } from "./helpers.js";
-import type {
-  MCPConnection,
-  MCPConnectionHosted,
-  MCPConnectionStreamableHttp,
-  MCPConnectionStdio,
-} from "../types.js";
-import {
-  listSkillsFromFs,
-  getSkillContent,
-  addSkill,
-  removeSkills,
-} from "../agents/skills-cli.js";
-import {
-  createOAuthProvider,
-  getAndClearPendingAuthUrl,
-} from "../agents/oauth-provider.js";
-import { env } from "../env.js";
-import { setReloadFlag } from "../data/reload-flag.js";
+import type { AppContext } from "../utils/helpers.js";
+import { getParam } from "../utils/helpers.js";
 
 const debug = createDebug("hooman:routes:capabilities");
-
-function getMcpServerUrl(
-  c: MCPConnectionHosted | MCPConnectionStreamableHttp,
-): string {
-  return c.type === "hosted" ? c.server_url : c.url;
-}
-
-/**
- * URL to pass to auth() for discovery and DCR. When the user has set an explicit
- * authorization server URL, use it so discovery/register hit the auth server instead
- * of the MCP endpoint (which often returns 404 for /.well-known and /register).
- */
-function getOAuthServerUrlForAuth(
-  c: MCPConnectionHosted | MCPConnectionStreamableHttp,
-): string {
-  const override = c.oauth?.authorization_server_url?.trim();
-  return override && override.length > 0 ? override : getMcpServerUrl(c);
-}
-
-function getOAuthCallbackUrl(): string {
-  const base = env.API_BASE_URL.replace(/\/$/, "");
-  return `${base}/api/mcp/oauth/callback`;
-}
 
 function escapeHtml(s: string): string {
   return s
@@ -56,204 +13,100 @@ function escapeHtml(s: string): string {
     .replace(/"/g, "&quot;");
 }
 
-function maskConnectionForResponse(
-  c: MCPConnection,
-): MCPConnection & { oauth_has_tokens?: boolean } {
-  if (c.type !== "streamable_http" && c.type !== "hosted") {
-    return c;
-  }
-  const http = c as MCPConnectionHosted | MCPConnectionStreamableHttp;
-  const hasTokens = Boolean(http.oauth_tokens?.access_token);
-  const out: MCPConnection & { oauth_has_tokens?: boolean } = {
-    ...http,
-    oauth_has_tokens: http.oauth ? hasTokens : undefined,
-  };
-  const outRecord = out as unknown as Record<string, unknown>;
-  delete outRecord.oauth_tokens;
-  delete outRecord.oauth_code_verifier;
-  delete outRecord.oauth_client_information;
-  if (out.oauth?.client_secret) {
-    out.oauth = { ...out.oauth, client_secret: "***" };
-  }
-  if (out.headers?.Authorization) {
-    out.headers = { ...out.headers, Authorization: "Bearer ***" };
-  }
-  return out;
-}
-
 export function registerCapabilityRoutes(app: Express, ctx: AppContext): void {
-  const { mcpConnectionsStore } = ctx;
+  const { mcpService } = ctx;
 
   app.get(
-    "/api/capabilities/available",
+    "/api/capabilities/mcp/available",
     async (_req: Request, res: Response) => {
-      const connections = await mcpConnectionsStore.getAll();
-      const capabilities = connections.map((c) => ({
-        integrationId: c.id,
-        capability:
-          c.type === "hosted"
-            ? c.server_label || c.id
-            : (c as { name?: string }).name || c.id,
-      }));
-      res.json({ capabilities });
+      try {
+        const capabilities = await mcpService.listAvailable();
+        res.json({ capabilities });
+      } catch (err) {
+        debug("list available error: %o", err);
+        res.status(500).json({ error: (err as Error).message });
+      }
     },
   );
 
-  app.get("/api/mcp/connections", async (_req: Request, res: Response) => {
-    const connections = await mcpConnectionsStore.getAll();
-    res.json({ connections: connections.map(maskConnectionForResponse) });
-  });
+  app.get(
+    "/api/capabilities/mcp/connections",
+    async (_req: Request, res: Response) => {
+      try {
+        const connections = await mcpService.getAllConnections();
+        res.json({
+          connections: connections.map((c) => mcpService.maskConnection(c)),
+        });
+      } catch (err) {
+        debug("get connections error: %o", err);
+        res.status(500).json({ error: (err as Error).message });
+      }
+    },
+  );
 
   app.post(
-    "/api/mcp/connections",
+    "/api/capabilities/mcp/connections",
     async (req: Request, res: Response): Promise<void> => {
-      const body = req.body as Partial<MCPConnection> & { id?: string };
-      if (!body?.type) {
-        res.status(400).json({ error: "Missing connection type." });
-        return;
+      try {
+        const conn = await mcpService.addConnection(req.body);
+        res.status(201).json({ connection: mcpService.maskConnection(conn) });
+      } catch (err) {
+        debug("add connection error: %o", err);
+        res.status(400).json({ error: (err as Error).message });
       }
-      const id = body.id?.trim() || randomUUID();
-      const created_at = new Date().toISOString();
-      let conn: MCPConnection;
-      if (body.type === "hosted") {
-        const serverUrl =
-          typeof body.server_url === "string" ? body.server_url.trim() : "";
-        if (!serverUrl) {
-          res
-            .status(400)
-            .json({ error: "Server URL is required for hosted MCP." });
-          return;
-        }
-        const c: MCPConnectionHosted = {
-          id,
-          type: "hosted",
-          server_label: body.server_label ?? "",
-          server_url: serverUrl,
-          require_approval: body.require_approval ?? "never",
-          streaming: body.streaming ?? false,
-          headers: body.headers,
-          oauth: body.oauth,
-          created_at,
-        };
-        conn = c;
-      } else if (body.type === "streamable_http") {
-        const c: MCPConnectionStreamableHttp = {
-          id,
-          type: "streamable_http",
-          name: body.name ?? "",
-          url: body.url ?? "",
-          headers: body.headers,
-          timeout_seconds: body.timeout_seconds,
-          cache_tools_list: body.cache_tools_list ?? true,
-          max_retry_attempts: body.max_retry_attempts,
-          oauth: body.oauth,
-          created_at,
-        };
-        conn = c;
-      } else if (body.type === "stdio") {
-        const c: MCPConnectionStdio = {
-          id,
-          type: "stdio",
-          name: body.name ?? "",
-          command: body.command ?? "",
-          args: Array.isArray(body.args) ? body.args : [],
-          env:
-            body.env && typeof body.env === "object"
-              ? (body.env as Record<string, string>)
-              : undefined,
-          cwd:
-            typeof body.cwd === "string" && body.cwd.trim()
-              ? body.cwd.trim()
-              : undefined,
-          created_at,
-        };
-        conn = c;
-      } else {
-        res.status(400).json({
-          error: `Unknown connection type: ${(body as { type?: string }).type}`,
-        });
-        return;
-      }
-      await mcpConnectionsStore.addOrUpdate(conn);
-      if (env.REDIS_URL) await setReloadFlag(env.REDIS_URL, "mcp");
-      res.status(201).json({ connection: maskConnectionForResponse(conn) });
     },
   );
 
   app.patch(
-    "/api/mcp/connections/:id",
+    "/api/capabilities/mcp/connections/:id",
     async (req: Request, res: Response): Promise<void> => {
-      const id = getParam(req, "id");
-      const existing = await mcpConnectionsStore.getById(id);
-      if (!existing) {
-        res.status(404).json({ error: "MCP connection not found." });
-        return;
+      try {
+        const conn = await mcpService.updateConnection(
+          getParam(req, "id"),
+          req.body,
+        );
+        res.json({ connection: mcpService.maskConnection(conn) });
+      } catch (err) {
+        debug("patch connection error: %o", err);
+        res
+          .status(
+            err instanceof Error && err.message.includes("not found")
+              ? 404
+              : 400,
+          )
+          .json({
+            error: (err as Error).message,
+          });
       }
-      const patch = req.body as Partial<MCPConnection>;
-      const merged = {
-        ...existing,
-        ...patch,
-        id: existing.id,
-      } as MCPConnection;
-      if (merged.type === "streamable_http" || merged.type === "hosted") {
-        const existingHttp = existing as
-          | MCPConnectionHosted
-          | MCPConnectionStreamableHttp;
-        const mergedHttp = merged as
-          | MCPConnectionHosted
-          | MCPConnectionStreamableHttp;
-        if (
-          mergedHttp.headers?.Authorization === "Bearer ***" &&
-          existingHttp.headers?.Authorization
-        ) {
-          mergedHttp.headers = {
-            ...mergedHttp.headers,
-            Authorization: existingHttp.headers.Authorization,
-          };
-        }
-        if (
-          mergedHttp.oauth?.client_secret === "***" &&
-          existingHttp.oauth?.client_secret
-        ) {
-          mergedHttp.oauth = {
-            ...mergedHttp.oauth,
-            client_secret: existingHttp.oauth.client_secret,
-          };
-        }
-        const patchHttp = patch as Partial<MCPConnectionHosted>;
-        if (patchHttp.oauth_tokens === undefined)
-          mergedHttp.oauth_tokens = existingHttp.oauth_tokens;
-        if (patchHttp.oauth_code_verifier === undefined)
-          mergedHttp.oauth_code_verifier = existingHttp.oauth_code_verifier;
-        if (patchHttp.oauth_client_information === undefined)
-          mergedHttp.oauth_client_information =
-            existingHttp.oauth_client_information;
-      }
-      await mcpConnectionsStore.addOrUpdate(merged);
-      if (env.REDIS_URL) await setReloadFlag(env.REDIS_URL, "mcp");
-      res.json({ connection: maskConnectionForResponse(merged) });
     },
   );
 
   app.delete(
-    "/api/mcp/connections/:id",
+    "/api/capabilities/mcp/connections/:id",
     async (req: Request, res: Response): Promise<void> => {
-      const ok = await mcpConnectionsStore.remove(getParam(req, "id"));
-      if (!ok) {
-        res.status(404).json({ error: "MCP connection not found." });
-        return;
+      try {
+        const ok = await mcpService.removeConnection(getParam(req, "id"));
+        if (!ok) {
+          res.status(404).json({ error: "MCP connection not found." });
+          return;
+        }
+        res.status(204).send();
+      } catch (err) {
+        debug("delete connection error: %o", err);
+        res.status(500).json({ error: (err as Error).message });
       }
-      if (env.REDIS_URL) await setReloadFlag(env.REDIS_URL, "mcp");
-      res.status(204).send();
     },
   );
 
-  app.get("/api/mcp/oauth/callback-url", (_req: Request, res: Response) => {
-    res.json({ callbackUrl: getOAuthCallbackUrl() });
-  });
+  app.get(
+    "/api/capabilities/mcp/oauth/callback-url",
+    (_req: Request, res: Response) => {
+      res.json({ callbackUrl: mcpService.getOAuthCallbackUrl() });
+    },
+  );
 
   app.get(
-    "/api/mcp/oauth/callback",
+    "/api/capabilities/mcp/oauth/callback",
     async (req: Request, res: Response): Promise<void> => {
       const code =
         typeof req.query.code === "string" ? req.query.code : undefined;
@@ -261,6 +114,7 @@ export function registerCapabilityRoutes(app: Express, ctx: AppContext): void {
         typeof req.query.state === "string" ? req.query.state : undefined;
       const errorParam =
         typeof req.query.error === "string" ? req.query.error : undefined;
+
       if (errorParam) {
         res
           .status(400)
@@ -277,51 +131,20 @@ export function registerCapabilityRoutes(app: Express, ctx: AppContext): void {
           );
         return;
       }
-      const connectionId = state;
-      const existing = await mcpConnectionsStore.getById(connectionId);
-      if (
-        !existing ||
-        (existing.type !== "streamable_http" && existing.type !== "hosted") ||
-        !existing.oauth?.redirect_uri
-      ) {
-        res
-          .status(400)
-          .send(
-            "<!DOCTYPE html><html><body><p>Invalid state or connection.</p></body></html>",
-          );
-        return;
-      }
-      const serverUrl = getOAuthServerUrlForAuth(existing);
-      const provider = createOAuthProvider(
-        connectionId,
-        mcpConnectionsStore,
-        existing,
-      );
+
       try {
-        const result = await auth(provider, {
-          serverUrl,
-          authorizationCode: code,
-        });
-        if (result !== "AUTHORIZED") {
+        const result = await mcpService.completeOAuth(code, state);
+        if (result === "AUTHORIZED") {
+          res.send(
+            "<!DOCTYPE html><html><body><p>Authorization successful. You can close this window.</p></body></html>",
+          );
+        } else {
           res
             .status(400)
             .send(
               "<!DOCTYPE html><html><body><p>Token exchange did not complete.</p></body></html>",
             );
-          return;
         }
-        const updated = await mcpConnectionsStore.getById(connectionId);
-        if (
-          updated &&
-          (updated.type === "streamable_http" || updated.type === "hosted") &&
-          updated.oauth_code_verifier
-        ) {
-          const cleared = { ...updated, oauth_code_verifier: undefined };
-          await mcpConnectionsStore.addOrUpdate(cleared);
-        }
-        res.send(
-          "<!DOCTYPE html><html><body><p>Authorization successful. You can close this window.</p></body></html>",
-        );
       } catch (err) {
         debug("OAuth callback error: %o", err);
         res
@@ -334,7 +157,7 @@ export function registerCapabilityRoutes(app: Express, ctx: AppContext): void {
   );
 
   app.post(
-    "/api/mcp/oauth/start",
+    "/api/capabilities/mcp/oauth/start",
     async (req: Request, res: Response): Promise<void> => {
       const connectionId =
         typeof req.body?.connectionId === "string"
@@ -344,39 +167,9 @@ export function registerCapabilityRoutes(app: Express, ctx: AppContext): void {
         res.status(400).json({ error: "Missing connectionId." });
         return;
       }
-      const existing = await mcpConnectionsStore.getById(connectionId);
-      if (
-        !existing ||
-        (existing.type !== "streamable_http" && existing.type !== "hosted") ||
-        !existing.oauth?.redirect_uri
-      ) {
-        res.status(400).json({
-          error: "Connection not found or not OAuth-enabled.",
-        });
-        return;
-      }
-      const serverUrl = getOAuthServerUrlForAuth(existing);
-      const provider = createOAuthProvider(
-        connectionId,
-        mcpConnectionsStore,
-        existing,
-      );
       try {
-        const result = await auth(provider, {
-          serverUrl,
-        });
-        if (result === "AUTHORIZED") {
-          res.json({ status: "already_authorized" });
-          return;
-        }
-        const authorizationUrl = getAndClearPendingAuthUrl(connectionId);
-        if (!authorizationUrl) {
-          res.status(500).json({
-            error: "Authorization URL not available. Please try again.",
-          });
-          return;
-        }
-        res.json({ authorizationUrl });
+        const result = await mcpService.startOAuth(connectionId);
+        res.json(result);
       } catch (err) {
         debug("OAuth start error: %o", err);
         let msg = (err as Error).message || "OAuth start failed.";
@@ -394,7 +187,7 @@ export function registerCapabilityRoutes(app: Express, ctx: AppContext): void {
 
   app.get("/api/skills/list", async (_req: Request, res: Response) => {
     try {
-      const skills = await listSkillsFromFs();
+      const skills = await ctx.skillService.list();
       res.json({ skills });
     } catch (err) {
       debug("skills list error: %o", err);
@@ -415,7 +208,7 @@ export function registerCapabilityRoutes(app: Express, ctx: AppContext): void {
       return;
     }
     try {
-      const content = await getSkillContent(id);
+      const content = await ctx.skillService.getContent(id);
       if (content === null) {
         res.status(404).json({ error: "Skill not found." });
         return;
@@ -435,7 +228,7 @@ export function registerCapabilityRoutes(app: Express, ctx: AppContext): void {
       return;
     }
     try {
-      const result = await addSkill({
+      const result = await ctx.skillService.add({
         package: pkg.trim(),
         skills: Array.isArray(body?.skills) ? body.skills : undefined,
       });
@@ -462,7 +255,7 @@ export function registerCapabilityRoutes(app: Express, ctx: AppContext): void {
       return;
     }
     try {
-      const result = await removeSkills(skills);
+      const result = await ctx.skillService.remove(skills);
       res.json({
         output: result.stdout,
         error: result.stderr.trim() || undefined,

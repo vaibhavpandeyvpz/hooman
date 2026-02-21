@@ -1,4 +1,4 @@
-import { getPrisma } from "./db.js";
+import { getPrisma } from "../data/db.js";
 import { writeFile, readFile, mkdir } from "fs/promises";
 import { join } from "path";
 import { randomUUID } from "crypto";

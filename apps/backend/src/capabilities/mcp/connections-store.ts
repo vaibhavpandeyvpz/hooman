@@ -1,4 +1,4 @@
-import { getPrisma } from "./db.js";
+import { getPrisma } from "../../data/db.js";
 import type {
   MCPConnection,
   MCPConnectionHosted,
@@ -7,7 +7,7 @@ import type {
   MCPOAuthConfig,
   MCPOAuthTokens,
   MCPOAuthClientInformation,
-} from "../types.js";
+} from "../../types.js";
 
 const CONNECTION_TYPES = ["hosted", "streamable_http", "stdio"] as const;
 

@@ -1,5 +1,5 @@
 import { randomUUID } from "crypto";
-import { getPrisma } from "./db.js";
+import { getPrisma } from "../data/db.js";
 import type { AuditLogEntry } from "../types.js";
 
 /** Redis channel to notify when a new audit entry is added (API subscribes and emits on Socket.IO). */
@@ -34,9 +34,14 @@ export function createAuditStore(options?: AuditStoreOptions): AuditStore {
     },
     async getAuditLog() {
       const prisma = getPrisma();
-      const rows = await prisma.auditEntry.findMany({
+      const rows = (await prisma.auditEntry.findMany({
         orderBy: { timestamp: "desc" },
-      });
+      })) as Array<{
+        id: string;
+        timestamp: string;
+        type: string;
+        payload: string;
+      }>;
       return rows.map((r) => ({
         id: r.id,
         timestamp: r.timestamp,
