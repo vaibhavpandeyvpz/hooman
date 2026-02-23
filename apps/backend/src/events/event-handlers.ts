@@ -10,11 +10,6 @@ import type { AuditLog } from "../audit/audit.js";
 import { McpManager } from "../capabilities/mcp/manager.js";
 import { getAllDefaultMcpConnections } from "../capabilities/mcp/system-mcps.js";
 import { createHoomanRunner } from "../agents/hooman-runner.js";
-import {
-  trimContextToTokenBudget,
-  RESERVED_TOKENS,
-} from "../agents/trim-context.js";
-import { getConfig } from "../config.js";
 import type {
   RawDispatchInput,
   ChannelMeta,
@@ -54,53 +49,8 @@ function buildChannelContext(
   return lines.join("\n");
 }
 
-/** Chunk size when loading history for agent context. Fetch 50, trim to budget, then fetch older 50 and trim again until no space or no more messages. */
-const CHAT_CONTEXT_CHUNK_SIZE = 50;
-
 /** Max time to wait for runChat. After this we deliver a timeout message so the UI doesn't stay on "Thinking...". */
 const CHAT_TIMEOUT_MS = 300_000;
-
-/** Load messages in chunks of 50 via getMessages (last page first): fetch last 50, trim to budget; if there's space, fetch next 50 older, trim again; repeat until budget full or no more messages. Returns thread for runChat. */
-async function getThreadForAgent(
-  context: ContextStore,
-  userId: string,
-): Promise<{
-  thread: Array<{ role: "user" | "assistant"; content: string }>;
-}> {
-  const effectiveMax = getConfig().MAX_INPUT_TOKENS ?? 100_000;
-  let thread: Array<{ role: "user" | "assistant"; content: string }> = [];
-
-  const first = await context.getMessages(userId, {
-    page: 1,
-    pageSize: CHAT_CONTEXT_CHUNK_SIZE,
-  });
-  if (first.total === 0) return { thread };
-
-  const lastPage = Math.ceil(first.total / CHAT_CONTEXT_CHUNK_SIZE) || 1;
-  for (let page = lastPage; page >= 1; page--) {
-    const messages =
-      page === 1 && lastPage === 1
-        ? first.messages
-        : (
-            await context.getMessages(userId, {
-              page,
-              pageSize: CHAT_CONTEXT_CHUNK_SIZE,
-            })
-          ).messages;
-    if (messages.length === 0) break;
-
-    const chunkAsThread = messages.map((m) => ({
-      role: m.role,
-      content: m.text,
-    }));
-    thread = [...chunkAsThread, ...thread];
-    const previousLen = thread.length - chunkAsThread.length;
-    thread = trimContextToTokenBudget(thread, effectiveMax, RESERVED_TOKENS);
-    if (thread.length <= previousLen) break;
-  }
-
-  return { thread };
-}
 
 class ChatTimeoutError extends Error {
   constructor() {
@@ -216,7 +166,7 @@ export function registerEventHandlers(deps: EventHandlerDeps): void {
     let assistantText = "";
     const mcpManager = getMcpManager?.() ?? mcpManagerDep;
     try {
-      const { thread } = await getThreadForAgent(context, userId);
+      const thread = await context.getThreadForAgent(userId);
       const session = mcpManager
         ? await mcpManager.getSession()
         : await createHoomanRunner({

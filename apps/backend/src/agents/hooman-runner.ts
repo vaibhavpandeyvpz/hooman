@@ -61,7 +61,10 @@ function truncateForAudit(value: unknown): string {
 const DEFAULT_CHAT_MODEL = "gpt-4o";
 const DEFAULT_MCP_CWD = env.MCP_STDIO_DEFAULT_CWD;
 
-export type AgentInputItem = { role: "user" | "assistant"; content: string };
+export type AgentInputItem = {
+  role: "user" | "assistant" | "system";
+  content: string;
+};
 
 function buildSkillsMetadataSection(
   skillIds: string[],
@@ -490,8 +493,10 @@ export async function createHoomanRunner(options?: {
       for (const item of thread) {
         if (item.role === "user") {
           input.push({ role: "user", content: item.content });
-        } else {
+        } else if (item.role === "assistant") {
           input.push({ role: "assistant", content: item.content });
+        } else if (item.role === "system") {
+          input.push({ role: "system", content: item.content });
         }
       }
       const lastUserContent = buildUserContentParts(

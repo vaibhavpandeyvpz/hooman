@@ -87,8 +87,12 @@ async function main() {
   const chatHistory = await initChatHistory();
   const attachmentStore = await initAttachmentStore(ATTACHMENTS_DATA_DIR);
   const attachmentService = createAttachmentService(attachmentStore);
-  const chatService = createChatService(chatHistory, attachmentService);
   const context = createContext(chatHistory);
+  const chatService = createChatService(
+    chatHistory,
+    attachmentService,
+    context,
+  );
 
   const scheduleStore = await initScheduleStore();
   const mcpConnectionsStore = await initMCPConnectionsStore();
