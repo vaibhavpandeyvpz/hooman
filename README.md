@@ -260,23 +260,23 @@ After deploying, open `https://hooman.example.com` in a browser and sign in (if 
 
 When running locally, create a `.env` from `.env.example`. Key variables:
 
-| Variable                 | Required | Description                                                                                                     |
-| ------------------------ | -------- | --------------------------------------------------------------------------------------------------------------- |
-| `DATABASE_URL`           | No       | Prisma SQLite URL (default: `workspace/hooman.db` at project root).                                             |
-| `PORT`                   | No       | API port (default 3000).                                                                                        |
-| `REDIS_URL`              | Yes\*    | Redis for event queue and kill switch (e.g. `redis://localhost:6379`). Start with `docker compose up -d redis`. |
-| `API_BASE_URL`           | No       | API base URL for capabilities and similar (default `http://localhost:3000`).                                    |
-| `VITE_API_BASE`          | No       | Set when building for production so the web app can call the API (e.g. `https://api.hooman.example.com`).       |
-| `MCP_STDIO_DEFAULT_CWD`  | No       | Working directory for stdio MCP / filesystem server (default: `workspace/mcpcwd`).                              |
-| `SKILLS_CWD`             | No       | Override project root for skills (default: repo root). Skills are in `<project>/.agents/skills`.                |
-| `WEB_AUTH_USERNAME`      | No       | When set with `WEB_AUTH_PASSWORD_HASH` and `JWT_SECRET`, enables login; API is reachable from any host.         |
-| `WEB_AUTH_PASSWORD_HASH` | No       | Argon2id hash of password. Generate with `yarn hash-password` and add the printed line to `.env`.               |
-| `JWT_SECRET`             | No       | Secret to sign JWTs when web auth is enabled. Use a strong value (e.g. 32+ random bytes).                       |
-| `MCP_CONNECT_TIMEOUT_MS` | No       | Max ms to build the shared MCP session (default 300000 = 5 min).                                                |
-| `MCP_CLOSE_TIMEOUT_MS`   | No       | Max ms to close the session on reload/shutdown (default 10000).                                                 |
-| `PUPPETEER_EXECUTABLE_PATH` | No    | Path to Chrome/Chromium for whatsapp-web.js (Puppeteer). If unset, adapter may use a platform default.          |
-| `CHROMA_URL`             | No       | ChromaDB URL for the memory MCP server (default `http://localhost:8000`).                                       |
-| `CHROMA_COLLECTION`      | No       | ChromaDB collection name for the memory MCP server (default `hooman-memory`).                                   |
+| Variable                    | Required | Description                                                                                                     |
+| --------------------------- | -------- | --------------------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`              | No       | Prisma SQLite URL (default: `workspace/hooman.db` at project root).                                             |
+| `PORT`                      | No       | API port (default 3000).                                                                                        |
+| `REDIS_URL`                 | Yes\*    | Redis for event queue and kill switch (e.g. `redis://localhost:6379`). Start with `docker compose up -d redis`. |
+| `API_BASE_URL`              | No       | API base URL for capabilities and similar (default `http://localhost:3000`).                                    |
+| `VITE_API_BASE`             | No       | Set when building for production so the web app can call the API (e.g. `https://api.hooman.example.com`).       |
+| `MCP_STDIO_DEFAULT_CWD`     | No       | Working directory for stdio MCP / filesystem server (default: `workspace/mcpcwd`).                              |
+| `SKILLS_CWD`                | No       | Override project root for skills (default: repo root). Skills are in `<project>/.agents/skills`.                |
+| `WEB_AUTH_USERNAME`         | No       | When set with `WEB_AUTH_PASSWORD_HASH` and `JWT_SECRET`, enables login; API is reachable from any host.         |
+| `WEB_AUTH_PASSWORD_HASH`    | No       | Argon2id hash of password. Generate with `yarn hash-password` and add the printed line to `.env`.               |
+| `JWT_SECRET`                | No       | Secret to sign JWTs when web auth is enabled. Use a strong value (e.g. 32+ random bytes).                       |
+| `MCP_CONNECT_TIMEOUT_MS`    | No       | Max ms to build the shared MCP session (default 300000 = 5 min).                                                |
+| `MCP_CLOSE_TIMEOUT_MS`      | No       | Max ms to close the session on reload/shutdown (default 10000).                                                 |
+| `PUPPETEER_EXECUTABLE_PATH` | No       | Path to Chrome/Chromium for whatsapp-web.js (Puppeteer). If unset, adapter may use a platform default.          |
+| `CHROMA_URL`                | No       | ChromaDB URL for the memory MCP server (default `http://localhost:8000`).                                       |
+| `CHROMA_COLLECTION`         | No       | ChromaDB collection name for the memory MCP server (default `hooman-memory`).                                   |
 
 All runtime data is stored under **`workspace/`** at project root: `hooman.db` (Prisma), `config.json` (Settings), and `attachments/`. Stdio MCP servers use `workspace/mcpcwd` by default. LLM provider, transcription provider, API keys or credentials, and models are set in the **Settings** UI (persisted by the API), not via env. The **MCP Server Manager** is always enabled in the event-queue worker to reuse one MCP session (active_servers, drop_failed_servers, reconnect).
 
