@@ -36,8 +36,6 @@ function payloadToConnection(
       type: "hosted",
       server_label: String(d.server_label ?? ""),
       server_url: String(d.server_url ?? ""),
-      require_approval: (d.require_approval as "always" | "never") ?? "never",
-      streaming: d.streaming as boolean | undefined,
       headers: d.headers as Record<string, string> | undefined,
       oauth: d.oauth as MCPOAuthConfig | undefined,
       oauth_tokens: d.oauth_tokens as MCPOAuthTokens | undefined,

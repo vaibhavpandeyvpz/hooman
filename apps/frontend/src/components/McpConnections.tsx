@@ -25,7 +25,7 @@ const CONNECTION_TYPE_OPTIONS: {
   value: MCPConnection["type"];
   label: string;
 }[] = [
-  { value: "hosted", label: "Hosted MCP (basic or streaming)" },
+  { value: "hosted", label: "Hosted MCP" },
   { value: "streamable_http", label: "Streamable HTTP" },
   { value: "stdio", label: "Stdio (local process)" },
 ];
@@ -127,8 +127,6 @@ export const McpConnections = forwardRef<McpConnectionsHandle>(
       setForm({
         type: "hosted",
         server_label: "",
-        require_approval: "never",
-        streaming: false,
       });
     }
 
@@ -210,8 +208,6 @@ export const McpConnections = forwardRef<McpConnectionsHandle>(
             type: "hosted",
             server_label: form.server_label ?? "",
             server_url: form.server_url.trim(),
-            require_approval: form.require_approval ?? "never",
-            streaming: form.streaming ?? false,
             headers,
             ...(oauthEnabled && {
               oauth: {
@@ -388,11 +384,7 @@ export const McpConnections = forwardRef<McpConnectionsHandle>(
                   ...f,
                   type,
                   ...(type === "hosted"
-                    ? {
-                        server_label: "",
-                        require_approval: "never" as const,
-                        streaming: false,
-                      }
+                    ? { server_label: "" }
                     : type === "streamable_http"
                       ? { name: "", url: "", cache_tools_list: true }
                       : {
@@ -423,29 +415,48 @@ export const McpConnections = forwardRef<McpConnectionsHandle>(
                     setForm((f) => ({ ...f, server_url: e.target.value }))
                   }
                 />
-                <Select<"always" | "never">
-                  label="Require approval"
-                  value={
-                    typeof form.require_approval === "string"
-                      ? form.require_approval
-                      : "never"
-                  }
-                  options={[
-                    { value: "never", label: "Never" },
-                    { value: "always", label: "Always" },
-                  ]}
-                  onChange={(require_approval) =>
-                    setForm((f) => ({ ...f, require_approval }))
-                  }
-                />
                 <Checkbox
-                  id="hosted-streaming"
-                  label="Streaming (stream hosted MCP results)"
-                  checked={form.streaming ?? false}
-                  onChange={(checked) =>
-                    setForm((f) => ({ ...f, streaming: checked }))
-                  }
+                  id="hosted-oauth"
+                  label="Use OAuth (PKCE, optional DCR)"
+                  checked={oauthEnabled}
+                  onChange={(checked) => setOAuthEnabled(checked)}
                 />
+                {oauthEnabled && (
+                  <div className="space-y-2 rounded-lg border border-hooman-border p-3 bg-hooman-bg/50">
+                    <Input
+                      label="Authorization server URL (optional)"
+                      placeholder="Override when discovery from MCP URL is not used"
+                      value={oauthAuthServerUrl}
+                      onChange={(e) => setOAuthAuthServerUrl(e.target.value)}
+                    />
+                    <Input
+                      label="Client ID (optional; leave empty for DCR)"
+                      placeholder="Pre-registered client or leave empty for dynamic registration"
+                      value={oauthClientId}
+                      onChange={(e) => setOAuthClientId(e.target.value)}
+                    />
+                    <Input
+                      label="Client secret (optional)"
+                      placeholder="For confidential clients"
+                      type="password"
+                      value={oauthClientSecret}
+                      onChange={(e) => setOAuthClientSecret(e.target.value)}
+                      autoComplete="off"
+                    />
+                    <Input
+                      label="Redirect URI"
+                      placeholder="Callback URL"
+                      value={oauthRedirectUri || oauthCallbackUrl}
+                      onChange={(e) => setOAuthRedirectUri(e.target.value)}
+                    />
+                    <Input
+                      label="Scope (optional)"
+                      placeholder="e.g. openid"
+                      value={oauthScope}
+                      onChange={(e) => setOAuthScope(e.target.value)}
+                    />
+                  </div>
+                )}
                 <Input
                   label="Bearer token (optional)"
                   placeholder="OAuth or API token for servers that require auth"
@@ -522,48 +533,6 @@ export const McpConnections = forwardRef<McpConnectionsHandle>(
                     </Button>
                   </div>
                 </div>
-                <Checkbox
-                  id="hosted-oauth"
-                  label="Use OAuth (PKCE, optional DCR)"
-                  checked={oauthEnabled}
-                  onChange={(checked) => setOAuthEnabled(checked)}
-                />
-                {oauthEnabled && (
-                  <div className="space-y-2 rounded-lg border border-hooman-border p-3 bg-hooman-bg/50">
-                    <Input
-                      label="Authorization server URL (optional)"
-                      placeholder="Override when discovery from MCP URL is not used"
-                      value={oauthAuthServerUrl}
-                      onChange={(e) => setOAuthAuthServerUrl(e.target.value)}
-                    />
-                    <Input
-                      label="Client ID (optional; leave empty for DCR)"
-                      placeholder="Pre-registered client or leave empty for dynamic registration"
-                      value={oauthClientId}
-                      onChange={(e) => setOAuthClientId(e.target.value)}
-                    />
-                    <Input
-                      label="Client secret (optional)"
-                      placeholder="For confidential clients"
-                      type="password"
-                      value={oauthClientSecret}
-                      onChange={(e) => setOAuthClientSecret(e.target.value)}
-                      autoComplete="off"
-                    />
-                    <Input
-                      label="Redirect URI"
-                      placeholder="Callback URL"
-                      value={oauthRedirectUri || oauthCallbackUrl}
-                      onChange={(e) => setOAuthRedirectUri(e.target.value)}
-                    />
-                    <Input
-                      label="Scope (optional)"
-                      placeholder="e.g. openid"
-                      value={oauthScope}
-                      onChange={(e) => setOAuthScope(e.target.value)}
-                    />
-                  </div>
-                )}
               </>
             )}
             {form.type === "streamable_http" && (

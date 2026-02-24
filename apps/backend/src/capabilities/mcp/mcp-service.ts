@@ -75,8 +75,6 @@ export function createMcpService(store: MCPConnectionsStore): McpService {
           type: "hosted",
           server_label: body.server_label ?? "",
           server_url: serverUrl,
-          require_approval: body.require_approval ?? "never",
-          streaming: body.streaming ?? false,
           headers: body.headers,
           oauth: body.oauth,
           created_at,

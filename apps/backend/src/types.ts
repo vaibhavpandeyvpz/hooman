@@ -289,11 +289,6 @@ export interface KillSwitchState {
 }
 
 // MCP connection configs (Hosted, Streamable HTTP, Stdio)
-export type MCPRequireApproval =
-  | "always"
-  | "never"
-  | Record<string, "always" | "never">;
-
 /** OAuth config for MCP HTTP connections. When present, connection uses full OAuth (PKCE, optional DCR). */
 export interface MCPOAuthConfig {
   redirect_uri: string;
@@ -325,10 +320,6 @@ export interface MCPConnectionHosted {
   server_label: string;
   /** Public MCP server URL (required). */
   server_url: string;
-  /** "always" | "never" or per-tool map. */
-  require_approval: MCPRequireApproval;
-  /** When true, use streaming for hosted MCP results. */
-  streaming?: boolean;
   /** Optional headers (e.g. Bearer token for OAuth). */
   headers?: Record<string, string>;
   /** When set, use OAuth (PKCE, optional DCR) for this connection. */

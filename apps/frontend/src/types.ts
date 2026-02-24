@@ -26,8 +26,6 @@ export interface AuditEntry {
 }
 
 // MCP connection configs (mirror API types)
-export type MCPRequireApproval = "always" | "never";
-
 /** OAuth config for MCP HTTP connections (PKCE, optional DCR). */
 export interface MCPOAuthConfig {
   redirect_uri: string;
@@ -42,8 +40,6 @@ export interface MCPConnectionHosted {
   type: "hosted";
   server_label: string;
   server_url: string;
-  require_approval: MCPRequireApproval | Record<string, MCPRequireApproval>;
-  streaming?: boolean;
   headers?: Record<string, string>;
   oauth?: MCPOAuthConfig;
   /** From API when OAuth is configured; not sent on create/update. */
