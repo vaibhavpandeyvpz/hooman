@@ -127,6 +127,7 @@ export const McpConnections = forwardRef<McpConnectionsHandle>(
       setForm({
         type: "hosted",
         server_label: "",
+        tool_filter: "",
       });
     }
 
@@ -208,6 +209,7 @@ export const McpConnections = forwardRef<McpConnectionsHandle>(
             type: "hosted",
             server_label: form.server_label ?? "",
             server_url: form.server_url.trim(),
+            tool_filter: form.tool_filter?.trim() || undefined,
             headers,
             ...(oauthEnabled && {
               oauth: {
@@ -244,6 +246,7 @@ export const McpConnections = forwardRef<McpConnectionsHandle>(
             type: "streamable_http",
             name: form.name ?? "",
             url: form.url ?? "",
+            tool_filter: form.tool_filter?.trim() || undefined,
             headers,
             timeout_seconds: form.timeout_seconds,
             cache_tools_list: form.cache_tools_list ?? true,
@@ -288,6 +291,7 @@ export const McpConnections = forwardRef<McpConnectionsHandle>(
               .split(",")
               .map((s) => s.trim())
               .filter(Boolean),
+            tool_filter: form.tool_filter?.trim() || undefined,
             ...(Object.keys(env ?? {}).length > 0 ? { env } : {}),
             ...(form.cwd?.trim() ? { cwd: form.cwd.trim() } : {}),
           };
@@ -383,6 +387,7 @@ export const McpConnections = forwardRef<McpConnectionsHandle>(
                 setForm((f) => ({
                   ...f,
                   type,
+                  tool_filter: "",
                   ...(type === "hosted"
                     ? { server_label: "" }
                     : type === "streamable_http"
@@ -809,6 +814,22 @@ export const McpConnections = forwardRef<McpConnectionsHandle>(
                     </Button>
                   </div>
                 </div>
+              </>
+            )}
+            {form.type && (
+              <>
+                <Input
+                  label="Tool filter"
+                  placeholder="e.g. *, !send_* (empty = all tools)"
+                  value={form.tool_filter ?? ""}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, tool_filter: e.target.value }))
+                  }
+                />
+                <p className="text-xs text-hooman-muted">
+                  Comma-separated glob patterns. Use ! to exclude (e.g. *,
+                  !send_*). Empty = all tools.
+                </p>
               </>
             )}
           </div>

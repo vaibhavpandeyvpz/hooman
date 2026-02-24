@@ -40,6 +40,8 @@ export interface MCPConnectionHosted {
   type: "hosted";
   server_label: string;
   server_url: string;
+  /** Optional comma-separated glob patterns (e.g. *, !send_*). Empty = all tools. */
+  tool_filter?: string;
   headers?: Record<string, string>;
   oauth?: MCPOAuthConfig;
   /** From API when OAuth is configured; not sent on create/update. */
@@ -52,6 +54,8 @@ export interface MCPConnectionStreamableHttp {
   type: "streamable_http";
   name: string;
   url: string;
+  /** Optional comma-separated glob patterns (e.g. *, !send_*). Empty = all tools. */
+  tool_filter?: string;
   headers?: Record<string, string>;
   timeout_seconds?: number;
   cache_tools_list?: boolean;
@@ -68,6 +72,8 @@ export interface MCPConnectionStdio {
   name: string;
   command: string;
   args: string[];
+  /** Optional comma-separated glob patterns (e.g. *, !send_*). Empty = all tools. */
+  tool_filter?: string;
   env?: Record<string, string>;
   cwd?: string;
   created_at?: string;

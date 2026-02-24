@@ -320,6 +320,8 @@ export interface MCPConnectionHosted {
   server_label: string;
   /** Public MCP server URL (required). */
   server_url: string;
+  /** Optional comma-separated glob patterns to filter which tools are registered (e.g. *, !send_*). Empty = all. */
+  tool_filter?: string;
   /** Optional headers (e.g. Bearer token for OAuth). */
   headers?: Record<string, string>;
   /** When set, use OAuth (PKCE, optional DCR) for this connection. */
@@ -338,6 +340,8 @@ export interface MCPConnectionStreamableHttp {
   type: "streamable_http";
   name: string;
   url: string;
+  /** Optional comma-separated glob patterns to filter which tools are registered (e.g. *, !send_*). Empty = all. */
+  tool_filter?: string;
   headers?: Record<string, string>;
   timeout_seconds?: number;
   cache_tools_list?: boolean;
@@ -359,6 +363,8 @@ export interface MCPConnectionStdio {
   name: string;
   command: string;
   args: string[];
+  /** Optional comma-separated glob patterns to filter which tools are registered (e.g. *, !send_*). Empty = all. */
+  tool_filter?: string;
   /** Optional env vars for the process. */
   env?: Record<string, string>;
   /** Optional working directory. */

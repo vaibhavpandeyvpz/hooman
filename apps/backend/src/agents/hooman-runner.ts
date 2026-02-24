@@ -29,6 +29,7 @@ import type { AppConfig } from "../config.js";
 import { getConfig, getFullStaticAgentInstructionsAppend } from "../config.js";
 import type { MCPConnectionsStore } from "../capabilities/mcp/connections-store.js";
 import { createOAuthProvider } from "../capabilities/mcp/oauth-provider.js";
+import { filterToolNames } from "../capabilities/mcp/tool-filter.js";
 import { env } from "../env.js";
 import createDebug from "debug";
 
@@ -427,15 +428,20 @@ export async function createHoomanRunner(options?: {
     try {
       const toolSet = await client.tools();
       const toolNames = Object.keys(toolSet);
+      const conn = allConnections.find((c) => c.id === id);
+      const filtered = filterToolNames(toolNames, conn?.tool_filter);
       debug(
-        "MCP client %s tool discovery: %d tools found (%j)",
+        "MCP client %s tool discovery: %d tools found, %d after filter (%j)",
         id,
         toolNames.length,
-        toolNames,
+        filtered.length,
+        filtered,
       );
       const shortId = id.replace(/-/g, "").slice(0, SHORT_CONN_ID_LEN);
       const maxNameLen = MAX_TOOL_NAME_LEN - shortId.length - 1;
+      const allowed = new Set(filtered);
       for (const [name, t] of Object.entries(toolSet)) {
+        if (!allowed.has(name)) continue;
         const safeName =
           name.length <= maxNameLen ? name : name.slice(0, maxNameLen);
         const prefixed = `${shortId}_${safeName}`;

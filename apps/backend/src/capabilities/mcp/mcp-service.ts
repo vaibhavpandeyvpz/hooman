@@ -75,6 +75,10 @@ export function createMcpService(store: MCPConnectionsStore): McpService {
           type: "hosted",
           server_label: body.server_label ?? "",
           server_url: serverUrl,
+          tool_filter:
+            typeof body.tool_filter === "string"
+              ? body.tool_filter.trim() || undefined
+              : undefined,
           headers: body.headers,
           oauth: body.oauth,
           created_at,
@@ -85,6 +89,10 @@ export function createMcpService(store: MCPConnectionsStore): McpService {
           type: "streamable_http",
           name: body.name ?? "",
           url: body.url ?? "",
+          tool_filter:
+            typeof body.tool_filter === "string"
+              ? body.tool_filter.trim() || undefined
+              : undefined,
           headers: body.headers,
           timeout_seconds: body.timeout_seconds,
           cache_tools_list: body.cache_tools_list ?? true,
@@ -99,6 +107,10 @@ export function createMcpService(store: MCPConnectionsStore): McpService {
           name: body.name ?? "",
           command: body.command ?? "",
           args: Array.isArray(body.args) ? body.args : [],
+          tool_filter:
+            typeof body.tool_filter === "string"
+              ? body.tool_filter.trim() || undefined
+              : undefined,
           env:
             body.env && typeof body.env === "object"
               ? (body.env as Record<string, string>)
