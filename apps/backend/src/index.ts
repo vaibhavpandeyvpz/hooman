@@ -129,7 +129,9 @@ async function main() {
   );
   app.use(express.json());
   if (!isWebAuthEnabled()) {
-    app.use(localhostOnly);
+    if (!env.ALLOW_REMOTE_ACCESS) {
+      app.use(localhostOnly);
+    }
   } else {
     app.use(authJwt);
   }

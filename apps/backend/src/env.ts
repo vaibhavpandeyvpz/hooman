@@ -10,15 +10,22 @@ const WORKSPACE_ROOT = join(PROJECT_ROOT, "workspace");
 // Load .env from project root so it works when PM2/tsx runs from project root
 dotenv.config({ path: join(PROJECT_ROOT, ".env") });
 
-function str(name: string, defaultValue: string): string {
+function bool(name: string, defaultValue: boolean): boolean {
   const v = process.env[name];
-  return (typeof v === "string" && v.trim()) || defaultValue;
+  if (v === undefined || v === "") return defaultValue;
+  return v.trim().toLowerCase() === "true";
 }
+
 function num(name: string, defaultValue: number): number {
   const v = process.env[name];
   if (v === undefined || v === "") return defaultValue;
   const n = Number(v);
   return Number.isFinite(n) ? n : defaultValue;
+}
+
+function str(name: string, defaultValue: string): string {
+  const v = process.env[name];
+  return (typeof v === "string" && v.trim()) || defaultValue;
 }
 
 /** Loaded once at startup. Use this instead of process.env everywhere. */
@@ -49,6 +56,8 @@ export const env = {
   CHROMA_URL: str("CHROMA_URL", "http://localhost:8000"),
   /** ChromaDB collection name for memory MCP server. */
   CHROMA_COLLECTION: str("CHROMA_COLLECTION", "hooman-memory"),
+  /** For Docker/remote deployments, allow API access from non-localhost when web auth is NOT enabled. */
+  ALLOW_REMOTE_ACCESS: bool("ALLOW_REMOTE_ACCESS", false),
 } as const;
 
 export { BACKEND_ROOT, PROJECT_ROOT, WORKSPACE_ROOT };

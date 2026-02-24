@@ -180,7 +180,7 @@ export async function getKillSwitch(): Promise<{ enabled: boolean }> {
 export async function getCapabilitiesAvailable(): Promise<{
   capabilities: { integrationId: string; capability: string }[];
 }> {
-  const res = await authFetch(`${BASE}/api/capabilities/available`);
+  const res = await authFetch(`${BASE}/api/capabilities/mcp/available`);
   if (!res.ok) return { capabilities: [] };
   return res.json();
 }

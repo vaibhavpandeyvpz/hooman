@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from "express";
 import { COMPLETION_ROUTES } from "../routes/completions.js";
+import { env } from "../env.js";
 
 const LOCALHOST_IPS = new Set(["127.0.0.1", "::1", "::ffff:127.0.0.1"]);
 

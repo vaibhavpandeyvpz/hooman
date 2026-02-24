@@ -1,0 +1,1456 @@
+openapi: "3.1.0"
+info:
+  title: Hoomanity API
+  version: "1.0.0"
+  description: |
+    REST API consumed by the Hoomanity frontend.
+    All endpoints under `/api/` (except `/api/auth/login`) require a Bearer JWT
+    token in the `Authorization` header. A 401 response indicates an expired or
+    invalid token; the frontend clears the token and redirects to `/login`.
+
+    Chat replies are asynchronous: `POST /api/chat` returns `202` with an
+    `eventId`; the actual reply is delivered via Socket.IO events
+    (`chat-result` or `chat-skipped`).
+
+servers:
+  - url: http://localhost:3000
+    description: Local development server
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token obtained from `POST /api/auth/login`.
+
+  schemas:
+    # ── Auth ──────────────────────────────────────────────────────────────
+    LoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username:
+          type: string
+          description: Admin username.
+        password:
+          type: string
+          description: Admin password.
+
+    LoginResponse:
+      type: object
+      required: [token]
+      properties:
+        token:
+          type: string
+          description: JWT token for authenticated requests.
+
+    # ── Chat ──────────────────────────────────────────────────────────────
+    ChatAttachmentMeta:
+      type: object
+      required: [id, originalName, mimeType]
+      properties:
+        id:
+          type: string
+        originalName:
+          type: string
+        mimeType:
+          type: string
+
+    ChatHistoryMessage:
+      type: object
+      required: [role, text]
+      properties:
+        role:
+          type: string
+          enum: [user, assistant]
+        text:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+          description: ISO timestamp from server.
+        attachments:
+          type: array
+          items:
+            type: string
+          description: Attachment IDs (user messages).
+        attachment_metas:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChatAttachmentMeta"
+
+    ChatHistoryResponse:
+      type: object
+      required: [messages, total, page, pageSize]
+      properties:
+        messages:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChatHistoryMessage"
+        total:
+          type: integer
+        page:
+          type: integer
+        pageSize:
+          type: integer
+
+    SendMessageRequest:
+      type: object
+      required: [text]
+      properties:
+        text:
+          type: string
+          description: User's message text.
+        attachments:
+          type: array
+          items:
+            type: string
+          description: Optional array of attachment IDs from a prior upload.
+
+    SendMessageResponse:
+      type: object
+      required: [eventId]
+      properties:
+        eventId:
+          type: string
+          format: uuid
+          description: |
+            Correlation ID. Subscribe to Socket.IO event `chat-result`
+            (or `chat-skipped`) matching this `eventId` to receive the reply.
+
+    UploadAttachmentsResponse:
+      type: object
+      required: [attachments]
+      properties:
+        attachments:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChatAttachmentMeta"
+
+    # ── Config / Settings ─────────────────────────────────────────────────
+    LLMProviderId:
+      type: string
+      enum:
+        - openai
+        - azure
+        - anthropic
+        - amazon-bedrock
+        - google
+        - google-vertex
+        - mistral
+        - deepseek
+
+    TranscriptionProviderId:
+      type: string
+      enum: [openai, azure, deepgram]
+
+    AppConfig:
+      type: object
+      properties:
+        LLM_PROVIDER:
+          $ref: "#/components/schemas/LLMProviderId"
+        TRANSCRIPTION_PROVIDER:
+          $ref: "#/components/schemas/TranscriptionProviderId"
+        OPENAI_API_KEY:
+          type: string
+        CHAT_MODEL:
+          type: string
+        TRANSCRIPTION_MODEL:
+          type: string
+        AGENT_NAME:
+          type: string
+        AGENT_INSTRUCTIONS:
+          type: string
+        AZURE_RESOURCE_NAME:
+          type: string
+        AZURE_API_KEY:
+          type: string
+        AZURE_API_VERSION:
+          type: string
+        DEEPGRAM_API_KEY:
+          type: string
+        ANTHROPIC_API_KEY:
+          type: string
+        AWS_REGION:
+          type: string
+        AWS_ACCESS_KEY_ID:
+          type: string
+        AWS_SECRET_ACCESS_KEY:
+          type: string
+        AWS_SESSION_TOKEN:
+          type: string
+        GOOGLE_GENERATIVE_AI_API_KEY:
+          type: string
+        GOOGLE_VERTEX_PROJECT:
+          type: string
+        GOOGLE_VERTEX_LOCATION:
+          type: string
+        GOOGLE_VERTEX_API_KEY:
+          type: string
+        MISTRAL_API_KEY:
+          type: string
+        DEEPSEEK_API_KEY:
+          type: string
+        COMPLETIONS_API_KEY:
+          type: string
+        MAX_INPUT_TOKENS:
+          type: integer
+          description: Max input tokens (context window). 0 or unset = 100 000 default.
+        CHAT_TIMEOUT_MS:
+          type: integer
+          description: Chat timeout in ms. 0 or unset = 300 000 (5 min).
+
+    # ── Channels ──────────────────────────────────────────────────────────
+    ChannelEntry:
+      type: object
+      required: [id, name]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        alwaysOn:
+          type: boolean
+        enabled:
+          type: boolean
+        config:
+          type: object
+          additionalProperties: true
+          nullable: true
+
+    WhatsAppConnectionResponse:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [disconnected, pairing, connected]
+        qr:
+          type: string
+          description: QR code data for device-linking (present when status = pairing).
+        selfId:
+          type: string
+          description: "Logged-in user ID, e.g. 1234567890@c.us."
+        selfNumber:
+          type: string
+          description: "Display number, e.g. +1234567890."
+
+    # ── Schedule ──────────────────────────────────────────────────────────
+    ScheduledTask:
+      type: object
+      required: [id, intent, context]
+      properties:
+        id:
+          type: string
+        execute_at:
+          type: string
+          format: date-time
+          description: ISO timestamp for one-shot tasks.
+        cron:
+          type: string
+          description: Cron expression for recurring tasks.
+        intent:
+          type: string
+        context:
+          type: object
+          additionalProperties: true
+
+    CreateScheduledTaskRequest:
+      type: object
+      required: [intent]
+      properties:
+        intent:
+          type: string
+        context:
+          type: object
+          additionalProperties: true
+          default: {}
+        execute_at:
+          type: string
+          format: date-time
+          description: One-shot timing. At least one of `execute_at` or `cron` is required.
+        cron:
+          type: string
+          description: Recurring cron expression. At least one of `execute_at` or `cron` is required.
+
+    UpdateScheduledTaskRequest:
+      type: object
+      required: [intent]
+      properties:
+        intent:
+          type: string
+        context:
+          type: object
+          additionalProperties: true
+          default: {}
+        execute_at:
+          type: string
+          format: date-time
+        cron:
+          type: string
+
+    # ── MCP / Capabilities ────────────────────────────────────────────────
+    MCPOAuthConfig:
+      type: object
+      required: [redirect_uri]
+      properties:
+        redirect_uri:
+          type: string
+        client_id:
+          type: string
+        client_secret:
+          type: string
+        scope:
+          type: string
+        authorization_server_url:
+          type: string
+
+    MCPConnectionHosted:
+      type: object
+      required: [id, type, server_label, server_url]
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+          enum: [hosted]
+        server_label:
+          type: string
+        server_url:
+          type: string
+        tool_filter:
+          type: string
+          description: "Comma-separated glob patterns, e.g. *, !send_*. Empty = all."
+        headers:
+          type: object
+          additionalProperties:
+            type: string
+        oauth:
+          $ref: "#/components/schemas/MCPOAuthConfig"
+        oauth_has_tokens:
+          type: boolean
+          description: Read-only; set by server when OAuth tokens exist.
+        created_at:
+          type: string
+          format: date-time
+
+    MCPConnectionStreamableHttp:
+      type: object
+      required: [id, type, name, url]
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+          enum: [streamable_http]
+        name:
+          type: string
+        url:
+          type: string
+        tool_filter:
+          type: string
+        headers:
+          type: object
+          additionalProperties:
+            type: string
+        timeout_seconds:
+          type: integer
+        cache_tools_list:
+          type: boolean
+        max_retry_attempts:
+          type: integer
+        oauth:
+          $ref: "#/components/schemas/MCPOAuthConfig"
+        oauth_has_tokens:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+
+    MCPConnectionStdio:
+      type: object
+      required: [id, type, name, command, args]
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+          enum: [stdio]
+        name:
+          type: string
+        command:
+          type: string
+        args:
+          type: array
+          items:
+            type: string
+        tool_filter:
+          type: string
+        env:
+          type: object
+          additionalProperties:
+            type: string
+        cwd:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    MCPConnection:
+      oneOf:
+        - $ref: "#/components/schemas/MCPConnectionHosted"
+        - $ref: "#/components/schemas/MCPConnectionStreamableHttp"
+        - $ref: "#/components/schemas/MCPConnectionStdio"
+      discriminator:
+        propertyName: type
+        mapping:
+          hosted: "#/components/schemas/MCPConnectionHosted"
+          streamable_http: "#/components/schemas/MCPConnectionStreamableHttp"
+          stdio: "#/components/schemas/MCPConnectionStdio"
+
+    CapabilityEntry:
+      type: object
+      required: [integrationId, capability]
+      properties:
+        integrationId:
+          type: string
+        capability:
+          type: string
+
+    # ── Skills ────────────────────────────────────────────────────────────
+    SkillEntry:
+      type: object
+      required: [id, name]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+
+    SkillsCommandResponse:
+      type: object
+      properties:
+        output:
+          type: string
+        error:
+          type: string
+        code:
+          type: integer
+          nullable: true
+
+    # ── Audit ─────────────────────────────────────────────────────────────
+    AuditEntry:
+      type: object
+      required: [id, timestamp, type, payload]
+      properties:
+        id:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        type:
+          type: string
+        payload:
+          type: object
+          additionalProperties: true
+
+    # ── Realtime ──────────────────────────────────────────────────────────
+    ClientSecretRequest:
+      type: object
+      properties:
+        model:
+          type: string
+          description: "Transcription model override (default: server TRANSCRIPTION_MODEL config)."
+
+    ClientSecretResponse:
+      type: object
+      required: [value]
+      properties:
+        value:
+          type: string
+          description: Ephemeral client secret for OpenAI Realtime API.
+
+    # ── Common Error ──────────────────────────────────────────────────────
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+
+security:
+  - BearerAuth: []
+
+paths:
+  # ╔══════════════════════════════════════════════════════════════════════╗
+  # ║  Health                                                             ║
+  # ╚══════════════════════════════════════════════════════════════════════╝
+  /health:
+    get:
+      operationId: getHealth
+      summary: Health check
+      description: Returns server health status and kill‑switch state. No auth required.
+      tags: [Health]
+      security: []
+      responses:
+        "200":
+          description: Server is healthy.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  killSwitch:
+                    type: boolean
+
+  # ╔══════════════════════════════════════════════════════════════════════╗
+  # ║  Auth                                                               ║
+  # ╚══════════════════════════════════════════════════════════════════════╝
+  /api/auth/login:
+    post:
+      operationId: login
+      summary: Authenticate and obtain JWT
+      description: |
+        Validates username/password against server configuration (argon2 hash)
+        and returns a JWT token. No auth header required.
+
+        Returns **501** if web auth is not configured on the server.
+      tags: [Auth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Login successful.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResponse"
+        "400":
+          description: Missing username or password.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Invalid credentials.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          description: Web auth is not configured.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal login failure.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ╔══════════════════════════════════════════════════════════════════════╗
+  # ║  Chat                                                               ║
+  # ╚══════════════════════════════════════════════════════════════════════╝
+  /api/chat:
+    post:
+      operationId: sendMessage
+      summary: Send a chat message (async)
+      description: |
+        Enqueues a user message for the AI agent. Returns **202** with an
+        `eventId`. The actual assistant reply is delivered asynchronously via
+        Socket.IO:
+
+        - `chat-result` event — contains `{ eventId, message: { role, text } }`
+        - `chat-skipped` event — agent chose not to respond (`{ eventId }`)
+
+        Returns **503** when the kill switch is active.
+      tags: [Chat]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SendMessageRequest"
+      responses:
+        "202":
+          description: Message accepted and queued for processing.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SendMessageResponse"
+        "400":
+          description: Missing or invalid `text`.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Agent paused (kill switch active).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/chat/history:
+    get:
+      operationId: getChatHistory
+      summary: Retrieve chat history (paginated)
+      description: |
+        Returns paginated chat messages. Page size clamped between 1 and 200
+        (default 50). On error the frontend gracefully falls back to an empty
+        array.
+      tags: [Chat]
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+          description: Page number (1-indexed).
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            default: 50
+            minimum: 1
+            maximum: 200
+          description: Number of messages per page.
+      responses:
+        "200":
+          description: Chat history page.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatHistoryResponse"
+
+    delete:
+      operationId: clearChatHistory
+      summary: Clear all chat history
+      tags: [Chat]
+      responses:
+        "200":
+          description: History cleared.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [cleared]
+                properties:
+                  cleared:
+                    type: boolean
+                    example: true
+
+  /api/chat/attachments:
+    post:
+      operationId: uploadAttachments
+      summary: Upload file attachments
+      description: |
+        Accepts up to 10 files via multipart form-data field `files`.
+        Returns metadata (id, originalName, mimeType) for each uploaded file.
+        The returned IDs can be passed to `POST /api/chat` in the
+        `attachments` array.
+      tags: [Chat]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                files:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+                  maxItems: 10
+      responses:
+        "200":
+          description: Files uploaded successfully.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UploadAttachmentsResponse"
+        "400":
+          description: No files provided.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Storage failure.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/chat/attachments/{id}:
+    get:
+      operationId: getAttachment
+      summary: Download / view an attachment
+      description: |
+        Returns the raw file bytes with appropriate `Content-Type` and
+        `Content-Disposition: inline` headers. Used as image `src` or
+        download links.
+      tags: [Chat]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: File content.
+          content:
+            "*/*":
+              schema:
+                type: string
+                format: binary
+        "404":
+          description: Attachment not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ╔══════════════════════════════════════════════════════════════════════╗
+  # ║  Realtime (Transcription)                                           ║
+  # ╚══════════════════════════════════════════════════════════════════════╝
+  /api/realtime/client-secret:
+    post:
+      operationId: getRealtimeClientSecret
+      summary: Obtain ephemeral OpenAI Realtime API client secret
+      description: |
+        Proxies a request to OpenAI's `/v1/realtime/client_secrets` endpoint
+        to create a short-lived (5 min) client secret for browser-side
+        transcription via WebRTC. Falls back to the server's configured
+        `TRANSCRIPTION_MODEL` if no model override is provided.
+      tags: [Realtime]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClientSecretRequest"
+      responses:
+        "200":
+          description: Client secret created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClientSecretResponse"
+        "400":
+          description: OPENAI_API_KEY not configured.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Failed to create transcription session.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ╔══════════════════════════════════════════════════════════════════════╗
+  # ║  Config / Settings                                                  ║
+  # ╚══════════════════════════════════════════════════════════════════════╝
+  /api/config:
+    get:
+      operationId: getConfig
+      summary: Get current application configuration
+      description: Returns the full application config including LLM provider keys and model settings.
+      tags: [Config]
+      responses:
+        "200":
+          description: Current configuration.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppConfig"
+
+    patch:
+      operationId: saveConfig
+      summary: Partially update application configuration
+      description: |
+        Merges the provided fields into the current configuration.
+        Only specified fields are updated; others remain unchanged.
+        Returns the full updated configuration.
+      tags: [Config]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AppConfig"
+      responses:
+        "200":
+          description: Updated configuration.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppConfig"
+        "400":
+          description: Invalid body.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ╔══════════════════════════════════════════════════════════════════════╗
+  # ║  Safety / Kill Switch                                               ║
+  # ╚══════════════════════════════════════════════════════════════════════╝
+  /api/safety/kill-switch:
+    get:
+      operationId: getKillSwitch
+      summary: Get kill switch status
+      tags: [Safety]
+      responses:
+        "200":
+          description: Current kill switch state.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [enabled]
+                properties:
+                  enabled:
+                    type: boolean
+
+    post:
+      operationId: setKillSwitch
+      summary: Toggle kill switch
+      description: |
+        Enables or disables the kill switch. When enabled, `POST /api/chat`
+        and `POST /api/schedule` return 503.
+      tags: [Safety]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [enabled]
+              properties:
+                enabled:
+                  type: boolean
+      responses:
+        "200":
+          description: Updated kill switch state.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [enabled]
+                properties:
+                  enabled:
+                    type: boolean
+
+  # ╔══════════════════════════════════════════════════════════════════════╗
+  # ║  Channels                                                           ║
+  # ╚══════════════════════════════════════════════════════════════════════╝
+  /api/channels:
+    get:
+      operationId: getChannels
+      summary: List channel configurations
+      description: Returns all channel configurations with secrets masked.
+      tags: [Channels]
+      responses:
+        "200":
+          description: Channel map keyed by channel name.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [channels]
+                properties:
+                  channels:
+                    type: object
+                    additionalProperties:
+                      $ref: "#/components/schemas/ChannelEntry"
+
+    patch:
+      operationId: patchChannels
+      summary: Patch channel configs (partial merge)
+      description: |
+        Partially updates channel configurations. Masked secret values are
+        preserved (not overwritten). Returns the updated channel map.
+      tags: [Channels]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                slack:
+                  type: object
+                  additionalProperties: true
+                whatsapp:
+                  type: object
+                  additionalProperties: true
+      responses:
+        "200":
+          description: Updated channels.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [channels]
+                properties:
+                  channels:
+                    type: object
+                    additionalProperties: true
+        "400":
+          description: Invalid patch.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/channels/whatsapp/connection:
+    get:
+      operationId: getWhatsAppConnection
+      summary: Get WhatsApp connection status
+      description: |
+        Returns current WhatsApp linking status. When `status` is `pairing`,
+        the `qr` field contains the QR code data for device linking.
+        On error the frontend gracefully returns `{ status: "disconnected" }`.
+      tags: [Channels]
+      responses:
+        "200":
+          description: WhatsApp connection status.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WhatsAppConnectionResponse"
+
+  # ╔══════════════════════════════════════════════════════════════════════╗
+  # ║  Schedule                                                           ║
+  # ╚══════════════════════════════════════════════════════════════════════╝
+  /api/schedule:
+    get:
+      operationId: getSchedule
+      summary: List all scheduled tasks
+      tags: [Schedule]
+      responses:
+        "200":
+          description: Array of scheduled tasks.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [tasks]
+                properties:
+                  tasks:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ScheduledTask"
+
+    post:
+      operationId: createScheduledTask
+      summary: Create a scheduled task
+      description: |
+        Requires at least one of `execute_at` (one-shot) or `cron` (recurring).
+        Returns **503** when the kill switch is active.
+      tags: [Schedule]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateScheduledTaskRequest"
+      responses:
+        "201":
+          description: Task created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScheduledTask"
+        "400":
+          description: Missing intent or timing.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Agent paused (kill switch).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/schedule/{id}:
+    patch:
+      operationId: updateScheduledTask
+      summary: Update a scheduled task
+      description: |
+        Replaces intent, context, and timing for an existing task.
+        Returns **503** when the kill switch is active.
+      tags: [Schedule]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateScheduledTaskRequest"
+      responses:
+        "200":
+          description: Task updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScheduledTask"
+        "400":
+          description: Missing intent or timing / invalid cron.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Task not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Agent paused (kill switch).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    delete:
+      operationId: cancelScheduledTask
+      summary: Cancel a scheduled task
+      tags: [Schedule]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Task cancelled (no content).
+        "404":
+          description: Task not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ╔══════════════════════════════════════════════════════════════════════╗
+  # ║  Audit                                                              ║
+  # ╚══════════════════════════════════════════════════════════════════════╝
+  /api/audit:
+    get:
+      operationId: getAudit
+      summary: Retrieve audit log entries
+      tags: [Audit]
+      responses:
+        "200":
+          description: Audit log.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [entries]
+                properties:
+                  entries:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/AuditEntry"
+
+  # ╔══════════════════════════════════════════════════════════════════════╗
+  # ║  Capabilities / MCP                                                 ║
+  # ╚══════════════════════════════════════════════════════════════════════╝
+  /api/capabilities/mcp/available:
+    get:
+      operationId: getCapabilitiesAvailable
+      summary: List available capabilities from MCP connections
+      description: |
+        Returns a flat list of capabilities discovered from all configured
+        MCP server connections. On error the frontend falls back to an
+        empty array.
+      tags: [Capabilities]
+      responses:
+        "200":
+          description: Available capabilities.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [capabilities]
+                properties:
+                  capabilities:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/CapabilityEntry"
+        "500":
+          description: Failed to list capabilities.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/capabilities/mcp/connections:
+    get:
+      operationId: getMCPConnections
+      summary: List all MCP connections
+      description: Returns connections with secrets masked by the server.
+      tags: [Capabilities]
+      responses:
+        "200":
+          description: MCP connections.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [connections]
+                properties:
+                  connections:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/MCPConnection"
+        "500":
+          description: Server error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    post:
+      operationId: createMCPConnection
+      summary: Add a new MCP connection
+      tags: [Capabilities]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MCPConnection"
+      responses:
+        "201":
+          description: Connection created (secrets masked in response).
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [connection]
+                properties:
+                  connection:
+                    $ref: "#/components/schemas/MCPConnection"
+        "400":
+          description: Invalid connection config.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/capabilities/mcp/connections/{id}:
+    patch:
+      operationId: updateMCPConnection
+      summary: Update an MCP connection
+      tags: [Capabilities]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MCPConnection"
+      responses:
+        "200":
+          description: Connection updated (secrets masked).
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [connection]
+                properties:
+                  connection:
+                    $ref: "#/components/schemas/MCPConnection"
+        "400":
+          description: Invalid patch.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Connection not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    delete:
+      operationId: deleteMCPConnection
+      summary: Delete an MCP connection
+      tags: [Capabilities]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Connection deleted (no content).
+        "404":
+          description: Connection not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/capabilities/mcp/oauth/callback-url:
+    get:
+      operationId: getOAuthCallbackUrl
+      summary: Get the OAuth callback URL for MCP
+      description: Returns the server's OAuth callback URL to prefill redirect_uri fields.
+      tags: [Capabilities]
+      responses:
+        "200":
+          description: Callback URL.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [callbackUrl]
+                properties:
+                  callbackUrl:
+                    type: string
+                    format: uri
+
+  /api/capabilities/mcp/oauth/start:
+    post:
+      operationId: startMCPOAuth
+      summary: Start OAuth flow for an MCP connection
+      description: |
+        Initiates the OAuth authorization flow for a given MCP connection.
+        Returns either an `authorizationUrl` to open in the browser, or
+        `{ status: "already_authorized" }` if tokens already exist.
+      tags: [Capabilities]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [connectionId]
+              properties:
+                connectionId:
+                  type: string
+      responses:
+        "200":
+          description: OAuth flow initiated or already authorized.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - type: object
+                    required: [authorizationUrl]
+                    properties:
+                      authorizationUrl:
+                        type: string
+                        format: uri
+                  - type: object
+                    required: [status]
+                    properties:
+                      status:
+                        type: string
+                        enum: [already_authorized]
+        "400":
+          description: Missing connectionId.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: OAuth start failed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ╔══════════════════════════════════════════════════════════════════════╗
+  # ║  Skills                                                             ║
+  # ╚══════════════════════════════════════════════════════════════════════╝
+  /api/skills/list:
+    get:
+      operationId: getSkillsList
+      summary: List installed skills
+      tags: [Skills]
+      responses:
+        "200":
+          description: Skills list.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [skills]
+                properties:
+                  skills:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/SkillEntry"
+                  error:
+                    type: string
+                    description: Present if listing partially failed.
+
+  /api/skills/{id}/content:
+    get:
+      operationId: getSkillContent
+      summary: Get the SKILL.md content for a skill
+      tags: [Skills]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Skill content.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [content]
+                properties:
+                  content:
+                    type: string
+        "400":
+          description: Missing skill id.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Skill not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Read error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/skills/add:
+    post:
+      operationId: addSkillsPackage
+      summary: Install skills from a package
+      description: |
+        Runs the skills CLI to add a package. Optionally restricts to
+        specific skill names within the package.
+      tags: [Skills]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [package]
+              properties:
+                package:
+                  type: string
+                  description: Package identifier (npm package, git URL, etc.).
+                skills:
+                  type: array
+                  items:
+                    type: string
+                  description: Optional list of specific skills to install from the package.
+      responses:
+        "200":
+          description: CLI output.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SkillsCommandResponse"
+        "400":
+          description: Missing or invalid package.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: CLI execution error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SkillsCommandResponse"
+
+  /api/skills/remove:
+    post:
+      operationId: removeSkillsPackage
+      summary: Remove installed skills
+      tags: [Skills]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [skills]
+              properties:
+                skills:
+                  type: array
+                  items:
+                    type: string
+                  description: Skill IDs to remove.
+      responses:
+        "200":
+          description: CLI output.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SkillsCommandResponse"
+        "400":
+          description: Missing or invalid skills array.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: CLI execution error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SkillsCommandResponse"
