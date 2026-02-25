@@ -189,6 +189,7 @@ export function registerEventHandlers(deps: EventHandlerDeps): void {
       } else {
         const msg = (err as Error).message;
         assistantText = `Something went wrong: ${msg}. Check API logs.`;
+        debug("Chat handler error: %o", err);
       }
 
       await context.addTurn(userId, text, assistantText, attachments);
