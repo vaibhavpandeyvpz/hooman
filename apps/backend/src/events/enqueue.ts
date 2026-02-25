@@ -17,7 +17,11 @@ export async function enqueueRaw(
   const event = createNormalizedEvent(raw, {
     correlationId: options?.correlationId,
   });
-  const key = eventKey(event);
+  // When correlationId is set (e.g. API chat), treat each request as unique so every message is enqueued.
+  const key =
+    options?.correlationId != null
+      ? `${event.source}:${event.type}:${event.id}`
+      : eventKey(event);
   if (options?.dedupSet?.has(key)) return event.id;
   options?.dedupSet?.add(key);
   const id = await queue.add(event);
