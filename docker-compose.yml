@@ -80,6 +80,12 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - mcpcwd:/mcpcwd
       - workspace:/app/workspace
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:3000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
   event-queue:
     build: .
