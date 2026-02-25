@@ -383,6 +383,7 @@ export async function createHoomanRunner(options?: {
         system: fullSystem,
         messages: input,
         tools,
+        toolChoice: "required",
         stopWhen: stepCountIs(maxSteps),
         onStepFinish(step) {
           const calls = step.toolCalls ?? [];
