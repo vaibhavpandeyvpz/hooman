@@ -13,7 +13,8 @@ import type {
 import { WORKSPACE_ROOT } from "../utils/workspace.js";
 import { env } from "../env.js";
 import { transcribeAudio } from "../agents/transcription.js";
-import wweb, { MessageMedia, type Message } from "whatsapp-web.js";
+import wweb from "whatsapp-web.js";
+import type WAWebJS from "whatsapp-web.js";
 
 /**
  * WhatsApp connection status type. Connection state is held by the WhatsApp worker
@@ -30,7 +31,7 @@ export interface WhatsAppConnection {
   selfNumber?: string;
 }
 
-const { Client, LocalAuth } = wweb;
+const { Client, LocalAuth, MessageMedia } = wweb;
 const debug = createDebug("hooman:whatsapp-adapter");
 
 let client: InstanceType<typeof Client> | null = null;
@@ -165,7 +166,7 @@ export async function startWhatsAppAdapter(
     notify("disconnected");
   });
 
-  client.on("message_create", async (message: Message) => {
+  client.on("message_create", async (message: WAWebJS.Message) => {
     const cfg = getWhatsAppConfig();
     if (!cfg?.enabled) return;
     if (message.fromMe) {
