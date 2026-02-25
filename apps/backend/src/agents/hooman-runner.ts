@@ -74,16 +74,19 @@ export async function createHoomanRunner(options: {
     async generate(history, message, options) {
       const input: ModelMessage[] = [...history];
       const channelContext = buildChannelContext(options?.channel);
-      if (channelContext?.trim()) {
-        input.push({
-          role: "system",
-          content: `### Channel Context\nThe following message originated from an external channel. Details are as below:\n\n${channelContext.trim()}`,
-        });
-      }
-      const prompt: ModelMessage = {
-        role: "user",
-        content: buildUserContentParts(message, options?.attachments),
-      };
+      const userContent = buildUserContentParts(message, options?.attachments);
+      const prompt: ModelMessage = channelContext?.trim()
+        ? {
+            role: "user",
+            content: [
+              {
+                type: "text" as const,
+                text: `### Channel Context\nThe following message originated from an external channel. Details are as below:\n\n${channelContext.trim()}\n\n---\n\n`,
+              },
+              ...userContent,
+            ],
+          }
+        : { role: "user", content: userContent };
       input.push(prompt);
 
       const maxSteps = getConfig().MAX_TURNS ?? 999;
