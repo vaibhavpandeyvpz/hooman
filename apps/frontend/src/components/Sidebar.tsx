@@ -14,6 +14,7 @@ import {
 import { clearToken } from "../auth";
 import { resetSocket } from "../socket";
 import { HealthBlip } from "./HealthBlip";
+import { useDialog } from "./Dialog";
 import type { View } from "../types";
 
 interface SidebarProps {
@@ -38,7 +39,15 @@ const nav: { id: View; label: string; path: string; Icon: LucideIcon }[] = [
 
 export function Sidebar({ open = true, onClose }: SidebarProps) {
   const navigate = useNavigate();
-  const handleLogout = () => {
+  const dialog = useDialog();
+  const handleLogout = async () => {
+    const ok = await dialog.confirm({
+      title: "Log out",
+      message: "Are you sure you want to log out?",
+      confirmLabel: "Log out",
+      variant: "danger",
+    });
+    if (!ok) return;
     clearToken();
     resetSocket();
     navigate("/login", { replace: true });
