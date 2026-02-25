@@ -1,6 +1,6 @@
 /**
  * Shared event handlers for chat, turn_completed, and scheduled tasks.
- * Used by the API (in-memory mode) and by the workers process (BullMQ) so the worker is the only place that runs agents when Redis is used.
+ * Used by the event-queue worker (BullMQ) — the only place that runs agents.
  */
 import createDebug from "debug";
 import type { EventRouter } from "./event-router.js";
@@ -8,7 +8,6 @@ import type { ContextStore } from "../agents/context.js";
 import type { AuditLog } from "../audit/audit.js";
 import { McpManager } from "../capabilities/mcp/manager.js";
 import type {
-  RawDispatchInput,
   ChannelMeta,
   ResponseDeliveryPayload,
   SlackChannelMeta,
@@ -62,8 +61,8 @@ export interface EventHandlerDeps {
   eventRouter: EventRouter;
   context: ContextStore;
   auditLog: AuditLog;
-  /** When set (event-queue worker), publishes response to Redis; API/Slack/WhatsApp subscribers deliver accordingly. */
-  publishResponseDelivery?: (payload: ResponseDeliveryPayload) => void;
+  /** Publishes response to Redis; API/Slack/WhatsApp subscribers deliver accordingly. */
+  publishResponseDelivery: (payload: ResponseDeliveryPayload) => void;
   /** Long-lived MCP session manager. */
   mcpManager: McpManager;
 }
@@ -126,24 +125,6 @@ export function registerEventHandlers(deps: EventHandlerDeps): void {
     }
   }
 
-  // turn_completed: persist turn to chat history only for UI (api source)
-  eventRouter.register(async (event) => {
-    if (
-      event.type === "chat.turn_completed" &&
-      event.payload.kind === "internal" &&
-      event.source === "api"
-    ) {
-      const data = event.payload.data as {
-        userId: string;
-        userText: string;
-        assistantText: string;
-        userAttachments?: string[];
-      };
-      const { userId, userText, assistantText, userAttachments } = data;
-      await context.addTurn(userId, userText, assistantText, userAttachments);
-    }
-  });
-
   // Chat handler: message.sent → run agents; dispatch response via publishResponseDelivery when set (api → Socket.IO; slack/whatsapp → Redis)
   eventRouter.register(async (event) => {
     if (event.payload.kind !== "message") return;
@@ -195,16 +176,7 @@ export function registerEventHandlers(deps: EventHandlerDeps): void {
         eventId: event.id,
         userInput: text,
       });
-      await eventRouter.dispatch({
-        source: "api",
-        type: "chat.turn_completed",
-        payload: {
-          userId,
-          userText: text,
-          assistantText,
-          ...(attachments?.length ? { userAttachments: attachments } : {}),
-        },
-      } as RawDispatchInput);
+      await context.addTurn(userId, text, assistantText, attachments);
       await dispatchResponseToChannel(
         event.id,
         event.source,
@@ -222,16 +194,7 @@ export function registerEventHandlers(deps: EventHandlerDeps): void {
         const msg = (err as Error).message;
         assistantText = `Something went wrong: ${msg}. Check API logs.`;
       }
-      await eventRouter.dispatch({
-        source: "api",
-        type: "chat.turn_completed",
-        payload: {
-          userId,
-          userText: text,
-          assistantText,
-          ...(attachments?.length ? { userAttachments: attachments } : {}),
-        },
-      } as RawDispatchInput);
+      await context.addTurn(userId, text, assistantText, attachments);
       await dispatchResponseToChannel(
         event.id,
         event.source,

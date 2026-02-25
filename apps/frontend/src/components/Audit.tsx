@@ -19,10 +19,8 @@ export function Audit() {
     };
     load();
     const socket = getSocket();
-    socket.on("audit-entry-added", load);
     socket.on("connect", load);
     return () => {
-      socket.off("audit-entry-added", load);
       socket.off("connect", load);
     };
   }, []);

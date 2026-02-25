@@ -211,7 +211,7 @@ export interface RawDispatchInput {
   priority?: number;
 }
 
-/** Used by channel adapters: in-process (eventRouter) or remote (dispatch client). */
+/** Used by channel adapters to enqueue events via BullMQ. */
 export type EventDispatcher = {
   dispatch(
     raw: RawDispatchInput,

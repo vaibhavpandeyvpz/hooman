@@ -19,18 +19,13 @@ import { createAttachmentService } from "./attachments/attachment-service.js";
 import { createContext } from "./agents/context.js";
 import { initScheduleStore } from "./scheduling/schedule-store.js";
 import { initMCPConnectionsStore } from "./capabilities/mcp/connections-store.js";
-import {
-  createAuditStore,
-  AUDIT_ENTRY_ADDED_CHANNEL,
-} from "./audit/audit-store.js";
+import { createAuditStore } from "./audit/audit-store.js";
 import { createSkillService } from "./capabilities/skills/skills-service.js";
 import { createMcpService } from "./capabilities/mcp/mcp-service.js";
 import { createChannelService } from "./channels/channel-service.js";
-import { createSubscriber, publish } from "./utils/pubsub.js";
+import { createSubscriber } from "./utils/pubsub.js";
 import { createEventQueue } from "./events/event-queue.js";
 import { enqueueRaw } from "./events/enqueue.js";
-import { EventRouter } from "./events/event-router.js";
-import { registerEventHandlers } from "./events/event-handlers.js";
 import { initRedis } from "./data/redis.js";
 import {
   RESPONSE_DELIVERY_CHANNEL,
@@ -56,28 +51,19 @@ async function main() {
   initRedis(redisUrl);
   initKillSwitch(redisUrl);
 
-  let enqueue: (
+  const eventQueue = createEventQueue({ connection: redisUrl });
+  const dedupSet = new Set<string>();
+  const enqueue = (
     raw: import("./types.js").RawDispatchInput,
     options?: { correlationId?: string },
-  ) => Promise<string>;
-  let eventRouter: EventRouter | null = null;
-
-  if (redisUrl) {
-    const eventQueue = createEventQueue({ connection: redisUrl });
-    const dedupSet = new Set<string>();
-    enqueue = (raw, opts) =>
-      enqueueRaw(eventQueue, raw, {
-        correlationId: opts?.correlationId,
-        dedupSet,
-      });
-    debug(
-      "Event queue: Redis + BullMQ; producers enqueue directly; workers process events",
-    );
-  } else {
-    eventRouter = new EventRouter();
-    enqueue = (raw, opts) => eventRouter!.dispatch(raw, opts);
-    debug("No Redis: events processed in-memory");
-  }
+  ) =>
+    enqueueRaw(eventQueue, raw, {
+      correlationId: options?.correlationId,
+      dedupSet,
+    });
+  debug(
+    "Event queue: Redis + BullMQ; producers enqueue directly; workers process events",
+  );
 
   await initDb();
   debug("Database (Prisma + SQLite) ready");
@@ -94,9 +80,7 @@ async function main() {
 
   const scheduleStore = await initScheduleStore();
   const mcpConnectionsStore = await initMCPConnectionsStore();
-  const auditStore = createAuditStore({
-    onAppend: () => publish(AUDIT_ENTRY_ADDED_CHANNEL, "1"),
-  });
+  const auditStore = createAuditStore();
   const auditLog = new AuditLog(auditStore);
 
   const { createScheduleService } =
@@ -163,68 +147,37 @@ async function main() {
       .catch(() => next(new Error("Unauthorized")));
   });
 
-  // Subscribe to audit channel so worker-added entries trigger Socket.IO emit to refresh Audit UI
+  // Subscribe to response delivery channel so worker responses reach Socket.IO clients
   const pubsub = createSubscriber();
-  if (pubsub) {
-    pubsub.subscribe(AUDIT_ENTRY_ADDED_CHANNEL, () => {
-      debug("audit-entry-added from Redis, emitting to Socket.IO");
-      io.emit("audit-entry-added");
-    });
-    pubsub.subscribe(RESPONSE_DELIVERY_CHANNEL, (raw) => {
-      try {
-        const payload = JSON.parse(raw) as ResponseDeliveryPayload;
-        if (payload.channel !== "api") return;
-        if ("skipped" in payload && payload.skipped === true) {
-          io.emit("chat-skipped", { eventId: payload.eventId });
-          return;
-        }
-        if (!("message" in payload)) return;
-        const { eventId, message } = payload;
-        if (
-          typeof eventId !== "string" ||
-          !message ||
-          typeof message.text !== "string"
-        )
-          return;
-        io.emit("chat-result", { eventId, message });
-        const list = responseStore.get(eventId) ?? [];
-        list.push({ role: "assistant", text: message.text });
-        responseStore.set(eventId, list);
-        // Audit entry already written by event-queue worker; do not emit again
-      } catch (err) {
-        debug("response_delivery parse error: %o", err);
-      }
-    });
-  } else {
-    debug(
-      "No Redis subscriber (REDIS_URL empty?); audit log will not auto-refresh when workers add entries",
+  if (!pubsub) {
+    throw new Error(
+      "Redis subscriber unavailable — REDIS_URL is required. Check your .env.",
     );
   }
-
-  if (eventRouter) {
-    registerEventHandlers({
-      eventRouter,
-      context,
-      mcpConnectionsStore,
-      auditLog,
-      publishResponseDelivery: (payload) => {
-        if (payload.channel !== "api") return;
-        if ("skipped" in payload && payload.skipped === true) {
-          io.emit("chat-skipped", { eventId: payload.eventId });
-          return;
-        }
-        if (!("message" in payload)) return;
-        io.emit("chat-result", {
-          eventId: payload.eventId,
-          message: payload.message,
-        });
-        const list = responseStore.get(payload.eventId) ?? [];
-        list.push({ role: "assistant", text: payload.message.text });
-        responseStore.set(payload.eventId, list);
-        // Audit entry already written by handler (appendAuditEntry + emitResponse); do not emit again
-      },
-    });
-  }
+  pubsub.subscribe(RESPONSE_DELIVERY_CHANNEL, (raw) => {
+    try {
+      const payload = JSON.parse(raw) as ResponseDeliveryPayload;
+      if (payload.channel !== "api") return;
+      if ("skipped" in payload && payload.skipped === true) {
+        io.emit("chat-skipped", { eventId: payload.eventId });
+        return;
+      }
+      if (!("message" in payload)) return;
+      const { eventId, message } = payload;
+      if (
+        typeof eventId !== "string" ||
+        !message ||
+        typeof message.text !== "string"
+      )
+        return;
+      io.emit("chat-result", { eventId, message });
+      const list = responseStore.get(eventId) ?? [];
+      list.push({ role: "assistant", text: message.text });
+      responseStore.set(eventId, list);
+    } catch (err) {
+      debug("response_delivery parse error: %o", err);
+    }
+  });
 
   registerRoutes(app, {
     enqueue,

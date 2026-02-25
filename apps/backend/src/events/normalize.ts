@@ -1,6 +1,6 @@
 /**
  * Event normalisation: raw dispatch input → NormalizedEvent.
- * Shared by API, workers, and EventRouter so any process can enqueue directly.
+ * Shared by API and workers so any process can enqueue directly.
  */
 import type {
   RawDispatchInput,

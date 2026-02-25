@@ -14,10 +14,7 @@ import { createContext } from "../agents/context.js";
 import { initMCPConnectionsStore } from "../capabilities/mcp/connections-store.js";
 import { initDb } from "../data/db.js";
 import { initChatHistory } from "../chats/chat-history.js";
-import {
-  createAuditStore,
-  AUDIT_ENTRY_ADDED_CHANNEL,
-} from "../audit/audit-store.js";
+import { createAuditStore } from "../audit/audit-store.js";
 import { publish } from "../utils/pubsub.js";
 import { initRedis, closeRedis } from "../data/redis.js";
 import { initKillSwitch, closeKillSwitch } from "../agents/kill-switch.js";
@@ -47,9 +44,7 @@ async function main() {
   const chatHistory = await initChatHistory();
   const context = createContext(chatHistory);
   const mcpConnectionsStore = await initMCPConnectionsStore();
-  const auditStore = createAuditStore({
-    onAppend: () => publish(AUDIT_ENTRY_ADDED_CHANNEL, "1"),
-  });
+  const auditStore = createAuditStore();
   const auditLog = new AuditLog(auditStore);
 
   const mcpManager = new McpManager(mcpConnectionsStore, {
