@@ -234,13 +234,49 @@ export async function getWhatsAppConnection(): Promise<{
   return res.json();
 }
 
-export async function getHealth(): Promise<{
-  status: string;
+const EXPECTED_STATUSES = ["ok", "degraded"] as const;
+
+export type HealthData = {
+  status: (typeof EXPECTED_STATUSES)[number];
   killSwitch?: boolean;
-}> {
-  const res = await fetch(`${BASE}/health`);
-  if (!res.ok) throw new Error(await res.text());
-  return res.json();
+  services?: {
+    redis?: { status: string; error?: string; latencyMs?: number };
+    chroma?: { status: string; error?: string; latencyMs?: number };
+    eventQueue?: { status: string; error?: string; latencyMs?: number };
+  };
+};
+
+/**
+ * Returns health payload when API is reachable and response is valid JSON with status "ok" or "degraded".
+ * Returns null when API is unreachable: 4xx/5xx (other than 503 with valid degraded body), invalid JSON, or missing/invalid status.
+ */
+export async function getHealth(): Promise<HealthData | null> {
+  let res: Response;
+  try {
+    res = await fetch(`${BASE}/health`);
+  } catch {
+    return null;
+  }
+  let data: unknown;
+  try {
+    data = await res.json();
+  } catch {
+    return null;
+  }
+  if (typeof data !== "object" || data === null || !("status" in data)) {
+    return null;
+  }
+  const status = (data as { status?: string }).status;
+  if (status !== "ok" && status !== "degraded") {
+    return null;
+  }
+  if (res.ok && status === "ok") {
+    return data as HealthData;
+  }
+  if (res.status === 503 && status === "degraded") {
+    return data as HealthData;
+  }
+  return null;
 }
 
 export interface DiscoveredTool {
