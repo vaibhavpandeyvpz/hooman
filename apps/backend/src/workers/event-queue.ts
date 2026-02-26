@@ -12,6 +12,7 @@ import { registerEventHandlers } from "../events/event-handlers.js";
 import { AuditLog } from "../audit/audit.js";
 import { createContext } from "../chats/context.js";
 import { initMCPConnectionsStore } from "../capabilities/mcp/connections-store.js";
+import { createDiscoveredToolsStore } from "../capabilities/mcp/discovered-tools-store.js";
 import { initSkillSettingsStore } from "../capabilities/skills/skills-settings-store.js";
 import { createSkillService } from "../capabilities/skills/skills-service.js";
 import { initDb } from "../data/db.js";
@@ -57,9 +58,14 @@ async function main() {
   const auditStore = createAuditStore();
   const auditLog = new AuditLog(auditStore);
 
+  const discoveredToolsStore = createDiscoveredToolsStore({
+    onReplaceAll: () =>
+      publish("hooman:mcp-tools-reloaded", JSON.stringify({})),
+  });
   const mcpManager = new McpManager(mcpConnectionsStore, {
     connectTimeoutMs: env.MCP_CONNECT_TIMEOUT_MS,
     closeTimeoutMs: env.MCP_CLOSE_TIMEOUT_MS,
+    discoveredToolsStore,
   });
   debug("MCP manager enabled");
 

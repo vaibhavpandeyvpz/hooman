@@ -22,6 +22,7 @@ import { createContext } from "./chats/context.js";
 import { initScheduleStore } from "./scheduling/schedule-store.js";
 import { createScheduleService } from "./scheduling/schedule-service.js";
 import { initMCPConnectionsStore } from "./capabilities/mcp/connections-store.js";
+import { createDiscoveredToolsStore } from "./capabilities/mcp/discovered-tools-store.js";
 import { createAuditStore } from "./audit/audit-store.js";
 import { createSkillService } from "./capabilities/skills/skills-service.js";
 import { initSkillSettingsStore } from "./capabilities/skills/skills-settings-store.js";
@@ -84,6 +85,7 @@ async function main() {
 
   const scheduleStore = await initScheduleStore();
   const mcpConnectionsStore = await initMCPConnectionsStore();
+  const discoveredToolsStore = createDiscoveredToolsStore();
   const skillSettingsStore = await initSkillSettingsStore();
   const auditStore = createAuditStore();
   const auditLog = new AuditLog(auditStore);
@@ -183,6 +185,10 @@ async function main() {
     }
   });
 
+  pubsub.subscribe("hooman:mcp-tools-reloaded", () => {
+    io.emit("mcp-tools-reloaded");
+  });
+
   registerRoutes(app, {
     enqueue,
     chatService,
@@ -192,6 +198,7 @@ async function main() {
     scheduler,
     io,
     mcpConnectionsStore,
+    discoveredToolsStore,
     skillService: createSkillService(skillSettingsStore),
     skillSettingsStore,
     mcpService: createMcpService(mcpConnectionsStore),

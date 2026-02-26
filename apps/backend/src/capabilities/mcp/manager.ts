@@ -10,12 +10,9 @@ import {
   clientsToTools,
 } from "./mcp-service.js";
 import { getAllDefaultMcpConnections } from "./system-mcps.js";
-import { deleteValue, writeValue } from "../../data/redis.js";
 import { runWithTimeout } from "../../utils/helpers.js";
 
 const debug = createDebug("hooman:mcp-manager");
-
-export const DISCOVERED_TOOLS_KEY = "hooman:discovered-tools";
 
 /** Matches frontend: name = tool name, connectionId/connectionName for grouping. */
 export interface DiscoveredTool {
@@ -30,9 +27,15 @@ export interface DiscoveredTool {
 const DEFAULT_CONNECT_TIMEOUT_MS = 300_000;
 const DEFAULT_CLOSE_TIMEOUT_MS = 10_000;
 
+export interface DiscoveredToolsStoreWriter {
+  replaceAll(tools: DiscoveredTool[]): Promise<void>;
+}
+
 export type McpManagerOptions = {
   connectTimeoutMs?: number | null;
   closeTimeoutMs?: number | null;
+  /** When set, discovered tools are written here (e.g. DB store) instead of Redis. */
+  discoveredToolsStore?: DiscoveredToolsStoreWriter;
 };
 
 export type McpToolsResult = {
@@ -46,6 +49,7 @@ export class McpManager {
   private inFlight: Promise<McpToolsResult> | null = null;
   private readonly connectTimeoutMs: number | null;
   private readonly closeTimeoutMs: number | null;
+  private readonly discoveredToolsStore: DiscoveredToolsStoreWriter | undefined;
 
   constructor(
     private readonly mcpConnectionsStore: MCPConnectionsStore,
@@ -59,6 +63,7 @@ export class McpManager {
       options?.closeTimeoutMs === undefined
         ? DEFAULT_CLOSE_TIMEOUT_MS
         : options.closeTimeoutMs;
+    this.discoveredToolsStore = options?.discoveredToolsStore;
   }
 
   /**
@@ -105,7 +110,9 @@ export class McpManager {
         tools,
       };
       this.cachedResult = result;
-      this.publishToolsToRedis(tools);
+      if (this.discoveredToolsStore) {
+        await this.discoveredToolsStore.replaceAll(tools);
+      }
       debug("Building MCP tools done: %d tools", tools.length);
       return result;
     };
@@ -133,7 +140,6 @@ export class McpManager {
     this.cachedMcpClients = null;
     if (!clients?.length) {
       debug("MCP manager shutdown: no cached clients to close");
-      this.clearToolsFromRedis();
       return;
     }
 
@@ -158,21 +164,5 @@ export class McpManager {
     } catch (err) {
       debug("MCP manager shutdown close error: %o", err);
     }
-
-    this.clearToolsFromRedis();
-  }
-
-  private publishToolsToRedis(tools: DiscoveredTool[]): void {
-    const json = JSON.stringify(tools);
-    writeValue(DISCOVERED_TOOLS_KEY, json).then(
-      () => debug("Published %d discovered tools to Redis", tools.length),
-      (err) => debug("Failed to publish discovered tools to Redis: %o", err),
-    );
-  }
-
-  private clearToolsFromRedis(): void {
-    deleteValue(DISCOVERED_TOOLS_KEY).catch((err) =>
-      debug("Failed to clear discovered tools from Redis: %o", err),
-    );
   }
 }

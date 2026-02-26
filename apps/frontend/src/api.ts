@@ -306,14 +306,12 @@ export async function getDiscoveredTools(): Promise<{
   return res.json();
 }
 
-export async function reloadMcpTools(): Promise<{
-  tools: DiscoveredTool[];
-}> {
+/** Triggers MCP reload (fire-and-forget). Server returns 202; wait for Socket.IO "mcp-tools-reloaded" then call getDiscoveredTools(). */
+export async function reloadMcpTools(): Promise<void> {
   const res = await authFetch(`${BASE}/api/capabilities/mcp/reload`, {
     method: "POST",
   });
-  if (!res.ok) return { tools: [] };
-  return res.json();
+  if (!res.ok) throw new Error(await res.text());
 }
 
 export type LLMProviderId =

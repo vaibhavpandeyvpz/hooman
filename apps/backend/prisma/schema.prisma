@@ -55,3 +55,11 @@ model SkillSetting {
   skillId String  @id
   enabled Boolean @default(true)
 }
+
+model DiscoveredTool {
+  id             String  @id @default(cuid())
+  name           String
+  description    String?
+  connectionId   String
+  connectionName String
+}

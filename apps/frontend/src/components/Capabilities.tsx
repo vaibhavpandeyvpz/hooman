@@ -1,6 +1,7 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useCallback } from "react";
 import { Plus } from "lucide-react";
 import { Tools } from "./Tools";
+import type { ToolsHandle } from "./Tools";
 import { McpConnections } from "./McpConnections";
 import type { McpConnectionsHandle } from "./McpConnections";
 import { Skills } from "./Skills";
@@ -12,8 +13,13 @@ type CapabilityTab = "tools" | "mcp" | "skills";
 
 export function Capabilities() {
   const [activeTab, setActiveTab] = useState<CapabilityTab>("tools");
+  const toolsRef = useRef<ToolsHandle>(null);
   const mcpRef = useRef<McpConnectionsHandle>(null);
   const skillsRef = useRef<SkillsHandle>(null);
+
+  const onMcpConnectionsChange = useCallback(() => {
+    // Tools refresh happens only when user clicks Refresh on the Tools tab.
+  }, []);
 
   return (
     <div className="flex flex-col h-full min-h-0">
@@ -65,8 +71,13 @@ export function Capabilities() {
         </div>
       </div>
       <div className="flex-1 overflow-y-auto p-4 md:p-6 min-h-0">
-        {activeTab === "tools" && <Tools />}
-        {activeTab === "mcp" && <McpConnections ref={mcpRef} />}
+        {activeTab === "tools" && <Tools ref={toolsRef} />}
+        {activeTab === "mcp" && (
+          <McpConnections
+            ref={mcpRef}
+            onConnectionsChange={onMcpConnectionsChange}
+          />
+        )}
         {activeTab === "skills" && <Skills ref={skillsRef} />}
       </div>
     </div>
