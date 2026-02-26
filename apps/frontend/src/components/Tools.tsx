@@ -29,6 +29,9 @@ export const Tools = forwardRef<ToolsHandle, object>(
     const [tools, setTools] = useState<DiscoveredTool[]>([]);
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState("");
+    const [expandedToolIds, setExpandedToolIds] = useState<Set<string>>(
+      () => new Set(),
+    );
 
     const fetchTools = useCallback(async () => {
       try {
@@ -185,9 +188,33 @@ export const Tools = forwardRef<ToolsHandle, object>(
                           </code>
                         </div>
                         {tool.description && (
-                          <p className="text-xs text-hooman-muted mt-1 ml-5.5 leading-relaxed">
-                            {tool.description}
-                          </p>
+                          <div className="mt-1 ml-5.5">
+                            <p
+                              className={`text-xs text-hooman-muted leading-relaxed ${
+                                expandedToolIds.has(tool.id)
+                                  ? ""
+                                  : "line-clamp-2"
+                              }`}
+                            >
+                              {tool.description}
+                            </p>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setExpandedToolIds((prev) => {
+                                  const next = new Set(prev);
+                                  if (next.has(tool.id)) next.delete(tool.id);
+                                  else next.add(tool.id);
+                                  return next;
+                                })
+                              }
+                              className="text-xs text-hooman-accent hover:underline mt-0.5"
+                            >
+                              {expandedToolIds.has(tool.id)
+                                ? "See less"
+                                : "See more"}
+                            </button>
+                          </div>
                         )}
                       </div>
                     ))}
