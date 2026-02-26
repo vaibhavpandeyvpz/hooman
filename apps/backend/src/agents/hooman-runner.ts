@@ -3,15 +3,48 @@
  */
 import { getHoomanModel } from "./model-provider.js";
 import { ToolLoopAgent, ToolSet, stepCountIs } from "ai";
-import type { ModelMessage } from "ai";
+import type { FilePart, ImagePart, ModelMessage, TextPart } from "ai";
 import createDebug from "debug";
 import { createSkillService } from "../capabilities/skills/skills-service.js";
 import type { AuditLogEntry, ChannelMeta } from "../types.js";
 import { getConfig, getFullStaticAgentInstructionsAppend } from "../config.js";
 import { buildChannelContext } from "../channels/shared.js";
 import { buildAgentSystemPrompt } from "../utils/prompts.js";
-import { buildUserContentParts } from "../chats/utils.js";
 import { truncateForMax } from "../utils/helpers.js";
+
+const IMAGE_MIME_TYPES = [
+  "image/jpeg",
+  "image/png",
+  "image/gif",
+  "image/webp",
+] as const;
+
+type UserContentPart = TextPart | ImagePart | FilePart;
+
+function buildUserContentParts(
+  text: string,
+  attachments?: Array<{ name: string; contentType: string; data: string }>,
+): UserContentPart[] {
+  const parts: UserContentPart[] = [{ type: "text", text }];
+  if (attachments?.length) {
+    for (const a of attachments) {
+      const data = typeof a.data === "string" ? a.data.trim() : "";
+      if (!data) continue;
+      const contentType = a.contentType.toLowerCase().split(";")[0].trim();
+      const dataUrl = `data:${contentType};base64,${data}`;
+      if (
+        IMAGE_MIME_TYPES.includes(
+          contentType as (typeof IMAGE_MIME_TYPES)[number],
+        )
+      ) {
+        parts.push({ type: "image", image: dataUrl, mediaType: contentType });
+      } else {
+        parts.push({ type: "file", data: dataUrl, mediaType: contentType });
+      }
+    }
+  }
+  return parts;
+}
 
 const debug = createDebug("hooman:hooman-runner");
 const DEBUG_TOOL_LOG_MAX = 200; // max chars for args/result in logs
