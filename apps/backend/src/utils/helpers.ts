@@ -7,6 +7,7 @@ import type { AuditLog } from "../audit/audit.js";
 import type { ScheduleService } from "../scheduling/schedule-service.js";
 import type { MCPConnectionsStore } from "../capabilities/mcp/connections-store.js";
 import type { SkillService } from "../capabilities/skills/skills-service.js";
+import type { SkillSettingsStore } from "../capabilities/skills/skills-settings-store.js";
 import type { McpService } from "../capabilities/mcp/mcp-service.js";
 import type { ChannelService } from "../channels/channel-service.js";
 
@@ -26,6 +27,7 @@ export interface AppContext {
   io: SocketServer;
   mcpConnectionsStore: MCPConnectionsStore;
   skillService: SkillService;
+  skillSettingsStore: SkillSettingsStore;
   mcpService: McpService;
   channelService: ChannelService;
 }

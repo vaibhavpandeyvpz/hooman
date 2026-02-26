@@ -339,6 +339,9 @@ components:
         oauth_has_tokens:
           type: boolean
           description: Read-only; set by server when OAuth tokens exist.
+        enabled:
+          type: boolean
+          description: When false, connection is not used for agent tools. Default true.
         created_at:
           type: string
           format: date-time
@@ -372,6 +375,9 @@ components:
           $ref: "#/components/schemas/MCPOAuthConfig"
         oauth_has_tokens:
           type: boolean
+        enabled:
+          type: boolean
+          description: When false, connection is not used for agent tools. Default true.
         created_at:
           type: string
           format: date-time
@@ -401,6 +407,9 @@ components:
             type: string
         cwd:
           type: string
+        enabled:
+          type: boolean
+          description: When false, connection is not used for agent tools. Default true.
         created_at:
           type: string
           format: date-time
@@ -437,6 +446,9 @@ components:
           type: string
         description:
           type: string
+        enabled:
+          type: boolean
+          description: When false, skill is not used for the agent. Default true.
 
     SkillsCommandResponse:
       type: object
@@ -1496,6 +1508,44 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "500":
           description: Read error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/skills/{id}/enabled:
+    patch:
+      operationId: updateSkillEnabled
+      summary: Enable or disable a skill
+      description: Only enabled skills are included in the agent prompt and skills MCP.
+      tags: [Skills]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [enabled]
+              properties:
+                enabled:
+                  type: boolean
+      responses:
+        "204":
+          description: Updated.
+        "400":
+          description: Missing or invalid id or enabled.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Update error.
           content:
             application/json:
               schema:

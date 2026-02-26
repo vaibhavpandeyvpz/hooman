@@ -12,6 +12,8 @@ import { registerEventHandlers } from "../events/event-handlers.js";
 import { AuditLog } from "../audit/audit.js";
 import { createContext } from "../chats/context.js";
 import { initMCPConnectionsStore } from "../capabilities/mcp/connections-store.js";
+import { initSkillSettingsStore } from "../capabilities/skills/skills-settings-store.js";
+import { createSkillService } from "../capabilities/skills/skills-service.js";
 import { initDb } from "../data/db.js";
 import { initChatHistory } from "../chats/chat-history.js";
 import { createAuditStore } from "../audit/audit-store.js";
@@ -51,6 +53,7 @@ async function main() {
   const chatHistory = await initChatHistory();
   const context = createContext(chatHistory);
   const mcpConnectionsStore = await initMCPConnectionsStore();
+  const skillSettingsStore = await initSkillSettingsStore();
   const auditStore = createAuditStore();
   const auditLog = new AuditLog(auditStore);
 
@@ -61,10 +64,15 @@ async function main() {
   debug("MCP manager enabled");
 
   let runnerCache: HoomanRunner | null = null;
+  const skillService = createSkillService(skillSettingsStore);
   const getRunner = async (): Promise<HoomanRunner> => {
     if (runnerCache) return runnerCache;
     const { agentTools } = await mcpManager.tools();
-    runnerCache = await createHoomanRunner({ agentTools, auditLog });
+    runnerCache = await createHoomanRunner({
+      agentTools,
+      auditLog,
+      skillService,
+    });
     return runnerCache;
   };
 

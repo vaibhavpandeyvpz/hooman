@@ -5,7 +5,10 @@ import { getHoomanModel } from "./model-provider.js";
 import { ToolLoopAgent, ToolSet, stepCountIs } from "ai";
 import type { FilePart, ImagePart, ModelMessage, TextPart } from "ai";
 import createDebug from "debug";
-import { createSkillService } from "../capabilities/skills/skills-service.js";
+import {
+  createSkillService,
+  type SkillService,
+} from "../capabilities/skills/skills-service.js";
 import type { AuditLogEntry, ChannelMeta } from "../types.js";
 import { getConfig, getFullStaticAgentInstructionsAppend } from "../config.js";
 import { buildChannelContext } from "../channels/shared.js";
@@ -84,13 +87,19 @@ export async function createHoomanRunner(options: {
   agentTools: Record<string, unknown>;
   auditLog?: AuditLogAppender;
   sessionId?: string;
+  skillService?: SkillService;
 }): Promise<HoomanRunner> {
   const config = getConfig();
   const model = getHoomanModel(config);
 
-  const { agentTools, auditLog, sessionId } = options;
+  const {
+    agentTools,
+    auditLog,
+    sessionId,
+    skillService: injectedSkillService,
+  } = options;
 
-  const skillService = createSkillService();
+  const skillService = injectedSkillService ?? createSkillService();
   const skillsSection = await skillService.getSkillsMetadataSection();
 
   const fullSystem = buildAgentSystemPrompt({

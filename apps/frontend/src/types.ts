@@ -46,6 +46,8 @@ export interface MCPConnectionHosted {
   oauth?: MCPOAuthConfig;
   /** From API when OAuth is configured; not sent on create/update. */
   oauth_has_tokens?: boolean;
+  /** When false, connection is not used for agent tools. Default true. */
+  enabled?: boolean;
   created_at?: string;
 }
 
@@ -63,6 +65,8 @@ export interface MCPConnectionStreamableHttp {
   oauth?: MCPOAuthConfig;
   /** From API when OAuth is configured; not sent on create/update. */
   oauth_has_tokens?: boolean;
+  /** When false, connection is not used for agent tools. Default true. */
+  enabled?: boolean;
   created_at?: string;
 }
 
@@ -76,6 +80,8 @@ export interface MCPConnectionStdio {
   tool_filter?: string;
   env?: Record<string, string>;
   cwd?: string;
+  /** When false, connection is not used for agent tools. Default true. */
+  enabled?: boolean;
   created_at?: string;
 }
 

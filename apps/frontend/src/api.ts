@@ -524,6 +524,8 @@ export interface SkillEntry {
   id: string;
   name: string;
   description?: string;
+  /** When false, skill is not used for the agent. Default true. */
+  enabled?: boolean;
 }
 
 export interface SkillsListApiResponse {
@@ -535,6 +537,21 @@ export async function getSkillsList(): Promise<SkillsListApiResponse> {
   const res = await authFetch(`${BASE}/api/skills/list`);
   if (!res.ok) throw new Error(await res.text());
   return res.json();
+}
+
+export async function updateSkillEnabled(
+  skillId: string,
+  enabled: boolean,
+): Promise<void> {
+  const res = await authFetch(
+    `${BASE}/api/skills/${encodeURIComponent(skillId)}/enabled`,
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ enabled }),
+    },
+  );
+  if (!res.ok) throw new Error(await res.text());
 }
 
 export async function getSkillContent(skillId: string): Promise<{

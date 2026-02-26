@@ -47,6 +47,7 @@ function payloadToConnection(
       oauth_client_information: d.oauth_client_information as
         | MCPOAuthClientInformation
         | undefined,
+      enabled: d.enabled === false ? false : true,
       created_at: d.created_at as string | undefined,
     } as MCPConnectionHosted;
   }
@@ -71,6 +72,7 @@ function payloadToConnection(
       oauth_client_information: d.oauth_client_information as
         | MCPOAuthClientInformation
         | undefined,
+      enabled: d.enabled === false ? false : true,
       created_at: d.created_at as string | undefined,
     } as MCPConnectionStreamableHttp;
   }
@@ -91,6 +93,7 @@ function payloadToConnection(
           ? (d.env as Record<string, string>)
           : undefined,
       cwd: typeof d.cwd === "string" ? d.cwd : undefined,
+      enabled: d.enabled === false ? false : true,
       created_at: d.created_at as string | undefined,
     } as MCPConnectionStdio;
   }

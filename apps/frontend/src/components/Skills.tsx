@@ -11,8 +11,10 @@ import {
   getSkillContent,
   addSkillsPackage,
   removeSkillsPackage,
+  updateSkillEnabled,
 } from "../api";
 import type { SkillEntry } from "../api";
+import { Switch } from "./Switch";
 
 export interface SkillsHandle {
   startAdd: () => void;
@@ -201,7 +203,21 @@ export const Skills = forwardRef<SkillsHandle>(function Skills(_props, ref) {
                     </p>
                   )}
                 </div>
-                <div className="flex gap-2 shrink-0">
+                <div className="flex gap-2 shrink-0 items-center flex-wrap">
+                  <Switch
+                    id={`skill-enabled-${skill.id}`}
+                    label="Enabled"
+                    checked={skill.enabled !== false}
+                    onChange={async (checked) => {
+                      setSkillsError(null);
+                      try {
+                        await updateSkillEnabled(skill.id, checked);
+                        loadSkills();
+                      } catch (e) {
+                        setSkillsError((e as Error).message);
+                      }
+                    }}
+                  />
                   <Button
                     variant="secondary"
                     size="sm"

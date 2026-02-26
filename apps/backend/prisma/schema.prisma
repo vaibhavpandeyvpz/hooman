@@ -50,3 +50,8 @@ model AuditEntry {
   payload   String   // JSON
   @@index([timestamp])
 }
+
+model SkillSetting {
+  skillId String  @id
+  enabled Boolean @default(true)
+}

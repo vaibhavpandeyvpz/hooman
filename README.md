@@ -33,11 +33,11 @@ Hooman gives you a **platform** to create and operate a virtual identity—not a
 
 Talk to your virtual identity from the channels you already use. Each channel is a first-party adapter; configure them in **Settings → Channels**.
 
-| Channel      | What you get                                                                                                                                     |
-| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Channel      | What you get                                                                                                                                                                                                                                                                                                                                                                |
+| ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Web**      | Built-in chat UI at the heart of the app. Your main control panel for chatting, scheduling, capabilities, and audit. Chat draft is kept in browser storage when you navigate away and restored on return; message input is auto-focused; logout and clear chat require confirmation. Real-time voice uses your chosen transcription provider via a backend WebSocket proxy. |
-| **Slack**    | First-party adapter (Socket Mode). DMs, channels, and groups where the app is installed. Optional Slack MCP (Go) adds history, search, and post. |
-| **WhatsApp** | First-party adapter (whatsapp-web.js). Text and voice notes; voice is transcribed with your chosen transcription provider.                       |
+| **Slack**    | First-party adapter (Socket Mode). DMs, channels, and groups where the app is installed. Optional Slack MCP (Go) adds history, search, and post.                                                                                                                                                                                                                            |
+| **WhatsApp** | First-party adapter (whatsapp-web.js). Text and voice notes; voice is transcribed with your chosen transcription provider.                                                                                                                                                                                                                                                  |
 
 One identity, one memory, one audit trail—whether you message from the web, Slack, or WhatsApp.
 

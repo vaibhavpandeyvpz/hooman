@@ -244,6 +244,7 @@ export function createMcpService(store: MCPConnectionsStore): McpService {
               : undefined,
           headers: body.headers,
           oauth: body.oauth,
+          enabled: body.enabled !== false,
           created_at,
         } as MCPConnectionHosted;
       } else if (body.type === "streamable_http") {
@@ -261,6 +262,7 @@ export function createMcpService(store: MCPConnectionsStore): McpService {
           cache_tools_list: body.cache_tools_list ?? true,
           max_retry_attempts: body.max_retry_attempts,
           oauth: body.oauth,
+          enabled: body.enabled !== false,
           created_at,
         } as MCPConnectionStreamableHttp;
       } else if (body.type === "stdio") {
@@ -282,6 +284,7 @@ export function createMcpService(store: MCPConnectionsStore): McpService {
             typeof body.cwd === "string" && body.cwd.trim()
               ? body.cwd.trim()
               : undefined,
+          enabled: body.enabled !== false,
           created_at,
         } as MCPConnectionStdio;
       } else {

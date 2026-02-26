@@ -217,7 +217,7 @@ export function registerCapabilityRoutes(app: Express, ctx: AppContext): void {
 
   app.get("/api/skills/list", async (_req: Request, res: Response) => {
     try {
-      const skills = await ctx.skillService.list();
+      const skills = await ctx.skillService.listWithEnabled();
       res.json({ skills });
     } catch (err) {
       debug("skills list error: %o", err);
@@ -227,6 +227,35 @@ export function registerCapabilityRoutes(app: Express, ctx: AppContext): void {
       });
     }
   });
+
+  app.patch(
+    "/api/skills/:id/enabled",
+    async (req: Request, res: Response): Promise<void> => {
+      const id =
+        typeof req.params.id === "string"
+          ? req.params.id.trim()
+          : (req.params.id?.[0] ?? "").trim();
+      if (!id) {
+        res.status(400).json({ error: "Missing skill id." });
+        return;
+      }
+      const enabled =
+        typeof req.body?.enabled === "boolean" ? req.body.enabled : undefined;
+      if (enabled === undefined) {
+        res
+          .status(400)
+          .json({ error: "Missing or invalid 'enabled' boolean." });
+        return;
+      }
+      try {
+        await ctx.skillSettingsStore.setEnabled(id, enabled);
+        res.status(204).send();
+      } catch (err) {
+        debug("skill setEnabled error: %o", err);
+        res.status(500).json({ error: (err as Error).message });
+      }
+    },
+  );
 
   app.get("/api/skills/:id/content", async (req: Request, res: Response) => {
     const id =

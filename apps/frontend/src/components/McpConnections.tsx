@@ -5,6 +5,7 @@ import { Button } from "./Button";
 import { Input } from "./Input";
 import { Modal } from "./Modal";
 import { Checkbox } from "./Checkbox";
+import { Switch } from "./Switch";
 import { Select } from "./Select";
 import type {
   MCPConnection,
@@ -229,6 +230,7 @@ export const McpConnections = forwardRef<McpConnectionsHandle>(
                 }),
               },
             }),
+            ...(editing !== "new" && { enabled: form.enabled !== false }),
           };
           if (editing === "new") await createMCPConnection(conn);
           else await updateMCPConnection(conn.id, conn);
@@ -269,6 +271,7 @@ export const McpConnections = forwardRef<McpConnectionsHandle>(
                 }),
               },
             }),
+            ...(editing !== "new" && { enabled: form.enabled !== false }),
           };
           if (editing === "new") await createMCPConnection(conn);
           else await updateMCPConnection(conn.id, conn);
@@ -294,6 +297,7 @@ export const McpConnections = forwardRef<McpConnectionsHandle>(
             tool_filter: form.tool_filter?.trim() || undefined,
             ...(Object.keys(env ?? {}).length > 0 ? { env } : {}),
             ...(form.cwd?.trim() ? { cwd: form.cwd.trim() } : {}),
+            ...(editing !== "new" && { enabled: form.enabled !== false }),
           };
           if (editing === "new") await createMCPConnection(conn);
           else await updateMCPConnection(conn.id, conn);
@@ -897,7 +901,24 @@ export const McpConnections = forwardRef<McpConnectionsHandle>(
                     </p>
                   )}
               </div>
-              <div className="flex gap-2 shrink-0 items-center">
+              <div className="flex gap-2 shrink-0 items-center flex-wrap">
+                <Switch
+                  id={`conn-enabled-${c.id}`}
+                  label="Enabled"
+                  checked={c.enabled !== false}
+                  onChange={async (checked) => {
+                    setError(null);
+                    try {
+                      await updateMCPConnection(c.id, {
+                        ...c,
+                        enabled: checked,
+                      });
+                      load();
+                    } catch (e) {
+                      setError((e as Error).message);
+                    }
+                  }}
+                />
                 {(c.type === "hosted" || c.type === "streamable_http") &&
                   (c as MCPConnectionHosted | MCPConnectionStreamableHttp)
                     .oauth && (

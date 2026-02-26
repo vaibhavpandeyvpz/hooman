@@ -333,6 +333,8 @@ export interface MCPConnectionHosted {
   oauth_code_verifier?: string;
   /** Internal: client from DCR or pre-reg. Do not expose in API. */
   oauth_client_information?: MCPOAuthClientInformation;
+  /** When false, connection is not used for agent tools. Default true. */
+  enabled?: boolean;
   created_at?: string;
 }
 
@@ -355,6 +357,8 @@ export interface MCPConnectionStreamableHttp {
   oauth_code_verifier?: string;
   /** Internal: client from DCR or pre-reg. Do not expose in API. */
   oauth_client_information?: MCPOAuthClientInformation;
+  /** When false, connection is not used for agent tools. Default true. */
+  enabled?: boolean;
   created_at?: string;
 }
 
@@ -370,6 +374,8 @@ export interface MCPConnectionStdio {
   env?: Record<string, string>;
   /** Optional working directory. */
   cwd?: string;
+  /** When false, connection is not used for agent tools. Default true. */
+  enabled?: boolean;
   created_at?: string;
 }
 

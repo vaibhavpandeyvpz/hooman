@@ -80,7 +80,10 @@ export class McpManager {
 
     const build = async (): Promise<McpToolsResult> => {
       debug("Building MCP tools (first use or after shutdown)");
-      const userConnections = await this.mcpConnectionsStore.getAll();
+      const allUserConnections = await this.mcpConnectionsStore.getAll();
+      const userConnections = allUserConnections.filter(
+        (c) => c.enabled !== false,
+      );
       const connections = [
         ...getAllDefaultMcpConnections(),
         ...userConnections,

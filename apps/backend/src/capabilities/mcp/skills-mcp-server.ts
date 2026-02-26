@@ -1,14 +1,16 @@
 #!/usr/bin/env node
 /**
  * Skills MCP server (stdio). Exposes read_skill and list_skills as MCP tools.
- * Reads from project .agents/skills (SKILLS_CWD).
+ * Reads from project .agents/skills (SKILLS_CWD). Only enabled skills are listed for the agent.
  */
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
+import { initSkillSettingsStore } from "../skills/skills-settings-store.js";
 import { createSkillService } from "../skills/skills-service.js";
 
-const skillService = createSkillService();
+const settingsStore = await initSkillSettingsStore();
+const skillService = createSkillService(settingsStore);
 
 const server = new McpServer(
   { name: "hooman-skills", version: "1.0.0" },
@@ -28,7 +30,7 @@ server.registerTool(
     inputSchema: z.object({}),
   },
   async () => {
-    const skills = await skillService.list();
+    const skills = await skillService.listEnabled();
     if (skills.length === 0)
       return { content: textContent("No skills installed.") };
     return {

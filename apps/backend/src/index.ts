@@ -24,6 +24,7 @@ import { createScheduleService } from "./scheduling/schedule-service.js";
 import { initMCPConnectionsStore } from "./capabilities/mcp/connections-store.js";
 import { createAuditStore } from "./audit/audit-store.js";
 import { createSkillService } from "./capabilities/skills/skills-service.js";
+import { initSkillSettingsStore } from "./capabilities/skills/skills-settings-store.js";
 import { createMcpService } from "./capabilities/mcp/mcp-service.js";
 import { createChannelService } from "./channels/channel-service.js";
 import { createSubscriber } from "./utils/pubsub.js";
@@ -83,6 +84,7 @@ async function main() {
 
   const scheduleStore = await initScheduleStore();
   const mcpConnectionsStore = await initMCPConnectionsStore();
+  const skillSettingsStore = await initSkillSettingsStore();
   const auditStore = createAuditStore();
   const auditLog = new AuditLog(auditStore);
 
@@ -190,7 +192,8 @@ async function main() {
     scheduler,
     io,
     mcpConnectionsStore,
-    skillService: createSkillService(),
+    skillService: createSkillService(skillSettingsStore),
+    skillSettingsStore,
     mcpService: createMcpService(mcpConnectionsStore),
     channelService: createChannelService(),
   });
