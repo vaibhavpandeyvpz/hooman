@@ -52,7 +52,7 @@ async function main() {
   initKillSwitch(env.REDIS_URL);
 
   const chatHistory = await initChatHistory();
-  const context = createContext(chatHistory);
+  const context = await createContext(chatHistory);
   const mcpConnectionsStore = await initMCPConnectionsStore();
   const skillSettingsStore = await initSkillSettingsStore();
   const auditStore = createAuditStore();

@@ -76,7 +76,7 @@ async function main() {
   const chatHistory = await initChatHistory();
   const attachmentStore = await initAttachmentStore(ATTACHMENTS_DATA_DIR);
   const attachmentService = createAttachmentService(attachmentStore);
-  const context = createContext(chatHistory);
+  const context = await createContext(chatHistory);
   const chatService = createChatService(
     chatHistory,
     attachmentService,
