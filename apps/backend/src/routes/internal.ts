@@ -86,21 +86,21 @@ async function checkEventQueueWorker(): Promise<ServiceStatus> {
 
 export function registerInternalRoutes(app: Express, _ctx: AppContext): void {
   app.get("/health", async (_req: Request, res: Response) => {
-    const [redis, chroma, eventQueue] = await Promise.all([
+    const [valkey, chroma, eventQueue] = await Promise.all([
       checkRedis(),
       checkChroma(),
       checkEventQueueWorker(),
     ]);
 
     const allOk =
-      redis.status === "ok" &&
+      valkey.status === "ok" &&
       chroma.status === "ok" &&
       eventQueue.status === "ok";
 
     res.status(allOk ? 200 : 503).json({
       status: allOk ? "ok" : "degraded",
       killSwitch: getKillSwitchEnabled(),
-      services: { redis, chroma, eventQueue },
+      services: { valkey, chroma, eventQueue },
     });
   });
 }

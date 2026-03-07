@@ -569,9 +569,9 @@ paths:
                     type: boolean
                   services:
                     type: object
-                    required: [redis, chroma, eventQueue]
+                    required: [valkey, chroma, eventQueue]
                     properties:
-                      redis:
+                      valkey:
                         $ref: "#/components/schemas/ServiceStatus"
                       chroma:
                         $ref: "#/components/schemas/ServiceStatus"
@@ -592,9 +592,9 @@ paths:
                     type: boolean
                   services:
                     type: object
-                    required: [redis, chroma, eventQueue]
+                    required: [valkey, chroma, eventQueue]
                     properties:
-                      redis:
+                      valkey:
                         $ref: "#/components/schemas/ServiceStatus"
                       chroma:
                         $ref: "#/components/schemas/ServiceStatus"
