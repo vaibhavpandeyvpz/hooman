@@ -244,6 +244,39 @@ export async function setToolApproval(allowEverything: boolean): Promise<{
   return res.json();
 }
 
+/** Tools that have "allow every time" set (user approved them to skip future prompts). */
+export interface AllowEveryTimeTool {
+  toolId: string;
+  name: string;
+  connectionName?: string;
+}
+
+export async function getAllowEveryTimeTools(): Promise<{
+  tools: AllowEveryTimeTool[];
+}> {
+  const res = await authFetch(
+    `${BASE}/api/safety/tool-approval/allow-every-time`,
+  );
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+/** Reset "allow every time" for given tool IDs, or all if toolIds omitted/empty. */
+export async function resetAllowEveryTime(
+  toolIds?: string[],
+): Promise<{ reset: number }> {
+  const res = await authFetch(
+    `${BASE}/api/safety/tool-approval/allow-every-time/reset`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(toolIds != null ? { toolIds } : {}),
+    },
+  );
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
 /** Channel list and config (secrets masked). */
 export interface ChannelEntry {
   id: string;

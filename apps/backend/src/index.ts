@@ -29,7 +29,7 @@ import { initSkillSettingsStore } from "./capabilities/skills/skills-settings-st
 import { createMcpService } from "./capabilities/mcp/mcp-service.js";
 import { createToolSettingsStore } from "./capabilities/mcp/tool-settings-store.js";
 import { createChannelService } from "./channels/channel-service.js";
-import { createSubscriber } from "./utils/pubsub.js";
+import { createSubscriber, publish } from "./utils/pubsub.js";
 import { createEventQueue } from "./events/event-queue.js";
 import { enqueueRaw } from "./events/enqueue.js";
 import { initRedis } from "./data/redis.js";
@@ -193,6 +193,7 @@ async function main() {
     io.emit("mcp-tools-reloaded");
   });
 
+  const RUNNER_CACHE_INVALIDATE_CHANNEL = "hooman:runner-cache-invalidate";
   registerRoutes(app, {
     enqueue,
     chatService,
@@ -208,6 +209,7 @@ async function main() {
     mcpService: createMcpService(mcpConnectionsStore),
     toolSettingsStore,
     channelService: createChannelService(),
+    invalidateRunnerCache: () => publish(RUNNER_CACHE_INVALIDATE_CHANNEL, ""),
   });
 
   const PORT = getConfig().PORT;

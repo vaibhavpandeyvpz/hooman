@@ -1,11 +1,10 @@
 import { useState, useEffect, forwardRef, useImperativeHandle } from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { Pencil, Plus, Trash2 } from "lucide-react";
 import { useDialog } from "./Dialog";
 import { Button } from "./Button";
 import { Input } from "./Input";
 import { Modal } from "./Modal";
 import { Checkbox } from "./Checkbox";
-import { Switch } from "./Switch";
 import { Select } from "./Select";
 import type {
   MCPConnection,
@@ -894,16 +893,16 @@ export const McpConnections = forwardRef<
                 )}
             </div>
             <div className="flex gap-2 shrink-0 items-center flex-wrap">
-              <Switch
-                id={`conn-enabled-${c.id}`}
-                label="Enabled"
-                checked={c.enabled !== false}
-                onChange={async (checked) => {
+              <Button
+                type="button"
+                variant={c.enabled !== false ? "success" : "danger"}
+                size="sm"
+                onClick={async () => {
                   setError(null);
                   try {
                     await updateMCPConnection(c.id, {
                       ...c,
-                      enabled: checked,
+                      enabled: c.enabled === false,
                     });
                     load();
                     await onConnectionsChange?.();
@@ -911,7 +910,17 @@ export const McpConnections = forwardRef<
                     setError((e as Error).message);
                   }
                 }}
-              />
+              >
+                {c.enabled !== false ? "On" : "Off"}
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                icon={<Pencil className="w-4 h-4" />}
+                onClick={() => startEdit(c)}
+              >
+                Edit
+              </Button>
               {(c.type === "hosted" || c.type === "streamable_http") &&
                 (c as MCPConnectionHosted | MCPConnectionStreamableHttp)
                   .oauth && (
@@ -940,14 +949,11 @@ export const McpConnections = forwardRef<
                   </Button>
                 )}
               <Button
-                variant="ghost"
+                variant="danger"
                 size="sm"
-                onClick={() => startEdit(c)}
-                className="text-hooman-accent"
+                icon={<Trash2 className="w-4 h-4" />}
+                onClick={() => remove(c.id)}
               >
-                Edit
-              </Button>
-              <Button variant="danger" size="sm" onClick={() => remove(c.id)}>
                 Remove
               </Button>
             </div>

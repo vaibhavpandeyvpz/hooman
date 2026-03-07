@@ -1,10 +1,14 @@
 import { useState, useEffect } from "react";
 import createDebug from "debug";
+import { RotateCcw, Trash2 } from "lucide-react";
 import {
   getKillSwitch,
   setKillSwitch,
   getToolApproval,
   setToolApproval,
+  getAllowEveryTimeTools,
+  resetAllowEveryTime,
+  type AllowEveryTimeTool,
 } from "../api";
 import { PageHeader } from "./PageHeader";
 
@@ -13,15 +17,26 @@ const debug = createDebug("hooman:Safety");
 export function Safety() {
   const [killSwitch, setKillSwitchState] = useState(false);
   const [allowEverything, setAllowEverythingState] = useState(false);
+  const [allowEveryTimeTools, setAllowEveryTimeTools] = useState<
+    AllowEveryTimeTool[]
+  >([]);
   const [loading, setLoading] = useState(true);
+  const [resetting, setResetting] = useState<string | "all" | null>(null);
+
+  function loadSafety() {
+    return Promise.all([
+      getKillSwitch(),
+      getToolApproval(),
+      getAllowEveryTimeTools(),
+    ]).then(([kill, approval, tools]) => {
+      setKillSwitchState(kill.enabled);
+      setAllowEverythingState(approval.allowEverything);
+      setAllowEveryTimeTools(tools.tools ?? []);
+    });
+  }
 
   useEffect(() => {
-    Promise.all([getKillSwitch(), getToolApproval()])
-      .then(([kill, approval]) => {
-        setKillSwitchState(kill.enabled);
-        setAllowEverythingState(approval.allowEverything);
-      })
-      .finally(() => setLoading(false));
+    loadSafety().finally(() => setLoading(false));
   }, []);
 
   async function toggleKillSwitch() {
@@ -95,6 +110,91 @@ export function Safety() {
                 ? "Allow everything — click to require approval"
                 : "Require approval — click to allow everything"}
             </button>
+          )}
+        </div>
+
+        <div className="rounded-xl border border-hooman-border bg-hooman-surface p-4">
+          <h3 className="font-medium text-white mb-2">
+            Tools allowed every time
+          </h3>
+          <p className="text-sm text-hooman-muted mb-4">
+            Tools you approved with &ldquo;Allow every time&rdquo; skip the
+            approval prompt. Reset them to require approval again.
+          </p>
+          {loading ? (
+            <p className="text-hooman-muted text-sm">Loading…</p>
+          ) : allowEveryTimeTools.length === 0 ? (
+            <p className="text-hooman-muted text-sm italic py-2">
+              No tools are set to allow every time.
+            </p>
+          ) : (
+            <div className="space-y-4">
+              <ul className="space-y-2">
+                {allowEveryTimeTools.map((t) => (
+                  <li
+                    key={t.toolId}
+                    className="flex items-center justify-between gap-3 rounded-lg border border-hooman-border/50 bg-hooman-border/10 px-4 py-3 transition-colors hover:border-hooman-border"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <span className="block truncate font-mono text-sm font-medium text-zinc-200">
+                        {t.name}
+                      </span>
+                      {t.connectionName && (
+                        <span className="mt-1 inline-block rounded-md bg-hooman-border/30 px-1.5 py-0.5 text-xs text-hooman-muted">
+                          {t.connectionName}
+                        </span>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      disabled={resetting !== null}
+                      onClick={async () => {
+                        setResetting(t.toolId);
+                        try {
+                          await resetAllowEveryTime([t.toolId]);
+                          await loadSafety();
+                        } catch (e) {
+                          debug("%o", e);
+                        } finally {
+                          setResetting(null);
+                        }
+                      }}
+                      className="shrink-0 inline-flex items-center gap-1.5 rounded-md border border-red-500/30 bg-red-500/10 px-2.5 py-1.5 text-xs font-medium text-red-300 transition-colors hover:border-red-500/50 hover:bg-red-500/20 disabled:opacity-50 disabled:hover:bg-red-500/10"
+                    >
+                      {resetting === t.toolId ? (
+                        <RotateCcw className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Trash2 className="h-3.5 w-3.5" />
+                      )}
+                      Reset
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              <div className="pt-1 border-t border-hooman-border/50">
+                <button
+                  type="button"
+                  disabled={resetting !== null}
+                  onClick={async () => {
+                    setResetting("all");
+                    try {
+                      await resetAllowEveryTime();
+                      await loadSafety();
+                    } catch (e) {
+                      debug("%o", e);
+                    } finally {
+                      setResetting(null);
+                    }
+                  }}
+                  className="inline-flex items-center gap-2 rounded-lg border border-hooman-border bg-hooman-border/20 px-3 py-2 text-sm font-medium text-zinc-300 transition-colors hover:border-hooman-border hover:bg-hooman-border/30 hover:text-white disabled:opacity-50 disabled:hover:bg-hooman-border/20"
+                >
+                  <RotateCcw
+                    className={`h-4 w-4 shrink-0 ${resetting === "all" ? "animate-spin" : ""}`}
+                  />
+                  Reset all
+                </button>
+              </div>
+            </div>
           )}
         </div>
       </div>

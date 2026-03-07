@@ -17,7 +17,7 @@ import {
 } from "../agents/tool-approval.js";
 import { getRealtimeClientSecret } from "../chats/realtime-service.js";
 
-export function registerSettingsRoutes(app: Express, _ctx: AppContext): void {
+export function registerSettingsRoutes(app: Express, ctx: AppContext): void {
   app.get("/api/config", (_req: Request, res: Response) => {
     const c = getConfig();
     res.json({
@@ -145,8 +145,63 @@ export function registerSettingsRoutes(app: Express, _ctx: AppContext): void {
   app.patch("/api/safety/tool-approval", (req: Request, res: Response) => {
     const allowEverything = Boolean(req.body?.allowEverything);
     setToolApprovalAllowEverything(allowEverything);
+    ctx.invalidateRunnerCache?.();
     res.json({
       allowEverything: getToolApprovalAllowEverything(),
     });
   });
+
+  app.get(
+    "/api/safety/tool-approval/allow-every-time",
+    async (_req: Request, res: Response) => {
+      const { toolSettingsStore, discoveredToolsStore } = ctx;
+      try {
+        const [allowIds, allTools] = await Promise.all([
+          toolSettingsStore.getAllowEveryTimeToolIds(),
+          discoveredToolsStore.getAll(),
+        ]);
+        const byId = new Map(allTools.map((t) => [t.id, t]));
+        const tools = Array.from(allowIds)
+          .map((toolId) => {
+            const t = byId.get(toolId);
+            return {
+              toolId,
+              name: t?.name ?? toolId,
+              connectionName: t?.connectionName,
+            };
+          })
+          .sort(
+            (a, b) =>
+              (a.connectionName ?? "").localeCompare(b.connectionName ?? "") ||
+              a.name.localeCompare(b.name),
+          );
+        res.json({ tools });
+      } catch (err) {
+        res.status(500).json({ error: (err as Error).message });
+      }
+    },
+  );
+
+  app.post(
+    "/api/safety/tool-approval/allow-every-time/reset",
+    async (req: Request, res: Response) => {
+      const { toolSettingsStore } = ctx;
+      const body = (req.body ?? {}) as { toolIds?: string[] };
+      let ids: string[];
+      if (Array.isArray(body.toolIds) && body.toolIds.length > 0) {
+        ids = body.toolIds.filter((id) => typeof id === "string");
+      } else {
+        ids = Array.from(await toolSettingsStore.getAllowEveryTimeToolIds());
+      }
+      try {
+        for (const toolId of ids) {
+          await toolSettingsStore.setAllowEveryTime(toolId, false);
+        }
+        ctx.invalidateRunnerCache?.();
+        res.json({ reset: ids.length });
+      } catch (err) {
+        res.status(500).json({ error: (err as Error).message });
+      }
+    },
+  );
 }

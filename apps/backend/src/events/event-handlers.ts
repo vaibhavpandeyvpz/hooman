@@ -58,6 +58,8 @@ export interface EventHandlerDeps {
   getRunner: () => Promise<HoomanRunner>;
   /** Per-tool settings (disabled, allow-every-time). Used when user replies "always" to approval prompt. */
   toolSettingsStore?: ToolSettingsStore;
+  /** Called when allow-every-time is set; invalidates runner cache so next run picks up new settings. */
+  invalidateRunnerCache?: () => void;
 }
 
 /** Build approval request message with formatting appropriate for the channel (fallback when LLM is not used). */
@@ -287,6 +289,7 @@ export function registerEventHandlers(deps: EventHandlerDeps): void {
           const toolId =
             (consumed as { toolId?: string }).toolId ?? consumed.toolName;
           await toolSettingsStore.setAllowEveryTime(toolId, true);
+          deps.invalidateRunnerCache?.();
           await auditLog.appendAuditEntry({
             type: "approval_allow_every_time",
             payload: { userId, toolId, toolName: consumed.toolName },

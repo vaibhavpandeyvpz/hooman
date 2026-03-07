@@ -153,6 +153,12 @@ async function main() {
       },
     );
     mcpReloadSub.subscribe("hooman:mcp-reload:request", handler);
+    mcpReloadSub.subscribe("hooman:runner-cache-invalidate", () => {
+      runnerCache = null;
+      debug(
+        "Runner cache invalidated (e.g. Safety page reset allow-every-time)",
+      );
+    });
     debug("Subscribed to hooman:mcp-reload:request for MCP reload RPC");
   }
 
@@ -166,6 +172,9 @@ async function main() {
     },
     getRunner,
     toolSettingsStore,
+    invalidateRunnerCache: () => {
+      runnerCache = null;
+    },
   });
 
   const eventQueue = createEventQueue({ connection: env.REDIS_URL });

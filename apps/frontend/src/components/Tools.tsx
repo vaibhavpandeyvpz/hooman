@@ -242,25 +242,16 @@ export const Tools = forwardRef<ToolsHandle, object>(
                                   </span>
                                 )}
                                 <div className="ml-auto flex items-center gap-2">
-                                  <span
-                                    className={`text-xs ${
-                                      enabled
-                                        ? "text-hooman-muted"
-                                        : "text-hooman-muted/70"
-                                    }`}
-                                  >
-                                    {enabled ? "On" : "Off"}
-                                  </span>
                                   <button
                                     type="button"
                                     disabled={isToggling}
                                     onClick={() =>
                                       setToolEnabled(tool.id, !enabled)
                                     }
-                                    className={`rounded-lg px-2.5 py-1 text-xs font-medium transition-colors ${
+                                    className={`rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors ${
                                       enabled
-                                        ? "bg-hooman-border/50 text-hooman-muted hover:bg-hooman-border"
-                                        : "bg-hooman-accent/20 text-hooman-accent hover:bg-hooman-accent/30"
+                                        ? "border-hooman-red/40 bg-hooman-surface text-hooman-red hover:bg-hooman-red/10"
+                                        : "border-hooman-green/40 bg-hooman-surface text-hooman-green hover:bg-hooman-green/10"
                                     } ${isToggling ? "opacity-50" : ""}`}
                                   >
                                     {isToggling

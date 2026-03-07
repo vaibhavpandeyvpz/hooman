@@ -34,6 +34,8 @@ export interface AppContext {
   mcpService: McpService;
   toolSettingsStore: ToolSettingsStore;
   channelService: ChannelService;
+  /** Notify event-queue to clear runner cache (e.g. after Safety page reset allow-every-time). No-op if Redis unavailable. */
+  invalidateRunnerCache?: () => void;
 }
 
 export function getParam(req: Request, key: string): string {
