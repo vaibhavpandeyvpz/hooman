@@ -620,6 +620,63 @@ export async function handleWhatsAppMcpRequest(
       ).sendStateTyping();
       return { ok: true };
     }
+    case "create_group": {
+      const title = typeof params.title === "string" ? params.title : "";
+      if (!title.trim()) throw new Error("title is required");
+      const raw = params.participantIds;
+      const participantIds = Array.isArray(raw)
+        ? raw.map((id) => String(id)).filter(Boolean)
+        : [];
+      const result = await (
+        c as {
+          createGroup: (
+            title: string,
+            participants: string[],
+            options?: unknown,
+          ) => Promise<{
+            title: string;
+            gid: { _serialized?: string };
+            participants?: unknown;
+          }>;
+        }
+      ).createGroup(title.trim(), participantIds);
+      const out =
+        result && typeof result === "object" && result.gid
+          ? {
+              id: serializedChatId(result.gid),
+              title: result.title ?? title,
+            }
+          : { id: String(result), title: title.trim() };
+      return out;
+    }
+    case "get_common_groups": {
+      const contactId =
+        typeof params.contactId === "string" ? params.contactId : "";
+      if (!contactId) throw new Error("contactId is required");
+      const groups = await (
+        c as { getCommonGroups: (contactId: string) => Promise<unknown[]> }
+      ).getCommonGroups(contactId);
+      const ids = Array.isArray(groups)
+        ? groups.map((g) => serializedChatId(g))
+        : [];
+      return { groupIds: ids };
+    }
+    case "get_profile_pic_url": {
+      const contactId =
+        typeof params.contactId === "string" ? params.contactId : "";
+      if (!contactId) throw new Error("contactId is required");
+      const url = await (
+        c as { getProfilePicUrl: (contactId: string) => Promise<string> }
+      ).getProfilePicUrl(contactId);
+      return { url: url || null };
+    }
+    case "set_status": {
+      const status = typeof params.status === "string" ? params.status : "";
+      await (c as { setStatus: (status: string) => Promise<void> }).setStatus(
+        status,
+      );
+      return { ok: true };
+    }
     default:
       throw new Error(`Unknown WhatsApp MCP method: ${method}`);
   }
