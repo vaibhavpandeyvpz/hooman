@@ -109,6 +109,24 @@ export function getDefaultMcpConnections(): MCPConnectionStdio[] {
 export function getChannelDefaultMcpConnections(): MCPConnectionStdio[] {
   const channels = getChannelsConfig();
   const out: MCPConnectionStdio[] = [];
+
+  if (channels.slack?.enabled) {
+    const token = channels.slack.userToken.trim();
+    const isUser =
+      channels.slack.connectAs === "user" || token.startsWith("xoxp-");
+    out.push({
+      id: "_default_slack",
+      type: "stdio",
+      name: "slack",
+      command: "npx",
+      args: ["-y", "slack-mcp-server", "--transport", "stdio"],
+      cwd: DEFAULT_MCP_CWD,
+      env: isUser
+        ? { SLACK_MCP_XOXP_TOKEN: token }
+        : { SLACK_MCP_XOXB_TOKEN: token },
+    });
+  }
+
   if (channels.whatsapp?.enabled) {
     out.push({
       id: "_default_whatsapp",
