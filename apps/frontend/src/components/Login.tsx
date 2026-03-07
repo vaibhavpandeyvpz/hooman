@@ -21,7 +21,7 @@ export function Login() {
       const { token } = await login(username.trim(), password);
       setToken(token);
       resetSocket();
-      navigate("/", { replace: true });
+      navigate("/chat", { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Login failed");
     } finally {

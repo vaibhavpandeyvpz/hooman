@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Routes, Route, Navigate, Outlet } from "react-router-dom";
+import { getToken } from "./auth";
 import { Chat } from "./components/Chat";
 import { Channels } from "./components/Channels";
 import { Sidebar } from "./components/Sidebar";
@@ -9,6 +10,10 @@ import { Safety } from "./components/Safety";
 import { Capabilities } from "./components/Capabilities";
 import { Settings } from "./components/Settings";
 import { Login } from "./components/Login";
+
+function RedirectToChatOrLogin() {
+  return <Navigate to={getToken() ? "/chat" : "/login"} replace />;
+}
 
 function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -34,17 +39,17 @@ function Layout() {
 export default function App() {
   return (
     <Routes>
+      <Route path="/" element={<RedirectToChatOrLogin />} />
       <Route path="login" element={<Login />} />
       <Route element={<Layout />}>
-        <Route index element={<Chat />} />
-        <Route path="chat" element={<Navigate to="/" replace />} />
+        <Route path="chat" element={<Chat />} />
         <Route path="channels" element={<Channels />} />
         <Route path="schedule" element={<Schedule />} />
         <Route path="audit" element={<Audit />} />
         <Route path="safety" element={<Safety />} />
         <Route path="capabilities" element={<Capabilities />} />
         <Route path="settings" element={<Settings />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="*" element={<Navigate to="/chat" replace />} />
       </Route>
     </Routes>
   );

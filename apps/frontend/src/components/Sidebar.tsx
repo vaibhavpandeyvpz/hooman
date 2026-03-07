@@ -23,7 +23,7 @@ interface SidebarProps {
 }
 
 const nav: { id: View; label: string; path: string; Icon: LucideIcon }[] = [
-  { id: "chat", label: "Chat", path: "/", Icon: MessageCircle },
+  { id: "chat", label: "Chat", path: "/chat", Icon: MessageCircle },
   { id: "channels", label: "Channels", path: "/channels", Icon: Radio },
   { id: "schedule", label: "Schedule", path: "/schedule", Icon: Clock },
   { id: "audit", label: "Audit log", path: "/audit", Icon: ClipboardList },
@@ -103,7 +103,7 @@ export function Sidebar({ open = true, onClose }: SidebarProps) {
             <NavLink
               key={item.id}
               to={item.path}
-              end={item.path === "/"}
+              end={item.path === "/chat"}
               onClick={onClose}
               className={({ isActive }) =>
                 `w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left text-sm font-medium transition-all duration-200 ${
