@@ -4,6 +4,7 @@ import {
   saveConfig,
   type AppConfig,
   type LLMProviderId,
+  type ToolApprovalModeId,
   type TranscriptionProviderId,
 } from "../api";
 
@@ -91,6 +92,7 @@ export function Settings() {
         COMPLETIONS_API_KEY: form.COMPLETIONS_API_KEY,
         MAX_INPUT_TOKENS: form.MAX_INPUT_TOKENS,
         CHAT_TIMEOUT_MS: form.CHAT_TIMEOUT_MS,
+        TOOL_APPROVAL_MODE: form.TOOL_APPROVAL_MODE,
       });
       setForm({ ...updated });
       setMessage({
@@ -870,6 +872,33 @@ export function Settings() {
                 </div>
               </div>
             )}
+          </div>
+
+          <div className="pt-4 border-t border-hooman-border">
+            <h3 className="text-sm font-medium text-zinc-300 mb-2">
+              Tool approval
+            </h3>
+            <p className="text-xs text-hooman-muted mb-3">
+              How approval prompts and replies are formatted and understood.
+            </p>
+            <div>
+              <Select<ToolApprovalModeId>
+                label="Approval prompts"
+                value={form.TOOL_APPROVAL_MODE ?? "llm"}
+                options={[
+                  { value: "llm", label: "LLM" },
+                  { value: "static", label: "Static" },
+                ]}
+                onChange={(value) =>
+                  setForm((f) => (f ? { ...f, TOOL_APPROVAL_MODE: value } : f))
+                }
+              />
+              <p className="text-xs text-hooman-muted mt-1">
+                LLM: format the approval message and parse the user reply with
+                the chat model (channel-aware, natural language). Static: fixed
+                template and regex (y/yes, n/no, always).
+              </p>
+            </div>
           </div>
 
           <div className="pt-4 border-t border-hooman-border">

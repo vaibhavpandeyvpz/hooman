@@ -1,17 +1,24 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { Input } from "./Input";
 import { FilterModeField } from "./FilterModeField";
+import type { FilterListSelectOption, FilterListTab } from "./FilterListSelect";
 
-export function WhatsAppConfigForm({
-  id,
-  config,
-  onSave,
-}: {
+export interface WhatsAppConfigFormProps {
   id: string;
   config: Record<string, unknown>;
   onSave: (c: Record<string, unknown>) => void;
   saving: boolean;
-}) {
+  fetchFilterOptions?: () => Promise<FilterListSelectOption[]>;
+  fetchFilterTabs?: () => Promise<FilterListTab[]>;
+}
+
+export const WhatsAppConfigForm: React.FC<WhatsAppConfigFormProps> = ({
+  id,
+  config,
+  onSave,
+  fetchFilterOptions,
+  fetchFilterTabs,
+}) => {
   const [sessionPath, setSessionPath] = useState(
     String(config.sessionPath ?? ""),
   );
@@ -53,8 +60,11 @@ export function WhatsAppConfigForm({
         setFilterMode={setFilterMode}
         filterList={filterList}
         setFilterList={setFilterList}
-        filterListLabel="Filter list (numbers/group IDs, comma-separated)"
+        filterListLabel="Filter list (chat IDs, comma-separated)"
+        filterListPlaceholder="Search and select chats, groups…"
+        fetchFilterOptions={fetchFilterOptions}
+        fetchFilterTabs={fetchFilterTabs}
       />
     </form>
   );
-}
+};

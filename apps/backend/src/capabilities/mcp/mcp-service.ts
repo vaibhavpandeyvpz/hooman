@@ -19,6 +19,88 @@ import { filterToolNames } from "../../utils/tool-filter.js";
 const debug = createDebug("hooman:mcp-service");
 const DEFAULT_MCP_CWD = env.MCP_STDIO_DEFAULT_CWD;
 
+/** Wraps a stdio transport to log open/close events. */
+function wrapStdioTransportWithLogging(
+  inner: InstanceType<typeof Experimental_StdioMCPTransport>,
+  id: string,
+) {
+  return {
+    async start() {
+      await inner.start();
+      debug("MCP server opened: %s", id);
+    },
+    async close() {
+      return inner.close();
+    },
+    async send(message: Parameters<typeof inner.send>[0]) {
+      return inner.send(message);
+    },
+    get onmessage() {
+      return inner.onmessage;
+    },
+    set onmessage(fn: typeof inner.onmessage) {
+      inner.onmessage = fn;
+    },
+    get onerror() {
+      return inner.onerror;
+    },
+    set onerror(fn: typeof inner.onerror) {
+      inner.onerror = fn;
+    },
+    get onclose() {
+      return inner.onclose;
+    },
+    set onclose(fn: (() => void) | undefined) {
+      inner.onclose = () => {
+        debug("MCP server closed: %s", id);
+        fn?.();
+      };
+    },
+  };
+}
+
+/**
+ * Converts MCP CallToolResult ({ content: [...] }) to AI SDK ToolResultOutput format.
+ * Used when resuming after approval to build the thread for generateText.
+ */
+export function mcpResultToToolResultOutput(result: unknown): {
+  type: "text" | "json" | "content";
+  value: unknown;
+} {
+  const r = result as {
+    content?: Array<{
+      type?: string;
+      text?: string;
+      data?: string;
+      mimeType?: string;
+    }>;
+  };
+  if (r?.content && Array.isArray(r.content)) {
+    const value = r.content.map(
+      (part: {
+        type?: string;
+        text?: string;
+        data?: string;
+        mimeType?: string;
+      }) => {
+        if (part.type === "text" && typeof part.text === "string") {
+          return { type: "text" as const, text: part.text };
+        }
+        if (part.type === "image" && part.data && part.mimeType) {
+          return {
+            type: "image-data" as const,
+            data: part.data,
+            mediaType: part.mimeType,
+          };
+        }
+        return { type: "text" as const, text: JSON.stringify(part) };
+      },
+    );
+    return { type: "content", value };
+  }
+  return { type: "json", value: result };
+}
+
 export type McpClientEntry = {
   client: Awaited<ReturnType<typeof createMCPClient>>;
   id: string;
@@ -47,12 +129,13 @@ export async function createMcpClients(
           stdio.command,
           stdio.args,
         );
-        const transport = new Experimental_StdioMCPTransport({
+        const inner = new Experimental_StdioMCPTransport({
           command: stdio.command,
           args: hasArgs ? stdio.args : [],
           env: stdio.env,
           cwd: stdio.cwd?.trim() || DEFAULT_MCP_CWD,
         });
+        const transport = wrapStdioTransportWithLogging(inner, c.id);
         const client = await createMCPClient({ transport });
         debug("Connected to %s", c.id);
         clients.push({ client, id: c.id });

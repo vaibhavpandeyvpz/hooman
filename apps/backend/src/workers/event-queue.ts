@@ -21,10 +21,16 @@ import { createAuditStore } from "../audit/audit-store.js";
 import { initRedis, closeRedis } from "../data/redis.js";
 import { initKillSwitch, closeKillSwitch } from "../agents/kill-switch.js";
 import {
+  initToolApproval,
+  closeToolApproval,
+  getToolApprovalAllowEverything,
+} from "../agents/tool-approval.js";
+import {
   createHoomanRunner,
   type HoomanRunner,
 } from "../agents/hooman-runner.js";
 import { McpManager } from "../capabilities/mcp/manager.js";
+import { createToolSettingsStore } from "../capabilities/mcp/tool-settings-store.js";
 import {
   publish,
   createSubscriber,
@@ -50,9 +56,10 @@ async function main() {
   await initDb();
   initRedis(env.REDIS_URL);
   initKillSwitch(env.REDIS_URL);
+  initToolApproval(env.REDIS_URL);
 
   const chatHistory = await initChatHistory();
-  const context = createContext(chatHistory);
+  const context = await createContext(chatHistory);
   const mcpConnectionsStore = await initMCPConnectionsStore();
   const skillSettingsStore = await initSkillSettingsStore();
   const auditStore = createAuditStore();
@@ -67,15 +74,60 @@ async function main() {
     closeTimeoutMs: env.MCP_CLOSE_TIMEOUT_MS,
     discoveredToolsStore,
   });
+  const toolSettingsStore = createToolSettingsStore();
   debug("MCP manager enabled");
+
+  /** Same prefix logic as mcp-service clientsToTools (shortId_safeName, max 64 chars). */
+  function prefixedNameForTool(connectionId: string, name: string): string {
+    const shortConnIdLen = 8;
+    const maxToolNameLen = 64;
+    const shortId = connectionId.replace(/-/g, "").slice(0, shortConnIdLen);
+    const maxNameLen = maxToolNameLen - shortId.length - 1;
+    const safeName =
+      name.length <= maxNameLen ? name : name.slice(0, maxNameLen);
+    return `${shortId}_${safeName}`;
+  }
 
   let runnerCache: HoomanRunner | null = null;
   const skillService = createSkillService(skillSettingsStore);
   const getRunner = async (): Promise<HoomanRunner> => {
     if (runnerCache) return runnerCache;
-    const { agentTools } = await mcpManager.tools();
+    const { agentTools, tools } = await mcpManager.tools();
+    const [disabledSet, allowEveryTimeSet] = await Promise.all([
+      toolSettingsStore.getDisabledToolIds(),
+      toolSettingsStore.getAllowEveryTimeToolIds(),
+    ]);
+    const allowEverything = getToolApprovalAllowEverything();
+
+    const prefixedNameToToolId = new Map<string, string>();
+    for (const t of tools) {
+      prefixedNameToToolId.set(
+        prefixedNameForTool(t.connectionId, t.name),
+        t.id,
+      );
+    }
+
+    const filteredAgentTools: Record<string, unknown> = {};
+    for (const [prefixedName, tool] of Object.entries(agentTools)) {
+      const toolId = prefixedNameToToolId.get(prefixedName);
+      if (toolId != null && disabledSet.has(toolId)) continue;
+      filteredAgentTools[prefixedName] = tool;
+    }
+
+    const toolsThatNeedApproval = new Set<string>();
+    if (!allowEverything) {
+      for (const prefixedName of Object.keys(filteredAgentTools)) {
+        const toolId = prefixedNameToToolId.get(prefixedName);
+        if (toolId != null && !allowEveryTimeSet.has(toolId)) {
+          toolsThatNeedApproval.add(prefixedName);
+        }
+      }
+    }
+
     runnerCache = await createHoomanRunner({
-      agentTools,
+      agentTools: filteredAgentTools,
+      toolsThatNeedApproval,
+      prefixedNameToToolId,
       auditLog,
       skillService,
     });
@@ -93,14 +145,20 @@ async function main() {
       async () => {
         debug("MCP reload RPC received; re-reading config");
         await loadPersisted();
-        await mcpManager.shutdown();
-        await mcpManager.tools();
+        mcpManager.clearCache();
         runnerCache = null;
+        await mcpManager.tools();
         debug("MCP manager reloaded via RPC");
         return { ok: true };
       },
     );
     mcpReloadSub.subscribe("hooman:mcp-reload:request", handler);
+    mcpReloadSub.subscribe("hooman:runner-cache-invalidate", () => {
+      runnerCache = null;
+      debug(
+        "Runner cache invalidated (e.g. Safety page reset allow-every-time)",
+      );
+    });
     debug("Subscribed to hooman:mcp-reload:request for MCP reload RPC");
   }
 
@@ -113,6 +171,10 @@ async function main() {
       publish(RESPONSE_DELIVERY_CHANNEL, JSON.stringify(payload));
     },
     getRunner,
+    toolSettingsStore,
+    invalidateRunnerCache: () => {
+      runnerCache = null;
+    },
   });
 
   const eventQueue = createEventQueue({ connection: env.REDIS_URL });
@@ -134,6 +196,7 @@ async function main() {
     debug("Shutting down event-queue worker\u2026");
     if (mcpReloadSub) await mcpReloadSub.close();
     await closeKillSwitch();
+    await closeToolApproval();
     await eventQueue.close();
     await mcpManager?.shutdown();
     await closeRedis();

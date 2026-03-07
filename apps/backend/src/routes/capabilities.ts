@@ -16,16 +16,55 @@ function escapeHtml(s: string): string {
 }
 
 export function registerCapabilityRoutes(app: Express, ctx: AppContext): void {
-  const { mcpService, discoveredToolsStore } = ctx;
+  const { mcpService, discoveredToolsStore, toolSettingsStore } = ctx;
 
   app.get(
     "/api/capabilities/mcp/tools",
     async (_req: Request, res: Response) => {
       try {
         const tools = await discoveredToolsStore.getAll();
-        res.json({ tools });
+        const toolIds = tools.map((t) => t.id);
+        const settings = await toolSettingsStore.getSettingsForToolIds(toolIds);
+        const enriched = tools.map((t) => {
+          const s = settings.get(t.id);
+          return {
+            ...t,
+            enabled: !s?.disabled,
+            allowEveryTime: s?.allowEveryTime ?? false,
+          };
+        });
+        res.json({ tools: enriched });
       } catch (err) {
         debug("list tools error: %o", err);
+        res.status(500).json({ error: (err as Error).message });
+      }
+    },
+  );
+
+  app.patch(
+    "/api/capabilities/mcp/tools/:id",
+    async (req: Request, res: Response) => {
+      const id =
+        typeof req.params.id === "string"
+          ? req.params.id.trim()
+          : (req.params.id?.[0] ?? "").trim();
+      if (!id) {
+        res.status(400).json({ error: "Missing tool id." });
+        return;
+      }
+      const enabled =
+        typeof req.body?.enabled === "boolean" ? req.body.enabled : undefined;
+      if (enabled === undefined) {
+        res
+          .status(400)
+          .json({ error: "Missing or invalid 'enabled' boolean." });
+        return;
+      }
+      try {
+        await toolSettingsStore.setDisabled(id, !enabled);
+        res.status(204).send();
+      } catch (err) {
+        debug("tool setDisabled error: %o", err);
         res.status(500).json({ error: (err as Error).message });
       }
     },

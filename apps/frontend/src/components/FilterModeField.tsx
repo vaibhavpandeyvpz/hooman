@@ -1,5 +1,7 @@
 import { Select } from "./Select";
 import { Input } from "./Input";
+import { FilterListSelect } from "./FilterListSelect";
+import type { FilterListSelectOption, FilterListTab } from "./FilterListSelect";
 
 export function FilterModeField({
   filterMode,
@@ -10,6 +12,10 @@ export function FilterModeField({
   filterListLabel = "Filter list (comma-separated)",
   filterListPlaceholder = "",
   options,
+  /** When set and filter mode is not "all", show multi-select with autocomplete instead of plain input. */
+  fetchFilterOptions,
+  /** When set, show tabs (e.g. Users, Groups, Channels). Takes precedence over fetchFilterOptions. */
+  fetchFilterTabs,
 }: {
   filterMode: string;
   setFilterMode: (v: string) => void;
@@ -19,6 +25,8 @@ export function FilterModeField({
   filterListLabel?: string;
   filterListPlaceholder?: string;
   options?: { value: string; label: string }[];
+  fetchFilterOptions?: () => Promise<FilterListSelectOption[]>;
+  fetchFilterTabs?: () => Promise<FilterListTab[]>;
 }) {
   return (
     <>
@@ -34,14 +42,31 @@ export function FilterModeField({
           ]
         }
       />
-      {filterMode !== "all" && (
-        <Input
-          label={filterListLabel}
-          placeholder={filterListPlaceholder}
-          value={filterList}
-          onChange={(e) => setFilterList(e.target.value)}
-        />
-      )}
+      {filterMode !== "all" &&
+        (fetchFilterTabs ? (
+          <FilterListSelect
+            label={filterListLabel}
+            value={filterList}
+            onChange={setFilterList}
+            fetchTabs={fetchFilterTabs}
+            placeholder={filterListPlaceholder}
+          />
+        ) : fetchFilterOptions ? (
+          <FilterListSelect
+            label={filterListLabel}
+            value={filterList}
+            onChange={setFilterList}
+            fetchOptions={fetchFilterOptions}
+            placeholder={filterListPlaceholder}
+          />
+        ) : (
+          <Input
+            label={filterListLabel}
+            placeholder={filterListPlaceholder}
+            value={filterList}
+            onChange={(e) => setFilterList(e.target.value)}
+          />
+        ))}
     </>
   );
 }

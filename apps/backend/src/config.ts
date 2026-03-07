@@ -78,7 +78,16 @@ export interface PersistedConfig {
   MAX_TURNS?: number;
   /** Chat timeout in milliseconds. After this, user gets a timeout message. 0 or unset = 300000 (5 min). */
   CHAT_TIMEOUT_MS?: number;
+  /** Tool approval: "llm" = format prompt and parse reply with LLM; "static" = fixed template and regex. Default "llm". */
+  TOOL_APPROVAL_MODE?: ToolApprovalModeId;
+  /** Timeout in ms for the tool-approval format LLM call. 0 or unset = 60000. */
+  TOOL_APPROVAL_FORMAT_TIMEOUT_MS?: number;
+  /** Timeout in ms for the tool-approval reply-parse LLM call. 0 or unset = 60000. */
+  TOOL_APPROVAL_PARSE_TIMEOUT_MS?: number;
 }
+
+/** Tool approval mode: LLM-based or static formatting/parsing. */
+export type ToolApprovalModeId = "llm" | "static";
 
 /** Full config: persisted + PORT from env. */
 export interface AppConfig extends PersistedConfig {
@@ -113,6 +122,9 @@ const DEFAULTS: PersistedConfig = {
   MAX_INPUT_TOKENS: 0,
   MAX_TURNS: 999,
   CHAT_TIMEOUT_MS: 300_000,
+  TOOL_APPROVAL_MODE: "llm",
+  TOOL_APPROVAL_FORMAT_TIMEOUT_MS: 60_000,
+  TOOL_APPROVAL_PARSE_TIMEOUT_MS: 60_000,
 };
 
 let store: PersistedConfig = { ...DEFAULTS };
@@ -152,6 +164,15 @@ function isTranscriptionProviderId(v: unknown): v is TranscriptionProviderId {
   return (
     typeof v === "string" &&
     TRANSCRIPTION_PROVIDER_IDS.includes(v as TranscriptionProviderId)
+  );
+}
+
+const TOOL_APPROVAL_MODE_IDS: ToolApprovalModeId[] = ["llm", "static"];
+
+function isToolApprovalModeId(v: unknown): v is ToolApprovalModeId {
+  return (
+    typeof v === "string" &&
+    TOOL_APPROVAL_MODE_IDS.includes(v as ToolApprovalModeId)
   );
 }
 
@@ -225,6 +246,23 @@ export function updateConfig(patch: Partial<PersistedConfig>): PersistedConfig {
     store.CHAT_TIMEOUT_MS = Math.max(
       0,
       Number(patch.CHAT_TIMEOUT_MS) || DEFAULTS.CHAT_TIMEOUT_MS!,
+    );
+  if (
+    patch.TOOL_APPROVAL_MODE !== undefined &&
+    isToolApprovalModeId(patch.TOOL_APPROVAL_MODE)
+  )
+    store.TOOL_APPROVAL_MODE = patch.TOOL_APPROVAL_MODE;
+  if (patch.TOOL_APPROVAL_FORMAT_TIMEOUT_MS !== undefined)
+    store.TOOL_APPROVAL_FORMAT_TIMEOUT_MS = Math.max(
+      0,
+      Number(patch.TOOL_APPROVAL_FORMAT_TIMEOUT_MS) ||
+        DEFAULTS.TOOL_APPROVAL_FORMAT_TIMEOUT_MS!,
+    );
+  if (patch.TOOL_APPROVAL_PARSE_TIMEOUT_MS !== undefined)
+    store.TOOL_APPROVAL_PARSE_TIMEOUT_MS = Math.max(
+      0,
+      Number(patch.TOOL_APPROVAL_PARSE_TIMEOUT_MS) ||
+        DEFAULTS.TOOL_APPROVAL_PARSE_TIMEOUT_MS!,
     );
   persist().catch((err) => debug("persist error: %o", err));
   return { ...store };
@@ -341,6 +379,23 @@ export async function loadPersisted(): Promise<void> {
         store.CHAT_TIMEOUT_MS = Math.max(
           0,
           Number(parsed.CHAT_TIMEOUT_MS) || DEFAULTS.CHAT_TIMEOUT_MS!,
+        );
+      if (
+        parsed.TOOL_APPROVAL_MODE !== undefined &&
+        isToolApprovalModeId(parsed.TOOL_APPROVAL_MODE)
+      )
+        store.TOOL_APPROVAL_MODE = parsed.TOOL_APPROVAL_MODE;
+      if (parsed.TOOL_APPROVAL_FORMAT_TIMEOUT_MS !== undefined)
+        store.TOOL_APPROVAL_FORMAT_TIMEOUT_MS = Math.max(
+          0,
+          Number(parsed.TOOL_APPROVAL_FORMAT_TIMEOUT_MS) ||
+            DEFAULTS.TOOL_APPROVAL_FORMAT_TIMEOUT_MS!,
+        );
+      if (parsed.TOOL_APPROVAL_PARSE_TIMEOUT_MS !== undefined)
+        store.TOOL_APPROVAL_PARSE_TIMEOUT_MS = Math.max(
+          0,
+          Number(parsed.TOOL_APPROVAL_PARSE_TIMEOUT_MS) ||
+            DEFAULTS.TOOL_APPROVAL_PARSE_TIMEOUT_MS!,
         );
       if (parsed.channels && typeof parsed.channels === "object")
         channelsStore = { ...parsed.channels };

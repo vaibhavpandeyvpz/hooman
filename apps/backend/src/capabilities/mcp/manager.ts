@@ -132,7 +132,18 @@ export class McpManager {
   }
 
   /**
-   * Closes cached MCP clients and clears cache. Next tools() will rebuild from current connections.
+   * Clears cache without closing clients. Next tools() will rebuild from current connections.
+   * Use this on reload so in-flight handlers (e.g. tool approval) can still use existing clients.
+   * Clients are only closed when shutdown() is called (process exit).
+   */
+  clearCache(): void {
+    this.cachedResult = null;
+    this.cachedMcpClients = null;
+    debug("MCP manager cache cleared (clients left open)");
+  }
+
+  /**
+   * Closes cached MCP clients and clears cache. Call only on process shutdown.
    */
   async shutdown(): Promise<void> {
     const clients = this.cachedMcpClients;

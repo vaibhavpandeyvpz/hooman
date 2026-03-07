@@ -1,4 +1,4 @@
-import type { ChannelMeta, FilterMode } from "../types.js";
+import type { ChannelMeta, FilterMode, SlackChannelMeta } from "../types.js";
 
 /**
  * Build a human-readable channel context string from channelMeta so the agent knows where the message came from and can reply using channel MCP tools.
@@ -23,6 +23,16 @@ export function buildChannelContext(
     if (meta.senderName) lines.push(`senderName: ${meta.senderName}`);
     if (meta.yourSlackUserId)
       lines.push(`yourSlackUserId: ${meta.yourSlackUserId}`);
+    const slackMeta = meta as SlackChannelMeta;
+    const prof = slackMeta.yourSlackUserProfile;
+    if (prof && (prof.real_name || prof.name || prof.display_name)) {
+      lines.push(
+        "yourSlackUserNames: " +
+          [prof.real_name, prof.name, prof.display_name]
+            .filter(Boolean)
+            .join(", "),
+      );
+    }
     if (meta.selfMentioned) lines.push(`selfMentioned: true`);
   }
   lines.push(`directness: ${meta.directness}`);

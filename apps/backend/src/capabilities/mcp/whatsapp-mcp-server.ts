@@ -247,5 +247,84 @@ server.registerTool(
   },
 );
 
+server.registerTool(
+  "whatsapp_create_group",
+  {
+    title: "Create a WhatsApp group",
+    description:
+      "Create a new group with a title and optional list of participant contact IDs (e.g. 1234567890@c.us). Returns the new group ID and title.",
+    inputSchema: z.object({
+      title: z.string().describe("Group name"),
+      participantIds: z
+        .array(z.string())
+        .optional()
+        .describe(
+          'Contact IDs to add as participants (e.g. ["1234567890@c.us"])',
+        ),
+    }),
+  },
+  async (args) => {
+    const result = await rpc("create_group", {
+      title: args?.title,
+      participantIds: args?.participantIds ?? [],
+    });
+    return { content: textContent(JSON.stringify(result, null, 2)) };
+  },
+);
+
+server.registerTool(
+  "whatsapp_get_common_groups",
+  {
+    title: "Get common groups with a contact",
+    description:
+      "Get all group IDs that you and the given contact are both in. Returns empty array if none.",
+    inputSchema: z.object({
+      contactId: z.string().describe("Contact ID (e.g. 1234567890@c.us)"),
+    }),
+  },
+  async (args) => {
+    const result = await rpc("get_common_groups", {
+      contactId: args?.contactId,
+    });
+    return { content: textContent(JSON.stringify(result, null, 2)) };
+  },
+);
+
+server.registerTool(
+  "whatsapp_get_profile_pic_url",
+  {
+    title: "Get profile picture URL",
+    description:
+      "Get the profile picture URL for a contact or chat. Returns null if not available (e.g. privacy settings).",
+    inputSchema: z.object({
+      contactId: z
+        .string()
+        .describe("Contact or chat ID (e.g. 1234567890@c.us or group JID)"),
+    }),
+  },
+  async (args) => {
+    const result = await rpc("get_profile_pic_url", {
+      contactId: args?.contactId,
+    });
+    return { content: textContent(JSON.stringify(result, null, 2)) };
+  },
+);
+
+server.registerTool(
+  "whatsapp_set_status",
+  {
+    title: "Set WhatsApp status",
+    description:
+      "Set the current user's WhatsApp status message (the text shown as 'About' / status).",
+    inputSchema: z.object({
+      status: z.string().describe("New status message"),
+    }),
+  },
+  async (args) => {
+    const result = await rpc("set_status", { status: args?.status ?? "" });
+    return { content: textContent(JSON.stringify(result, null, 2)) };
+  },
+);
+
 const transport = new StdioServerTransport();
 await server.connect(transport);

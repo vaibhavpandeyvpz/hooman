@@ -9,6 +9,7 @@ import { RefreshCw, Wrench, Search, ChevronDown } from "lucide-react";
 import {
   getDiscoveredTools,
   reloadMcpTools,
+  patchToolEnabled,
   type DiscoveredTool,
 } from "../api";
 import { getSocket } from "../socket";
@@ -28,6 +29,7 @@ export const Tools = forwardRef<ToolsHandle, object>(
   function Tools(_props, ref) {
     const [tools, setTools] = useState<DiscoveredTool[]>([]);
     const [loading, setLoading] = useState(true);
+    const [togglingId, setTogglingId] = useState<string | null>(null);
     const [filter, setFilter] = useState("");
     const [expandedToolIds, setExpandedToolIds] = useState<Set<string>>(
       () => new Set(),
@@ -62,6 +64,23 @@ export const Tools = forwardRef<ToolsHandle, object>(
         setLoading(false);
       }
     }, []);
+
+    const setToolEnabled = useCallback(
+      async (toolId: string, enabled: boolean) => {
+        setTogglingId(toolId);
+        try {
+          await patchToolEnabled(toolId, enabled);
+          setTools((prev) =>
+            prev.map((t) => (t.id === toolId ? { ...t, enabled } : t)),
+          );
+          await reloadMcpTools();
+        } catch {
+          setTogglingId(null);
+        }
+        setTogglingId(null);
+      },
+      [reloadMcpTools],
+    );
 
     useImperativeHandle(
       ref,
@@ -204,49 +223,78 @@ export const Tools = forwardRef<ToolsHandle, object>(
                     </button>
                     {isExpanded && (
                       <div className="divide-y divide-hooman-border/50">
-                        {group.tools.map((tool) => (
-                          <div
-                            key={tool.id}
-                            className="px-4 py-3 hover:bg-hooman-border/20 transition-colors"
-                          >
-                            <div className="flex items-center gap-2">
-                              <Wrench className="w-3.5 h-3.5 text-hooman-accent shrink-0" />
-                              <code className="text-sm text-white font-mono">
-                                {tool.name}
-                              </code>
-                            </div>
-                            {tool.description && (
-                              <div className="mt-1 ml-5.5">
-                                <p
-                                  className={`text-xs text-hooman-muted leading-relaxed ${
-                                    expandedToolIds.has(tool.id)
-                                      ? ""
-                                      : "line-clamp-2"
-                                  }`}
-                                >
-                                  {tool.description}
-                                </p>
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    setExpandedToolIds((prev) => {
-                                      const next = new Set(prev);
-                                      if (next.has(tool.id))
-                                        next.delete(tool.id);
-                                      else next.add(tool.id);
-                                      return next;
-                                    })
-                                  }
-                                  className="text-xs text-hooman-accent hover:underline mt-0.5"
-                                >
-                                  {expandedToolIds.has(tool.id)
-                                    ? "See less"
-                                    : "See more"}
-                                </button>
+                        {group.tools.map((tool) => {
+                          const enabled = tool.enabled !== false;
+                          const isToggling = togglingId === tool.id;
+                          return (
+                            <div
+                              key={tool.id}
+                              className="px-4 py-3 hover:bg-hooman-border/20 transition-colors"
+                            >
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <Wrench className="w-3.5 h-3.5 text-hooman-accent shrink-0" />
+                                <code className="text-sm text-white font-mono">
+                                  {tool.name}
+                                </code>
+                                {tool.allowEveryTime && (
+                                  <span className="text-xs text-hooman-muted bg-hooman-border/50 px-1.5 py-0.5 rounded">
+                                    Allow every time
+                                  </span>
+                                )}
+                                <div className="ml-auto flex items-center gap-2">
+                                  <button
+                                    type="button"
+                                    disabled={isToggling}
+                                    onClick={() =>
+                                      setToolEnabled(tool.id, !enabled)
+                                    }
+                                    className={`rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                                      enabled
+                                        ? "border-hooman-red/40 bg-hooman-surface text-hooman-red hover:bg-hooman-red/10"
+                                        : "border-hooman-green/40 bg-hooman-surface text-hooman-green hover:bg-hooman-green/10"
+                                    } ${isToggling ? "opacity-50" : ""}`}
+                                  >
+                                    {isToggling
+                                      ? "..."
+                                      : enabled
+                                        ? "Turn off"
+                                        : "Turn on"}
+                                  </button>
+                                </div>
                               </div>
-                            )}
-                          </div>
-                        ))}
+                              {tool.description && (
+                                <div className="mt-1 ml-5.5">
+                                  <p
+                                    className={`text-xs text-hooman-muted leading-relaxed ${
+                                      expandedToolIds.has(tool.id)
+                                        ? ""
+                                        : "line-clamp-2"
+                                    }`}
+                                  >
+                                    {tool.description}
+                                  </p>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setExpandedToolIds((prev) => {
+                                        const next = new Set(prev);
+                                        if (next.has(tool.id))
+                                          next.delete(tool.id);
+                                        else next.add(tool.id);
+                                        return next;
+                                      })
+                                    }
+                                    className="text-xs text-hooman-accent hover:underline mt-0.5"
+                                  >
+                                    {expandedToolIds.has(tool.id)
+                                      ? "See less"
+                                      : "See more"}
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
                     )}
                   </div>

@@ -8,12 +8,13 @@ datasource db {
 }
 
 model ChatMessage {
-  id             String   @id @default(cuid())
-  userId         String
-  role           String
-  text           String
-  attachments    String?  // JSON array of attachment IDs
-  createdAt      DateTime @default(now())
+  id               String   @id @default(cuid())
+  userId           String
+  role             String
+  text             String
+  attachments      String?  // JSON array of attachment IDs
+  approvalRequest  String?  // JSON: { toolName, argsPreview } for approval messages
+  createdAt        DateTime @default(now())
 
   @@index([userId, createdAt])
 }
@@ -62,4 +63,11 @@ model DiscoveredTool {
   description    String?
   connectionId   String
   connectionName String
+}
+
+/// Per-tool exceptions only: disabled = tool turned off; allowEveryTime = user said "allow every time". No row = on, needs approval.
+model ToolSetting {
+  toolId          String   @id
+  disabled        Boolean  @default(false)
+  allowEveryTime  Boolean  @default(false)
 }

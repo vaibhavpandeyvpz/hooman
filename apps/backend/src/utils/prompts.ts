@@ -13,6 +13,9 @@ interface PromptCache {
   staticAppend?: string;
   channelSlack?: string;
   channelWhatsapp?: string;
+  channelApi?: string;
+  approvalFormat?: string;
+  approvalParseReply?: string;
 }
 
 const cache: PromptCache = {};
@@ -41,6 +44,9 @@ export async function loadPrompts(): Promise<void> {
     loadOne("staticAppend", "static-append.md"),
     loadOne("channelSlack", "channel-slack.md"),
     loadOne("channelWhatsapp", "channel-whatsapp.md"),
+    loadOne("channelApi", "channel-api.md"),
+    loadOne("approvalFormat", "approval-format.md"),
+    loadOne("approvalParseReply", "approval-parse-reply.md"),
   ]);
 }
 
@@ -58,6 +64,35 @@ export function getChannelSlackInstructions(): string {
 
 export function getChannelWhatsAppInstructions(): string {
   return cache.channelWhatsapp ?? "";
+}
+
+export function getChannelApiInstructions(): string {
+  return cache.channelApi ?? "";
+}
+
+/**
+ * System prompt for the approval format LLM call. Reuses channel-specific formatting from prompts.
+ * For api (web): output only the descriptive part; no reply instructions (web uses buttons).
+ */
+export function getApprovalFormatSystemPrompt(
+  channel: "api" | "slack" | "whatsapp",
+): string {
+  const base = cache.approvalFormat ?? "";
+  const channelRules =
+    channel === "api"
+      ? (cache.channelApi ?? "")
+      : channel === "slack"
+        ? (cache.channelSlack ?? "")
+        : (cache.channelWhatsapp ?? "");
+  const apiNote =
+    channel === "api"
+      ? "\n\nFor this channel (api/web): output ONLY the descriptive sentence. Do NOT add reply instructions (y/yes, always, n/no); the web UI uses buttons."
+      : "";
+  return base + "\n\n---\n\n" + channelRules + apiNote;
+}
+
+export function getApprovalParseReplyPrompt(): string {
+  return cache.approvalParseReply ?? "";
 }
 
 /**

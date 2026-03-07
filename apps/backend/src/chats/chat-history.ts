@@ -8,6 +8,7 @@ export interface GetMessagesResult {
     role: "user" | "assistant";
     text: string;
     attachments?: string[];
+    approvalRequest?: { toolName: string; argsPreview: string };
     createdAt: Date;
   }>;
   total: number;
@@ -21,6 +22,7 @@ export interface ChatHistoryStore {
     role: "user" | "assistant",
     text: string,
     attachments?: string[],
+    approvalRequest?: { toolName: string; argsPreview: string },
   ): Promise<void>;
   getMessages(
     userId: string,
@@ -34,6 +36,7 @@ export interface ChatHistoryStore {
       role: "user" | "assistant";
       text: string;
       attachments?: string[];
+      approvalRequest?: { toolName: string; argsPreview: string };
     }>
   >;
   clearAll(userId: string): Promise<void>;
@@ -49,6 +52,23 @@ function parseAttachmentIds(raw: string | null): string[] | undefined {
   }
 }
 
+function parseApprovalRequest(
+  raw: string | null,
+): { toolName: string; argsPreview: string } | undefined {
+  if (raw == null || raw === "") return undefined;
+  try {
+    const o = JSON.parse(raw) as unknown;
+    if (o && typeof o === "object" && "toolName" in o && "argsPreview" in o)
+      return {
+        toolName: String((o as { toolName: unknown }).toolName),
+        argsPreview: String((o as { argsPreview: unknown }).argsPreview),
+      };
+    return undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export async function initChatHistory(): Promise<ChatHistoryStore> {
   const prisma = getPrisma();
 
@@ -58,6 +78,7 @@ export async function initChatHistory(): Promise<ChatHistoryStore> {
       role: "user" | "assistant",
       text: string,
       attachments?: string[],
+      approvalRequest?: { toolName: string; argsPreview: string },
     ) {
       await prisma.chatMessage.create({
         data: {
@@ -66,6 +87,9 @@ export async function initChatHistory(): Promise<ChatHistoryStore> {
           text,
           ...(attachments?.length
             ? { attachments: JSON.stringify(attachments) }
+            : {}),
+          ...(approvalRequest
+            ? { approvalRequest: JSON.stringify(approvalRequest) }
             : {}),
         },
       });
@@ -92,6 +116,7 @@ export async function initChatHistory(): Promise<ChatHistoryStore> {
             role: true,
             text: true,
             attachments: true,
+            approvalRequest: true,
             createdAt: true,
           },
         }),
@@ -102,6 +127,7 @@ export async function initChatHistory(): Promise<ChatHistoryStore> {
         role: r.role as "user" | "assistant",
         text: r.text,
         attachments: parseAttachmentIds(r.attachments),
+        approvalRequest: parseApprovalRequest(r.approvalRequest),
         createdAt: r.createdAt,
       }));
 
@@ -114,13 +140,20 @@ export async function initChatHistory(): Promise<ChatHistoryStore> {
         where: { userId },
         orderBy: { createdAt: "desc" },
         take: n,
-        select: { role: true, text: true, attachments: true, createdAt: true },
+        select: {
+          role: true,
+          text: true,
+          attachments: true,
+          approvalRequest: true,
+          createdAt: true,
+        },
       });
 
       return rows.reverse().map((r: any) => ({
         role: r.role as "user" | "assistant",
         text: r.text,
         attachments: parseAttachmentIds(r.attachments),
+        approvalRequest: parseApprovalRequest(r.approvalRequest),
         createdAt: r.createdAt,
       }));
     },

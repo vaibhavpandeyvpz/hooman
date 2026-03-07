@@ -10,6 +10,7 @@ import type { DiscoveredToolsStore } from "../capabilities/mcp/discovered-tools-
 import type { SkillService } from "../capabilities/skills/skills-service.js";
 import type { SkillSettingsStore } from "../capabilities/skills/skills-settings-store.js";
 import type { McpService } from "../capabilities/mcp/mcp-service.js";
+import type { ToolSettingsStore } from "../capabilities/mcp/tool-settings-store.js";
 import type { ChannelService } from "../channels/channel-service.js";
 
 export interface AppContext {
@@ -31,7 +32,10 @@ export interface AppContext {
   skillService: SkillService;
   skillSettingsStore: SkillSettingsStore;
   mcpService: McpService;
+  toolSettingsStore: ToolSettingsStore;
   channelService: ChannelService;
+  /** Notify event-queue to clear runner cache (e.g. after Safety page reset allow-every-time). No-op if Redis unavailable. */
+  invalidateRunnerCache?: () => void;
 }
 
 export function getParam(req: Request, key: string): string {

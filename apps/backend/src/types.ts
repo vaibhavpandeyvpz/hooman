@@ -40,6 +40,13 @@ export type FilterMode = "all" | "allowlist" | "blocklist";
 
 export type SlackConnectAs = "bot" | "user";
 
+/** Slack user profile fields (from users.info); used so the LLM can detect when the agent is mentioned by name or in plain text. */
+export interface SlackUserProfile {
+  real_name?: string;
+  name?: string;
+  display_name?: string;
+}
+
 export interface SlackChannelConfig {
   enabled: boolean;
   /** App-level token (xapp-...) for Socket Mode connection. */
@@ -48,8 +55,10 @@ export interface SlackChannelConfig {
   userToken: string;
   /** Whether the token is a bot or user token. Affects UI only; adapter uses userToken for both. */
   connectAs?: SlackConnectAs;
-  /** Required when connectAs is "user" (identity for directness). Optional when bot. */
-  designatedUserId?: string;
+  /** Agent identity (bot/user ID) from Slack API; set by worker when linking. Used to verify successful config. */
+  agentIdentity?: string;
+  /** Agent profile (real_name, name, display_name) from Slack API; set by worker when linking. Used for mention detection. */
+  profile?: SlackUserProfile;
   filterMode?: FilterMode;
   filterList?: string[];
 }
@@ -58,6 +67,8 @@ export interface WhatsAppChannelConfig {
   enabled: boolean;
   /** Folder name only; session is stored under workspace/whatsapp/<sessionPath>. Defaults to "default". */
   sessionPath?: string;
+  /** Agent identity (number or ID) set by the worker when WhatsApp client connects. Used to verify successful config. */
+  agentIdentity?: string;
   filterMode?: FilterMode;
   filterList?: string[];
 }
@@ -111,6 +122,8 @@ export interface SlackChannelMeta extends ChannelMetaBase {
   selfMentioned?: boolean;
   /** Designated Slack user ID for the agent in this workspace; when present, messages or mentions to this ID are addressing you. */
   yourSlackUserId?: string;
+  /** Agent profile (real_name, name, display_name) so the LLM can detect when the agent is mentioned by name or in plain text. */
+  yourSlackUserProfile?: SlackUserProfile;
   /** When true, response delivery should use thread_ts to reply in thread. When false (im/mpim), post to channel root. */
   replyInThread?: boolean;
 }
@@ -123,7 +136,12 @@ export type ResponseDeliveryPayload =
   | {
       channel: "api";
       eventId: string;
-      message: { role: string; text: string };
+      message: {
+        role: string;
+        text: string;
+        /** For approval requests; frontend uses structure instead of parsing text. */
+        approvalRequest?: { toolName: string; argsPreview: string };
+      };
     }
   | { channel: "api"; eventId: string; skipped: true }
   | { channel: "slack"; channelId: string; threadTs?: string; text: string }
@@ -279,7 +297,12 @@ export interface AuditLogEntry {
     | "incoming_message"
     | "tool_call_start"
     | "tool_call_end"
-    | "run_summary";
+    | "run_summary"
+    | "approval_requested"
+    | "approval_confirmed"
+    | "approval_allow_every_time"
+    | "approval_rejected"
+    | "approval_tool_execution_failed";
   payload: Record<string, unknown>;
 }
 

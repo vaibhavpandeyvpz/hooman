@@ -63,10 +63,22 @@ export interface RunChatOptions {
   }>;
 }
 
+export interface NeedsApprovalPayload {
+  toolName: string;
+  toolArgs: unknown;
+  /** SDK tool call id for building tool result message on resume. */
+  toolCallId: string;
+  /** Tool id (e.g. connectionId/name) for allow-every-time store; may be same as toolName if not provided. */
+  toolId?: string;
+  threadSnapshot: ModelMessage[];
+}
+
 export interface RunChatResult {
   output: string;
   /** Full AI SDK messages for this turn (user + assistant with tool calls/results). Store via context.addTurnToAgentThread for recollect. */
   messages?: ModelMessage[];
+  /** Set when the model requested a tool that requires approval; runner paused. Handler should save pending and send approval prompt. */
+  needsApproval?: NeedsApprovalPayload;
 }
 
 export interface HoomanRunner {
@@ -75,6 +87,8 @@ export interface HoomanRunner {
     message: string,
     options?: RunChatOptions,
   ): Promise<RunChatResult>;
+  /** Execute a single tool by name (used on approval confirm to run the tool before resume). */
+  executeTool(toolName: string, toolArgs: unknown): Promise<unknown>;
 }
 
 export type AuditLogAppender = {
@@ -83,8 +97,86 @@ export type AuditLogAppender = {
   ): Promise<void>;
 };
 
+/** Wraps tools so that those in toolsThatNeedApproval have needsApproval: true (SDK will pause and return tool-approval-request). */
+function wrapToolsForApproval(
+  agentTools: Record<string, unknown>,
+  toolsThatNeedApproval: Set<string>,
+): Record<string, unknown> {
+  if (toolsThatNeedApproval.size === 0) return agentTools;
+  const wrapped: Record<string, unknown> = {};
+  for (const [name, tool] of Object.entries(agentTools)) {
+    const t = tool as Record<string, unknown>;
+    if (toolsThatNeedApproval.has(name)) {
+      wrapped[name] = { ...t, needsApproval: true };
+    } else {
+      wrapped[name] = tool;
+    }
+  }
+  return wrapped;
+}
+
+/** Detect tool-approval-request in SDK result (content or last step content). */
+function getApprovalRequestFromResponse(response: {
+  content?: Array<{
+    type: string;
+    toolCall?: { toolCallId?: string; toolName?: string; input?: unknown };
+    approvalId?: string;
+  }>;
+  steps?: Array<{
+    content?: Array<{
+      type: string;
+      toolCall?: { toolCallId?: string; toolName?: string; input?: unknown };
+      approvalId?: string;
+    }>;
+  }>;
+}): { toolName: string; toolArgs: unknown; toolCallId: string } | null {
+  const check = (
+    content:
+      | Array<{
+          type: string;
+          toolCall?: {
+            toolCallId?: string;
+            toolName?: string;
+            input?: unknown;
+          };
+          approvalId?: string;
+        }>
+      | undefined,
+  ) => {
+    if (!content) return null;
+    const part = content.find((p) => p.type === "tool-approval-request");
+    if (!part?.toolCall) return null;
+    const tc = part.toolCall;
+    const name = tc.toolName ?? (tc as { name?: string }).name;
+    if (!name) return null;
+    const toolCallId =
+      tc.toolCallId ?? (tc as { id?: string }).id ?? `call_${Date.now()}`;
+    return {
+      toolName: name,
+      toolArgs:
+        (tc as { input?: unknown }).input ?? (tc as { args?: unknown }).args,
+      toolCallId,
+    };
+  };
+  if (response.content) {
+    const found = check(response.content);
+    if (found) return found;
+  }
+  const steps = response.steps ?? [];
+  if (steps.length > 0) {
+    const last = steps[steps.length - 1];
+    const found = check(last?.content);
+    if (found) return found;
+  }
+  return null;
+}
+
 export async function createHoomanRunner(options: {
   agentTools: Record<string, unknown>;
+  /** Prefixed tool names that require HITL approval before execution. */
+  toolsThatNeedApproval?: Set<string>;
+  /** Optional map from prefixed tool name to tool id (for allow-every-time store). */
+  prefixedNameToToolId?: Map<string, string>;
   auditLog?: AuditLogAppender;
   sessionId?: string;
   skillService?: SkillService;
@@ -94,10 +186,17 @@ export async function createHoomanRunner(options: {
 
   const {
     agentTools,
+    toolsThatNeedApproval = new Set<string>(),
+    prefixedNameToToolId,
     auditLog,
     sessionId,
     skillService: injectedSkillService,
   } = options;
+
+  const wrappedTools = wrapToolsForApproval(
+    agentTools,
+    toolsThatNeedApproval,
+  ) as ToolSet;
 
   const skillService = injectedSkillService ?? createSkillService();
   const skillsSection = await skillService.getSkillsMetadataSection();
@@ -132,7 +231,7 @@ export async function createHoomanRunner(options: {
       const agent = new ToolLoopAgent({
         model,
         instructions: fullSystem,
-        tools: agentTools as ToolSet,
+        tools: wrappedTools,
         stopWhen: stepCountIs(maxSteps),
         experimental_onToolCallStart({ toolCall }) {
           const name =
@@ -208,12 +307,59 @@ export async function createHoomanRunner(options: {
       });
 
       const response = await agent.generate({ messages: input });
+      const approvalReq = getApprovalRequestFromResponse(response);
+      if (approvalReq) {
+        debug(
+          "Tool requires approval, pausing toolName=%s args=%s",
+          approvalReq.toolName,
+          truncateForMax(approvalReq.toolArgs, DEBUG_TOOL_LOG_MAX),
+        );
+        const threadSnapshot: ModelMessage[] = [
+          ...input,
+          ...(response.response?.messages ?? []),
+        ];
+        const toolId = prefixedNameToToolId?.get(approvalReq.toolName);
+        return {
+          output: "",
+          needsApproval: {
+            toolName: approvalReq.toolName,
+            toolArgs: approvalReq.toolArgs,
+            toolCallId: approvalReq.toolCallId,
+            toolId: toolId ?? approvalReq.toolName,
+            threadSnapshot,
+          },
+        };
+      }
+
       const messages: ModelMessage[] = [prompt, ...response.response.messages];
 
       return {
         output: response.text ?? "",
         messages,
       };
+    },
+
+    async executeTool(toolName: string, toolArgs: unknown): Promise<unknown> {
+      debug(
+        "Executing tool toolName=%s args=%s",
+        toolName,
+        truncateForMax(toolArgs, DEBUG_TOOL_LOG_MAX),
+      );
+      const rawTool = agentTools[toolName] as
+        | { execute?: (args: unknown) => Promise<unknown> }
+        | undefined;
+      if (!rawTool?.execute) {
+        debug("Tool not found or has no execute: %s", toolName);
+        throw new Error(`Tool not found or has no execute: ${toolName}`);
+      }
+      try {
+        const result = await rawTool.execute(toolArgs);
+        debug("Tool completed toolName=%s", toolName);
+        return result;
+      } catch (err) {
+        debug("Tool execution error toolName=%s: %o", toolName, err);
+        throw err;
+      }
     },
   };
 }

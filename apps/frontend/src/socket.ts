@@ -12,6 +12,8 @@ let socketInstance: Socket | null = null;
 export interface ChatResultMessage {
   role: "assistant";
   text: string;
+  /** For approval requests; frontend uses structure instead of parsing text. */
+  approvalRequest?: { toolName: string; argsPreview: string };
 }
 
 export interface ChatResultPayload {

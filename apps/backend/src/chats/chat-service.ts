@@ -14,6 +14,7 @@ export interface ChatService {
         role: "user" | "assistant";
         text: string;
         attachments?: string[];
+        approvalRequest?: { toolName: string; argsPreview: string };
         attachment_metas?: Array<{
           id: string;
           originalName: string;
@@ -54,6 +55,9 @@ export function createChatService(
               role: m.role,
               text: m.text,
               attachments: m.attachments,
+              ...(m.approvalRequest
+                ? { approvalRequest: m.approvalRequest }
+                : {}),
               ...(timestamp != null ? { timestamp } : {}),
             };
           }
@@ -71,6 +75,9 @@ export function createChatService(
             role: m.role,
             text: m.text,
             attachments: m.attachments,
+            ...(m.approvalRequest
+              ? { approvalRequest: m.approvalRequest }
+              : {}),
             attachment_metas: attachment_metas.filter(
               (
                 a,

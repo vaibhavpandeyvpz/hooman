@@ -16,6 +16,8 @@ export interface ChatMessage {
   attachments?: string[];
   /** Attachment meta for display (from history or after upload). */
   attachment_metas?: { id: string; originalName: string; mimeType: string }[];
+  /** For approval requests; backend sends structure so frontend does not parse text. */
+  approvalRequest?: { toolName: string; argsPreview: string };
 }
 
 export interface AuditEntry {

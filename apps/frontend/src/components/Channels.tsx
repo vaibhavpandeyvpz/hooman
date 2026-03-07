@@ -1,8 +1,25 @@
 import { useState, useEffect, useCallback } from "react";
 import createDebug from "debug";
-import { SlidersHorizontal, FileJson } from "lucide-react";
+import {
+  SlidersHorizontal,
+  FileJson,
+  CheckCircle2,
+  Smartphone,
+  Loader2,
+  LogOut,
+} from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
-import { getChannels, patchChannels, getWhatsAppConnection } from "../api";
+import {
+  getChannels,
+  patchChannels,
+  getWhatsAppConnection,
+  logoutWhatsApp,
+  getSlackConversations,
+  getWhatsAppChats,
+  getWhatsAppContacts,
+  type SlackConversation,
+  type SlackConversationType,
+} from "../api";
 
 const debug = createDebug("hooman:Channels");
 
@@ -83,8 +100,11 @@ import type { ChannelEntry } from "../api";
 import { Button } from "./Button";
 import { useDialog } from "./Dialog";
 import { Modal } from "./Modal";
-import { SlackConfigForm } from "./SlackConfigForm";
-import { WhatsAppConfigForm } from "./WhatsAppConfigForm";
+import { SlackConfigForm, type SlackConfigFormProps } from "./SlackConfigForm";
+import {
+  WhatsAppConfigForm,
+  type WhatsAppConfigFormProps,
+} from "./WhatsAppConfigForm";
 import { PageHeader } from "./PageHeader";
 
 export function Channels() {
@@ -379,22 +399,140 @@ function ConfigModal({
         <WhatsAppConnectionBlock
           connection={whatsAppConn}
           enabled={!!channel.enabled}
+          onLogout={fetchWhatsAppConnection}
         />
       )}
       {channel.id === "slack" && (
+        <div className="mb-6">
+          {!channel.enabled ? (
+            <div className="rounded-xl border border-hooman-border bg-hooman-surface p-4">
+              <div className="flex items-center gap-2 text-sm text-hooman-muted">
+                <SlidersHorizontal className="h-4 w-4 shrink-0" />
+                <p>Enable the channel and save to link your Slack workspace.</p>
+              </div>
+            </div>
+          ) : (
+            <div className="rounded-xl border border-hooman-border bg-hooman-surface overflow-hidden">
+              <div className="flex items-center justify-between gap-3 border-b border-hooman-border/50 px-4 py-3">
+                <h4 className="text-sm font-medium text-white">
+                  Link workspace
+                </h4>
+                {(config.agentIdentity as string)?.trim() ? (
+                  <span className="inline-flex items-center gap-1.5 rounded-md border border-hooman-green/40 bg-hooman-green/10 px-2 py-0.5 text-xs font-medium text-hooman-green">
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                    Linked
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 rounded-md border border-hooman-border bg-hooman-border/20 px-2 py-0.5 text-xs font-medium text-hooman-muted">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    Connecting
+                  </span>
+                )}
+              </div>
+              {(config.agentIdentity as string)?.trim() && (
+                <div className="p-4">
+                  <p className="text-sm text-zinc-300">
+                    Connected as{" "}
+                    <span className="font-mono text-zinc-100">
+                      {String(config.agentIdentity).trim()}
+                    </span>
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+      {channel.id === "slack" && (
         <SlackConfigForm
-          id={formId}
-          config={config}
-          onSave={onSave}
-          saving={saving}
+          {...({
+            id: formId,
+            config,
+            onSave,
+            saving,
+            fetchFilterTabs: (config.agentIdentity as string)?.trim()
+              ? async () => {
+                  const { conversations } = await getSlackConversations();
+                  const channelTabTypes = new Set<SlackConversationType>([
+                    "channel",
+                    "private",
+                    "dm",
+                    "mpim",
+                  ]);
+                  const toOpt = (c: SlackConversation) => ({
+                    value: c.id,
+                    label:
+                      c.type === "user"
+                        ? c.name
+                        : c.type === "dm"
+                          ? `${c.name} (DM)`
+                          : c.type === "mpim"
+                            ? c.name
+                            : c.type === "channel" || c.type === "private"
+                              ? `#${c.name}`
+                              : c.name,
+                  });
+                  const byLabel = (
+                    a: { label: string },
+                    b: { label: string },
+                  ) =>
+                    a.label.localeCompare(b.label, undefined, {
+                      sensitivity: "base",
+                    });
+                  const users = conversations
+                    .filter((c) => c.type === "user")
+                    .map(toOpt)
+                    .sort(byLabel);
+                  const channelOpts = conversations
+                    .filter((c) => channelTabTypes.has(c.type))
+                    .map(toOpt)
+                    .sort(byLabel);
+                  return [
+                    { label: "Users", options: users },
+                    { label: "Channels", options: channelOpts },
+                  ];
+                }
+              : undefined,
+          } as SlackConfigFormProps)}
         />
       )}
       {channel.id === "whatsapp" && (
         <WhatsAppConfigForm
-          id={formId}
-          config={config}
-          onSave={onSave}
-          saving={saving}
+          {...({
+            id: formId,
+            config,
+            onSave,
+            saving,
+            fetchFilterTabs:
+              whatsAppConn?.status === "connected"
+                ? async () => {
+                    const [chatsRes, contactsRes] = await Promise.all([
+                      getWhatsAppChats(),
+                      getWhatsAppContacts(),
+                    ]);
+                    const chats = chatsRes.chats;
+                    const contacts = contactsRes.contacts;
+                    const chatOpts = chats
+                      .filter((c) => !c.isGroup)
+                      .map((c) => ({ value: c.id, label: c.name || c.id }));
+                    const groupOpts = chats
+                      .filter((c) => c.isGroup)
+                      .map((c) => ({
+                        value: c.id,
+                        label: `Group: ${c.name || c.id}`,
+                      }));
+                    const contactOpts = contacts.map((c) => ({
+                      value: c.id,
+                      label: c.name || c.id,
+                    }));
+                    return [
+                      { label: "Chats", options: chatOpts },
+                      { label: "Contacts", options: contactOpts },
+                      { label: "Groups", options: groupOpts },
+                    ];
+                  }
+                : undefined,
+          } as WhatsAppConfigFormProps)}
         />
       )}
     </Modal>
@@ -404,47 +542,105 @@ function ConfigModal({
 function WhatsAppConnectionBlock({
   connection,
   enabled,
+  onLogout,
 }: {
   connection: WhatsAppConnection | null;
   enabled: boolean;
+  onLogout?: () => void;
 }) {
+  const [loggingOut, setLoggingOut] = useState(false);
+  const handleLogout = async () => {
+    setLoggingOut(true);
+    try {
+      await logoutWhatsApp();
+      onLogout?.();
+    } catch {
+      setLoggingOut(false);
+    } finally {
+      setLoggingOut(false);
+    }
+  };
+
   if (!enabled) {
     return (
-      <div className="mb-4 p-4 rounded-lg bg-hooman-muted/10 border border-hooman-border">
-        <p className="text-sm text-hooman-muted">
-          Enable the channel and save to start linking your WhatsApp device.
-        </p>
+      <div className="mb-6 rounded-xl border border-hooman-border bg-hooman-surface p-4">
+        <div className="flex items-center gap-2 text-sm text-hooman-muted">
+          <Smartphone className="h-4 w-4 shrink-0" />
+          <p>
+            Enable the channel and save to start linking your WhatsApp device.
+          </p>
+        </div>
       </div>
     );
   }
+
   const status = connection?.status ?? "disconnected";
   return (
-    <div className="mb-4 p-4 rounded-lg bg-hooman-muted/10 border border-hooman-border">
-      <p className="text-sm font-medium text-white mb-2">Link device</p>
-      {status === "connected" && (
-        <p className="text-sm text-green-500">
-          Linked
-          {connection?.selfNumber || connection?.selfId
-            ? ` — Connected as ${connection.selfNumber ?? connection.selfId}`
-            : " — WhatsApp is connected."}
-        </p>
-      )}
-      {status === "pairing" && connection?.qr && (
-        <div className="flex flex-col items-center gap-2">
-          <p className="text-sm text-hooman-muted">
-            Scan this QR code with WhatsApp on your phone (Linked Devices).
-          </p>
-          <div className="p-3 bg-white rounded-lg inline-block">
-            <QRCodeSVG value={connection.qr} size={256} level="M" />
+    <div className="mb-6 rounded-xl border border-hooman-border bg-hooman-surface overflow-hidden">
+      <div className="flex items-center justify-between gap-3 border-b border-hooman-border/50 px-4 py-3">
+        <h4 className="text-sm font-medium text-white">Link device</h4>
+        {status === "connected" && (
+          <span className="inline-flex items-center gap-1.5 rounded-md border border-hooman-green/40 bg-hooman-green/10 px-2 py-0.5 text-xs font-medium text-hooman-green">
+            <CheckCircle2 className="h-3.5 w-3.5" />
+            Linked
+          </span>
+        )}
+        {status === "pairing" && (
+          <span className="inline-flex items-center gap-1.5 rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-xs font-medium text-amber-400">
+            <Smartphone className="h-3.5 w-3.5" />
+            Scan QR
+          </span>
+        )}
+        {(status === "disconnected" || (!connection && enabled)) && (
+          <span className="inline-flex items-center gap-1.5 rounded-md border border-hooman-border bg-hooman-border/20 px-2 py-0.5 text-xs font-medium text-hooman-muted">
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            Connecting
+          </span>
+        )}
+      </div>
+      <div className="p-4">
+        {status === "connected" && (
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-zinc-300">
+              {connection?.selfNumber || connection?.selfId ? (
+                <>
+                  Connected as{" "}
+                  <span className="font-mono text-zinc-100">
+                    {connection.selfNumber ?? connection.selfId}
+                  </span>
+                </>
+              ) : (
+                <>WhatsApp is linked and receiving messages.</>
+              )}
+            </p>
+            <Button
+              variant="danger"
+              size="sm"
+              icon={<LogOut className="h-4 w-4" />}
+              onClick={handleLogout}
+              disabled={loggingOut}
+            >
+              {loggingOut ? "Disconnecting…" : "Disconnect"}
+            </Button>
           </div>
-        </div>
-      )}
-      {(status === "disconnected" || (!connection && enabled)) && (
-        <p className="text-sm text-hooman-muted">
-          Connecting… Make sure the channel is enabled and the worker is
-          running.
-        </p>
-      )}
+        )}
+        {status === "pairing" && connection?.qr && (
+          <div className="flex flex-col items-center gap-4">
+            <p className="text-center text-sm text-hooman-muted">
+              Open WhatsApp on your phone → Linked devices → Link a device, then
+              scan this code.
+            </p>
+            <div className="rounded-xl border border-hooman-border bg-white p-4 shadow-sm">
+              <QRCodeSVG value={connection.qr} size={240} level="M" />
+            </div>
+          </div>
+        )}
+        {(status === "disconnected" || (!connection && enabled)) && (
+          <p className="text-sm text-hooman-muted">
+            Starting connection… Ensure the WhatsApp worker is running.
+          </p>
+        )}
+      </div>
     </div>
   );
 }

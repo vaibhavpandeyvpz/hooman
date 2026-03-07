@@ -1,18 +1,25 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { Input } from "./Input";
 import { Radio } from "./Radio";
 import { FilterModeField } from "./FilterModeField";
+import type { FilterListSelectOption, FilterListTab } from "./FilterListSelect";
 
-export function SlackConfigForm({
-  id,
-  config,
-  onSave,
-}: {
+export interface SlackConfigFormProps {
   id: string;
   config: Record<string, unknown>;
   onSave: (c: Record<string, unknown>) => void;
   saving: boolean;
-}) {
+  fetchFilterOptions?: () => Promise<FilterListSelectOption[]>;
+  fetchFilterTabs?: () => Promise<FilterListTab[]>;
+}
+
+export const SlackConfigForm: React.FC<SlackConfigFormProps> = ({
+  id,
+  config,
+  onSave,
+  fetchFilterOptions,
+  fetchFilterTabs,
+}) => {
   const connectAsOptions = [
     { value: "bot", label: "Bot" },
     { value: "user", label: "User" },
@@ -22,9 +29,6 @@ export function SlackConfigForm({
   );
   const [appToken, setAppToken] = useState(String(config.appToken ?? ""));
   const [userToken, setUserToken] = useState(String(config.userToken ?? ""));
-  const [designatedUserId, setDesignatedUserId] = useState(
-    String(config.designatedUserId ?? ""),
-  );
   const [filterMode, setFilterMode] = useState(
     String(config.filterMode ?? "all"),
   );
@@ -44,10 +48,6 @@ export function SlackConfigForm({
           connectAs,
           appToken: appToken.trim() || undefined,
           userToken: userToken.trim() || undefined,
-          designatedUserId:
-            connectAs === "user"
-              ? designatedUserId.trim() || undefined
-              : undefined,
           filterMode: filterMode || "all",
           filterList: filterList
             ? filterList
@@ -91,22 +91,16 @@ export function SlackConfigForm({
         value={userToken}
         onChange={(e) => setUserToken(e.target.value)}
       />
-      {connectAs === "user" && (
-        <Input
-          label="Designated user ID (optional)"
-          placeholder="Slack user ID for directness (e.g. U01234…)"
-          value={designatedUserId}
-          onChange={(e) => setDesignatedUserId(e.target.value)}
-        />
-      )}
       <FilterModeField
         filterMode={filterMode}
         setFilterMode={setFilterMode}
         filterList={filterList}
         setFilterList={setFilterList}
         filterListLabel="Filter list (comma-separated IDs)"
-        filterListPlaceholder="User or channel IDs"
+        filterListPlaceholder="Search and select channels, DMs…"
+        fetchFilterOptions={fetchFilterOptions}
+        fetchFilterTabs={fetchFilterTabs}
       />
     </form>
   );
-}
+};

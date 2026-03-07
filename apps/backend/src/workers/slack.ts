@@ -5,7 +5,7 @@
  * Run as a separate PM2 process (e.g. pm2 start ecosystem.config.cjs --only slack).
  */
 import createDebug from "debug";
-import { getChannelsConfig } from "../config.js";
+import { getChannelsConfig, updateChannelsConfig } from "../config.js";
 import {
   startSlackAdapter,
   stopSlackAdapter,
@@ -32,7 +32,23 @@ async function startAdapter(): Promise<void> {
   }
   eventQueue = createEventQueue({ connection: env.REDIS_URL });
   const dispatcher = createQueueDispatcher(eventQueue);
-  await startSlackAdapter(dispatcher, () => getChannelsConfig().slack);
+  await startSlackAdapter(dispatcher, () => getChannelsConfig().slack, {
+    onAgentIdentityResolved(userId, profile) {
+      const current = getChannelsConfig();
+      if (current.slack) {
+        updateChannelsConfig({
+          slack: {
+            ...current.slack,
+            agentIdentity: userId,
+            ...(profile && Object.values(profile).some(Boolean)
+              ? { profile }
+              : {}),
+          },
+        });
+        debug("Slack agent identity saved: %s", userId);
+      }
+    },
+  });
 
   if (responseDeliverySubscriber) {
     await responseDeliverySubscriber.close();

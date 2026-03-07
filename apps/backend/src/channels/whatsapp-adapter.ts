@@ -46,18 +46,25 @@ function getAuthFolder(config: WhatsAppChannelConfig): string {
 
 import { applyFilter } from "./shared.js";
 
+/** Normalise ID for comparison (lowercase, optional @c.us suffix). */
+function whatsAppIdMatches(entry: string, id: string): boolean {
+  const e = entry.toLowerCase().trim();
+  const idLower = id.toLowerCase();
+  return (
+    idLower === e ||
+    idLower === e.replace(/@.*$/, "") + "@c.us" ||
+    idLower.endsWith(e)
+  );
+}
+
+/** Match if any filter-list entry equals the chat or the sender (from). */
 function applyWhatsAppFilter(
   config: WhatsAppChannelConfig,
   chatId: string,
+  fromId: string,
 ): boolean {
-  const idLower = chatId.toLowerCase();
   return applyFilter(config, (entry) => {
-    const e = entry.toLowerCase();
-    return (
-      idLower === e ||
-      idLower === e.replace(/@.*$/, "") + "@c.us" ||
-      idLower.endsWith(e)
-    );
+    return whatsAppIdMatches(entry, chatId) || whatsAppIdMatches(entry, fromId);
   });
 }
 
@@ -179,8 +186,9 @@ export async function startWhatsAppAdapter(
 
     const text = typeof message.body === "string" ? message.body.trim() : "";
     const chatId = message.from;
-    if (!applyWhatsAppFilter(cfg, chatId)) {
-      debug("WhatsApp message filtered out: chatId=%s", chatId);
+    const fromId = (message as { author?: string }).author ?? message.from;
+    if (!applyWhatsAppFilter(cfg, chatId, fromId)) {
+      debug("WhatsApp message filtered out: chatId=%s from=%s", chatId, fromId);
       return;
     }
 
@@ -335,6 +343,21 @@ export async function stopWhatsAppAdapter(): Promise<void> {
   }
 }
 
+/** Log out and destroy session so next start shows QR again. */
+export async function logoutWhatsApp(): Promise<void> {
+  if (client) {
+    try {
+      const c = client as { logout?: () => Promise<void> };
+      if (typeof c.logout === "function") await c.logout();
+    } catch (e) {
+      debug("logout error (continuing with destroy): %o", e);
+    }
+    await client.destroy();
+    client = null;
+    debug("WhatsApp logged out; session cleared");
+  }
+}
+
 /**
  * Send a text message to a WhatsApp chat. Used by response delivery (event-queue publishes; whatsapp worker subscribes).
  */
@@ -368,17 +391,38 @@ export async function handleWhatsAppMcpRequest(
   switch (method) {
     case "chats_list": {
       const chats = await c.getChats();
-      return {
-        chats: chats.map((chat) => ({
-          id: serializedChatId(chat.id),
-          name: chat.name,
-          isGroup: chat.isGroup,
-          archived: chat.archived,
-          pinned: chat.pinned,
-          unreadCount: chat.unreadCount,
-          timestamp: chat.timestamp,
-        })),
-      };
+      const list = await Promise.all(
+        chats.map(async (chat) => {
+          let name: string | undefined =
+            typeof chat.name === "string" && chat.name.trim()
+              ? chat.name.trim()
+              : undefined;
+          if (!name && !chat.isGroup) {
+            try {
+              const contact = await chat.getContact();
+              const co = contact as { pushname?: string; name?: string };
+              name = (co.pushname || co.name || "").trim() || undefined;
+            } catch {
+              //
+            }
+          }
+          return {
+            id: serializedChatId(chat.id),
+            name,
+            isGroup: !!chat.isGroup,
+            archived: chat.archived,
+            pinned: chat.pinned,
+            unreadCount: chat.unreadCount,
+            timestamp: chat.timestamp,
+          };
+        }),
+      );
+      // Groups first, then by name
+      list.sort((a, b) => {
+        if (a.isGroup !== b.isGroup) return a.isGroup ? -1 : 1;
+        return (a.name || a.id).localeCompare(b.name || b.id);
+      });
+      return { chats: list };
     }
     case "chat_info": {
       const chatId = typeof params.chatId === "string" ? params.chatId : "";
@@ -422,16 +466,18 @@ export async function handleWhatsAppMcpRequest(
     }
     case "contacts_list": {
       const contacts = await c.getContacts();
-      return {
-        contacts: contacts.map((contact) => ({
-          id: serializedChatId(contact.id),
-          name: contact.name,
-          number:
-            contact.id && typeof contact.id === "object" && "user" in contact.id
-              ? (contact.id as { user: string }).user
-              : undefined,
-        })),
-      };
+      const list = contacts.map((contact) => ({
+        id: serializedChatId(contact.id),
+        name: contact.name?.trim() || undefined,
+        number:
+          contact.id && typeof contact.id === "object" && "user" in contact.id
+            ? (contact.id as { user: string }).user
+            : undefined,
+      }));
+      list.sort((a, b) =>
+        (a.name || a.number || a.id).localeCompare(b.name || b.number || b.id),
+      );
+      return { contacts: list };
     }
     case "contact_info": {
       const contactId =
@@ -572,6 +618,63 @@ export async function handleWhatsAppMcpRequest(
       await (
         chat as { sendStateTyping: () => Promise<void> }
       ).sendStateTyping();
+      return { ok: true };
+    }
+    case "create_group": {
+      const title = typeof params.title === "string" ? params.title : "";
+      if (!title.trim()) throw new Error("title is required");
+      const raw = params.participantIds;
+      const participantIds = Array.isArray(raw)
+        ? raw.map((id) => String(id)).filter(Boolean)
+        : [];
+      const result = await (
+        c as {
+          createGroup: (
+            title: string,
+            participants: string[],
+            options?: unknown,
+          ) => Promise<{
+            title: string;
+            gid: { _serialized?: string };
+            participants?: unknown;
+          }>;
+        }
+      ).createGroup(title.trim(), participantIds);
+      const out =
+        result && typeof result === "object" && result.gid
+          ? {
+              id: serializedChatId(result.gid),
+              title: result.title ?? title,
+            }
+          : { id: String(result), title: title.trim() };
+      return out;
+    }
+    case "get_common_groups": {
+      const contactId =
+        typeof params.contactId === "string" ? params.contactId : "";
+      if (!contactId) throw new Error("contactId is required");
+      const groups = await (
+        c as { getCommonGroups: (contactId: string) => Promise<unknown[]> }
+      ).getCommonGroups(contactId);
+      const ids = Array.isArray(groups)
+        ? groups.map((g) => serializedChatId(g))
+        : [];
+      return { groupIds: ids };
+    }
+    case "get_profile_pic_url": {
+      const contactId =
+        typeof params.contactId === "string" ? params.contactId : "";
+      if (!contactId) throw new Error("contactId is required");
+      const url = await (
+        c as { getProfilePicUrl: (contactId: string) => Promise<string> }
+      ).getProfilePicUrl(contactId);
+      return { url: url || null };
+    }
+    case "set_status": {
+      const status = typeof params.status === "string" ? params.status : "";
+      await (c as { setStatus: (status: string) => Promise<void> }).setStatus(
+        status,
+      );
       return { ok: true };
     }
     default:

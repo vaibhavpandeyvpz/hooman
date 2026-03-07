@@ -11,7 +11,7 @@ import {
 import { waitForChatResult, ChatSkippedError } from "../socket";
 import { useDialog } from "./Dialog";
 import { Button } from "./Button";
-import { ChatMessage } from "./ChatMessage";
+import { ChatMessage, isApprovalCard, isApprovalReply } from "./ChatMessage";
 import { ChatInput, type QueuedMessage } from "./ChatInput";
 import { PageHeader } from "./PageHeader";
 
@@ -114,6 +114,42 @@ export function Chat() {
     },
     [setMessages],
   );
+
+  /** Send approval reply (y / always / n). Adds reply optimistically so the approval card shows resolved immediately; the reply is hidden in UI. */
+  const sendApprovalReply = useCallback(async (text: string) => {
+    const replyTimestamp = new Date().toISOString();
+    setMessages((prev) => [
+      ...prev,
+      { role: "user" as const, text, timestamp: replyTimestamp },
+    ]);
+    setLoading(true);
+    try {
+      const { eventId } = await sendMessage(text);
+      const message = await waitForChatResult(eventId, {
+        timeoutMs: 120_000,
+      });
+      setMessages((prev) => [
+        ...prev,
+        {
+          ...message,
+          timestamp: new Date().toISOString(),
+        },
+      ]);
+    } catch (err) {
+      if (err instanceof ChatSkippedError) return;
+      const msg = (err as Error).message;
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          text: `Error: ${msg || "Could not reach the API."}`,
+          timestamp: new Date().toISOString(),
+        },
+      ]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   function handleSend(
     text: string,
@@ -227,9 +263,33 @@ export function Chat() {
             </p>
           </div>
         )}
-        {messages.map((m, i) => (
-          <ChatMessage key={i} message={m} />
-        ))}
+        {messages.map((m, i) => {
+          const prev = messages[i - 1];
+          const isApprovalReplyMessage =
+            m.role === "user" &&
+            prev &&
+            isApprovalCard(prev) &&
+            isApprovalReply(m.text);
+          if (isApprovalReplyMessage) return null;
+
+          const next = messages[i + 1];
+          const resolvedState =
+            isApprovalCard(m) &&
+            next?.role === "user" &&
+            isApprovalReply(next.text)
+              ? isApprovalReply(next.text)
+              : null;
+
+          return (
+            <ChatMessage
+              key={i}
+              message={m}
+              onApprovalReply={sendApprovalReply}
+              approvalReplySending={loading}
+              resolvedState={resolvedState}
+            />
+          );
+        })}
         {loading && (
           <div className="flex justify-start animate-fade-in">
             <div className="flex items-center gap-2.5 bg-hooman-surface border border-hooman-border rounded-2xl px-4 py-3 text-hooman-muted text-sm shadow-card">

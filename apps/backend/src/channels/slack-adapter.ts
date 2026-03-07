@@ -8,6 +8,7 @@ import type {
   EventDispatcher,
   SlackChannelMeta,
   SlackChannelConfig,
+  SlackUserProfile,
 } from "../types.js";
 import { App } from "@slack/bolt";
 
@@ -17,19 +18,30 @@ let slackApp: App | null = null;
 
 import { applyFilter } from "./shared.js";
 
+/** Match if any filter-list entry equals the conversation (channel) or the sender (user). */
 function applySlackFilter(
   config: SlackChannelConfig,
   channelId: string,
   userId: string,
-  isDm: boolean,
 ): boolean {
-  const id = isDm ? userId : channelId;
-  return applyFilter(config, (entry) => entry === id);
+  return applyFilter(
+    config,
+    (entry) => entry === channelId || entry === userId,
+  );
+}
+
+export interface SlackAdapterOptions {
+  /** Called when agent identity (and optional profile) is resolved from Slack API so the worker can persist to config. */
+  onAgentIdentityResolved?: (
+    userId: string,
+    profile?: SlackUserProfile,
+  ) => void;
 }
 
 export async function startSlackAdapter(
   dispatcher: EventDispatcher,
   getSlackConfig: () => SlackChannelConfig | undefined,
+  options?: SlackAdapterOptions,
 ): Promise<void> {
   const config = getSlackConfig();
   if (
@@ -46,13 +58,52 @@ export async function startSlackAdapter(
     socketMode: true,
   });
 
-  let designatedUserId = config.designatedUserId?.trim();
-  if (!designatedUserId) {
+  let agentIdentity = config.agentIdentity?.trim();
+  let profile: SlackUserProfile | undefined = config.profile;
+  const hasProfile =
+    profile && (profile.real_name || profile.name || profile.display_name);
+
+  async function fetchProfileForUser(
+    userId: string,
+  ): Promise<SlackUserProfile | undefined> {
+    try {
+      const userInfo = await app.client.users.info({ user: userId });
+      const u = (userInfo as { user?: Record<string, unknown> }).user;
+      const prof = u?.profile as
+        | { display_name?: string; real_name?: string }
+        | undefined;
+      if (!u) return undefined;
+      return {
+        real_name: (u.real_name as string) || prof?.real_name || undefined,
+        name: (u.name as string) || undefined,
+        display_name: prof?.display_name || undefined,
+      };
+    } catch (e) {
+      debug("users.info for agent profile failed: %o", e);
+      return undefined;
+    }
+  }
+
+  if (!agentIdentity) {
     try {
       const auth = await app.client.auth.test();
-      designatedUserId = (auth as { user_id?: string }).user_id ?? "";
+      agentIdentity = (auth as { user_id?: string }).user_id ?? "";
+      if (agentIdentity) {
+        profile = await fetchProfileForUser(agentIdentity);
+        if (options?.onAgentIdentityResolved) {
+          options.onAgentIdentityResolved(agentIdentity, profile);
+        }
+      }
     } catch (e) {
-      debug("auth.test failed, designatedUserId unknown: %o", e);
+      debug("auth.test failed, agentIdentity unknown: %o", e);
+    }
+  } else if (!hasProfile && options?.onAgentIdentityResolved) {
+    profile = await fetchProfileForUser(agentIdentity);
+    if (
+      profile &&
+      (profile.real_name || profile.name || profile.display_name)
+    ) {
+      options.onAgentIdentityResolved(agentIdentity, profile);
     }
   }
 
@@ -89,7 +140,7 @@ export async function startSlackAdapter(
     const threadTs = (message as { thread_ts?: string }).thread_ts;
     const userIdFromSlack = (message as { user?: string }).user ?? "";
 
-    if (designatedUserId && userIdFromSlack === designatedUserId) {
+    if (agentIdentity && userIdFromSlack === agentIdentity) {
       debug(
         "Ignoring Slack message from self (designated user), not queuing: channel=%s user=%s",
         channelId,
@@ -98,8 +149,7 @@ export async function startSlackAdapter(
       return;
     }
 
-    const isDm = channelId.startsWith("D");
-    if (!applySlackFilter(config, channelId, userIdFromSlack, isDm)) {
+    if (!applySlackFilter(config, channelId, userIdFromSlack)) {
       debug(
         "Slack message filtered out: channel=%s user=%s",
         channelId,
@@ -110,18 +160,19 @@ export async function startSlackAdapter(
 
     if (!text.trim()) return;
 
+    const isDm = channelId.startsWith("D");
     const userId = threadTs
       ? `slack:${channelId}:${threadTs}`
       : `slack:${channelId}`;
 
     const mentionedIds = extractMentionedIds(text);
     const selfMentioned =
-      !!designatedUserId && mentionedIds.includes(designatedUserId);
+      !!agentIdentity && mentionedIds.includes(agentIdentity);
     const isDirect =
       isDm ||
       (typeof (message as { text?: string }).text === "string" &&
-        designatedUserId &&
-        (message as { text: string }).text.includes(`<@${designatedUserId}>`));
+        agentIdentity &&
+        (message as { text: string }).text.includes(`<@${agentIdentity}>`));
     const directness = isDirect ? "direct" : "neutral";
     const directnessReason = isDm
       ? "dm"
@@ -200,7 +251,13 @@ export async function startSlackAdapter(
       ...(senderName ? { senderName } : {}),
       ...(mentionedIds.length > 0 ? { mentionedIds } : {}),
       ...(selfMentioned ? { selfMentioned: true } : {}),
-      ...(designatedUserId ? { yourSlackUserId: designatedUserId } : {}),
+      ...(agentIdentity ? { yourSlackUserId: agentIdentity } : {}),
+      ...(config.profile &&
+      (config.profile.real_name ||
+        config.profile.name ||
+        config.profile.display_name)
+        ? { yourSlackUserProfile: config.profile }
+        : {}),
       ...(originalMessage ? { originalMessage } : {}),
     };
 
