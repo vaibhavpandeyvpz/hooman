@@ -14,12 +14,16 @@ import type {
 } from "../types";
 import {
   getMCPConnections,
+  getSystemMCPConnections,
   createMCPConnection,
   updateMCPConnection,
   deleteMCPConnection,
   getOAuthCallbackUrl,
   startMCPOAuth,
+  saveConfig,
+  reloadMcpTools,
 } from "../api";
+import type { SystemMcpEntry } from "../api";
 
 const CONNECTION_TYPE_OPTIONS: {
   value: MCPConnection["type"];
@@ -78,6 +82,10 @@ export const McpConnections = forwardRef<
   const [oauthAuthServerUrl, setOAuthAuthServerUrl] = useState("");
   const [oauthStartingId, setOAuthStartingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [systemConnections, setSystemConnections] = useState<SystemMcpEntry[]>(
+    [],
+  );
+  const [togglingSystemId, setTogglingSystemId] = useState<string | null>(null);
 
   function buildHeaders(): Record<string, string> | undefined {
     const custom = headerEntries
@@ -97,10 +105,35 @@ export const McpConnections = forwardRef<
   function load() {
     setLoading(true);
     setError(null);
-    getMCPConnections()
-      .then((r) => setConnections(r.connections ?? []))
+    Promise.all([getMCPConnections(), getSystemMCPConnections()])
+      .then(([connRes, sysRes]) => {
+        setConnections(connRes.connections ?? []);
+        setSystemConnections(sysRes.systemConnections ?? []);
+      })
       .catch((e) => setError((e as Error).message))
       .finally(() => setLoading(false));
+  }
+
+  async function toggleSystemMcp(entry: SystemMcpEntry) {
+    setTogglingSystemId(entry.id);
+    setError(null);
+    try {
+      const currentEnabled = systemConnections
+        .filter((s) => s.enabled)
+        .map((s) => s.name);
+      const newEnabled = entry.enabled
+        ? currentEnabled.filter((n) => n !== entry.name)
+        : [...currentEnabled, entry.name];
+      await saveConfig({ SYSTEM_MCP_SERVERS: newEnabled.join(",") });
+      const res = await getSystemMCPConnections();
+      setSystemConnections(res.systemConnections ?? []);
+      await reloadMcpTools();
+      await onConnectionsChange?.();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setTogglingSystemId(null);
+    }
   }
 
   useEffect(() => {
@@ -843,6 +876,10 @@ export const McpConnections = forwardRef<
           {error}
         </div>
       )}
+
+      <p className="text-xs font-medium text-hooman-muted uppercase tracking-wider mb-2">
+        Your MCP servers
+      </p>
       <ul className="space-y-3">
         {connections.map((c) => (
           <li
@@ -962,8 +999,45 @@ export const McpConnections = forwardRef<
       </ul>
       {connections.length === 0 && !editing && (
         <p className="text-hooman-muted text-sm">
-          No MCP servers yet. Add one to delegate tools.
+          No custom MCP servers yet. Add one to delegate tools.
         </p>
+      )}
+
+      {systemConnections.length > 0 && (
+        <div className="mt-6">
+          <p className="text-xs font-medium text-hooman-muted uppercase tracking-wider mb-2">
+            System MCPs
+          </p>
+          <ul className="space-y-3">
+            {systemConnections.map((s) => (
+              <li
+                key={s.id}
+                className="rounded-xl border border-hooman-border/80 bg-hooman-surface/60 p-4 flex items-start justify-between"
+              >
+                <div className="min-w-0">
+                  <span className="inline-block rounded px-2 py-0.5 text-xs font-medium bg-hooman-muted/30 text-hooman-muted mr-2">
+                    System
+                  </span>
+                  <span className="font-medium text-white">{s.name}</span>
+                  <p className="text-xs text-hooman-muted truncate mt-0.5">
+                    {s.command} {s.args?.join(" ")}
+                  </p>
+                </div>
+                <div className="shrink-0">
+                  <Button
+                    type="button"
+                    variant={s.enabled ? "success" : "danger"}
+                    size="sm"
+                    onClick={() => toggleSystemMcp(s)}
+                    disabled={togglingSystemId !== null}
+                  >
+                    {togglingSystemId === s.id ? "…" : s.enabled ? "On" : "Off"}
+                  </Button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
     </>
   );

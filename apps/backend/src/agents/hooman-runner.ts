@@ -10,7 +10,11 @@ import {
   type SkillService,
 } from "../capabilities/skills/skills-service.js";
 import type { AuditLogEntry, ChannelMeta } from "../types.js";
-import { getConfig, getFullStaticAgentInstructionsAppend } from "../config.js";
+import {
+  getConfig,
+  getFullStaticAgentInstructionsAppend,
+  getSystemMcpServers,
+} from "../config.js";
 import { buildChannelContext } from "../channels/shared.js";
 import { buildAgentSystemPrompt } from "../utils/prompts.js";
 import { truncateForMax } from "../utils/helpers.js";
@@ -199,7 +203,15 @@ export async function createHoomanRunner(options: {
   ) as ToolSet;
 
   const skillService = injectedSkillService ?? createSkillService();
-  const skillsSection = await skillService.getSkillsMetadataSection();
+  const systemMcpList = getSystemMcpServers();
+  const skillsMcpEnabled = systemMcpList
+    .split(",")
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean)
+    .includes("skills");
+  const skillsSection = skillsMcpEnabled
+    ? await skillService.getSkillsMetadataSection()
+    : "";
 
   const fullSystem = buildAgentSystemPrompt({
     userInstructions: (config.AGENT_INSTRUCTIONS ?? "").trim(),

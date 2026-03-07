@@ -121,6 +121,7 @@ export interface BuildAgentSystemPromptParams {
 
 /**
  * Build the full agent system prompt: user instructions + static append + skills section + optional session instructions.
+ * Caller should pass empty skillsSection when skills MCP is not enabled.
  */
 export function buildAgentSystemPrompt(
   params: BuildAgentSystemPromptParams,

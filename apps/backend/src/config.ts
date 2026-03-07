@@ -84,6 +84,8 @@ export interface PersistedConfig {
   TOOL_APPROVAL_FORMAT_TIMEOUT_MS?: number;
   /** Timeout in ms for the tool-approval reply-parse LLM call. 0 or unset = 60000. */
   TOOL_APPROVAL_PARSE_TIMEOUT_MS?: number;
+  /** Comma-separated list of enabled system MCP server names (e.g. time,fetch,skills). Overrides env SYSTEM_MCP_SERVERS when set. */
+  SYSTEM_MCP_SERVERS?: string;
 }
 
 /** Tool approval mode: LLM-based or static formatting/parsing. */
@@ -264,8 +266,19 @@ export function updateConfig(patch: Partial<PersistedConfig>): PersistedConfig {
       Number(patch.TOOL_APPROVAL_PARSE_TIMEOUT_MS) ||
         DEFAULTS.TOOL_APPROVAL_PARSE_TIMEOUT_MS!,
     );
+  if (patch.SYSTEM_MCP_SERVERS !== undefined)
+    store.SYSTEM_MCP_SERVERS =
+      String(patch.SYSTEM_MCP_SERVERS).trim() || undefined;
   persist().catch((err) => debug("persist error: %o", err));
   return { ...store };
+}
+
+const DEFAULT_SYSTEM_MCP_SERVERS =
+  "time,fetch,filesystem,desktop_commander,memory,schedule,skills,thinking";
+
+/** Effective comma-separated list of enabled system MCP server names (from persisted config or default). */
+export function getSystemMcpServers(): string {
+  return store.SYSTEM_MCP_SERVERS?.trim() ?? DEFAULT_SYSTEM_MCP_SERVERS;
 }
 
 export function getChannelsConfig(): ChannelsConfig {
@@ -397,6 +410,9 @@ export async function loadPersisted(): Promise<void> {
           Number(parsed.TOOL_APPROVAL_PARSE_TIMEOUT_MS) ||
             DEFAULTS.TOOL_APPROVAL_PARSE_TIMEOUT_MS!,
         );
+      if (parsed.SYSTEM_MCP_SERVERS !== undefined)
+        store.SYSTEM_MCP_SERVERS =
+          String(parsed.SYSTEM_MCP_SERVERS).trim() || undefined;
       if (parsed.channels && typeof parsed.channels === "object")
         channelsStore = { ...parsed.channels };
     }

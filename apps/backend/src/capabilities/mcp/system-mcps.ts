@@ -1,6 +1,6 @@
 import { join } from "path";
 import { BACKEND_ROOT, env } from "../../env.js";
-import { getChannelsConfig } from "../../config.js";
+import { getChannelsConfig, getSystemMcpServers } from "../../config.js";
 import type { MCPConnection, MCPConnectionStdio } from "../../types.js";
 
 const DEFAULT_MCP_CWD = env.MCP_STDIO_DEFAULT_CWD;
@@ -37,73 +37,110 @@ const SKILLS_MCP_SERVER_PATH = join(
   "skills-mcp-server.ts",
 );
 
+const ALL_SYSTEM_MCP_CONNECTIONS: MCPConnectionStdio[] = [
+  {
+    id: "_default_fetch",
+    type: "stdio",
+    name: "fetch",
+    command: "uvx",
+    args: ["mcp-server-fetch"],
+    cwd: DEFAULT_MCP_CWD,
+  },
+  {
+    id: "_default_time",
+    type: "stdio",
+    name: "time",
+    command: "uvx",
+    args: ["mcp-server-time"],
+    cwd: DEFAULT_MCP_CWD,
+  },
+  {
+    id: "_default_filesystem",
+    type: "stdio",
+    name: "filesystem",
+    command: "npx",
+    args: ["-y", "@modelcontextprotocol/server-filesystem", DEFAULT_MCP_CWD],
+  },
+  {
+    id: "_default_desktop_commander",
+    type: "stdio",
+    name: "desktop_commander",
+    command: "npx",
+    args: ["-y", "@wonderwhy-er/desktop-commander@latest", "--no-onboarding"],
+    cwd: DEFAULT_MCP_CWD,
+    tool_filter:
+      "start_process,interact_with_process,read_process_output,force_terminate,list_sessions,list_processes,kill_process",
+  },
+  {
+    id: "_default_thinking",
+    type: "stdio",
+    name: "thinking",
+    command: "npx",
+    args: ["-y", "@modelcontextprotocol/server-sequential-thinking"],
+  },
+  {
+    id: "_default_memory",
+    type: "stdio",
+    name: "memory",
+    command: "npx",
+    args: ["tsx", MEMORY_MCP_SERVER_PATH],
+    cwd: DEFAULT_MCP_CWD,
+  },
+  {
+    id: "_default_schedule",
+    type: "stdio",
+    name: "schedule",
+    command: "npx",
+    args: ["tsx", SCHEDULE_MCP_SERVER_PATH],
+    cwd: DEFAULT_MCP_CWD,
+  },
+  {
+    id: "_default_skills",
+    type: "stdio",
+    name: "skills",
+    command: "npx",
+    args: ["tsx", SKILLS_MCP_SERVER_PATH],
+    cwd: DEFAULT_MCP_CWD,
+  },
+];
+
+/** Entry for UI: system MCP with id, name, command, args, enabled. */
+export interface SystemMcpEntry {
+  id: string;
+  name: string;
+  command: string;
+  args?: string[];
+  enabled: boolean;
+}
+
+/** Set of enabled system MCP names (from config). Empty = none enabled. */
+function getEnabledSystemMcpNames(): Set<string> {
+  const list = getSystemMcpServers();
+  const names = list
+    .split(",")
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+  return new Set(names);
+}
+
+/** All system MCP entries with enabled state for the MCP tab. */
+export function getSystemMcpEntriesWithEnabled(): SystemMcpEntry[] {
+  const enabled = getEnabledSystemMcpNames();
+  return ALL_SYSTEM_MCP_CONNECTIONS.map((c) => ({
+    id: c.id,
+    name: c.name,
+    command: c.command,
+    args: c.args,
+    enabled: enabled.has(c.name.toLowerCase()),
+  }));
+}
+
 export function getDefaultMcpConnections(): MCPConnectionStdio[] {
-  return [
-    {
-      id: "_default_fetch",
-      type: "stdio",
-      name: "fetch",
-      command: "uvx",
-      args: ["mcp-server-fetch"],
-      cwd: DEFAULT_MCP_CWD,
-    },
-    {
-      id: "_default_time",
-      type: "stdio",
-      name: "time",
-      command: "uvx",
-      args: ["mcp-server-time"],
-      cwd: DEFAULT_MCP_CWD,
-    },
-    {
-      id: "_default_filesystem",
-      type: "stdio",
-      name: "filesystem",
-      command: "npx",
-      args: ["-y", "@modelcontextprotocol/server-filesystem", DEFAULT_MCP_CWD],
-    },
-    {
-      id: "_default_desktop_commander",
-      type: "stdio",
-      name: "desktop_commander",
-      command: "npx",
-      args: ["-y", "@wonderwhy-er/desktop-commander@latest", "--no-onboarding"],
-      cwd: DEFAULT_MCP_CWD,
-      tool_filter:
-        "start_process,interact_with_process,read_process_output,force_terminate,list_sessions,list_processes,kill_process",
-    },
-    {
-      id: "_default_thinking",
-      type: "stdio",
-      name: "thinking",
-      command: "npx",
-      args: ["-y", "@modelcontextprotocol/server-sequential-thinking"],
-    },
-    {
-      id: "_default_memory",
-      type: "stdio",
-      name: "memory",
-      command: "npx",
-      args: ["tsx", MEMORY_MCP_SERVER_PATH],
-      cwd: DEFAULT_MCP_CWD,
-    },
-    {
-      id: "_default_schedule",
-      type: "stdio",
-      name: "schedule",
-      command: "npx",
-      args: ["tsx", SCHEDULE_MCP_SERVER_PATH],
-      cwd: DEFAULT_MCP_CWD,
-    },
-    {
-      id: "_default_skills",
-      type: "stdio",
-      name: "skills",
-      command: "npx",
-      args: ["tsx", SKILLS_MCP_SERVER_PATH],
-      cwd: DEFAULT_MCP_CWD,
-    },
-  ];
+  const enabled = getEnabledSystemMcpNames();
+  if (enabled.size === 0) return [];
+  return ALL_SYSTEM_MCP_CONNECTIONS.filter((c) =>
+    enabled.has(c.name.toLowerCase()),
+  );
 }
 
 export function getChannelDefaultMcpConnections(): MCPConnectionStdio[] {

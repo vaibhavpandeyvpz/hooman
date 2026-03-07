@@ -3,6 +3,7 @@ import createDebug from "debug";
 import type { AppContext } from "../utils/helpers.js";
 import { getParam } from "../utils/helpers.js";
 import { publish } from "../utils/pubsub.js";
+import { getSystemMcpEntriesWithEnabled } from "../capabilities/mcp/system-mcps.js";
 
 const MCP_RELOAD_REQUEST_CHANNEL = "hooman:mcp-reload:request";
 const debug = createDebug("hooman:routes:capabilities");
@@ -100,6 +101,19 @@ export function registerCapabilityRoutes(app: Express, ctx: AppContext): void {
         });
       } catch (err) {
         debug("get connections error: %o", err);
+        res.status(500).json({ error: (err as Error).message });
+      }
+    },
+  );
+
+  app.get(
+    "/api/capabilities/mcp/system-connections",
+    (_req: Request, res: Response) => {
+      try {
+        const systemConnections = getSystemMcpEntriesWithEnabled();
+        res.json({ systemConnections });
+      } catch (err) {
+        debug("get system connections error: %o", err);
         res.status(500).json({ error: (err as Error).message });
       }
     },

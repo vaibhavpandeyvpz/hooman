@@ -49,6 +49,7 @@ export function registerSettingsRoutes(app: Express, ctx: AppContext): void {
       MAX_INPUT_TOKENS: c.MAX_INPUT_TOKENS,
       CHAT_TIMEOUT_MS: c.CHAT_TIMEOUT_MS,
       TOOL_APPROVAL_MODE: c.TOOL_APPROVAL_MODE,
+      SYSTEM_MCP_SERVERS: c.SYSTEM_MCP_SERVERS,
     });
   });
 
@@ -105,6 +106,7 @@ export function registerSettingsRoutes(app: Express, ctx: AppContext): void {
         TOOL_APPROVAL_MODE: patch.TOOL_APPROVAL_MODE as
           | ToolApprovalModeId
           | undefined,
+        SYSTEM_MCP_SERVERS: patch.SYSTEM_MCP_SERVERS as string | undefined,
       });
 
       res.json(updated);
