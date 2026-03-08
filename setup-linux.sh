@@ -3,6 +3,7 @@ set -euo pipefail
 
 REPO_URL="https://github.com/one710/hooman.git"
 APP_USER="hooman"
+APP_GROUP=""
 APP_HOME=""
 INSTALL_DIR=""
 PUPPETEER_EXECUTABLE_PATH=""
@@ -120,6 +121,11 @@ setup_dedicated_user() {
   fi
   if [[ -z "${APP_HOME}" ]]; then
     echo "Could not determine home directory for ${APP_USER}." >&2
+    exit 1
+  fi
+  APP_GROUP="$(id -gn "${APP_USER}")"
+  if [[ -z "${APP_GROUP}" ]]; then
+    echo "Could not determine primary group for ${APP_USER}." >&2
     exit 1
   fi
   INSTALL_DIR="${APP_HOME}/hooman"
@@ -262,13 +268,14 @@ write_env_file() {
   JWT_SECRET="$(openssl rand -hex 32)"
 
   cat > "${INSTALL_DIR}/.env" <<EOF
-REDIS_URL=redis://127.0.0.1:6379
-CHROMA_URL=http://127.0.0.1:8000
 API_BASE_URL=${api_base}
+CHROMA_URL=http://127.0.0.1:8000
+JWT_SECRET=${JWT_SECRET}
+PUPPETEER_HEADLESS=true
+REDIS_URL=redis://127.0.0.1:6379
 VITE_API_BASE=${vite_api_base}
 WEB_AUTH_USERNAME=${WEB_AUTH_USERNAME}
 WEB_AUTH_PASSWORD_HASH=${WEB_AUTH_PASSWORD_HASH}
-JWT_SECRET=${JWT_SECRET}
 EOF
 
   if [[ -n "${PUPPETEER_EXECUTABLE_PATH}" ]]; then
@@ -319,6 +326,11 @@ publish_frontend_assets() {
   ${SUDO} cp -a "${INSTALL_DIR}/apps/frontend/dist" /var/www/hooman/apps/frontend/dist
   ${SUDO} chown -R root:root /var/www/hooman
   ${SUDO} chmod -R a+rX /var/www/hooman
+}
+
+ensure_app_ownership() {
+  log "Ensuring ${APP_USER}:${APP_GROUP} ownership on ${INSTALL_DIR}"
+  ${SUDO} chown -R "${APP_USER}:${APP_GROUP}" "${INSTALL_DIR}"
 }
 
 install_native_valkey() {
@@ -536,6 +548,7 @@ main() {
   run_db_migrations
   publish_frontend_assets
   setup_nginx_and_certs
+  ensure_app_ownership
   start_pm2
   print_summary
 }
