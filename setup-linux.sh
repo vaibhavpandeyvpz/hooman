@@ -16,6 +16,34 @@ log() {
   printf "\n[hooman-setup] %s\n" "$1"
 }
 
+PROMPT_FD=0
+
+init_prompt_fd() {
+  if [[ -r /dev/tty ]]; then
+    exec 3</dev/tty
+    PROMPT_FD=3
+  else
+    PROMPT_FD=0
+  fi
+}
+
+prompt_line() {
+  local prompt="$1"
+  local out_var="$2"
+  local value=""
+  read -r -u "${PROMPT_FD}" -p "${prompt}" value || true
+  printf -v "${out_var}" "%s" "${value}"
+}
+
+prompt_secret() {
+  local prompt="$1"
+  local out_var="$2"
+  local value=""
+  read -r -s -u "${PROMPT_FD}" -p "${prompt}" value || true
+  echo
+  printf -v "${out_var}" "%s" "${value}"
+}
+
 require_ubuntu() {
   if [[ ! -f /etc/os-release ]]; then
     echo "Cannot detect OS. This script supports Ubuntu." >&2
@@ -34,9 +62,9 @@ prompt_inputs() {
   echo "Press Enter to keep fields empty for local-only install."
   echo
 
-  read -r -p "Frontend domain (e.g. hooman.example.com): " FRONTEND_DOMAIN
-  read -r -p "API domain (e.g. api.hooman.example.com): " API_DOMAIN
-  read -r -p "Dedicated app user [hooman]: " APP_USER
+  prompt_line "Frontend domain (e.g. hooman.example.com): " FRONTEND_DOMAIN
+  prompt_line "API domain (e.g. api.hooman.example.com): " API_DOMAIN
+  prompt_line "Dedicated app user [hooman]: " APP_USER
   APP_USER="${APP_USER:-hooman}"
 
   if [[ ! "${APP_USER}" =~ ^[a-z_][a-z0-9_-]*$ ]]; then
@@ -58,14 +86,12 @@ prompt_inputs() {
     USE_DOMAINS="false"
   fi
 
-  read -r -p "Web auth username [admin]: " WEB_AUTH_USERNAME
+  prompt_line "Web auth username [admin]: " WEB_AUTH_USERNAME
   WEB_AUTH_USERNAME="${WEB_AUTH_USERNAME:-admin}"
 
   while true; do
-    read -r -s -p "Web auth password: " WEB_AUTH_PASSWORD
-    echo
-    read -r -s -p "Confirm web auth password: " WEB_AUTH_PASSWORD_CONFIRM
-    echo
+    prompt_secret "Web auth password: " WEB_AUTH_PASSWORD
+    prompt_secret "Confirm web auth password: " WEB_AUTH_PASSWORD_CONFIRM
     if [[ -z "${WEB_AUTH_PASSWORD}" ]]; then
       echo "Password cannot be empty."
       continue
@@ -430,6 +456,7 @@ print_summary() {
 
 main() {
   require_ubuntu
+  init_prompt_fd
   prompt_inputs
   setup_dedicated_user
   install_system_packages
