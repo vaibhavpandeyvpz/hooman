@@ -390,7 +390,7 @@ export type HealthData = {
 export async function getHealth(): Promise<HealthData | null> {
   let res: Response;
   try {
-    res = await fetch(`${BASE}/health`);
+    res = await fetch(`${BASE}/api/health`);
   } catch {
     return null;
   }

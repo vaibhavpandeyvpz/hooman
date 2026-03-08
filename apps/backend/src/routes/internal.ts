@@ -85,7 +85,7 @@ async function checkEventQueueWorker(): Promise<ServiceStatus> {
 }
 
 export function registerInternalRoutes(app: Express, _ctx: AppContext): void {
-  app.get("/health", async (_req: Request, res: Response) => {
+  app.get("/api/health", async (_req: Request, res: Response) => {
     const [valkey, chroma, eventQueue] = await Promise.all([
       checkRedis(),
       checkChroma(),

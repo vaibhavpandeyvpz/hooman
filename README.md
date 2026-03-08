@@ -145,6 +145,7 @@ What it does automatically:
 - Installs prerequisites (Node.js via nvm, Yarn, uv + Python, Go, nginx, certbot, native Google Chrome, build tools)
 - Clones/updates the repo to `~/hooman`
 - Installs dependencies and builds the project
+- Runs database migrations
 - Generates `WEB_AUTH_PASSWORD_HASH` using `yarn hash-password`
 - Creates `.env` with sane defaults, including generated `JWT_SECRET`
 - Installs and runs required services (`valkey`, `chroma`) natively as systemd services

@@ -300,6 +300,27 @@ build_project() {
   "
 }
 
+run_db_migrations() {
+  log "Running database migrations"
+  su - "${APP_USER}" -c "
+    set -e
+    export NVM_DIR=\"${APP_HOME}/.nvm\"
+    # shellcheck disable=SC1090
+    . \"${APP_HOME}/.nvm/nvm.sh\"
+    cd \"${INSTALL_DIR}\"
+    yarn db:migrate
+  "
+}
+
+publish_frontend_assets() {
+  log "Publishing frontend assets to /var/www/hooman"
+  ${SUDO} mkdir -p /var/www/hooman/apps/frontend
+  ${SUDO} rm -rf /var/www/hooman/apps/frontend/dist
+  ${SUDO} cp -a "${INSTALL_DIR}/apps/frontend/dist" /var/www/hooman/apps/frontend/dist
+  ${SUDO} chown -R root:root /var/www/hooman
+  ${SUDO} chmod -R a+rX /var/www/hooman
+}
+
 install_native_valkey() {
   if command -v valkey-server >/dev/null 2>&1; then
     log "Valkey already installed"
@@ -431,7 +452,7 @@ setup_nginx_and_certs() {
   local frontend_conf
   frontend_conf="$(mktemp)"
 
-  sed "s/hooman.example.com/${PUBLIC_DOMAIN}/g; s#root /var/www/hooman/apps/frontend/dist;#root ${INSTALL_DIR}/apps/frontend/dist;#g" \
+  sed "s/hooman.example.com/${PUBLIC_DOMAIN}/g" \
     "${INSTALL_DIR}/.nginx/hooman.conf" > "${frontend_conf}"
 
   ${SUDO} cp "${frontend_conf}" /etc/nginx/sites-available/hooman.conf
@@ -512,6 +533,8 @@ main() {
   hash_web_password
   write_env_file
   build_project
+  run_db_migrations
+  publish_frontend_assets
   setup_nginx_and_certs
   start_pm2
   print_summary
