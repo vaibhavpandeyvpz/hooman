@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO_URL="https://github.com/one710/hooman.git"
+REPO_URL="https://github.com/vaibhavpandeyvpz/hooman.git"
 APP_USER="hooman"
 APP_GROUP=""
 APP_HOME=""

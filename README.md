@@ -34,7 +34,7 @@ Hooman is an **open-source platform** to run a single, always-on AI identity tha
 ## One-click install (Linux)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/one710/hooman/main/setup-linux.sh | bash
+curl -fsSL https://raw.githubusercontent.com/vaibhavpandeyvpz/hooman/main/setup-linux.sh | bash
 ```
 
 Prompts for domain (optional), web auth username/password. Installs deps, builds, runs Valkey + Chroma, starts the app with PM2, and optionally configures nginx + TLS.
@@ -46,7 +46,7 @@ Prompts for domain (optional), web auth username/password. Installs deps, builds
 **Prerequisites:** Node.js 20+, Yarn, [uv](https://docs.astral.sh/uv/) (for MCP), [Docker](https://docs.docker.com/get-docker/) (Valkey + Chroma).
 
 ```bash
-git clone https://github.com/one710/hooman.git
+git clone https://github.com/vaibhavpandeyvpz/hooman.git
 cd hooman
 cp .env.example .env
 yarn install
