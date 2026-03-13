@@ -19,6 +19,31 @@ export interface ScheduledTaskHandlerDeps {
   runAgent: RunAgentFn;
 }
 
+function toTextContext(context: Record<string, unknown>): string {
+  const entries = Object.entries(context).map(([k, v]) => `${k}=${String(v)}`);
+  return entries.length ? entries.join(", ") : "(none)";
+}
+
+function buildExecutionPrompt(payload: {
+  intent: string;
+  context: Record<string, unknown>;
+}): string {
+  const contextText = toTextContext(payload.context);
+  const intent = payload.intent.trim() || "(missing)";
+  return [
+    "You are executing an already-triggered scheduled task right now.",
+    "This is not a request to schedule something new.",
+    "",
+    `Task context: ${contextText}`,
+    "",
+    `Task intent: ${intent}`,
+    "",
+    "Required behavior:",
+    "- Perform the task now.",
+    "- Do not ask follow-up or scheduling questions.",
+  ].join("\n");
+}
+
 export function createScheduledTaskHandler(
   deps: ScheduledTaskHandlerDeps,
 ): (event: NormalizedEvent) => Promise<void> {
@@ -28,13 +53,10 @@ export function createScheduledTaskHandler(
     if (event.payload.kind !== "scheduled_task") return;
 
     const payload = event.payload;
-    const contextStr =
-      Object.keys(payload.context).length === 0
-        ? "(none)"
-        : Object.entries(payload.context)
-            .map(([k, v]) => `${k}=${String(v)}`)
-            .join(", ");
-    const text = `Scheduled task: ${payload.intent}. Context: ${contextStr}.`;
+    const text = buildExecutionPrompt({
+      intent: payload.intent,
+      context: payload.context,
+    });
     const runOptions: RunChatOptions = {
       source: "scheduler",
       sessionId: payload.context.userId
@@ -62,7 +84,7 @@ export function createScheduledTaskHandler(
         type: "response",
         text: assistantText,
         eventId: event.id,
-        userInput: text,
+        userInput: `Scheduled task fired: ${payload.intent}`,
       });
     } catch (err) {
       debug("scheduled task handler error: %o", err);

@@ -58,7 +58,7 @@ server.registerTool(
   {
     title: "Create a scheduled task",
     description:
-      "Create a scheduled task. One-shot: provide execute_at (ISO date-time, e.g. 2025-02-05T14:00:00Z) and the task runs once at that time. Recurring: provide cron (e.g. '*/5 * * * *' for every 5 minutes) and the task repeats. intent is required; context is optional. Use for follow-ups or deferred/recurring work.",
+      "Create a scheduled task. One-shot: provide execute_at (ISO date-time, e.g. 2025-02-05T14:00:00Z) and the task runs once at that time. Recurring: provide cron (e.g. '*/5 * * * *' for every 5 minutes) and the task repeats. intent is required; context is optional. IMPORTANT: keep intent action-only (what to do at runtime) and put ALL timing only in execute_at/cron. Do not include schedule phrases like 'at 3am', 'tomorrow', or 'every 3 hours' inside intent. Use for follow-ups or deferred/recurring work.",
     inputSchema: z.object({
       execute_at: z
         .string()
@@ -74,7 +74,9 @@ server.registerTool(
         .optional(),
       intent: z
         .string()
-        .describe("Short description of what the task should do"),
+        .describe(
+          "Action-only description of what the task should do at runtime (no timing words; timing must be in execute_at/cron). Example: 'Remind me to drink water'.",
+        ),
       context: z
         .record(z.string(), z.unknown())
         .describe("Optional extra context (key-value object) for the task")
