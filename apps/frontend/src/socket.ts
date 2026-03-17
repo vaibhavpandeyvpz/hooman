@@ -5,7 +5,8 @@
 import { io } from "socket.io-client";
 import type { Socket } from "socket.io-client";
 
-const DEFAULT_TIMEOUT_MS = 120_000; // 2 min
+/** Match backend default (config CHAT_TIMEOUT_MS 0 or unset = 5 min). */
+const DEFAULT_TIMEOUT_MS = 300_000;
 
 let socketInstance: Socket | null = null;
 

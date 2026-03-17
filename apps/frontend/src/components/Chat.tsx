@@ -6,6 +6,7 @@ import {
   sendMessage,
   getChatHistory,
   clearChatHistory,
+  getConfig,
   type ChatAttachmentMeta,
 } from "../api";
 import {
@@ -21,6 +22,8 @@ import { PageHeader } from "./PageHeader";
 
 const debug = createDebug("hooman:Chat");
 const CHAT_PAGE_SIZE = 50;
+/** Match backend default when CHAT_TIMEOUT_MS is 0 or unset. */
+const DEFAULT_CHAT_TIMEOUT_MS = 300_000;
 
 function labelForStage(stage: ChatProgressStage | null): string {
   switch (stage) {
@@ -53,6 +56,13 @@ export function Chat() {
   const [queue, setQueue] = useState<QueuedMessage[]>([]);
   const queueRef = useRef<QueuedMessage[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const [chatTimeoutMs, setChatTimeoutMs] = useState(DEFAULT_CHAT_TIMEOUT_MS);
+
+  useEffect(() => {
+    getConfig().then((c) => {
+      setChatTimeoutMs(c.CHAT_TIMEOUT_MS || DEFAULT_CHAT_TIMEOUT_MS);
+    });
+  }, []);
 
   useEffect(() => {
     getChatHistory({ page: 1, pageSize: CHAT_PAGE_SIZE }).then((r) => {
@@ -82,7 +92,7 @@ export function Chat() {
       try {
         const { eventId } = await sendMessage(text, attachmentIds);
         const message = await waitForChatResult(eventId, {
-          timeoutMs: 120_000,
+          timeoutMs: chatTimeoutMs,
           onProgress: (progress) => {
             if (progress.stage) setLiveStage(progress.stage);
             if (
@@ -151,56 +161,62 @@ export function Chat() {
         }
       }
     },
-    [setMessages],
+    [chatTimeoutMs],
   );
 
   /** Send approval reply (y / always / n). Adds reply optimistically so the approval card shows resolved immediately; the reply is hidden in UI. */
-  const sendApprovalReply = useCallback(async (text: string) => {
-    const replyTimestamp = new Date().toISOString();
-    setMessages((prev) => [
-      ...prev,
-      { role: "user" as const, text, timestamp: replyTimestamp },
-    ]);
-    setLoading(true);
-    setLiveStage("thinking");
-    setLiveText("");
-    try {
-      const { eventId } = await sendMessage(text);
-      const message = await waitForChatResult(eventId, {
-        timeoutMs: 120_000,
-        onProgress: (progress) => {
-          if (progress.stage) setLiveStage(progress.stage);
-          if (typeof progress.delta === "string" && progress.delta.length > 0) {
-            setLiveText((prev) => prev + progress.delta);
-          }
-        },
-      });
-      setLiveStage(null);
-      setLiveText("");
+  const sendApprovalReply = useCallback(
+    async (text: string) => {
+      const replyTimestamp = new Date().toISOString();
       setMessages((prev) => [
         ...prev,
-        {
-          ...message,
-          timestamp: new Date().toISOString(),
-        },
+        { role: "user" as const, text, timestamp: replyTimestamp },
       ]);
-    } catch (err) {
-      setLiveStage(null);
+      setLoading(true);
+      setLiveStage("thinking");
       setLiveText("");
-      if (err instanceof ChatSkippedError) return;
-      const msg = (err as Error).message;
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          text: `Error: ${msg || "Could not reach the API."}`,
-          timestamp: new Date().toISOString(),
-        },
-      ]);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+      try {
+        const { eventId } = await sendMessage(text);
+        const message = await waitForChatResult(eventId, {
+          timeoutMs: chatTimeoutMs,
+          onProgress: (progress) => {
+            if (progress.stage) setLiveStage(progress.stage);
+            if (
+              typeof progress.delta === "string" &&
+              progress.delta.length > 0
+            ) {
+              setLiveText((prev) => prev + progress.delta);
+            }
+          },
+        });
+        setLiveStage(null);
+        setLiveText("");
+        setMessages((prev) => [
+          ...prev,
+          {
+            ...message,
+            timestamp: new Date().toISOString(),
+          },
+        ]);
+      } catch (err) {
+        setLiveStage(null);
+        setLiveText("");
+        if (err instanceof ChatSkippedError) return;
+        const msg = (err as Error).message;
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            text: `Error: ${msg || "Could not reach the API."}`,
+            timestamp: new Date().toISOString(),
+          },
+        ]);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [chatTimeoutMs],
+  );
 
   function handleSend(
     text: string,
