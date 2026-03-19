@@ -16,6 +16,7 @@ import type {
 } from "../types.js";
 import { HOOMAN_SKIP_MARKER } from "../types.js";
 import type { ConfirmationResult } from "../approval/confirmation.js";
+import { slackReplyThreadTs } from "../channels/slack-adapter.js";
 
 /** Default chat timeout when config CHAT_TIMEOUT_MS is 0 or unset. */
 export const DEFAULT_CHAT_TIMEOUT_MS = 300_000;
@@ -109,11 +110,10 @@ export function dispatchResponseToChannel(
   if (source === "slack") {
     const meta = channelMeta as SlackChannelMeta | undefined;
     if (meta?.channel === "slack") {
-      const replyThreadTs =
-        meta.threadTs ?? (meta.replyInThread ? meta.messageTs : undefined);
+      const replyThreadTs = slackReplyThreadTs(meta);
       const payload: ResponseDeliveryPayload = {
         channel: "slack",
-        channelId: meta.channelId,
+        channelId: meta.message.channel.id,
         text: assistantText,
         ...(replyThreadTs ? { threadTs: replyThreadTs } : {}),
       };
@@ -126,7 +126,7 @@ export function dispatchResponseToChannel(
     if (meta?.channel === "whatsapp") {
       return publishResponse({
         channel: "whatsapp",
-        chatId: meta.chatId,
+        chatId: meta.message.chat.id,
         text: assistantText,
       });
     }

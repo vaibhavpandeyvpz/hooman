@@ -50,6 +50,8 @@ const SLACK_APP_MANIFEST = {
         "app_mentions:read",
         "channels:history",
         "channels:read",
+        "files:read",
+        "files:write",
         "groups:history",
         "groups:read",
         "im:history",
@@ -66,6 +68,8 @@ const SLACK_APP_MANIFEST = {
       user: [
         "channels:history",
         "channels:read",
+        "files:read",
+        "files:write",
         "groups:history",
         "groups:read",
         "im:history",

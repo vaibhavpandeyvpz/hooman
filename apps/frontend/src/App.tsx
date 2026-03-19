@@ -16,7 +16,9 @@ function RedirectToChatOrLogin() {
   const [authRequired, setAuthRequired] = useState<boolean | null>(null);
 
   useEffect(() => {
-    getAuthStatus().then(({ authRequired: required }) => setAuthRequired(required));
+    getAuthStatus().then(({ authRequired: required }) =>
+      setAuthRequired(required),
+    );
   }, []);
 
   if (authRequired === null) {

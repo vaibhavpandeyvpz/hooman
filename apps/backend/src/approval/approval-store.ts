@@ -3,7 +3,11 @@
  * channels has separate pending approvals. Backed by Redis with TTL.
  */
 import { getRedis } from "../data/redis.js";
-import type { ChannelMeta } from "../types.js";
+import type {
+  ChannelMeta,
+  SlackChannelMeta,
+  WhatsAppChannelMeta,
+} from "../types.js";
 
 const REDIS_KEY_PREFIX = "hooman:approval:pending:";
 const TTL_SECONDS = 15 * 60; // 15 minutes
@@ -44,9 +48,9 @@ export function channelKeyFromMeta(
 ): string | undefined {
   if (!meta) return undefined;
   if (meta.channel === "slack")
-    return `slack:${(meta as { channelId: string }).channelId}`;
+    return `slack:${(meta as SlackChannelMeta).message.channel.id}`;
   if (meta.channel === "whatsapp")
-    return `whatsapp:${(meta as { chatId: string }).chatId}`;
+    return `whatsapp:${(meta as WhatsAppChannelMeta).message.chat.id}`;
   return undefined;
 }
 

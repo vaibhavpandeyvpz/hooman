@@ -23,6 +23,9 @@ import { createSubscriber, createRpcMessageHandler } from "../utils/pubsub.js";
 import { env } from "../env.js";
 import { RESPONSE_DELIVERY_CHANNEL } from "../types.js";
 import { runWorker } from "./bootstrap.js";
+import { initAttachmentStore } from "../attachments/attachment-store.js";
+import { createAttachmentService } from "../attachments/attachment-service.js";
+import { getWorkspaceAttachmentsDir } from "../utils/workspace.js";
 
 const debug = createDebug("hooman:workers:whatsapp");
 
@@ -70,7 +73,12 @@ async function startAdapter(): Promise<void> {
       },
     },
   });
+  const attachmentStore = await initAttachmentStore(
+    getWorkspaceAttachmentsDir(),
+  );
+  const attachmentService = createAttachmentService(attachmentStore);
   await startWhatsAppAdapter(dispatcher, () => getChannelsConfig().whatsapp, {
+    attachmentService,
     onConnectionUpdate: ({
       status,
       qr,

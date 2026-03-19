@@ -1,7 +1,10 @@
 import { getPrisma } from "../data/db.js";
+import type { SavedAttachment } from "../types.js";
 import { writeFile, readFile, mkdir } from "fs/promises";
 import { join } from "path";
 import { randomUUID } from "crypto";
+
+export type { SavedAttachment };
 
 export interface AttachmentDoc {
   id: string;
@@ -12,12 +15,6 @@ export interface AttachmentDoc {
   createdAt: Date;
 }
 
-export interface SavedAttachment {
-  id: string;
-  originalName: string;
-  mimeType: string;
-}
-
 export interface AttachmentStore {
   save(
     userId: string,
@@ -25,6 +22,8 @@ export interface AttachmentStore {
   ): Promise<SavedAttachment>;
   getById(id: string, userId?: string): Promise<AttachmentDoc | null>;
   getBuffer(id: string, userId?: string): Promise<Buffer | null>;
+  /** Full filesystem path to the stored file, or null if not found. */
+  getPath(id: string, userId?: string): Promise<string | null>;
 }
 
 let dataDir: string = "";
@@ -107,6 +106,11 @@ export async function initAttachmentStore(
       } catch {
         return null;
       }
+    },
+    async getPath(id: string, userId?: string) {
+      const doc = await getById(id, userId);
+      if (!doc) return null;
+      return join(dataDir, doc.storedName);
     },
   };
 }

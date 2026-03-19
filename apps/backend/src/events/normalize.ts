@@ -7,7 +7,37 @@ import type {
   NormalizedEvent,
   NormalizedPayload,
   ChannelMeta,
+  SlackChannelMeta,
+  WhatsAppChannelMeta,
 } from "../types.js";
+
+function parseChannelMeta(raw: unknown): ChannelMeta | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const c = raw as ChannelMeta;
+  if (c.channel === "slack") {
+    const s = c as SlackChannelMeta;
+    if (
+      s.message?.channel?.id &&
+      s.profile &&
+      typeof s.profile.id === "string" &&
+      typeof s.message.replyInThread === "boolean"
+    )
+      return s;
+    return undefined;
+  }
+  if (c.channel === "whatsapp") {
+    const w = c as WhatsAppChannelMeta;
+    if (
+      w.message?.chat?.id &&
+      typeof w.message.id === "string" &&
+      w.profile &&
+      typeof w.profile.id === "string"
+    )
+      return w;
+    return undefined;
+  }
+  return undefined;
+}
 import { randomUUID } from "crypto";
 
 const DEFAULT_PRIORITY: Record<string, number> = {
@@ -40,41 +70,35 @@ export function normalizePayload(
         : "";
     const userId =
       typeof payload.userId === "string" ? payload.userId : "default";
-    const attachmentContents = Array.isArray(payload.attachmentContents)
+    const attachments = Array.isArray(payload.attachments)
       ? (
-          payload.attachmentContents as Array<{
-            name: string;
-            contentType: string;
-            data: string;
+          payload.attachments as Array<{
+            id: string;
+            originalName: string;
+            mimeType: string;
           }>
         ).filter(
           (a) =>
-            typeof a?.name === "string" &&
-            typeof a?.contentType === "string" &&
-            typeof a?.data === "string",
+            typeof a?.id === "string" &&
+            typeof a?.originalName === "string" &&
+            typeof a?.mimeType === "string",
         )
       : undefined;
-    const attachments = Array.isArray(payload.attachments)
-      ? (payload.attachments as string[]).filter((id) => typeof id === "string")
-      : undefined;
-    const channelMeta =
-      payload.channelMeta &&
-      typeof payload.channelMeta === "object" &&
-      (payload.channelMeta as ChannelMeta).channel &&
-      ((payload.channelMeta as ChannelMeta).directness === "direct" ||
-        (payload.channelMeta as ChannelMeta).directness === "neutral")
-        ? (payload.channelMeta as ChannelMeta)
-        : undefined;
+    const channelMeta = parseChannelMeta(payload.channelMeta);
     const sourceMessageType =
       payload.sourceMessageType === "audio" ? ("audio" as const) : undefined;
+    const blocksSummary =
+      typeof payload.blocksSummary === "string" && payload.blocksSummary.trim()
+        ? payload.blocksSummary.trim()
+        : undefined;
     return {
       kind: "message",
       text,
       userId,
-      ...(attachmentContents?.length ? { attachmentContents } : {}),
       ...(attachments?.length ? { attachments } : {}),
       ...(channelMeta ? { channelMeta } : {}),
       ...(sourceMessageType ? { sourceMessageType } : {}),
+      ...(blocksSummary ? { blocksSummary } : {}),
     };
   }
   if (type === "task.scheduled") {

@@ -1,7 +1,20 @@
-import type { ChannelMeta, FilterMode, SlackChannelMeta } from "../types.js";
+import type {
+  ChannelMeta,
+  SlackChannelMeta,
+  WhatsAppChannelMeta,
+} from "../types.js";
+import { slackDirectness, slackDirectnessReason } from "./slack-adapter.js";
+import {
+  whatsAppDirectness,
+  whatsAppDirectnessReason,
+  whatsAppDestinationType,
+  whatsAppSelfMentioned,
+} from "./whatsapp-adapter.js";
+import { applyFilter as applyFilterImpl } from "./filter.js";
 
 /**
  * Build a human-readable channel context string from channelMeta so the agent knows where the message came from and can reply using channel MCP tools.
+ * Appends `message` (SlackMessageWithParent / WhatsAppMessage) as JSON for the agent.
  */
 export function buildChannelContext(
   meta: ChannelMeta | undefined,
@@ -9,23 +22,26 @@ export function buildChannelContext(
   if (!meta) return undefined;
   const lines: string[] = [`source_channel: ${meta.channel}`];
   if (meta.channel === "whatsapp") {
-    lines.push(`chatId: ${meta.chatId}`);
-    lines.push(`messageId: ${meta.messageId}`);
-    lines.push(`destinationType: ${meta.destinationType}`);
-    if (meta.pushName) lines.push(`senderName: ${meta.pushName}`);
-    if (meta.selfMentioned) lines.push(`selfMentioned: true`);
+    const w = meta as WhatsAppChannelMeta;
+    const m = w.message;
+    lines.push(`chatId: ${m.chat.id}`);
+    lines.push(`messageId: ${m.id}`);
+    lines.push(`destinationType: ${whatsAppDestinationType(w)}`);
+    if (m.sender.name) lines.push(`senderName: ${m.sender.name}`);
+    if (whatsAppSelfMentioned(w)) lines.push(`selfMentioned: true`);
   } else if (meta.channel === "slack") {
-    lines.push(`channelId: ${meta.channelId}`);
-    lines.push(`messageTs: ${meta.messageTs}`);
-    if (meta.threadTs) lines.push(`threadTs: ${meta.threadTs}`);
-    lines.push(`destinationType: ${meta.destinationType}`);
-    lines.push(`senderId: ${meta.senderId}`);
-    if (meta.senderName) lines.push(`senderName: ${meta.senderName}`);
-    if (meta.yourSlackUserId)
-      lines.push(`yourSlackUserId: ${meta.yourSlackUserId}`);
-    const slackMeta = meta as SlackChannelMeta;
-    const prof = slackMeta.yourSlackUserProfile;
-    if (prof && (prof.real_name || prof.name || prof.display_name)) {
+    const s = meta as SlackChannelMeta;
+    const m = s.message;
+    lines.push(`channelId: ${m.channel.id}`);
+    lines.push(`messageTs: ${m.messageTs}`);
+    if (m.parent) lines.push(`threadTs: ${m.parent.messageTs}`);
+    lines.push(`destinationType: ${m.channel.type}`);
+    lines.push(`senderId: ${m.sender.id}`);
+    if (m.sender.name) lines.push(`senderName: ${m.sender.name}`);
+    if (s.connectAs) lines.push(`connectedAs: ${s.connectAs}`);
+    if (s.profile.id) lines.push(`yourSlackUserId: ${s.profile.id}`);
+    const prof = s.profile;
+    if (prof.real_name || prof.name || prof.display_name) {
       lines.push(
         "yourSlackUserNames: " +
           [prof.real_name, prof.name, prof.display_name]
@@ -33,26 +49,33 @@ export function buildChannelContext(
             .join(", "),
       );
     }
-    if (meta.selfMentioned) lines.push(`selfMentioned: true`);
+    if (s.profile.id && m.mentions.some((x) => x.id === s.profile.id)) {
+      lines.push(`selfMentioned: true`);
+    }
   }
-  lines.push(`directness: ${meta.directness}`);
-  if (meta.directnessReason)
-    lines.push(`directnessReason: ${meta.directnessReason}`);
+  if (meta.channel === "slack") {
+    const s = meta as SlackChannelMeta;
+    lines.push(`directness: ${slackDirectness(s)}`);
+    lines.push(`directnessReason: ${slackDirectnessReason(s)}`);
+  } else {
+    const w = meta as WhatsAppChannelMeta;
+    lines.push(`directness: ${whatsAppDirectness(w)}`);
+    lines.push(`directnessReason: ${whatsAppDirectnessReason(w)}`);
+  }
+
+  if (meta.channel === "slack") {
+    lines.push("");
+    lines.push("Structured message (SlackMessageWithParent):");
+    lines.push(JSON.stringify((meta as SlackChannelMeta).message, null, 2));
+  }
+  if (meta.channel === "whatsapp") {
+    lines.push("");
+    lines.push("Structured message (WhatsAppMessage):");
+    lines.push(JSON.stringify((meta as WhatsAppChannelMeta).message, null, 2));
+  }
+
   return lines.join("\n");
 }
 
-/**
- * Generic channel filter: returns true if the message should be processed.
- * Each adapter provides a channel-specific `matchFn` that checks whether
- * a normalised filter-list entry matches the current message context.
- */
-export function applyFilter(
-  config: { filterMode?: FilterMode; filterList?: string[] },
-  matchFn: (entry: string) => boolean,
-): boolean {
-  const mode = config.filterMode ?? "all";
-  if (mode === "all") return true;
-  const list = (config.filterList ?? []).map((x) => x.trim());
-  const match = list.some(matchFn);
-  return mode === "allowlist" ? match : !match;
-}
+/** Re-export for callers that import from shared. */
+export const applyFilter = applyFilterImpl;

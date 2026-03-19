@@ -22,6 +22,7 @@ import {
 import { buildChannelContext } from "../channels/shared.js";
 import { buildAgentSystemPrompt } from "../utils/prompts.js";
 import { runWithTimeout, truncateForMax } from "../utils/helpers.js";
+import { readFile } from "fs/promises";
 
 const IMAGE_MIME_TYPES = [
   "image/jpeg",
@@ -35,31 +36,36 @@ type UserInputContentPart =
   | { type: "input_image"; image: string; detail?: string }
   | { type: "input_file"; file: string; filename?: string };
 
-function buildUserContentParts(
+async function buildUserContentParts(
   text: string,
-  attachments?: Array<{ name: string; contentType: string; data: string }>,
-): UserInputContentPart[] {
+  attachments?: Array<{ name: string; path: string; mime: string }>,
+): Promise<UserInputContentPart[]> {
   const parts: UserInputContentPart[] = [
     { type: "input_text", text: text ?? "" },
   ];
   if (attachments?.length) {
     for (const a of attachments) {
-      const data = typeof a.data === "string" ? a.data.trim() : "";
-      if (!data) continue;
-      const contentType = a.contentType.toLowerCase().split(";")[0].trim();
-      const dataUrl = `data:${contentType};base64,${data}`;
-      if (
-        IMAGE_MIME_TYPES.includes(
-          contentType as (typeof IMAGE_MIME_TYPES)[number],
-        )
-      ) {
-        parts.push({ type: "input_image", image: dataUrl, detail: "auto" });
-      } else {
-        parts.push({
-          type: "input_file",
-          file: dataUrl,
-          filename: a.name,
-        });
+      try {
+        const buf = await readFile(a.path);
+        const data = buf.toString("base64").replace(/\s/g, "").trim();
+        if (!data) continue;
+        const contentType = a.mime.toLowerCase().split(";")[0].trim();
+        const dataUrl = `data:${contentType};base64,${data}`;
+        if (
+          IMAGE_MIME_TYPES.includes(
+            contentType as (typeof IMAGE_MIME_TYPES)[number],
+          )
+        ) {
+          parts.push({ type: "input_image", image: dataUrl, detail: "auto" });
+        } else {
+          parts.push({
+            type: "input_file",
+            file: dataUrl,
+            filename: a.name,
+          });
+        }
+      } catch (e) {
+        debug("Attachment read failed path=%s: %o", a.path, e);
       }
     }
   }
@@ -81,11 +87,7 @@ export interface RunChatOptions {
   source?: string;
   channel?: ChannelMeta;
   sessionId?: string;
-  attachments?: Array<{
-    name: string;
-    contentType: string;
-    data: string;
-  }>;
+  attachments?: Array<{ name: string; path: string; mime: string }>;
 }
 
 export interface NeedsApprovalPayload {
@@ -310,7 +312,7 @@ export async function createHoomanRunner(options: {
         for (let i = 0; i < turns.length; i += 1) {
           const turnText = turns[i] ?? "";
           const isLastTurn = i === turns.length - 1;
-          const userContent = buildUserContentParts(
+          const userContent = await buildUserContentParts(
             turnText,
             isLastTurn ? options?.attachments : undefined,
           );
@@ -331,6 +333,9 @@ export async function createHoomanRunner(options: {
           input.push(prompt);
         }
       }
+
+      const latest = input.length > 0 ? input[input.length - 1] : null;
+      debug("Model input (latest item): %s", JSON.stringify(latest, null, 2));
 
       const result = await run(agent, input, {
         maxTurns,

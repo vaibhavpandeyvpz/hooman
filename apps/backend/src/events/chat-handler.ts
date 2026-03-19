@@ -17,7 +17,10 @@ import type {
   ChannelMeta,
   NormalizedMessagePayload,
   ChatProgressStage,
+  ResponseDeliveryPayload,
+  SavedAttachment,
 } from "../types.js";
+import { slackConversationThreadTs } from "../channels/slack-adapter.js";
 import type { PendingApproval } from "../approval/approval-store.js";
 import {
   getPending,
@@ -42,8 +45,23 @@ import {
   formatApprovalMessage,
   approvalReplyLabelToResult,
 } from "./chat-handler-shared.js";
+import type { AttachmentService } from "../attachments/attachment-service.js";
 
 const debug = createDebug("hooman:chat-handler");
+
+/** Resolve SavedAttachment[] to path-based list for the runner (read from path when building model input). */
+async function resolveSavedAttachmentsToPaths(
+  service: AttachmentService,
+  userId: string,
+  saved: SavedAttachment[],
+): Promise<Array<{ name: string; path: string; mime: string }>> {
+  const out: Array<{ name: string; path: string; mime: string }> = [];
+  for (const a of saved) {
+    const path = await service.getPath(a.id, userId);
+    if (path) out.push({ name: a.originalName, path, mime: a.mimeType });
+  }
+  return out;
+}
 
 interface ToolCallFullInfo {
   toolCallId: string;
@@ -116,11 +134,10 @@ function getNextToolCallNeedingApproval(
 export interface ChatHandlerDeps {
   context: ContextStore;
   auditLog: AuditLog;
-  publishResponse: (
-    payload: import("../types.js").ResponseDeliveryPayload,
-  ) => void;
+  publishResponse: (payload: ResponseDeliveryPayload) => void;
   getRunner: () => Promise<HoomanRunner>;
   runAgent: RunAgentFn;
+  attachmentService: AttachmentService;
   toolSettingsStore?: ToolSettingsStore;
   invalidateRunnerCache?: () => void;
 }
@@ -129,7 +146,7 @@ function publishApiProgress(
   publishResponse: ChatHandlerDeps["publishResponse"],
   source: string,
   eventId: string,
-  stage: import("../types.js").ChatProgressStage,
+  stage: ChatProgressStage,
   delta?: string,
 ): void {
   if (source !== "api" && source !== "web") return;
@@ -180,11 +197,13 @@ function publishSlackStatus(
   stage: ChatProgressStage,
 ): void {
   if (!channelMeta || channelMeta.channel !== "slack") return;
-  const threadTs = channelMeta.threadTs ?? channelMeta.messageTs;
+  const channelId = channelMeta.message?.channel?.id;
+  if (!channelId) return;
+  const threadTs = slackConversationThreadTs(channelMeta);
   publishResponse({
     channel: "slack",
-    channelId: channelMeta.channelId,
-    ...(threadTs ? { threadTs } : {}),
+    channelId,
+    threadTs,
     status: {
       stage,
       label: stageLabel(stage),
@@ -278,15 +297,28 @@ export function createChatHandler(
   return async (event: NormalizedEvent) => {
     if (event.payload.kind !== "message") return;
 
-    const { text, userId, attachmentContents, channelMeta, sourceMessageType } =
-      event.payload;
+    const {
+      text,
+      userId,
+      attachments: savedAttachments,
+      channelMeta,
+      sourceMessageType,
+    } = event.payload;
     const channelKey = channelKeyFromMeta(
       channelMeta as ChannelMeta | undefined,
     );
+    const attachmentPaths =
+      savedAttachments?.length && deps.attachmentService
+        ? await resolveSavedAttachmentsToPaths(
+            deps.attachmentService,
+            userId,
+            savedAttachments,
+          )
+        : undefined;
     const runOptions: RunChatOptions = {
       source: event.source,
       channel: channelMeta as ChannelMeta | undefined,
-      attachments: attachmentContents,
+      attachments: attachmentPaths,
       sessionId: userId,
     };
     const chatTimeoutMs =
@@ -301,6 +333,20 @@ export function createChatHandler(
       sourceMessageType,
     );
     debug("Processing message eventId=%s userId=%s", event.id, userId);
+    debug(
+      "Normalized payload to runner: %s",
+      JSON.stringify(
+        {
+          text,
+          userId,
+          attachments: savedAttachments,
+          channelMeta,
+          sourceMessageType,
+        },
+        null,
+        2,
+      ),
+    );
 
     const payload = event.payload as NormalizedMessagePayload;
     const pending = await getPending(userId, channelKey);
@@ -560,7 +606,7 @@ async function handleApprovalReject(
       toCombinedText(payload.text),
       assistantText,
       {
-        userAttachments: payload.attachments,
+        userAttachments: payload.attachments?.map((a) => a.id),
       },
     );
     await dispatchResponse(
@@ -595,7 +641,7 @@ async function handleApprovalReject(
       toCombinedText(payload.text),
       assistantText,
       {
-        userAttachments: payload.attachments,
+        userAttachments: payload.attachments?.map((a) => a.id),
       },
     );
     await dispatchResponse(
@@ -737,7 +783,7 @@ async function handleApprovalConfirm(
       toCombinedText(payload.text),
       assistantText,
       {
-        userAttachments: payload.attachments,
+        userAttachments: payload.attachments?.map((a) => a.id),
       },
     );
     await dispatchResponse(
@@ -889,7 +935,7 @@ async function requestApprovalForTool(
     toCombinedText(payload.text),
     approvalMessage,
     {
-      userAttachments: payload.attachments,
+      userAttachments: payload.attachments?.map((a) => a.id),
       approvalRequest:
         event.source === "api" || event.source === "web"
           ? approvalRequest
@@ -993,10 +1039,14 @@ async function handleNeedsApproval(
   );
 
   const approvalRequest = { toolName: needsApproval.toolName, argsPreview };
+  const channelMeta = runOptions.channel as ChannelMeta | undefined;
+  if (event.source === "slack" && channelMeta?.channel === "slack") {
+    publishSlackStatus(deps.publishResponse, channelMeta, "done");
+  }
   await dispatchResponse(
     event.id,
     event.source,
-    runOptions.channel as ChannelMeta | undefined,
+    channelMeta,
     approvalMessage,
     event.source === "api" || event.source === "web"
       ? approvalRequest
@@ -1007,7 +1057,7 @@ async function handleNeedsApproval(
     toCombinedText(payload.text),
     approvalMessage,
     {
-      userAttachments: payload.attachments,
+      userAttachments: payload.attachments?.map((a) => a.id),
       approvalRequest:
         event.source === "api" || event.source === "web"
           ? approvalRequest
@@ -1050,7 +1100,7 @@ async function handleAgentSuccess(
     toCombinedText(payload.text),
     assistantText,
     {
-      userAttachments: payload.attachments,
+      userAttachments: payload.attachments?.map((a) => a.id),
     },
   );
   debug(
@@ -1103,6 +1153,15 @@ async function handleChatError(
   const { event, payload, err, dispatchResponse } = ctx;
   const { context } = deps;
 
+  // Clear Slack "Finding answers..." / "Evaluating..." status on error so the UI doesn't stay stuck.
+  if (event.source === "slack" && payload.channelMeta?.channel === "slack") {
+    try {
+      publishSlackStatus(deps.publishResponse, payload.channelMeta, "done");
+    } catch (e) {
+      debug("Failed to clear Slack status on error: %o", e);
+    }
+  }
+
   const chatTimeoutMs = getConfig().CHAT_TIMEOUT_MS || DEFAULT_CHAT_TIMEOUT_MS;
 
   let assistantText: string;
@@ -1121,7 +1180,7 @@ async function handleChatError(
     toCombinedText(payload.text),
     assistantText,
     {
-      userAttachments: payload.attachments,
+      userAttachments: payload.attachments?.map((a) => a.id),
     },
   );
   debug("Dispatching error response eventId=%s", event.id);

@@ -75,15 +75,18 @@ function computeDebounceKey(raw: RawDispatchInput): string | null {
       ? (payload.channelMeta as Record<string, unknown>)
       : undefined;
   if (raw.source === "slack") {
+    const msg = channelMeta?.message as
+      | { channel?: { id?: string }; parent?: { messageTs?: string } }
+      | undefined;
     const channelId =
-      typeof channelMeta?.channelId === "string" ? channelMeta.channelId : "";
+      typeof msg?.channel?.id === "string" ? msg.channel.id : "";
     const threadTs =
-      typeof channelMeta?.threadTs === "string" ? channelMeta.threadTs : "";
+      typeof msg?.parent?.messageTs === "string" ? msg.parent.messageTs : "";
     if (channelId) return `slack:${channelId}:${threadTs || "root"}`;
   }
   if (raw.source === "whatsapp") {
-    const chatId =
-      typeof channelMeta?.chatId === "string" ? channelMeta.chatId : "";
+    const msg = channelMeta?.message as { chat?: { id?: string } } | undefined;
+    const chatId = typeof msg?.chat?.id === "string" ? msg.chat.id : "";
     if (chatId) return `whatsapp:${chatId}`;
   }
   return `${raw.source}:default`;
@@ -106,18 +109,26 @@ function mergeMessagePayloads(
     .filter((t) => t.length > 0);
   if (text.length > 0) merged.text = text;
 
-  const attachments = payloads
-    .flatMap((p) => (Array.isArray(p.attachments) ? p.attachments : []))
-    .filter((x): x is string => typeof x === "string");
-  if (attachments.length > 0) {
-    merged.attachments = Array.from(new Set(attachments));
-  }
-
-  const attachmentContents = payloads.flatMap((p) =>
-    Array.isArray(p.attachmentContents) ? p.attachmentContents : [],
+  const attachmentLists = payloads.flatMap((p) =>
+    Array.isArray(p.attachments) ? p.attachments : [],
   );
-  if (attachmentContents.length > 0) {
-    merged.attachmentContents = attachmentContents;
+  if (attachmentLists.length > 0) {
+    const byId = new Map<
+      string,
+      { id: string; originalName: string; mimeType: string }
+    >();
+    for (const a of attachmentLists) {
+      if (
+        a &&
+        typeof a === "object" &&
+        typeof (a as { id?: string }).id === "string"
+      )
+        byId.set(
+          (a as { id: string }).id,
+          a as { id: string; originalName: string; mimeType: string },
+        );
+    }
+    merged.attachments = Array.from(byId.values());
   }
   return merged;
 }

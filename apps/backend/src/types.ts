@@ -43,9 +43,15 @@ export type SlackConnectAs = "bot" | "user";
 
 /** Slack user profile fields (from users.info); used so the LLM can detect when the agent is mentioned by name or in plain text. */
 export interface SlackUserProfile {
+  connectAs?: SlackConnectAs;
+  id: string;
   real_name?: string;
   name?: string;
   display_name?: string;
+}
+
+export interface WhatsAppUserProfile {
+  id: string;
 }
 
 export interface SlackChannelConfig {
@@ -54,7 +60,7 @@ export interface SlackChannelConfig {
   appToken: string;
   /** Bot (xoxb) or User (xoxp) token for API and event subscription. */
   userToken: string;
-  /** Whether the token is a bot or user token. Affects UI only; adapter uses userToken for both. */
+  /** Use bot token identity vs user token (affects auth.test / agent ID resolution). */
   connectAs?: SlackConnectAs;
   /** Agent identity (bot/user ID) from Slack API; set by worker when linking. Used to verify successful config. */
   agentIdentity?: string;
@@ -86,49 +92,74 @@ export type NormalizedPayloadKind =
   | "integration_event"
   | "internal";
 
-export interface ChatAttachment {
+/** Stored file attachment (saved in attachment store); resolve to path when building model input. */
+export interface SavedAttachment {
+  id: string;
+  originalName: string;
+  mimeType: string;
+}
+
+export interface MessageEntity {
   name: string;
-  contentType: string;
-  data: string; // base64
+  id: string;
 }
 
-/** Original message info when the inbound message is a reply (thread/quote). */
-export interface OriginalMessageInfo {
-  senderId?: string;
-  senderName?: string;
-  from?: string;
-  fromName?: string;
-  content?: string;
-  messageId?: string;
-  timestamp?: string;
+export interface SlackChannel extends MessageEntity {
+  type: "dm" | "group_chat" | "public_channel" | "private_channel";
 }
 
-/** Base channel metadata: directness and optional original message. All channel-specific meta extends this. */
-export interface ChannelMetaBase {
-  directness: "direct" | "neutral";
-  directnessReason?: string;
-  originalMessage?: OriginalMessageInfo;
+export interface WhatsAppChat extends MessageEntity {
+  type: "dm" | "group_chat";
 }
 
-/** Slack channel metadata. */
-export interface SlackChannelMeta extends ChannelMetaBase {
-  channel: "slack";
-  channelId: string;
+/** Single Slack message (no parent). */
+export interface SlackMessage {
   messageTs: string;
-  threadTs?: string;
-  connectAs?: SlackConnectAs;
-  senderId: string;
-  senderName?: string;
-  destinationType: "dm" | "channel" | "group";
-  mentionedIds?: string[];
-  selfMentioned?: boolean;
-  /** Designated Slack user ID for the agent in this workspace; when present, messages or mentions to this ID are addressing you. */
-  yourSlackUserId?: string;
-  /** Agent profile (real_name, name, display_name) so the LLM can detect when the agent is mentioned by name or in plain text. */
-  yourSlackUserProfile?: SlackUserProfile;
-  /** When true, response delivery should use thread_ts to reply in thread. When false (im/mpim), post to channel root. */
-  replyInThread?: boolean;
+  channel: SlackChannel;
+  sender: MessageEntity;
+  text: string;
+  blocks: unknown[];
+  attachments: SavedAttachment[];
+  mentions: MessageEntity[];
 }
+
+/** Incoming message with optional thread parent (parent is a full {@link SlackMessage}, parent null if not a thread reply). */
+export interface SlackMessageWithParent extends SlackMessage {
+  parent: SlackMessage | null;
+  /** False in IM/mpim: reply in channel; true in channels: prefer thread under this message. */
+  replyInThread: boolean;
+}
+
+export interface WhatsAppMessage {
+  id: string;
+  chat: WhatsAppChat;
+  sender: MessageEntity;
+  text: string;
+  attachments: SavedAttachment[];
+  mentions: MessageEntity[];
+}
+
+export interface WhatsAppMessageWithParent extends WhatsAppMessage {
+  parent: WhatsAppMessage | null;
+}
+
+/** Slack channel metadata: structured message + agent profile (IDs, thread routing, directness inferred from `message` + `profile`). */
+export interface SlackChannelMeta {
+  channel: "slack";
+  message: SlackMessageWithParent;
+  profile: SlackUserProfile;
+  connectAs?: SlackConnectAs;
+}
+
+/** WhatsApp channel metadata: structured message + agent profile (routing/directness inferred from `message` + `profile`). */
+export interface WhatsAppChannelMeta {
+  channel: "whatsapp";
+  message: WhatsAppMessage | WhatsAppMessageWithParent;
+  profile: WhatsAppUserProfile;
+}
+
+/** Union of all channel-specific metadata. Delivered in run context to the agent. */
+export type ChannelMeta = SlackChannelMeta | WhatsAppChannelMeta;
 
 /** When the model outputs this marker, the dispatcher skips sending a reply to the user (no message to channel; web chat gets chat-skipped). */
 export const HOOMAN_SKIP_MARKER = "[hooman:skip]";
@@ -199,28 +230,12 @@ export type ResponseDeliveryPayload =
 /** Redis channel for response delivery (event-queue publishes; API, Slack and WhatsApp workers subscribe). */
 export const RESPONSE_DELIVERY_CHANNEL = "hooman:response_delivery";
 
-/** WhatsApp channel metadata. */
-export interface WhatsAppChannelMeta extends ChannelMetaBase {
-  channel: "whatsapp";
-  chatId: string;
-  messageId: string;
-  pushName?: string;
-  destinationType: "dm" | "group";
-  mentionedIds?: string[];
-  selfMentioned?: boolean;
-}
-
-/** Union of all channel-specific metadata. Delivered in run context to the agent. */
-export type ChannelMeta = SlackChannelMeta | WhatsAppChannelMeta;
-
 export interface NormalizedMessagePayload {
   kind: "message";
   text: string | string[];
   userId: string;
-  /** Resolved attachment content for the agent (name, contentType, data). */
-  attachmentContents?: ChatAttachment[];
-  /** IDs of uploaded files (for persisting with chat history). */
-  attachments?: string[];
+  /** Stored attachments (saved in attachment store); resolve to path when building model input. */
+  attachments?: SavedAttachment[];
   /** Present for slack/whatsapp; who, where, message ID, directness. Passed in run context to the agent. */
   channelMeta?: ChannelMeta;
   /** Set when the message text was transcribed from an audio/voice message. */

@@ -40,7 +40,13 @@ import {
 import { env } from "../env.js";
 import { RESPONSE_DELIVERY_CHANNEL } from "../types.js";
 import { loadPrompts } from "../utils/prompts.js";
-import { WORKSPACE_ROOT, WORKSPACE_MCPCWD } from "../utils/workspace.js";
+import {
+  WORKSPACE_ROOT,
+  WORKSPACE_MCPCWD,
+  getWorkspaceAttachmentsDir,
+} from "../utils/workspace.js";
+import { initAttachmentStore } from "../attachments/attachment-store.js";
+import { createAttachmentService } from "../attachments/attachment-service.js";
 
 const debug = createDebug("hooman:workers:event-queue");
 
@@ -60,6 +66,10 @@ async function main() {
   initToolApproval(env.REDIS_URL);
 
   const chatHistory = await initChatHistory();
+  const attachmentStore = await initAttachmentStore(
+    getWorkspaceAttachmentsDir(),
+  );
+  const attachmentService = createAttachmentService(attachmentStore);
   const context = await createContext(chatHistory);
   const mcpConnectionsStore = await initMCPConnectionsStore();
   const skillSettingsStore = await initSkillSettingsStore();
@@ -172,6 +182,7 @@ async function main() {
       publish(RESPONSE_DELIVERY_CHANNEL, JSON.stringify(payload));
     },
     getRunner,
+    attachmentService,
     toolSettingsStore,
     invalidateRunnerCache: () => {
       runnerCache = null;

@@ -1,16 +1,20 @@
 import type { AttachmentStore, AttachmentDoc } from "./attachment-store.js";
+import type { SavedAttachment } from "../types.js";
 
 export interface AttachmentService {
   saveAll(
     userId: string,
     files: Array<{ buffer: Buffer; originalname: string; mimetype: string }>,
-  ): Promise<Array<{ id: string; originalName: string; mimeType: string }>>;
+  ): Promise<SavedAttachment[]>;
   getAttachmentDoc(id: string, userId: string): Promise<AttachmentDoc | null>;
   getAttachmentBuffer(id: string, userId: string): Promise<Buffer | null>;
-  resolveAttachments(
+  /** Full path to stored file, or null. */
+  getPath(id: string, userId: string): Promise<string | null>;
+  /** Resolve ids to SavedAttachment[] (for payload). */
+  getSavedAttachments(
     ids: string[],
     userId: string,
-  ): Promise<Array<{ name: string; contentType: string; data: string }>>;
+  ): Promise<SavedAttachment[]>;
 }
 
 export function createAttachmentService(
@@ -37,23 +41,23 @@ export function createAttachmentService(
       return store.getBuffer(id, userId);
     },
 
-    async resolveAttachments(ids, userId) {
+    async getPath(id, userId) {
+      return store.getPath(id, userId);
+    },
+
+    async getSavedAttachments(ids, userId) {
       const resolved = await Promise.all(
         ids.map(async (id) => {
           const doc = await store.getById(id, userId);
-          const buffer = doc ? await store.getBuffer(id, userId) : null;
-          if (!doc || !buffer) return null;
+          if (!doc) return null;
           return {
-            name: doc.originalName,
-            contentType: doc.mimeType,
-            data: buffer.toString("base64"),
-          };
+            id: doc.id,
+            originalName: doc.originalName,
+            mimeType: doc.mimeType,
+          } satisfies SavedAttachment;
         }),
       );
-      return resolved.filter(
-        (a): a is { name: string; contentType: string; data: string } =>
-          a !== null,
-      );
+      return resolved.filter((a): a is SavedAttachment => a !== null);
     },
   };
 }

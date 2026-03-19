@@ -1,7 +1,7 @@
 import { randomUUID } from "crypto";
 import type { ChatHistoryStore, GetMessagesResult } from "./chat-history.js";
 import type { AttachmentService } from "../attachments/attachment-service.js";
-import type { RawDispatchInput } from "../types.js";
+import type { RawDispatchInput, SavedAttachment } from "../types.js";
 import type { ContextStore } from "./context.js";
 
 export interface ChatService {
@@ -102,12 +102,10 @@ export function createChatService(
     async sendMessage(userId, text, attachmentIds, enqueue) {
       if (!enqueue) throw new Error("Enqueue function not provided");
 
-      let attachmentContents:
-        | Array<{ name: string; contentType: string; data: string }>
-        | undefined;
+      let attachments: SavedAttachment[] | undefined;
 
       if (attachmentIds?.length) {
-        attachmentContents = await attachmentService.resolveAttachments(
+        attachments = await attachmentService.getSavedAttachments(
           attachmentIds,
           userId,
         );
@@ -121,8 +119,7 @@ export function createChatService(
           payload: {
             text,
             userId,
-            ...(attachmentContents?.length ? { attachmentContents } : {}),
-            ...(attachmentIds?.length ? { attachments: attachmentIds } : {}),
+            ...(attachments?.length ? { attachments } : {}),
           },
         },
         { correlationId: eventId },

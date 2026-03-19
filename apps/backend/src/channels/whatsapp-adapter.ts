@@ -1,7 +1,7 @@
 /**
  * WhatsApp channel adapter: whatsapp-web.js (Puppeteer-backed), listens for incoming
  * messages, dispatches message.sent with channelMeta. Inbound only.
- * Handles text messages and voice notes (PTT); transcribes voice and dispatches with sourceMessageType: 'audio'.
+ * Handles text, media (image/document/etc.), voice notes (transcribed), forwarded messages, and quoted replies (including quoted media context).
  */
 import createDebug from "debug";
 import { join } from "path";
@@ -9,12 +9,18 @@ import type {
   EventDispatcher,
   WhatsAppChannelMeta,
   WhatsAppChannelConfig,
+  SavedAttachment,
+  MessageEntity,
+  WhatsAppChat,
+  WhatsAppMessage,
+  WhatsAppMessageWithParent,
 } from "../types.js";
 import { WORKSPACE_ROOT } from "../utils/workspace.js";
 import { env } from "../env.js";
 import { transcribeAudio } from "../agents/transcription.js";
 import wweb from "whatsapp-web.js";
 import type WAWebJS from "whatsapp-web.js";
+import type { AttachmentService } from "../attachments/attachment-service.js";
 
 /**
  * WhatsApp connection status type. Connection state is held by the WhatsApp worker
@@ -44,7 +50,7 @@ function getAuthFolder(config: WhatsAppChannelConfig): string {
   return join(WORKSPACE_ROOT, "whatsapp", folderName);
 }
 
-import { applyFilter } from "./shared.js";
+import { applyFilter } from "./filter.js";
 
 /** Normalise ID for comparison (lowercase, optional @c.us suffix). */
 function whatsAppIdMatches(entry: string, id: string): boolean {
@@ -68,9 +74,158 @@ function applyWhatsAppFilter(
   });
 }
 
+// --- Message building from WAWebJS message (merged from whatsapp-message-from-event) ---
+
+function messageIdFromWa(message: WAWebJS.Message): string {
+  return typeof message.id === "object" && message.id && "id" in message.id
+    ? String((message.id as { id?: string }).id ?? message.id)
+    : String(message.id);
+}
+
+function waChatType(chatId: string): WhatsAppChat["type"] {
+  return chatId.endsWith("@c.us") ? "dm" : "group_chat";
+}
+
+async function createWhatsAppMessageFromEvent(
+  message: WAWebJS.Message,
+  deps: {
+    getChatDisplayName?: (chatId: string) => Promise<string | undefined>;
+    saveFiles: (
+      userId: string,
+      files: Array<{ buffer: Buffer; originalname: string; mimetype: string }>,
+    ) => Promise<SavedAttachment[]>;
+  },
+): Promise<{
+  message: WhatsAppMessageWithParent;
+  attachments: SavedAttachment[];
+} | null> {
+  const text = typeof message.body === "string" ? message.body.trim() : "";
+  const chatId = message.from;
+  const fromId = (message as { author?: string }).author ?? message.from;
+  const conversationUserId = `whatsapp:${chatId}`;
+  const isForwarded =
+    (message as { isForwarded?: boolean }).isForwarded === true;
+  let effectiveText = text;
+  if (isForwarded && effectiveText)
+    effectiveText = `[Forwarded] ${effectiveText}`;
+
+  const messageType = (message as { type?: string }).type;
+  const messageId = messageIdFromWa(message);
+
+  let attachments: SavedAttachment[] = [];
+  if (message.hasMedia && messageType !== "ptt") {
+    try {
+      const media = await message.downloadMedia();
+      if (media?.data) {
+        const buf = Buffer.from(media.data, "base64");
+        const mimetype =
+          typeof media.mimetype === "string" && media.mimetype.trim()
+            ? media.mimetype.trim().toLowerCase().split(";")[0].trim()
+            : "application/octet-stream";
+        const name =
+          media.filename && typeof media.filename === "string"
+            ? media.filename.trim()
+            : `media.${mimetype.split("/")[1] || "bin"}`;
+        const saved = await deps.saveFiles(conversationUserId, [
+          { buffer: buf, originalname: name, mimetype },
+        ]);
+        attachments = saved;
+      }
+    } catch {
+      // caller may log
+    }
+  }
+
+  const hasContent = effectiveText.length > 0 || attachments.length > 0;
+  if (!hasContent) return null;
+
+  const mentionedIds = Array.isArray(
+    (message as { mentionedIds?: string[] }).mentionedIds,
+  )
+    ? ((message as { mentionedIds: string[] }).mentionedIds as string[])
+    : [];
+
+  const pushName = (message as { _data?: { notifyName?: string } })._data
+    ?.notifyName;
+  const senderName =
+    typeof pushName === "string" && pushName.trim() ? pushName.trim() : fromId;
+
+  let chatDisplayName = chatId;
+  try {
+    const resolved = await deps?.getChatDisplayName?.(chatId);
+    if (typeof resolved === "string" && resolved.trim())
+      chatDisplayName = resolved.trim();
+  } catch {
+    // ignore
+  }
+
+  const chat: WhatsAppChat = {
+    id: chatId,
+    name: chatDisplayName,
+    type: waChatType(chatId),
+  };
+
+  const mentions: MessageEntity[] = mentionedIds.map((id) => ({
+    id,
+    name: id,
+  }));
+
+  let parentMessage: WhatsAppMessage | null = null;
+  if (message.hasQuotedMsg) {
+    try {
+      const quoted = await message.getQuotedMessage();
+      if (quoted) {
+        const quotedBody = typeof quoted.body === "string" ? quoted.body : "";
+        const quotedAuthor = quoted.author ?? "";
+        let quotedSenderName = quotedAuthor;
+        try {
+          const contact = await quoted.getContact();
+          const c = contact as { pushname?: string; name?: string };
+          quotedSenderName =
+            (c.pushname || c.name || quotedAuthor)?.trim() || quotedAuthor;
+        } catch {
+          // ignore
+        }
+        const quotedId =
+          typeof quoted.id === "object" && quoted.id && "id" in quoted.id
+            ? String((quoted.id as { id?: string }).id ?? quoted.id)
+            : String(quoted.id);
+        parentMessage = {
+          id: quotedId,
+          chat,
+          sender: { name: quotedSenderName, id: quotedAuthor },
+          text: quotedBody,
+          attachments: [],
+          mentions: [],
+        };
+      }
+    } catch {
+      // ignore quoted message errors
+    }
+  }
+  const waMessage: WhatsAppMessageWithParent = {
+    id: messageId,
+    chat,
+    sender: { name: senderName, id: fromId },
+    text: effectiveText,
+    attachments,
+    mentions,
+    parent: parentMessage,
+  };
+
+  return {
+    message: waMessage,
+    attachments,
+  };
+}
+
+// --- Adapter ---
+
 export interface WhatsAppAdapterOptions {
   /** Called when connection state or QR changes; worker can POST to API so the UI can show the QR. When connected, includes self identity (logged-in number). */
   onConnectionUpdate?: (data: WhatsAppConnection) => void;
+  /** Save downloaded media to attachment store; required for attachments to work. */
+  attachmentService?: AttachmentService;
 }
 
 export async function startWhatsAppAdapter(
@@ -210,28 +365,36 @@ export async function startWhatsAppAdapter(
           return;
         }
         const isDirect = chatId.endsWith("@c.us");
-        const destinationType = isDirect ? "dm" : "group";
-        const directness: "direct" | "neutral" = isDirect
-          ? "direct"
-          : "neutral";
-        const directnessReason = isDirect ? "dm" : "group";
         const messageId =
           typeof message.id === "object" && message.id && "id" in message.id
             ? String((message.id as { id?: string }).id ?? message.id)
             : String(message.id);
+        const push = (message as { _data?: { notifyName?: string } })._data
+          ?.notifyName;
+        const fromAuthor =
+          (message as { author?: string }).author ?? message.from;
         const channelMeta: WhatsAppChannelMeta = {
           channel: "whatsapp",
-          chatId,
-          messageId,
-          destinationType,
-          directness,
-          directnessReason,
-          ...((message as { _data?: { notifyName?: string } })._data?.notifyName
-            ? {
-                pushName: (message as { _data?: { notifyName?: string } })._data
-                  ?.notifyName,
-              }
-            : {}),
+          profile: { id: selfIdForMeta ?? "" },
+          message: {
+            id: messageId,
+            chat: {
+              id: chatId,
+              name: chatId,
+              type: isDirect ? "dm" : "group_chat",
+            },
+            sender: {
+              name:
+                typeof push === "string" && push.trim()
+                  ? push.trim()
+                  : fromAuthor,
+              id: fromAuthor,
+            },
+            text: transcribedText,
+            attachments: [],
+            mentions: [],
+            parent: null,
+          },
         };
         const userId = `whatsapp:${chatId}`;
         await dispatcher.dispatch(
@@ -258,76 +421,67 @@ export async function startWhatsAppAdapter(
       return;
     }
 
-    if (!text) return;
-
-    const isDirect = chatId.endsWith("@c.us");
-    const destinationType = isDirect ? "dm" : "group";
-    const directness: "direct" | "neutral" = isDirect ? "direct" : "neutral";
-    const directnessReason = isDirect ? "dm" : "group";
     const messageId =
       typeof message.id === "object" && message.id && "id" in message.id
         ? String((message.id as { id?: string }).id ?? message.id)
         : String(message.id);
 
-    const mentionedIds = Array.isArray(
-      (message as { mentionedIds?: string[] }).mentionedIds,
-    )
-      ? ((message as { mentionedIds: string[] }).mentionedIds as string[])
-      : [];
-    const selfMentioned =
-      !!selfIdForMeta && mentionedIds.includes(selfIdForMeta);
+    debug("WhatsApp raw message event: %s", JSON.stringify(message, null, 2));
 
-    let originalMessage: WhatsAppChannelMeta["originalMessage"] = undefined;
-    if (message.hasQuotedMsg) {
-      try {
-        const quoted = await message.getQuotedMessage();
-        if (quoted) {
-          originalMessage = {
-            senderId: quoted.author ?? undefined,
-            content: typeof quoted.body === "string" ? quoted.body : undefined,
-            messageId:
-              typeof quoted.id === "object" && quoted.id && "id" in quoted.id
-                ? String((quoted.id as { id?: string }).id ?? quoted.id)
-                : String(quoted.id),
-          };
+    const saveFiles = options?.attachmentService?.saveAll.bind(
+      options.attachmentService,
+    );
+    const built = await createWhatsAppMessageFromEvent(message, {
+      getChatDisplayName: async (id) => {
+        const c = client;
+        if (!c) return undefined;
+        try {
+          const chat = await c.getChatById(id);
+          if (typeof chat.name === "string" && chat.name.trim())
+            return chat.name.trim();
+        } catch {
+          // ignore
         }
-      } catch {
-        // ignore quoted message errors (e.g. buttons_response type)
-      }
-    }
+        return undefined;
+      },
+      saveFiles: saveFiles ?? (async () => []),
+    });
+    if (!built) return;
+
+    const { message: waStructured, attachments: savedAttachments } = built;
+    const effectiveText = waStructured.text;
 
     const channelMeta: WhatsAppChannelMeta = {
       channel: "whatsapp",
-      chatId,
-      messageId,
-      destinationType,
-      directness,
-      directnessReason,
-      ...(mentionedIds.length > 0 ? { mentionedIds } : {}),
-      ...(selfMentioned ? { selfMentioned: true } : {}),
-      ...((message as { _data?: { notifyName?: string } })._data?.notifyName
-        ? {
-            pushName: (message as { _data?: { notifyName?: string } })._data
-              ?.notifyName,
-          }
-        : {}),
-      ...(originalMessage ? { originalMessage } : {}),
+      profile: { id: selfIdForMeta ?? "" },
+      message: waStructured,
     };
 
     const userId = `whatsapp:${chatId}`;
+    const payload: Record<string, unknown> = {
+      text:
+        effectiveText ||
+        (savedAttachments.length > 0 ? "User sent media." : ""),
+      userId,
+      channelMeta,
+    };
+    if (savedAttachments.length > 0) payload.attachments = savedAttachments;
+
+    debug(
+      "WhatsApp create message payload: %s",
+      JSON.stringify(payload, null, 2),
+    );
+
     debug("New message received from %s", chatId);
     await dispatcher.dispatch(
-      {
-        source: "whatsapp",
-        type: "message.sent",
-        payload: { text, userId, channelMeta },
-      },
+      { source: "whatsapp", type: "message.sent", payload },
       {},
     );
     debug(
-      "WhatsApp message.sent dispatched: chatId=%s id=%s",
+      "WhatsApp message.sent dispatched: chatId=%s id=%s (attachments=%d)",
       chatId,
       messageId,
+      savedAttachments.length,
     );
   });
 
@@ -680,4 +834,46 @@ export async function handleWhatsAppMcpRequest(
     default:
       throw new Error(`Unknown WhatsApp MCP method: ${method}`);
   }
+}
+
+// --- WhatsApp meta (merged from whatsapp-meta) ---
+
+function jidLooseEqual(a: string, b: string): boolean {
+  const x = a.trim().toLowerCase();
+  const y = b.trim().toLowerCase();
+  if (x === y) return true;
+  const xa = x.replace(/@.*$/, "");
+  const yb = y.replace(/@.*$/, "");
+  return xa.length > 0 && xa === yb;
+}
+
+export function whatsAppDirectness(
+  meta: WhatsAppChannelMeta,
+): "direct" | "neutral" {
+  if (meta.message.chat.type === "dm") return "direct";
+  if (
+    meta.profile.id &&
+    meta.message.mentions.some((m) => jidLooseEqual(m.id, meta.profile.id))
+  ) {
+    return "direct";
+  }
+  return "neutral";
+}
+
+export function whatsAppDirectnessReason(meta: WhatsAppChannelMeta): string {
+  if (meta.message.chat.type === "dm") return "dm";
+  if (whatsAppDirectness(meta) === "direct") return "mention";
+  return "group";
+}
+
+export function whatsAppDestinationType(
+  meta: WhatsAppChannelMeta,
+): "dm" | "group" {
+  return meta.message.chat.type === "dm" ? "dm" : "group";
+}
+
+export function whatsAppSelfMentioned(meta: WhatsAppChannelMeta): boolean {
+  const self = meta.profile.id;
+  if (!self) return false;
+  return meta.message.mentions.some((m) => jidLooseEqual(m.id, self));
 }
