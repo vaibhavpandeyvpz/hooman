@@ -1,9 +1,10 @@
 import { useState, useEffect, forwardRef, useImperativeHandle } from "react";
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { FileUp, Pencil, Plus, Trash2 } from "lucide-react";
 import { useDialog } from "./Dialog";
 import { Button } from "./Button";
 import { Input } from "./Input";
 import { Modal } from "./Modal";
+import { Textarea } from "./Textarea";
 import { Checkbox } from "./Checkbox";
 import { Select } from "./Select";
 import type {
@@ -46,8 +47,157 @@ function connectionTypeBadge(c: MCPConnection): string {
   return "Stdio";
 }
 
+/** Import JSON shape: { mcpServers: { [name]: { command?, args?, env?, cwd? } | { url, headers?, auth? } } } */
+type ImportServerEntry = {
+  command?: string;
+  args?: string[];
+  env?: Record<string, string>;
+  cwd?: string;
+  url?: string;
+  headers?: Record<string, string>;
+  auth?: {
+    client_id?: string;
+    client_secret?: string;
+    /** Fallback: app callback URL. */
+    redirect_uri?: string;
+    scope?: string;
+    scopes?: string[];
+    authorization_server_url?: string;
+  };
+};
+
+function slug(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+function uniqueId(baseId: string, existingIds: Set<string>): string {
+  let id = baseId || "imported";
+  let n = 1;
+  while (existingIds.has(id)) {
+    id = `${baseId || "imported"}-${n}`;
+    n += 1;
+  }
+  existingIds.add(id);
+  return id;
+}
+
+function parseImportJson(
+  raw: string,
+  existingIds: Set<string>,
+  oauthRedirectUri: string,
+): { connections: MCPConnection[]; error?: string } {
+  try {
+    const data = JSON.parse(raw) as {
+      mcpServers?: Record<string, ImportServerEntry>;
+    };
+    const servers = data?.mcpServers;
+    if (!servers || typeof servers !== "object") {
+      return {
+        connections: [],
+        error:
+          "JSON must have an object 'mcpServers' with server names as keys.",
+      };
+    }
+    const connections: MCPConnection[] = [];
+    const usedIds = new Set(existingIds);
+    for (const [name, entry] of Object.entries(servers)) {
+      if (!entry || typeof entry !== "object") continue;
+      const hasCommand =
+        typeof (entry as ImportServerEntry).command === "string";
+      const hasUrl = typeof (entry as ImportServerEntry).url === "string";
+      if (hasCommand) {
+        const e = entry as ImportServerEntry;
+        const id = uniqueId(slug(name), usedIds);
+        const conn: MCPConnectionStdio = {
+          id,
+          type: "stdio",
+          name: name,
+          command: String(e.command ?? ""),
+          args: Array.isArray(e.args) ? e.args.map(String) : [],
+          env:
+            e.env && typeof e.env === "object"
+              ? (e.env as Record<string, string>)
+              : undefined,
+          cwd: typeof e.cwd === "string" ? e.cwd : undefined,
+          enabled: true,
+        };
+        connections.push(conn);
+      } else if (hasUrl) {
+        const e = entry as ImportServerEntry;
+        const id = uniqueId(slug(name), usedIds);
+        const headers =
+          e.headers && typeof e.headers === "object" ? e.headers : undefined;
+        const auth = e.auth && typeof e.auth === "object" ? e.auth : undefined;
+        const hasOAuth =
+          auth &&
+          (auth.client_id ||
+            auth.client_secret ||
+            auth.redirect_uri ||
+            auth.scope ||
+            (Array.isArray(auth.scopes) && auth.scopes.length > 0) ||
+            auth.authorization_server_url);
+        const redirectUri =
+          (auth?.redirect_uri ?? "").trim() || oauthRedirectUri;
+        const scopeStr = [
+          auth?.scope,
+          Array.isArray(auth?.scopes) && auth.scopes.length > 0
+            ? auth.scopes.join(" ")
+            : "",
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .trim();
+        const oauth = hasOAuth
+          ? {
+              redirect_uri: redirectUri,
+              ...(auth!.client_id && {
+                client_id: String(auth!.client_id).trim(),
+              }),
+              ...(auth!.client_secret && {
+                client_secret: String(auth!.client_secret).trim(),
+              }),
+              ...(scopeStr && { scope: scopeStr }),
+              ...(auth!.authorization_server_url && {
+                authorization_server_url: String(
+                  auth!.authorization_server_url,
+                ).trim(),
+              }),
+            }
+          : undefined;
+        const conn: MCPConnectionStreamableHttp = {
+          id,
+          type: "streamable_http",
+          name,
+          url: String(e.url),
+          headers: headers ?? undefined,
+          oauth: oauth ?? undefined,
+          enabled: true,
+        };
+        connections.push(conn);
+      }
+    }
+    if (connections.length === 0) {
+      return {
+        connections: [],
+        error:
+          "No valid servers found. Each entry needs 'command' (and optional args/env/cwd) or 'url' (and optional headers/auth).",
+      };
+    }
+    return { connections };
+  } catch (e) {
+    return {
+      connections: [],
+      error: e instanceof SyntaxError ? "Invalid JSON." : (e as Error).message,
+    };
+  }
+}
+
 export interface McpConnectionsHandle {
   startAdd: () => void;
+  startImport: () => void;
 }
 
 export interface McpConnectionsProps {
@@ -59,7 +209,7 @@ export const McpConnections = forwardRef<
   McpConnectionsHandle,
   McpConnectionsProps
 >(function McpConnections({ onConnectionsChange }, ref) {
-  useImperativeHandle(ref, () => ({ startAdd }));
+  useImperativeHandle(ref, () => ({ startAdd, startImport }));
   const dialog = useDialog();
   const [connections, setConnections] = useState<MCPConnection[]>([]);
   const [loading, setLoading] = useState(true);
@@ -88,6 +238,10 @@ export const McpConnections = forwardRef<
     [],
   );
   const [togglingSystemId, setTogglingSystemId] = useState<string | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
+  const [importJson, setImportJson] = useState("");
+  const [importError, setImportError] = useState<string | null>(null);
+  const [importing, setImporting] = useState(false);
 
   function buildHeaders(): Record<string, string> | undefined {
     const custom = headerEntries
@@ -174,6 +328,43 @@ export const McpConnections = forwardRef<
       allowedToolNames: [],
       blockedToolNames: [],
     });
+  }
+
+  function startImport() {
+    setImportOpen(true);
+    setImportJson("");
+    setImportError(null);
+  }
+
+  async function handleImportSubmit() {
+    setImportError(null);
+    const existingIds = new Set(connections.map((c) => c.id));
+    let redirectUri = "";
+    try {
+      redirectUri = (await getOAuthCallbackUrl()).callbackUrl;
+    } catch {
+      // use empty; OAuth imports may need user to set redirect in edit
+    }
+    const result = parseImportJson(importJson, existingIds, redirectUri);
+    if (result.error) {
+      setImportError(result.error);
+      return;
+    }
+    setImporting(true);
+    try {
+      for (const conn of result.connections) {
+        await createMCPConnection(conn);
+      }
+      setImportOpen(false);
+      setImportJson("");
+      load();
+      await onConnectionsChange?.();
+      await reloadMcpTools();
+    } catch (e) {
+      setImportError((e as Error).message);
+    } finally {
+      setImporting(false);
+    }
   }
 
   function startEdit(c: MCPConnection) {
@@ -1063,6 +1254,63 @@ export const McpConnections = forwardRef<
           </ul>
         </div>
       )}
+
+      <Modal
+        open={importOpen}
+        onClose={() => !importing && setImportOpen(false)}
+        title="Import MCP servers"
+        maxWidth="2xl"
+        footer={
+          <div className="flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setImportOpen(false)}
+              disabled={importing}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={handleImportSubmit}
+              disabled={importing || !importJson.trim()}
+              icon={importing ? undefined : <FileUp className="w-4 h-4" />}
+            >
+              {importing ? "Importing…" : "Import"}
+            </Button>
+          </div>
+        }
+      >
+        <p className="text-sm text-hooman-muted mb-3">
+          Paste JSON with an <code className="text-zinc-300">mcpServers</code>{" "}
+          object. Each key is the server name; value is either{" "}
+          <code className="text-zinc-300">command</code> (and optional{" "}
+          <code className="text-zinc-300">args</code>,{" "}
+          <code className="text-zinc-300">env</code>,{" "}
+          <code className="text-zinc-300">cwd</code>) for stdio, or{" "}
+          <code className="text-zinc-300">url</code> (and optional{" "}
+          <code className="text-zinc-300">headers</code>,{" "}
+          <code className="text-zinc-300">auth</code>) for HTTP.{" "}
+          <code className="text-zinc-300">auth</code> can include{" "}
+          <code className="text-zinc-300">client_id</code>,{" "}
+          <code className="text-zinc-300">client_secret</code>,{" "}
+          <code className="text-zinc-300">redirect_uri</code>,{" "}
+          <code className="text-zinc-300">scope</code> /{" "}
+          <code className="text-zinc-300">scopes</code>, and{" "}
+          <code className="text-zinc-300">authorization_server_url</code>{" "}
+          (snake_case only).
+        </p>
+        {importError && (
+          <p className="text-sm text-red-400 mb-2">{importError}</p>
+        )}
+        <Textarea
+          value={importJson}
+          onChange={(e) => setImportJson(e.target.value)}
+          placeholder='{"mcpServers": {"my-server": {"command": "npx", "args": ["-y", "some-mcp"], "env": {"DEBUG": "true"}}}}'
+          className="font-mono text-sm min-h-[200px]"
+          disabled={importing}
+        />
+      </Modal>
     </>
   );
 });

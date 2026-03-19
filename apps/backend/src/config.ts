@@ -88,7 +88,7 @@ export interface PersistedConfig {
   TOOL_APPROVAL_PARSE_TIMEOUT_MS?: number;
   /** Comma-separated list of enabled system MCP server names (e.g. time,fetch,skills). Overrides env SYSTEM_MCP_SERVERS when set. */
   SYSTEM_MCP_SERVERS?: string;
-  /** When false, only text and image parts are sent to the agent; non-image attachments (e.g. video, PDF) are skipped. Default true. */
+  /** When true, non-image attachments (e.g. video, PDF) are sent as file input; when false, only text and images plus a path list. Default false. */
   ENABLE_FILE_INPUT?: boolean;
 }
 
@@ -132,7 +132,7 @@ const DEFAULTS: PersistedConfig = {
   TOOL_APPROVAL_MODE: "llm",
   TOOL_APPROVAL_FORMAT_TIMEOUT_MS: 60_000,
   TOOL_APPROVAL_PARSE_TIMEOUT_MS: 60_000,
-  ENABLE_FILE_INPUT: true,
+  ENABLE_FILE_INPUT: false,
 };
 
 let store: PersistedConfig = { ...DEFAULTS };

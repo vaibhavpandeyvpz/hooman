@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback } from "react";
-import { Plus } from "lucide-react";
+import { FileUp, Plus } from "lucide-react";
 import { Tools } from "./Tools";
 import type { ToolsHandle } from "./Tools";
 import { McpConnections } from "./McpConnections";
@@ -28,13 +28,21 @@ export function Capabilities() {
         subtitle="Connect tools and services so Hooman can act on your behalf."
       >
         {activeTab === "mcp" && (
-          <Button
-            onClick={() => mcpRef.current?.startAdd()}
-            icon={<Plus className="w-4 h-4" />}
-            className="shrink-0"
-          >
-            Add MCP server
-          </Button>
+          <div className="flex items-center gap-2 shrink-0">
+            <Button
+              onClick={() => mcpRef.current?.startImport()}
+              variant="secondary"
+              icon={<FileUp className="w-4 h-4" />}
+            >
+              Import Servers
+            </Button>
+            <Button
+              onClick={() => mcpRef.current?.startAdd()}
+              icon={<Plus className="w-4 h-4" />}
+            >
+              Add MCP server
+            </Button>
+          </div>
         )}
         {activeTab === "skills" && (
           <Button

@@ -915,11 +915,9 @@ export function Settings() {
             </p>
             <Checkbox
               id="settings-enable-file-input"
-              checked={form.ENABLE_FILE_INPUT !== false}
+              checked={form.ENABLE_FILE_INPUT === true}
               onChange={(checked) =>
-                setForm((f) =>
-                  f ? { ...f, ENABLE_FILE_INPUT: checked } : f,
-                )
+                setForm((f) => (f ? { ...f, ENABLE_FILE_INPUT: checked } : f))
               }
               label="Enable file input (include non-image attachments)"
             />

@@ -330,7 +330,7 @@ export async function createHoomanRunner(options: {
       if (hasUserContent) {
         const channelContext = buildChannelContext(options?.channel);
         const turns = messageParts.length > 0 ? messageParts : [""];
-        const enableFileInput = getConfig().ENABLE_FILE_INPUT !== false;
+        const enableFileInput = getConfig().ENABLE_FILE_INPUT === true;
         for (let i = 0; i < turns.length; i += 1) {
           const turnText = turns[i] ?? "";
           const isLastTurn = i === turns.length - 1;
