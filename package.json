@@ -1,0 +1,52 @@
+{
+  "name": "hoomanity",
+  "version": "0.1.0",
+  "description": "Hoomanity CLI",
+  "type": "module",
+  "bin": {
+    "hoomanity": "src/cli.ts"
+  },
+  "scripts": {
+    "dev": "bun run src/cli.ts",
+    "start": "bun run src/cli.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/jsdom": "^28.0.1",
+    "@types/lodash": "^4.17.24",
+    "@types/luxon": "^3.7.1",
+    "@types/react": "^19.2.14",
+    "@types/turndown": "^5.0.6",
+    "typescript": "^6.0.2"
+  },
+  "engines": {
+    "bun": ">=1.0.0"
+  },
+  "dependencies": {
+    "@ai-sdk/anthropic": "^3.0.69",
+    "@aws-sdk/client-bedrock-runtime": "^3.1028.0",
+    "@google/genai": "^1.40.0",
+    "@huggingface/transformers": "^4.0.1",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@mozilla/readability": "^0.6.0",
+    "@strands-agents/sdk": "^1.0.0-rc.3",
+    "chromadb": "^3.4.3",
+    "cli-spinners": "^3.4.0",
+    "commander": "^14.0.3",
+    "gray-matter": "^4.0.3",
+    "handlebars": "^4.7.9",
+    "ink": "^7.0.0",
+    "ink-select-input": "^6.2.0",
+    "ink-text-input": "^6.0.0",
+    "jsdom": "^29.0.2",
+    "lodash": "^4.18.1",
+    "luxon": "^3.7.2",
+    "ollama": "^0.6.3",
+    "openai": "^6.34.0",
+    "react": "^19.2.5",
+    "slugify": "^1.6.9",
+    "turndown": "^7.2.4",
+    "zod": "^4.3.6"
+  }
+}
