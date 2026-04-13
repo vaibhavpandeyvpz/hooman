@@ -51,12 +51,12 @@ export function StatusBar({
         <Text color="gray">status: </Text>
         <Text color={statusValueColor(status)}>{status}</Text>
         <Text color="gray"> • session: {sessionId}</Text>
-        {running ? <Text color="gray"> • elapsed {elapsedLabel}</Text> : null}
       </Text>
       <Text color="gray">
         turns: {turnCount} • tokens in/out/total: {usage.inputTokens}/
         {usage.outputTokens}/{usage.totalTokens}
         {usage.latencyMs > 0 ? ` • latency: ${usage.latencyMs}ms` : ""}
+        {running ? <Text color="gray"> • elapsed {elapsedLabel}</Text> : null}
       </Text>
       <Text color="gray">
         {`mcp clients: ${manager.clients.size} • tools found: ${toolsFound} • tools active: ${toolCalls}`}
