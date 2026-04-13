@@ -31,6 +31,28 @@ It gives you:
 - Node/npm available if you want to install skills from the public skills catalog
 - Provider credentials or local model runtime depending on the LLM you choose
 
+## Usage
+
+Fastest way to get started without cloning the repo:
+
+```bash
+npx hoomanity configure
+npx hoomanity chat
+```
+
+Or with Bun:
+
+```bash
+bunx hoomanity configure
+bunx hoomanity chat
+```
+
+Recommended first run:
+
+1. Run `hoomanity configure` to choose your LLM provider and model.
+2. Start chatting with `hoomanity chat`.
+3. Use `hoomanity exec "your prompt"` for one-off tasks.
+
 ## Install
 
 ```bash
@@ -117,7 +139,7 @@ Hoomanity stores its data in:
 
 Important files and folders:
 
-- `config.json` - app name, LLM provider/model, allowed tools, Chroma, compaction
+- `config.json` - app name, LLM provider/model, allowed tools, long-term memory, compaction
 - `instructions.md` - system instructions used to build the agent prompt
 - `mcp.json` - MCP server definitions
 - `skills/` - installed skills
@@ -136,10 +158,13 @@ This is the shape managed by `hoomanity configure`:
     "params": {}
   },
   "allowed": [],
-  "chroma": {
-    "url": "http://127.0.0.1:8000",
-    "collection": {
-      "memory": "memory"
+  "ltm": {
+    "enabled": false,
+    "chroma": {
+      "url": "http://127.0.0.1:8000",
+      "collection": {
+        "memory": "memory"
+      }
     }
   },
   "compaction": {
