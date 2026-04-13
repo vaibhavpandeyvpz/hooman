@@ -13,6 +13,7 @@ import {
 } from "@strands-agents/sdk";
 import type { Config } from "../core/config.ts";
 import type { Manager as McpManager } from "../core/mcp/index.ts";
+import type { Registry } from "../core/skills/index.ts";
 import {
   ChatApprovalController,
   createChatApprovalHandler,
@@ -28,6 +29,7 @@ type ChatAppProps = {
   config: Config;
   sessionId: string;
   manager: McpManager;
+  registry: Registry;
   initialPrompt?: string;
   onExit: () => void;
 };
@@ -69,17 +71,19 @@ export function ChatApp({
   config,
   sessionId,
   manager,
+  registry,
   initialPrompt,
   onExit,
 }: ChatAppProps): React.JSX.Element {
   const { exit } = useApp();
+  const totalTools =
+    (agent as Agent & { tools?: unknown[] }).tools?.length ?? 0;
   const [input, setInput] = useState("");
   const [running, setRunning] = useState(false);
   const [status, setStatus] = useState("ready");
   const [lines, setLines] = useState<ChatLine[]>([]);
   const [turnCount, setTurnCount] = useState(0);
-  const [toolCalls, setToolCalls] = useState(0);
-  const [mcpToolsFound, setMcpToolsFound] = useState(0);
+  const [skillsFound, setSkillsFound] = useState(0);
   const [turnStartedAt, setTurnStartedAt] = useState<number | null>(null);
   const [turnElapsedMs, setTurnElapsedMs] = useState(0);
   const [usage, setUsage] = useState({
@@ -99,15 +103,22 @@ export function ChatApp({
 
   useEffect(() => {
     let cancelled = false;
-    void manager.listPrefixedTools().then((tools) => {
-      if (!cancelled) {
-        setMcpToolsFound(tools.length);
-      }
-    });
+    void registry
+      .list()
+      .then((skills) => {
+        if (!cancelled) {
+          setSkillsFound(skills.length);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setSkillsFound(0);
+        }
+      });
     return () => {
       cancelled = true;
     };
-  }, [manager]);
+  }, [registry]);
 
   useEffect(() => {
     if (!running || turnStartedAt === null) {
@@ -219,7 +230,6 @@ export function ChatApp({
               if (block.type === "textBlock") {
                 appendAssistantText(block.text ?? "");
               } else if (block.type === "toolUseBlock") {
-                setToolCalls((value) => value + 1);
                 const toolId = nowId();
                 toolLineIdRef.current = toolId;
                 appendLine({
@@ -238,7 +248,6 @@ export function ChatApp({
               break;
             }
             case "toolResultEvent": {
-              setToolCalls((value) => Math.max(0, value - 1));
               const resultContent = toToolResultText(e.result);
               if (toolLineIdRef.current) {
                 updateLine(toolLineIdRef.current, {
@@ -409,8 +418,8 @@ export function ChatApp({
         sessionId={sessionId}
         elapsedLabel={elapsedLabel}
         turnCount={turnCount}
-        toolsFound={mcpToolsFound}
-        toolCalls={toolCalls}
+        totalTools={totalTools}
+        skillsFound={skillsFound}
         manager={manager}
         usage={usage}
       />

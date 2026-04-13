@@ -130,7 +130,7 @@ export function ConfigureApp({
       ({
         name: config.name,
         llm: config.llm,
-        allowed: config.allowed,
+        tools: config.tools,
         ltm: config.ltm,
         compaction: config.compaction,
       }) satisfies ConfigData,
@@ -430,16 +430,16 @@ export function ConfigureApp({
           }),
       },
       {
-        label: `Allowed tools • ${truncate(compactJson(configData.allowed))}`,
+        label: `Allowed tools • ${truncate(compactJson(configData.tools.allowed))}`,
         value: () =>
           promptValue({
             title: "Update allowed list",
             label: "Allowed",
-            initialValue: compactJson(configData.allowed),
+            initialValue: compactJson(configData.tools.allowed),
             placeholder: '["tool_a","tool_b"]',
             onSubmit: async (value) => {
               const allowed = parseStringArray(value, "Allowed");
-              updateConfig({ allowed }, "Updated allowed list.");
+              updateConfig({ tools: { allowed } }, "Updated allowed list.");
               setPrompt(null);
             },
           }),

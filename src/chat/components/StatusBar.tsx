@@ -7,9 +7,8 @@ type StatusBarProps = {
   sessionId: string;
   elapsedLabel: string;
   turnCount: number;
-  /** MCP tools returned from servers (same set wired into the agent). */
-  toolsFound: number;
-  toolCalls: number;
+  totalTools: number;
+  skillsFound: number;
   manager: McpManager;
   usage: {
     inputTokens: number;
@@ -40,8 +39,8 @@ export function StatusBar({
   sessionId,
   elapsedLabel,
   turnCount,
-  toolsFound,
-  toolCalls,
+  totalTools,
+  skillsFound,
   manager,
   usage,
 }: StatusBarProps) {
@@ -59,7 +58,7 @@ export function StatusBar({
         {running ? <Text color="gray"> • elapsed {elapsedLabel}</Text> : null}
       </Text>
       <Text color="gray">
-        {`mcp clients: ${manager.clients.size} • tools found: ${toolsFound} • tools active: ${toolCalls}`}
+        {`mcp servers: ${manager.clients.size} • tools: ${totalTools} • skills: ${skillsFound}`}
       </Text>
     </Box>
   );

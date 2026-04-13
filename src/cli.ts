@@ -52,6 +52,7 @@ program
       config,
       agent,
       mcp: { manager },
+      registry,
     } = await bootstrap(sessionId, sessionId, false);
 
     try {
@@ -59,6 +60,7 @@ program
         agent,
         config,
         manager,
+        registry,
         sessionId,
         initialPrompt: prompt?.trim() || undefined,
       });

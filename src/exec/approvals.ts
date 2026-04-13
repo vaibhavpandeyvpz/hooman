@@ -62,11 +62,14 @@ export function createToolApprovalHandler(
 ): BeforeToolCallEventHandler {
   return async function onBeforeToolCallEvent(event: BeforeToolCallEvent) {
     const name = event.toolUse.name;
-    if (INTERNAL_ALWAYS_ALLOWED.has(name) || config.allowed.includes(name)) {
+    if (
+      INTERNAL_ALWAYS_ALLOWED.has(name) ||
+      config.tools.allowed.includes(name)
+    ) {
       return;
     }
     if (!canPromptForApproval()) {
-      event.cancel = `Tool "${name}" requires approval, but no interactive terminal is available. Add it to config.allowed to always allow it.`;
+      event.cancel = `Tool "${name}" requires approval, but no interactive terminal is available. Add it to config.tools.allowed to always allow it.`;
       return;
     }
     const decision = await promptForApproval(event);
@@ -74,7 +77,7 @@ export function createToolApprovalHandler(
       return;
     }
     if (decision === "always") {
-      config.update({ allowed: [...config.allowed, name] });
+      config.update({ tools: { allowed: [...config.tools.allowed, name] } });
       return;
     }
     event.cancel = `Tool "${name}" was rejected by the user.`;

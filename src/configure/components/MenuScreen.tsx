@@ -30,9 +30,7 @@ export function MenuScreen({
       <Box marginTop={hasHeader ? 1 : 0}>
         <SelectInput<MenuAction>
           items={keyedItems}
-          itemComponent={
-            SelectMenuItem as React.ComponentType<Record<string, unknown>>
-          }
+          itemComponent={SelectMenuItem}
           onSelect={(item) => {
             void item.value();
           }}

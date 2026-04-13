@@ -139,7 +139,7 @@ Hoomanity stores its data in:
 
 Important files and folders:
 
-- `config.json` - app name, LLM provider/model, allowed tools, long-term memory, compaction
+- `config.json` - app name, LLM provider/model, tool approvals, long-term memory, compaction
 - `instructions.md` - system instructions used to build the agent prompt
 - `mcp.json` - MCP server definitions
 - `skills/` - installed skills
@@ -157,7 +157,9 @@ This is the shape managed by `hoomanity configure`:
     "model": "gemma4:e4b",
     "params": {}
   },
-  "allowed": [],
+  "tools": {
+    "allowed": []
+  },
   "ltm": {
     "enabled": false,
     "chroma": {

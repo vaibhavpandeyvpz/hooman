@@ -8,6 +8,7 @@ import {
   type Manager as McpConnectionManager,
 } from "./mcp/index.ts";
 import { createSkillsRegistry } from "./skills/index.ts";
+import type { Registry } from "./skills/index.ts";
 import { system as createSystemPrompt } from "./prompts/index.ts";
 import type { System as SystemPrompt } from "./prompts/index.ts";
 import {
@@ -25,6 +26,7 @@ export async function bootstrap(
   config: Config;
   agent: Agent;
   mcp: { config: McpServersConfig; manager: McpConnectionManager };
+  registry: Registry;
 }> {
   const config = new Config(configJsonPath());
   const mcpConfig = createMcpConfig(mcpJsonPath());
@@ -41,5 +43,5 @@ export async function bootstrap(
     mcp,
     print,
   );
-  return { config, agent, mcp };
+  return { config, agent, mcp, registry };
 }

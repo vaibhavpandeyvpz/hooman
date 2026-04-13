@@ -74,7 +74,7 @@ export function createChatApprovalHandler(
     const toolName = event.toolUse.name;
     if (
       INTERNAL_ALWAYS_ALLOWED.has(toolName) ||
-      config.allowed.includes(toolName)
+      config.tools.allowed.includes(toolName)
     ) {
       return;
     }
@@ -84,8 +84,10 @@ export function createChatApprovalHandler(
       return;
     }
     if (decision === "always") {
-      if (!config.allowed.includes(toolName)) {
-        config.update({ allowed: [...config.allowed, toolName] });
+      if (!config.tools.allowed.includes(toolName)) {
+        config.update({
+          tools: { allowed: [...config.tools.allowed, toolName] },
+        });
       }
       return;
     }

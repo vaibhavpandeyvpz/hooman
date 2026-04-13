@@ -45,10 +45,14 @@ const LtmPartialSchema = z.object({
   chroma: ChromaPartialSchema.optional(),
 });
 
+const ToolsPartialSchema = z.object({
+  allowed: z.array(z.string().min(1)).default([]),
+});
+
 const ConfigSchema = z.object({
   name: z.string().min(1),
   llm: LlmSchema,
-  allowed: z.array(z.string().min(1)).default([]),
+  tools: ToolsPartialSchema.default({ allowed: [] }),
   ltm: LtmPartialSchema.nullish().transform((ltm) => ({
     enabled: ltm?.enabled ?? false,
     chroma: {
@@ -69,6 +73,7 @@ export type ConfigData = z.infer<typeof ConfigSchema>;
 export type LlmConfig = z.infer<typeof LlmSchema>;
 export type CompactionConfig = ConfigData["compaction"];
 export type LtmConfig = ConfigData["ltm"];
+export type ToolsConfig = ConfigData["tools"];
 
 const defaultConfigData = (): ConfigData => ({
   name: "Hoomanity",
@@ -77,7 +82,9 @@ const defaultConfigData = (): ConfigData => ({
     model: "gemma4:e4b",
     params: {},
   },
-  allowed: [],
+  tools: {
+    allowed: [],
+  },
   ltm: {
     enabled: false,
     chroma: {
@@ -108,8 +115,11 @@ export class Config {
     return this.data.llm;
   }
 
-  get allowed(): string[] {
-    return [...this.data.allowed];
+  get tools(): ToolsConfig {
+    return {
+      ...this.data.tools,
+      allowed: [...this.data.tools.allowed],
+    };
   }
 
   get compaction(): CompactionConfig {
