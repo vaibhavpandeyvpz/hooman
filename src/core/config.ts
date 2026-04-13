@@ -40,14 +40,23 @@ const ChromaPartialSchema = z.object({
     .optional(),
 });
 
+const LtmPartialSchema = z.object({
+  enabled: z.boolean().optional(),
+  chroma: ChromaPartialSchema.optional(),
+});
+
 const ConfigSchema = z.object({
   name: z.string().min(1),
   llm: LlmSchema,
   allowed: z.array(z.string().min(1)).default([]),
-  chroma: ChromaPartialSchema.nullish().transform((c) => ({
-    url: c?.url ?? DEFAULT_CHROMA.url,
-    collection: {
-      memory: c?.collection?.memory ?? DEFAULT_CHROMA.collection.memory,
+  ltm: LtmPartialSchema.nullish().transform((ltm) => ({
+    enabled: ltm?.enabled ?? false,
+    chroma: {
+      url: ltm?.chroma?.url ?? DEFAULT_CHROMA.url,
+      collection: {
+        memory:
+          ltm?.chroma?.collection?.memory ?? DEFAULT_CHROMA.collection.memory,
+      },
     },
   })),
   compaction: CompactionPartialSchema.nullish().transform((c) => ({
@@ -59,7 +68,7 @@ const ConfigSchema = z.object({
 export type ConfigData = z.infer<typeof ConfigSchema>;
 export type LlmConfig = z.infer<typeof LlmSchema>;
 export type CompactionConfig = ConfigData["compaction"];
-export type ChromaConfig = ConfigData["chroma"];
+export type LtmConfig = ConfigData["ltm"];
 
 const defaultConfigData = (): ConfigData => ({
   name: "Hoomanity",
@@ -69,9 +78,12 @@ const defaultConfigData = (): ConfigData => ({
     params: {},
   },
   allowed: [],
-  chroma: {
-    url: "http://127.0.0.1:8000",
-    collection: { memory: "memory" },
+  ltm: {
+    enabled: false,
+    chroma: {
+      url: "http://127.0.0.1:8000",
+      collection: { memory: "memory" },
+    },
   },
   compaction: {
     ratio: 0.75,
@@ -104,8 +116,8 @@ export class Config {
     return this.data.compaction;
   }
 
-  get chroma(): ChromaConfig {
-    return this.data.chroma;
+  get ltm(): LtmConfig {
+    return this.data.ltm;
   }
 
   private readJson(): unknown {

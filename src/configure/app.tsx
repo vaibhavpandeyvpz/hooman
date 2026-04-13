@@ -131,7 +131,7 @@ export function ConfigureApp({
         name: config.name,
         llm: config.llm,
         allowed: config.allowed,
-        chroma: config.chroma,
+        ltm: config.ltm,
         compaction: config.compaction,
       }) satisfies ConfigData,
     [config, revision],
@@ -445,12 +445,27 @@ export function ConfigureApp({
           }),
       },
       {
-        label: `Chroma URL • ${configData.chroma.url}`,
+        label: `Long-term memory • ${configData.ltm.enabled ? "Enabled" : "Disabled"}`,
+        value: () => {
+          updateConfig(
+            {
+              ltm: {
+                ...config.ltm,
+                enabled: !configData.ltm.enabled,
+              },
+            },
+            `Long-term memory ${configData.ltm.enabled ? "disabled" : "enabled"}.`,
+          );
+          setScreen({ kind: "config" });
+        },
+      },
+      {
+        label: `Chroma URL • ${configData.ltm.chroma.url}`,
         value: () =>
           promptValue({
             title: "Update Chroma URL",
             label: "URL",
-            initialValue: configData.chroma.url,
+            initialValue: configData.ltm.chroma.url,
             onSubmit: async (value) => {
               const url = value.trim();
               if (!url) {
@@ -458,9 +473,12 @@ export function ConfigureApp({
               }
               updateConfig(
                 {
-                  chroma: {
-                    ...config.chroma,
-                    url,
+                  ltm: {
+                    ...config.ltm,
+                    chroma: {
+                      ...config.ltm.chroma,
+                      url,
+                    },
                   },
                 },
                 "Updated Chroma URL.",
@@ -470,12 +488,12 @@ export function ConfigureApp({
           }),
       },
       {
-        label: `Chroma memory collection • ${configData.chroma.collection.memory}`,
+        label: `Chroma memory collection • ${configData.ltm.chroma.collection.memory}`,
         value: () =>
           promptValue({
             title: "Update Chroma memory collection",
             label: "Collection name",
-            initialValue: configData.chroma.collection.memory,
+            initialValue: configData.ltm.chroma.collection.memory,
             onSubmit: async (value) => {
               const memory = value.trim();
               if (!memory) {
@@ -483,9 +501,12 @@ export function ConfigureApp({
               }
               updateConfig(
                 {
-                  chroma: {
-                    ...config.chroma,
-                    collection: { memory },
+                  ltm: {
+                    ...config.ltm,
+                    chroma: {
+                      ...config.ltm.chroma,
+                      collection: { memory },
+                    },
                   },
                 },
                 "Updated Chroma collection.",

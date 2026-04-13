@@ -8,7 +8,7 @@ import type { Skills } from "./skills.ts";
 /** Bundled markdown next to this module (`prompts/static/`). */
 const STATIC_PROMPT_FILES = [
   "identity.md",
-  "memory.md",
+  "ltm.md",
   "thinking.md",
   "filesystem.md",
   "fetch.md",
@@ -32,10 +32,16 @@ export class System {
     this.config = config;
   }
 
+  private staticPromptFiles(): readonly (typeof STATIC_PROMPT_FILES)[number][] {
+    return STATIC_PROMPT_FILES.filter(
+      (file) => file !== "ltm.md" || this.config.ltm.enabled,
+    );
+  }
+
   private readBundledStaticPrompts(): string {
     const dir = join(dirname(fileURLToPath(import.meta.url)), "static");
     const parts: string[] = [];
-    for (const file of STATIC_PROMPT_FILES) {
+    for (const file of this.staticPromptFiles()) {
       const full = join(dir, file);
       if (!existsSync(full)) {
         continue;
@@ -76,7 +82,7 @@ export class System {
     return {
       name: this.config.name,
       llm: this.config.llm,
-      chroma: this.config.chroma,
+      ltm: this.config.ltm,
       compaction: this.config.compaction,
     };
   }

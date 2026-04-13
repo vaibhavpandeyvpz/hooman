@@ -37,7 +37,7 @@ export async function create(
 ): Promise<Agent> {
   const llm = await modelProviders[config.llm.provider]!();
   const stm = createShortTermMemory(sessionId);
-  const ltm = createLongTermMemoryStore(config);
+  const ltm = config.ltm.enabled ? createLongTermMemoryStore(config) : null;
   const skills = await createSkillsPrompt(registry);
   const tools = await mcp.manager.listPrefixedTools();
   const prompt = [system.content, skills.content]
@@ -57,7 +57,7 @@ export async function create(
       ...createShellTools(),
       ...createFetchTools(),
       ...createThinkingTools(),
-      ...createLongTermMemoryTools(ltm),
+      ...(ltm ? createLongTermMemoryTools(ltm) : []),
       ...createSkillsTools(registry),
       ...createMcpTools(mcp.config),
       ...tools,

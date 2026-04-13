@@ -39,14 +39,14 @@ export class LongTermMemoryStore {
     private readonly options: LongTermMemoryOptions = {},
   ) {
     this.client = new ChromaClient({
-      ...chromaClientArgsFromUrl(config.chroma.url),
+      ...chromaClientArgsFromUrl(config.ltm.chroma.url),
     });
   }
 
   private async collection(): Promise<Collection> {
     if (!this.collectionPromise) {
       this.collectionPromise = this.client.getOrCreateCollection({
-        name: this.config.chroma.collection.memory,
+        name: this.config.ltm.chroma.collection.memory,
         embeddingFunction: new HFEmbedding(),
       });
     }
