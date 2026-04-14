@@ -5,7 +5,7 @@ import type {
 } from "@agentclientprotocol/sdk";
 import type { Config } from "../../core/config.ts";
 
-export const HOOMANITY_LTM_CONFIG_ID = "hoomanity.longTermMemory" as const;
+export const HOOMAN_LTM_CONFIG_ID = "hooman.longTermMemory" as const;
 
 export function buildSessionConfigOptions(
   config: Config,
@@ -13,11 +13,11 @@ export function buildSessionConfigOptions(
   return [
     {
       type: "select",
-      id: HOOMANITY_LTM_CONFIG_ID,
+      id: HOOMAN_LTM_CONFIG_ID,
       name: "Long-term memory",
       description:
         "When enabled, the agent can store and search memories (requires Chroma at the configured URL).",
-      category: "_hoomanity",
+      category: "_hooman",
       currentValue: config.ltm.enabled ? "on" : "off",
       options: [
         { value: "on", name: "On" },
@@ -36,7 +36,7 @@ export function applySessionConfigOption(
       message: "Boolean session config options are not supported.",
     });
   }
-  if (params.configId !== HOOMANITY_LTM_CONFIG_ID) {
+  if (params.configId !== HOOMAN_LTM_CONFIG_ID) {
     throw RequestError.invalidParams({ configId: params.configId });
   }
   const value = params.value;

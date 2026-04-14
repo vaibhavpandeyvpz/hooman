@@ -8,8 +8,8 @@ function sanitizeClientSystemPrompt(raw: string): string {
  * Session-level system prompt override from ACP `_meta` on `session/new` and `session/load`.
  *
  * Resolution order (first non-empty wins):
- * - `_meta["hoomanity/systemPrompt"]` (string)
- * - `_meta.hoomanity.systemPrompt` (string)
+ * - `_meta["hooman/systemPrompt"]` (string)
+ * - `_meta.hooman.systemPrompt` (string)
  * - `_meta.systemPrompt` (string)
  *
  * Values are normalized to `\n`, trimmed, and capped in length.
@@ -23,11 +23,11 @@ export function extractAcpClientSystemPrompt(
   }
   const m = _meta as Record<string, unknown>;
   const candidates: unknown[] = [
-    m["hoomanity/systemPrompt"],
-    m.hoomanity !== null &&
-    typeof m.hoomanity === "object" &&
-    "systemPrompt" in m.hoomanity
-      ? (m.hoomanity as Record<string, unknown>).systemPrompt
+    m["hooman/systemPrompt"],
+    m.hooman !== null &&
+    typeof m.hooman === "object" &&
+    "systemPrompt" in m.hooman
+      ? (m.hooman as Record<string, unknown>).systemPrompt
       : undefined,
     m.systemPrompt,
   ];

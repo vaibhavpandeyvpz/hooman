@@ -76,7 +76,7 @@ export type LtmConfig = ConfigData["ltm"];
 export type ToolsConfig = ConfigData["tools"];
 
 const defaultConfigData = (): ConfigData => ({
-  name: "Hoomanity",
+  name: "Hooman",
   llm: {
     provider: LlmProvider.Ollama,
     model: "gemma4:e4b",

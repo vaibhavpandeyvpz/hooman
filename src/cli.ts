@@ -17,13 +17,20 @@ async function readPackageMeta(): Promise<{
 }> {
   const path = new URL("../package.json", import.meta.url);
   const pkg = (await Bun.file(path).json()) as {
+    bin?: string | Record<string, string>;
     name?: string;
     description?: string;
     version?: string;
   };
+  const commandName =
+    typeof pkg.bin === "string"
+      ? pkg.name
+      : pkg.bin && typeof pkg.bin === "object"
+        ? Object.keys(pkg.bin)[0]
+        : undefined;
   return {
-    name: pkg.name ?? "hoomanity",
-    description: pkg.description ?? "Hoomanity CLI",
+    name: commandName ?? pkg.name ?? "hooman",
+    description: pkg.description ?? "Hooman CLI",
     version: pkg.version ?? "0.0.0",
   };
 }

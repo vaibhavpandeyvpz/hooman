@@ -151,11 +151,18 @@ async function readPackageDetails(): Promise<{
 }> {
   const path = new URL("../../package.json", import.meta.url);
   const pkg = (await Bun.file(path).json()) as {
+    bin?: string | Record<string, string>;
     name?: string;
     version?: string;
   };
+  const commandName =
+    typeof pkg.bin === "string"
+      ? pkg.name
+      : pkg.bin && typeof pkg.bin === "object"
+        ? Object.keys(pkg.bin)[0]
+        : undefined;
   return {
-    name: pkg.name ?? "hoomanity",
+    name: commandName ?? pkg.name ?? "hooman",
     version: pkg.version ?? "0.0.0",
   };
 }
@@ -377,7 +384,7 @@ export class AcpAgent implements AgentContract {
           {
             id: DEFAULT_MODE_ID,
             name: "Default",
-            description: "Standard Hoomanity behaviour for this session.",
+            description: "Standard Hooman behaviour for this session.",
           },
         ],
       },
@@ -489,7 +496,7 @@ export class AcpAgent implements AgentContract {
           {
             id: DEFAULT_MODE_ID,
             name: "Default",
-            description: "Standard Hoomanity behaviour for this session.",
+            description: "Standard Hooman behaviour for this session.",
           },
         ],
       },

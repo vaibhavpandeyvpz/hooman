@@ -9,7 +9,7 @@ const StringRecordSchema = z.record(z.string(), z.string());
 
 export const DEFAULT_INSTRUCTIONS = `# Instructions
 
-You are Hoomanity.
+You are Hooman.
 `;
 
 export function compactJson(value: unknown): string {

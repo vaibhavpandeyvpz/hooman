@@ -12,8 +12,8 @@ function sanitizeClientUserId(raw: string): string {
  * Logical user id from ACP `_meta` on `session/new` and `session/load`.
  *
  * Resolution order (first non-empty wins):
- * - `_meta["hoomanity/userId"]` (string)
- * - `_meta.hoomanity.userId` (string)
+ * - `_meta["hooman/userId"]` (string)
+ * - `_meta.hooman.userId` (string)
  * - `_meta.userId` (string)
  *
  * Values are trimmed, capped in length, and stripped of ASCII control characters.
@@ -25,11 +25,9 @@ export function extractAcpClientUserId(_meta: unknown): string | undefined {
   }
   const m = _meta as Record<string, unknown>;
   const candidates: unknown[] = [
-    m["hoomanity/userId"],
-    m.hoomanity !== null &&
-    typeof m.hoomanity === "object" &&
-    "userId" in m.hoomanity
-      ? (m.hoomanity as Record<string, unknown>).userId
+    m["hooman/userId"],
+    m.hooman !== null && typeof m.hooman === "object" && "userId" in m.hooman
+      ? (m.hooman as Record<string, unknown>).userId
       : undefined,
     m.userId,
   ];

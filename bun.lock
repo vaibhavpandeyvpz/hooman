@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "hoomanity",
+      "name": "hoomanjs",
       "dependencies": {
         "@agentclientprotocol/sdk": "^0.18.2",
         "@ai-sdk/anthropic": "^3.0.69",

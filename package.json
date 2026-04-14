@@ -1,6 +1,6 @@
 {
-  "name": "hoomanity",
-  "version": "1.1.0",
+  "name": "hoomanjs",
+  "version": "1.0.0",
   "description": "Bun-powered local AI agent CLI with chat, exec, ACP, MCP, and skills support.",
   "author": {
     "name": "Vaibhav Pandey",
@@ -9,12 +9,12 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/vaibhavpandeyvpz/hoomanity.git"
+    "url": "git+https://github.com/vaibhavpandeyvpz/hooman.git"
   },
   "bugs": {
-    "url": "https://github.com/vaibhavpandeyvpz/hoomanity/issues"
+    "url": "https://github.com/vaibhavpandeyvpz/hooman/issues"
   },
-  "homepage": "https://github.com/vaibhavpandeyvpz/hoomanity#readme",
+  "homepage": "https://github.com/vaibhavpandeyvpz/hooman#readme",
   "keywords": [
     "acp",
     "agent",
@@ -29,7 +29,7 @@
   ],
   "type": "module",
   "bin": {
-    "hoomanity": "src/cli.ts"
+    "hooman": "src/cli.ts"
   },
   "scripts": {
     "dev": "bun run src/cli.ts",

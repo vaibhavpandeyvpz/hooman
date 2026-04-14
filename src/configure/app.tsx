@@ -574,7 +574,7 @@ export function ConfigureApp({
     return (
       <MenuScreen
         title="Configuration"
-        description="Edit the same values loaded from ~/.hoomanity/config.json."
+        description="Edit the same values loaded from ~/.hooman/config.json."
         items={items}
       />
     );
@@ -666,7 +666,7 @@ export function ConfigureApp({
     return (
       <MenuScreen
         title="MCP Servers"
-        description="Add, edit, or remove named MCP transports from ~/.hoomanity/mcp.json."
+        description="Add, edit, or remove named MCP transports from ~/.hooman/mcp.json."
         items={items}
       />
     );
@@ -750,7 +750,7 @@ export function ConfigureApp({
     return (
       <MenuScreen
         title="Skills"
-        description="Search, install, and remove skills under ~/.hoomanity/skills."
+        description="Search, install, and remove skills under ~/.hooman/skills."
         items={items}
       />
     );
@@ -789,7 +789,7 @@ export function ConfigureApp({
     return (
       <MenuScreen
         title="Delete MCP server?"
-        description={`Remove "${name}" from ~/.hoomanity/mcp.json? This cannot be undone from here.`}
+        description={`Remove "${name}" from ~/.hooman/mcp.json? This cannot be undone from here.`}
         items={items}
       />
     );
@@ -823,7 +823,7 @@ export function ConfigureApp({
     return (
       <MenuScreen
         title="Remove skill?"
-        description={`Uninstall "${displayName}" (${folder}) from ~/.hoomanity/skills?`}
+        description={`Uninstall "${displayName}" (${folder}) from ~/.hooman/skills?`}
         items={items}
       />
     );

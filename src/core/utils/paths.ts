@@ -1,7 +1,7 @@
 import { homedir } from "os";
 import { join } from "path";
 
-const HOME_FOLDER_NAME = ".hoomanity";
+const HOME_FOLDER_NAME = ".hooman";
 
 export const basePath = () => {
   return join(homedir(), HOME_FOLDER_NAME);

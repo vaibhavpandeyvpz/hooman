@@ -1,27 +1,32 @@
-# Hoomanity
-
-![Hoomanity screenshot](.github/screenshot.png)
-
-[![Bun](https://img.shields.io/badge/runtime-Bun-f9f1e1?logo=bun&logoColor=000000)](https://bun.com)
-[![TypeScript](https://img.shields.io/badge/language-TypeScript-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![Ink](https://img.shields.io/badge/ui-Ink-6f42c1)](https://github.com/vadimdemedes/ink)
-[![Build](https://img.shields.io/github/actions/workflow/status/vaibhavpandeyvpz/hoomanity/build-publish.yml?branch=main&label=build)](https://github.com/vaibhavpandeyvpz/hoomanity/actions/workflows/build-publish.yml)
-[![GitHub Repo stars](https://img.shields.io/github/stars/vaibhavpandeyvpz/hoomanity?style=flat)](https://github.com/vaibhavpandeyvpz/hoomanity/stargazers)
-[![GitHub last commit](https://img.shields.io/github/last-commit/vaibhavpandeyvpz/hoomanity)](https://github.com/vaibhavpandeyvpz/hoomanity/commits/main)
-
-Hoomanity is a Bun-powered local AI agent CLI built with TypeScript, [Strands Agents SDK](https://www.npmjs.com/package/@strands-agents/sdk), and [Ink](https://github.com/vadimdemedes/ink).
+<div align="center">
+  <h1>Hooman</h1>
+  <p>
+    Hooman is a Bun-powered local AI agent CLI built with TypeScript, <a href="https://www.npmjs.com/package/@strands-agents/sdk">Strands Agents SDK</a>, and <a href="https://github.com/vadimdemedes/ink">Ink</a>.
+  </p>
+  <p>
+    <a href="https://bun.com"><img src="https://img.shields.io/badge/runtime-Bun-f9f1e1?logo=bun&logoColor=000000" alt="Bun" /></a>
+    <a href="https://www.typescriptlang.org/"><img src="https://img.shields.io/badge/language-TypeScript-3178C6?logo=typescript&logoColor=white" alt="TypeScript" /></a>
+    <a href="https://github.com/vadimdemedes/ink"><img src="https://img.shields.io/badge/ui-Ink-6f42c1" alt="Ink" /></a>
+    <a href="https://github.com/vaibhavpandeyvpz/hooman/actions/workflows/build-publish.yml"><img src="https://img.shields.io/github/actions/workflow/status/vaibhavpandeyvpz/hooman/build-publish.yml?branch=main&label=build" alt="Build" /></a>
+    <a href="https://github.com/vaibhavpandeyvpz/hooman/stargazers"><img src="https://img.shields.io/github/stars/vaibhavpandeyvpz/hooman?style=flat" alt="GitHub Repo stars" /></a>
+    <a href="https://github.com/vaibhavpandeyvpz/hooman/commits/main"><img src="https://img.shields.io/github/last-commit/vaibhavpandeyvpz/hooman" alt="GitHub last commit" /></a>
+  </p>
+  <p>
+    <img src=".github/screenshot.png" alt="Hooman screenshot" />
+  </p>
+</div>
 
 It gives you:
 
 - a one-shot `exec` command for single prompts
 - a stateful `chat` interface for interactive sessions
 - an Ink-powered `configure` workflow for editing app config, `instructions.md`, MCP servers, and installed skills
-- an `acp` command for running Hoomanity as an Agent Client Protocol (ACP) agent over stdio
+- an `acp` command for running Hooman as an Agent Client Protocol (ACP) agent over stdio
 
 ## Features
 
 - Multiple LLM providers: `ollama`, `openai`, `anthropic`, `google`, `bedrock`
-- Local configuration under `~/.hoomanity`
+- Local configuration under `~/.hooman`
 - MCP server support via `stdio`, `streamable-http`, and `sse`
 - Skill discovery / install / removal through the integrated configure flow
 - Interactive terminal UI for chat and configuration
@@ -37,22 +42,22 @@ It gives you:
 Fastest way to get started without cloning the repo:
 
 ```bash
-npx hoomanity configure
-npx hoomanity chat
+npx hoomanjs configure
+npx hoomanjs chat
 ```
 
 Or with Bun:
 
 ```bash
-bunx hoomanity configure
-bunx hoomanity chat
+bunx hoomanjs configure
+bunx hoomanjs chat
 ```
 
 Recommended first run:
 
-1. Run `hoomanity configure` to choose your LLM provider and model.
-2. Start chatting with `hoomanity chat`.
-3. Use `hoomanity exec "your prompt"` for one-off tasks.
+1. Run `hooman configure` to choose your LLM provider and model.
+2. Start chatting with `hooman chat`.
+3. Use `hooman exec "your prompt"` for one-off tasks.
 
 ## Install
 
@@ -76,55 +81,55 @@ Link the CLI locally:
 
 ```bash
 bun link
-hoomanity --help
+hooman --help
 ```
 
 ## Commands
 
-### `hoomanity exec`
+### `hooman exec`
 
 Run a single prompt once.
 
 ```bash
-hoomanity exec "Summarize the current repository"
+hooman exec "Summarize the current repository"
 ```
 
 Use a specific session id:
 
 ```bash
-hoomanity exec "What changed?" --session my-session
+hooman exec "What changed?" --session my-session
 ```
 
 Choose a toolkit size:
 
 ```bash
-hoomanity exec "Summarize this repo" --toolkit lite
+hooman exec "Summarize this repo" --toolkit lite
 ```
 
-### `hoomanity chat`
+### `hooman chat`
 
 Start an interactive stateful chat session.
 
 ```bash
-hoomanity chat
+hooman chat
 ```
 
 Optional initial prompt:
 
 ```bash
-hoomanity chat "Help me plan the next task"
+hooman chat "Help me plan the next task"
 ```
 
 Resume or pin a session id:
 
 ```bash
-hoomanity chat --session my-session
+hooman chat --session my-session
 ```
 
 Choose a toolkit size:
 
 ```bash
-hoomanity chat --toolkit max
+hooman chat --toolkit max
 ```
 
 ### Toolkit Levels
@@ -137,12 +142,12 @@ hoomanity chat --toolkit max
 
 Prompt loading follows the same split: filesystem / shell / thinking instructions are only included from `full` upward, while skills guidance is always included.
 
-### `hoomanity configure`
+### `hooman configure`
 
 Open the Ink configuration workflow.
 
 ```bash
-hoomanity configure
+hooman configure
 ```
 
 The configure UI currently lets you:
@@ -152,33 +157,33 @@ The configure UI currently lets you:
 - add, edit, and delete MCP servers with confirmation
 - search, install, refresh, and remove skills
 
-### `hoomanity acp`
+### `hooman acp`
 
-Run Hoomanity as an Agent Client Protocol (ACP) agent over stdio.
+Run Hooman as an Agent Client Protocol (ACP) agent over stdio.
 
 ```bash
-hoomanity acp
+hooman acp
 ```
 
 Choose a toolkit size for ACP-created sessions:
 
 ```bash
-hoomanity acp --toolkit max
+hooman acp --toolkit max
 ```
 
 ACP notes:
 
-- ACP sessions are stored under `~/.hoomanity/acp-sessions`
-- ACP uses Hoomanity's local `mcp.json`; client-provided MCP servers and client workspace tools are not exposed
+- ACP sessions are stored under `~/.hooman/acp-sessions`
+- ACP uses Hooman's local `mcp.json`; client-provided MCP servers and client workspace tools are not exposed
 - ACP `session/new` and `session/load` support `_meta.userId` and `_meta.systemPrompt`
 - when `_meta.systemPrompt` is provided, it is appended to the agent system prompt with a section break
 
 ## Configuration Layout
 
-Hoomanity stores its data in:
+Hooman stores its data in:
 
 ```text
-~/.hoomanity/
+~/.hooman/
 ```
 
 Important files and folders:
@@ -192,11 +197,11 @@ Important files and folders:
 
 ## Example `config.json`
 
-This is the shape managed by `hoomanity configure`:
+This is the shape managed by `hooman configure`:
 
 ```json
 {
-  "name": "Hoomanity",
+  "name": "Hooman",
   "llm": {
     "provider": "ollama",
     "model": "gemma4:e4b",
@@ -359,7 +364,7 @@ Supports `region`, `clientConfig`, and optional `apiKey`, with all other values 
 Skills are installed under:
 
 ```text
-~/.hoomanity/skills
+~/.hooman/skills
 ```
 
 The configure workflow can:

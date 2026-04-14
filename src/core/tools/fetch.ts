@@ -13,7 +13,7 @@ async function createUserAgent(): Promise<string> {
     name?: string;
     version?: string;
   };
-  return `${pkg.name ?? "hoomanity"}/${pkg.version ?? "0.0.0"}`;
+  return `${pkg.name ?? "hoomanjs"}/${pkg.version ?? "0.0.0"}`;
 }
 
 const DEFAULT_TIMEOUT_SECONDS = 30;
