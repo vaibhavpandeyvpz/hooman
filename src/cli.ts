@@ -10,10 +10,22 @@ import { chat } from "./chat/index.tsx";
 import { configure } from "./configure/index.tsx";
 import { runAcpStdio } from "./acp/acp-agent.ts";
 
-async function readVersion(): Promise<string> {
+async function readPackageMeta(): Promise<{
+  name: string;
+  description: string;
+  version: string;
+}> {
   const path = new URL("../package.json", import.meta.url);
-  const pkg = (await Bun.file(path).json()) as { version?: string };
-  return pkg.version ?? "0.0.0";
+  const pkg = (await Bun.file(path).json()) as {
+    name?: string;
+    description?: string;
+    version?: string;
+  };
+  return {
+    name: pkg.name ?? "hoomanity",
+    description: pkg.description ?? "Hoomanity CLI",
+    version: pkg.version ?? "0.0.0",
+  };
 }
 
 function createToolkitOption(): Option {
@@ -25,10 +37,12 @@ function createToolkitOption(): Option {
     .default("full");
 }
 
+const packageMeta = await readPackageMeta();
+
 const program = new Command()
-  .name("hoomanity")
-  .description("Hoomanity CLI")
-  .version(await readVersion(), "-v, --version")
+  .name(packageMeta.name)
+  .description(packageMeta.description)
+  .version(packageMeta.version, "-v, --version")
   .showHelpAfterError(true);
 
 program
