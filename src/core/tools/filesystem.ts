@@ -3,6 +3,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
 import { tool } from "@strands-agents/sdk";
+import { getCwd } from "../utils/cwd-context.ts";
 import type { JSONValue } from "@strands-agents/sdk";
 import { z } from "zod";
 
@@ -47,7 +48,7 @@ function normalizeUserPath(inputPath: string): string {
 
   return path.isAbsolute(value)
     ? path.resolve(value)
-    : path.resolve(process.cwd(), value);
+    : path.resolve(getCwd(), value);
 }
 
 function normalizeForGlob(inputPath: string): string {

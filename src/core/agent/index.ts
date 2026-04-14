@@ -1,6 +1,5 @@
 import { Agent } from "@strands-agents/sdk";
-import type { Config, LlmProvider } from "../config.ts";
-import type { ModelProvider } from "../models";
+import type { Config } from "../config.ts";
 import { modelProviders } from "../models";
 import {
   type Config as McpConfig,
@@ -23,24 +22,33 @@ import {
   createThinkingTools,
   createTimeTools,
 } from "../tools";
+import { toolkitAtLeast } from "../toolkit.ts";
+import type { Toolkit } from "../toolkit.ts";
 
 const SECTION_BREAK = "\n\n---\n\n";
 
 export async function create(
-  userId: string,
-  sessionId: string,
   config: Config,
   system: SystemPrompt,
   registry: Registry,
   mcp: { config: McpConfig; manager: McpManager },
   print: boolean = false,
+  meta: {
+    userId?: string;
+    sessionId: string;
+    systemPrompt?: string;
+    toolkit?: Toolkit;
+  },
 ): Promise<Agent> {
+  const sessionId = meta.sessionId;
+  const userId = meta.userId ?? sessionId;
+  const toolkit = meta.toolkit ?? "max";
   const llm = await modelProviders[config.llm.provider]!();
   const stm = createShortTermMemory(sessionId);
   const ltm = config.ltm.enabled ? createLongTermMemoryStore(config) : null;
   const skills = await createSkillsPrompt(registry);
   const tools = await mcp.manager.listPrefixedTools();
-  const prompt = [system.content, skills.content]
+  const prompt = [system.content, meta.systemPrompt, skills.content]
     .filter((x) => !!x)
     .join(SECTION_BREAK);
   return new Agent({
@@ -53,13 +61,13 @@ export async function create(
     },
     tools: [
       ...createTimeTools(),
-      ...createFilesystemTools(),
-      ...createShellTools(),
       ...createFetchTools(),
-      ...createThinkingTools(),
       ...(ltm ? createLongTermMemoryTools(ltm) : []),
-      ...createSkillsTools(registry),
-      ...createMcpTools(mcp.config),
+      ...(toolkitAtLeast(toolkit, "full") ? createFilesystemTools() : []), // > lite
+      ...(toolkitAtLeast(toolkit, "full") ? createShellTools() : []),
+      ...(toolkitAtLeast(toolkit, "full") ? createThinkingTools() : []),
+      ...(toolkit === "max" ? createSkillsTools(registry) : []),
+      ...(toolkit === "max" ? createMcpTools(mcp.config) : []),
       ...tools,
     ],
     printer: print,

@@ -5,6 +5,7 @@ import { setTimeout as sleep } from "node:timers/promises";
 import { tool } from "@strands-agents/sdk";
 import type { JSONValue, ToolContext } from "@strands-agents/sdk";
 import { z } from "zod";
+import { getCwd } from "../utils/cwd-context.ts";
 
 const DEFAULT_TIMEOUT_SECONDS = Number.parseInt(
   process.env.SHELL_DEFAULT_TIMEOUT ?? "900",
@@ -399,7 +400,7 @@ export function createShellTools() {
         const commands = normalizeCommands(input);
         const parallel = input.parallel ?? false;
         const ignoreErrors = input.ignore_errors ?? false;
-        const baseDir = resolveWorkDir(process.cwd(), input.work_dir);
+        const baseDir = resolveWorkDir(getCwd(), input.work_dir);
 
         const results = parallel
           ? await executeParallel(commands, baseDir, ignoreErrors, context)

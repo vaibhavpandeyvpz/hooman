@@ -24,6 +24,7 @@
     "bun": ">=1.0.0"
   },
   "dependencies": {
+    "@agentclientprotocol/sdk": "^0.18.2",
     "@ai-sdk/anthropic": "^3.0.69",
     "@aws-sdk/client-bedrock-runtime": "^3.1028.0",
     "@google/genai": "^1.40.0",

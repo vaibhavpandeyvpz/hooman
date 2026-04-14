@@ -11,6 +11,7 @@ const SKILLS_CLI = "skills@latest";
 /** Agent target for `skills add/list` — OpenClaw layout → `./skills/`. */
 const SKILLS_AGENT = "openclaw";
 const SKILLS_API_URL = "https://skills.sh";
+const NPX_BIN = process.platform === "win32" ? "npx.cmd" : "npx";
 
 const ANSI_RE = /\x1b\[[0-9;]*m/g;
 
@@ -69,7 +70,7 @@ async function runNpxSkills(
   options: { cwd?: string; timeout?: number } = {},
 ): Promise<{ stdout: string; stderr: string }> {
   const { cwd, timeout = 300_000 } = options;
-  return execFileAsync("npx", ["--yes", SKILLS_CLI, ...args], {
+  return execFileAsync(NPX_BIN, ["--yes", SKILLS_CLI, ...args], {
     cwd,
     maxBuffer: 20 * 1024 * 1024,
     timeout,

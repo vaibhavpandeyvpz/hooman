@@ -3,7 +3,8 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { compile } from "handlebars";
 import type { Config } from "../config.ts";
-import type { Skills } from "./skills.ts";
+import type { Toolkit } from "../toolkit.ts";
+import { toolkitAtLeast } from "../toolkit.ts";
 
 /** Bundled markdown next to this module (`prompts/static/`). */
 const STATIC_PROMPT_FILES = [
@@ -25,17 +26,30 @@ const SECTION_BREAK = "\n\n---\n\n";
 export class System {
   private readonly path: string;
   private readonly config: Config;
+  private readonly toolkit: Toolkit;
   private data = "";
 
-  public constructor(path: string, config: Config) {
+  public constructor(path: string, config: Config, toolkit: Toolkit) {
     this.path = path;
     this.config = config;
+    this.toolkit = toolkit;
   }
 
   private staticPromptFiles(): readonly (typeof STATIC_PROMPT_FILES)[number][] {
-    return STATIC_PROMPT_FILES.filter(
-      (file) => file !== "ltm.md" || this.config.ltm.enabled,
-    );
+    return STATIC_PROMPT_FILES.filter((file) => {
+      switch (file) {
+        case "ltm.md":
+          return this.config.ltm.enabled;
+        case "filesystem.md":
+        case "thinking.md":
+        case "shell.md":
+          return toolkitAtLeast(this.toolkit, "full");
+        case "skills.md":
+          return this.toolkit === "max";
+        default:
+          return true;
+      }
+    });
   }
 
   private readBundledStaticPrompts(): string {

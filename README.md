@@ -16,6 +16,7 @@ It gives you:
 - a one-shot `exec` command for single prompts
 - a stateful `chat` interface for interactive sessions
 - an Ink-powered `configure` workflow for editing app config, `instructions.md`, MCP servers, and installed skills
+- an `acp` command for running Hoomanity as an Agent Client Protocol (ACP) agent over stdio
 
 ## Features
 
@@ -94,6 +95,12 @@ Use a specific session id:
 hoomanity exec "What changed?" --session my-session
 ```
 
+Choose a toolkit size:
+
+```bash
+hoomanity exec "Summarize this repo" --toolkit lite
+```
+
 ### `hoomanity chat`
 
 Start an interactive stateful chat session.
@@ -114,6 +121,22 @@ Resume or pin a session id:
 hoomanity chat --session my-session
 ```
 
+Choose a toolkit size:
+
+```bash
+hoomanity chat --toolkit max
+```
+
+### Toolkit Levels
+
+`exec`, `chat`, and `acp` support `-t, --toolkit <lite|full|max>`.
+
+- `lite` - time, fetch, long-term-memory, installed skills, and configured MCP server tools
+- `full` - `lite` plus filesystem, shell, and thinking tools
+- `max` - `full` plus skills management tools and MCP config management tools
+
+Prompt loading follows the same split: filesystem / shell / thinking instructions are only included from `full` upward, while skills guidance is always included.
+
 ### `hoomanity configure`
 
 Open the Ink configuration workflow.
@@ -128,6 +151,27 @@ The configure UI currently lets you:
 - edit `instructions.md` in your `$VISUAL` / `$EDITOR` (cross-platform fallback included)
 - add, edit, and delete MCP servers with confirmation
 - search, install, refresh, and remove skills
+
+### `hoomanity acp`
+
+Run Hoomanity as an Agent Client Protocol (ACP) agent over stdio.
+
+```bash
+hoomanity acp
+```
+
+Choose a toolkit size for ACP-created sessions:
+
+```bash
+hoomanity acp --toolkit max
+```
+
+ACP notes:
+
+- ACP sessions are stored under `~/.hoomanity/acp-sessions`
+- ACP uses Hoomanity's local `mcp.json`; client-provided MCP servers and client workspace tools are not exposed
+- ACP `session/new` and `session/load` support `_meta.userId` and `_meta.systemPrompt`
+- when `_meta.systemPrompt` is provided, it is appended to the agent system prompt with a section break
 
 ## Configuration Layout
 
@@ -144,6 +188,7 @@ Important files and folders:
 - `mcp.json` - MCP server definitions
 - `skills/` - installed skills
 - `sessions/` - persisted session data
+- `acp-sessions/` - persisted ACP session metadata and message snapshots
 
 ## Example `config.json`
 
