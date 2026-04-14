@@ -389,7 +389,6 @@ Run typecheck:
 bunx tsc --noEmit
 ```
 
-## Notes
+## License
 
-- The project currently uses Bun directly rather than a compiled build step.
-- Full-repo `tsc` may include unrelated errors from the `reference/` tree depending on local checkout state.
+MIT. See `LICENSE`.
