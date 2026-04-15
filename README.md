@@ -174,7 +174,7 @@ hooman acp --toolkit max
 ACP notes:
 
 - ACP sessions are stored under `~/.hooman/acp-sessions`
-- ACP uses Hooman's local `mcp.json`; client-provided MCP servers and client workspace tools are not exposed
+- ACP loads MCP servers passed on `session/new` and `session/load`, in addition to Hooman's local `mcp.json`
 - ACP `session/new` and `session/load` support `_meta.userId` and `_meta.systemPrompt`
 - when `_meta.systemPrompt` is provided, it is appended to the agent system prompt with a section break
 

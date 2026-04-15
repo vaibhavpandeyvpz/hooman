@@ -2,6 +2,7 @@ import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { SessionInfo } from "@agentclientprotocol/sdk";
 import type { MessageData } from "@strands-agents/sdk";
+import type { NamedMcpTransport } from "../../core/mcp/config.ts";
 
 export type SessionMetaFile = {
   cwd: string;
@@ -12,6 +13,8 @@ export type SessionMetaFile = {
   userId?: string | null;
   /** Session-level system prompt from ACP client `_meta`. */
   systemPrompt?: string | null;
+  /** Session-scoped MCP servers requested by the ACP client. */
+  mcpServers?: NamedMcpTransport[];
 };
 
 const META = "meta.json";

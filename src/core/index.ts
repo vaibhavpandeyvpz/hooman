@@ -6,6 +6,7 @@ import {
   createMcpManager,
   type Config as McpServersConfig,
   type Manager as McpConnectionManager,
+  type NamedMcpTransport,
 } from "./mcp/index.ts";
 import { createSkillsRegistry } from "./skills/index.ts";
 import type { Registry } from "./skills/index.ts";
@@ -23,6 +24,7 @@ export async function bootstrap(
     userId?: string;
     sessionId: string;
     systemPrompt?: string;
+    mcpServers?: NamedMcpTransport[];
     toolkit?: Toolkit;
   },
   print: boolean = false,
@@ -34,7 +36,7 @@ export async function bootstrap(
 }> {
   const config = new Config(configJsonPath());
   const mcpConfig = createMcpConfig(mcpJsonPath());
-  const mcpManager = createMcpManager(mcpConfig);
+  const mcpManager = createMcpManager(mcpConfig, meta.mcpServers ?? []);
   const mcp = { config: mcpConfig, manager: mcpManager };
   const registry = createSkillsRegistry(basePath());
   const toolkit = meta.toolkit ?? "max";

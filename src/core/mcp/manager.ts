@@ -4,7 +4,7 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
-import { Config } from "./config.ts";
+import { Config, type NamedMcpTransport } from "./config.ts";
 import type { McpTransport } from "./types.ts";
 
 function transportFor(spec: McpTransport): Transport {
@@ -43,7 +43,10 @@ function transportFor(spec: McpTransport): Transport {
 export class Manager {
   private instances: Map<string, McpClient> | null = null;
 
-  public constructor(private readonly config: Config) {}
+  public constructor(
+    private readonly config: Config,
+    private readonly mcpServers: readonly NamedMcpTransport[] = [],
+  ) {}
 
   /** Lazily builds clients from the current in-memory config (reloads file first). */
   get clients(): ReadonlyMap<string, McpClient> {
@@ -61,7 +64,12 @@ export class Manager {
     this.config.reload();
     const previous = this.instances;
     const next = new Map<string, McpClient>();
-    for (const { name, transport } of this.config.list()) {
+    const transports = [
+      ...this.config.list(),
+      // Session-scoped ACP servers intentionally override local config names.
+      ...this.mcpServers,
+    ];
+    for (const { name, transport } of transports) {
       next.set(
         name,
         new McpClient({

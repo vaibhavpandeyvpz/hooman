@@ -42,6 +42,7 @@ import { extractAcpClientUserId } from "./meta/user-id.ts";
 import { deriveSessionTitleFromEcho } from "./sessions/title.ts";
 import { acpPromptEchoText, acpPromptToInvokeArgs } from "./prompt-invoke.ts";
 import type { Config } from "../core/config.ts";
+import { normalizeAcpSessionMcpServers } from "./mcp-servers.ts";
 import {
   listStoredSessionIds,
   loadSessionMessages,
@@ -206,6 +207,10 @@ export class AcpAgent implements AgentContract {
       authMethods: [],
       agentCapabilities: {
         loadSession: true,
+        mcpCapabilities: {
+          http: true,
+          sse: true,
+        },
         promptCapabilities: {
           embeddedContext: true,
           image: true,
@@ -315,6 +320,7 @@ export class AcpAgent implements AgentContract {
     const clientSystemPrompt =
       extractAcpClientSystemPrompt(params._meta) ?? null;
     const bootstrapUserId = clientUserId ?? sessionId;
+    const mcpServers = normalizeAcpSessionMcpServers(params.mcpServers);
 
     const now = new Date().toISOString();
     const meta: SessionMetaFile = {
@@ -324,6 +330,7 @@ export class AcpAgent implements AgentContract {
       title: null,
       userId: clientUserId,
       systemPrompt: clientSystemPrompt,
+      mcpServers,
     };
     await writeSessionMeta(this.#acpRoot, sessionId, meta);
 
@@ -336,6 +343,7 @@ export class AcpAgent implements AgentContract {
         userId: bootstrapUserId,
         sessionId,
         toolkit: this.#toolkit,
+        mcpServers,
         ...(clientSystemPrompt ? { systemPrompt: clientSystemPrompt } : {}),
       },
       false,
@@ -419,6 +427,10 @@ export class AcpAgent implements AgentContract {
         ? requestedSystemPrompt
         : storedSystemPrompt;
     const bootstrapUserId = clientUserId ?? params.sessionId;
+    const mcpServers =
+      params.mcpServers.length > 0
+        ? normalizeAcpSessionMcpServers(params.mcpServers)
+        : (existing.mcpServers ?? []);
 
     const {
       config,
@@ -429,6 +441,7 @@ export class AcpAgent implements AgentContract {
         userId: bootstrapUserId,
         sessionId: params.sessionId,
         toolkit: this.#toolkit,
+        mcpServers,
         ...(clientSystemPrompt ? { systemPrompt: clientSystemPrompt } : {}),
       },
       false,
@@ -487,6 +500,7 @@ export class AcpAgent implements AgentContract {
       ...(requestedSystemPrompt !== undefined
         ? { systemPrompt: requestedSystemPrompt || null }
         : {}),
+      mcpServers,
     });
 
     return {
