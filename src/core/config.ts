@@ -8,6 +8,7 @@ export enum LlmProvider {
   OpenAI = "openai",
   Ollama = "ollama",
   Bedrock = "bedrock",
+  Xai = "xai",
 }
 
 const LlmSchema = z.object({

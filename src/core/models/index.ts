@@ -13,4 +13,5 @@ export const modelProviders: Record<string, () => Promise<ModelProvider>> = {
   google: () => import("./google.ts"),
   ollama: () => import("./ollama/index.ts"),
   openai: () => import("./openai.ts"),
+  xai: () => import("./xai.ts"),
 };
