@@ -20,6 +20,7 @@ It gives you:
 
 - a one-shot `exec` command for single prompts
 - a stateful `chat` interface for interactive sessions
+- a `daemon` command for processing MCP channel notifications in background
 - an Ink-powered `configure` workflow for editing app config, `instructions.md`, MCP servers, and installed skills
 - an `acp` command for running Hooman as an Agent Client Protocol (ACP) agent over stdio
 
@@ -28,6 +29,8 @@ It gives you:
 - Multiple LLM providers: `ollama`, `openai`, `anthropic`, `google`, `bedrock`
 - Local configuration under `~/.hooman`
 - MCP server support via `stdio`, `streamable-http`, and `sse`
+- MCP server `instructions` support: server-provided instructions are appended to the agent system prompt
+- MCP channel notification support through `hooman daemon --channel <name>`
 - Skill discovery / install / removal through the integrated configure flow
 - Interactive terminal UI for chat and configuration
 
@@ -132,9 +135,35 @@ Choose a toolkit size:
 hooman chat --toolkit max
 ```
 
+### `hooman daemon`
+
+Run a long-lived daemon that subscribes to one or more MCP notification channels and feeds each received notification into the agent as a queued prompt.
+
+```bash
+hooman daemon --channel hooman/channel
+```
+
+Subscribe to multiple channels:
+
+```bash
+hooman daemon --channel hooman/channel --channel alerts/channel
+```
+
+Resume or pin a session id:
+
+```bash
+hooman daemon --session my-daemon --channel hooman/channel
+```
+
+Choose a toolkit size:
+
+```bash
+hooman daemon --toolkit full --channel hoomanjs/channel
+```
+
 ### Toolkit Levels
 
-`exec`, `chat`, and `acp` support `-t, --toolkit <lite|full|max>`.
+`exec`, `chat`, `daemon`, and `acp` support `-t, --toolkit <lite|full|max>`.
 
 - `lite` - time, fetch, long-term-memory, installed skills, and configured MCP server tools
 - `full` - `lite` plus filesystem, shell, and thinking tools
@@ -358,6 +387,15 @@ Supports `region`, `clientConfig`, and optional `apiKey`, with all other values 
   }
 }
 ```
+
+## MCP Notes
+
+- MCP server `instructions` from the protocol `initialize` response are appended to Hooman's system prompt, after local `instructions.md` and session-specific prompt overrides.
+- Hooman reads these instructions automatically from connected MCP servers when building the agent.
+- `hooman daemon` can subscribe to server-published notification channels such as `hoomanjs/channel`.
+- Only MCP servers that advertise the requested channel capability are subscribed.
+- When a matching notification is received, Hooman uses `params.content` as the prompt if it is a string; otherwise it JSON-stringifies the notification params and sends that to the agent.
+- Daemon mode processes notifications sequentially, reuses the same agent session over time, and **auto-approves tool calls**.
 
 ## Skills
 

@@ -4,8 +4,21 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
+import { z } from "zod";
 import { Config, type NamedMcpTransport } from "./config.ts";
 import type { McpTransport } from "./types.ts";
+
+export type ChannelMessageMeta = {
+  server: string;
+  channel: string;
+  method: string;
+  params: unknown;
+};
+
+export type ChannelMessage = {
+  prompt: string;
+  meta: ChannelMessageMeta;
+};
 
 function transportFor(spec: McpTransport): Transport {
   switch (spec.type) {
@@ -131,11 +144,93 @@ export class Manager {
           return "";
         }
 
-        return [`MCP server "${server}" instructions:`, instructions].join(
+        return [`MCP server "${server}" instructions:`, "", instructions].join(
           "\n",
         );
       }),
     );
     return rows.filter(Boolean);
+  }
+
+  public async subscribeToChannels(
+    channels: readonly string[],
+    onMessage: (message: ChannelMessage) => void,
+  ): Promise<() => void> {
+    if (this.instances === null) {
+      this.reload();
+    }
+
+    const map = this.instances!;
+    const requested = [
+      ...new Set(channels.map((c) => c.trim()).filter(Boolean)),
+    ];
+    if (requested.length === 0) {
+      return () => {};
+    }
+
+    const unsubs: Array<() => void> = [];
+    for (const [server, client] of map.entries()) {
+      await client.connect();
+      const experimental =
+        client.client.getServerCapabilities()?.experimental ?? {};
+      for (const channel of requested) {
+        if (!Object.hasOwn(experimental, channel)) {
+          continue;
+        }
+
+        const method = `notifications/${channel}`;
+        const schema = z.object({
+          method: z.literal(method),
+          params: z.unknown().optional(),
+        });
+        const handler = (notification: {
+          method: string;
+          params?: unknown;
+        }) => {
+          const { method, params } = notification;
+          const prompt = this.toChannelPrompt(method, params);
+          if (!prompt) {
+            return;
+          }
+
+          onMessage({
+            prompt,
+            meta: {
+              server,
+              channel,
+              method,
+              params,
+            },
+          });
+        };
+        client.client.setNotificationHandler(schema, handler);
+        unsubs.push(() => {
+          client.client.setNotificationHandler(schema, () => {});
+        });
+      }
+    }
+
+    return () => {
+      for (const off of unsubs) {
+        off();
+      }
+    };
+  }
+
+  private toChannelPrompt(method: string, params?: unknown): string {
+    if (
+      params &&
+      typeof params === "object" &&
+      "content" in params &&
+      typeof params.content === "string"
+    ) {
+      return params.content.trim();
+    }
+
+    try {
+      return JSON.stringify(params).trim();
+    } catch {
+      return String(params).trim();
+    }
   }
 }

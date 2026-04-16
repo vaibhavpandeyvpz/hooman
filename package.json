@@ -60,6 +60,7 @@
     "chromadb": "^3.4.3",
     "cli-spinners": "^3.4.0",
     "commander": "^14.0.3",
+    "fastq": "^1.20.1",
     "gray-matter": "^4.0.3",
     "handlebars": "^4.7.9",
     "ink": "^7.0.0",

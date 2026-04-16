@@ -9,6 +9,7 @@ import { createToolApprovalHandler } from "./exec/approvals.ts";
 import { chat } from "./chat/index.tsx";
 import { configure } from "./configure/index.tsx";
 import { runAcpStdio } from "./acp/acp-agent.ts";
+import { main as daemon } from "./daemon/index.ts";
 
 async function readPackageMeta(): Promise<{
   name: string;
@@ -114,6 +115,43 @@ program
           sessionId,
           initialPrompt: prompt?.trim() || undefined,
         });
+      } finally {
+        try {
+          await manager.disconnect();
+        } catch {}
+      }
+    },
+  );
+
+program
+  .command("daemon")
+  .description(
+    "Run a background daemon that processes MCP channel notifications as prompts.",
+  )
+  .option("-s, --session <id>", "Session ID to use.")
+  .requiredOption(
+    "-c, --channel <name>",
+    "MCP notification channel to subscribe to (repeatable).",
+    (value: string, previous?: string[]) => [...(previous ?? []), value],
+  )
+  .addOption(createToolkitOption())
+  .action(
+    async (options: {
+      session?: string;
+      toolkit?: Toolkit;
+      channel?: string[];
+    }) => {
+      const sessionId = options.session?.trim() || crypto.randomUUID();
+      const channels = options.channel ?? [];
+      const {
+        agent,
+        mcp: { manager },
+      } = await bootstrap(
+        { sessionId, toolkit: options.toolkit ?? "full" },
+        true,
+      );
+      try {
+        await daemon({ agent, manager, channels });
       } finally {
         try {
           await manager.disconnect();

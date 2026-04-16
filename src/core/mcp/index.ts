@@ -1,8 +1,8 @@
 import { Config, type NamedMcpTransport } from "./config.ts";
-import { Manager } from "./manager.ts";
+import { Manager, type ChannelMessage } from "./manager.ts";
 
 export { Config, Manager };
-export type { NamedMcpTransport };
+export type { ChannelMessage, NamedMcpTransport };
 export { createMcpTools } from "./tools.ts";
 
 export function createMcpConfig(path: string): Config {
