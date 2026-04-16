@@ -5,6 +5,7 @@ import { z } from "zod";
 export enum LlmProvider {
   Anthropic = "anthropic",
   Google = "google",
+  Groq = "groq",
   OpenAI = "openai",
   Ollama = "ollama",
   Bedrock = "bedrock",

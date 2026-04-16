@@ -51,6 +51,7 @@
   "dependencies": {
     "@agentclientprotocol/sdk": "^0.18.2",
     "@ai-sdk/anthropic": "^3.0.69",
+    "@ai-sdk/groq": "^3.0.35",
     "@ai-sdk/xai": "^3.0.83",
     "@aws-sdk/client-bedrock-runtime": "^3.1028.0",
     "@google/genai": "^1.40.0",

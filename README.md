@@ -26,7 +26,7 @@ It gives you:
 
 ## Features
 
-- Multiple LLM providers: `ollama`, `openai`, `anthropic`, `google`, `bedrock`, `xai`
+- Multiple LLM providers: `ollama`, `openai`, `anthropic`, `google`, `bedrock`, `groq`, `xai`
 - Local configuration under `~/.hooman`
 - MCP server support via `stdio`, `streamable-http`, and `sse`
 - MCP server `instructions` support: server-provided instructions are appended to the agent system prompt
@@ -262,6 +262,7 @@ Supported `llm.provider` values:
 - `anthropic`
 - `google`
 - `bedrock`
+- `groq`
 - `xai`
 
 ## Provider Notes
@@ -328,6 +329,21 @@ Uses Strands `GoogleModel` on top of `@google/genai`. Top-level options like `ap
 ### Bedrock
 
 Supports `region`, `clientConfig`, and optional `apiKey`, with all other values forwarded as Bedrock model options.
+
+### Groq
+
+Uses the Vercel AI SDK Groq provider (`@ai-sdk/groq`) on top of Strands `VercelModel`. Provider-specific settings `apiKey`, `baseURL`, and `headers` are picked up; other values are forwarded into the model config (`temperature`, `maxTokens`, etc.). Defaults to `GROQ_API_KEY` from the environment when no `apiKey` is supplied.
+
+```json
+{
+  "provider": "groq",
+  "model": "gemma2-9b-it",
+  "params": {
+    "apiKey": "...",
+    "temperature": 0.7
+  }
+}
+```
 
 ### xAI
 

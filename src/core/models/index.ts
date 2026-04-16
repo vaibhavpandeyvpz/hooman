@@ -11,6 +11,7 @@ export const modelProviders: Record<string, () => Promise<ModelProvider>> = {
   anthropic: () => import("./anthropic.ts"),
   bedrock: () => import("./bedrock.ts"),
   google: () => import("./google.ts"),
+  groq: () => import("./groq.ts"),
   ollama: () => import("./ollama/index.ts"),
   openai: () => import("./openai.ts"),
   xai: () => import("./xai.ts"),
