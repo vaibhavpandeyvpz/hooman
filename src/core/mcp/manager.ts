@@ -106,12 +106,36 @@ export class Manager {
     }
     const map = this.instances!;
     const batches = await Promise.all(
-      [...map.entries()].map(async ([serverKey, client]) =>
+      [...map.entries()].map(async ([server, client]) =>
         client
           .listTools()
-          .then((tools) => tools.map((t) => new PrefixedMcpTool(serverKey, t))),
+          .then((tools) => tools.map((t) => new PrefixedMcpTool(server, t))),
       ),
     );
     return batches.flat();
+  }
+
+  /**
+   * Collects optional server-level instructions from each connected MCP server.
+   */
+  public async listServerInstructions(): Promise<string[]> {
+    if (this.instances === null) {
+      this.reload();
+    }
+    const map = this.instances!;
+    const rows = await Promise.all(
+      [...map.entries()].map(async ([server, client]) => {
+        await client.connect();
+        const instructions = client.client.getInstructions()?.trim();
+        if (!instructions) {
+          return "";
+        }
+
+        return [`MCP server "${server}" instructions:`, instructions].join(
+          "\n",
+        );
+      }),
+    );
+    return rows.filter(Boolean);
   }
 }

@@ -42,13 +42,14 @@ export async function create(
 ): Promise<Agent> {
   const sessionId = meta.sessionId;
   const userId = meta.userId ?? sessionId;
-  const toolkit = meta.toolkit ?? "max";
+  const toolkit = meta.toolkit ?? "full";
   const llm = await modelProviders[config.llm.provider]!();
   const stm = createShortTermMemory(sessionId);
   const ltm = config.ltm.enabled ? createLongTermMemoryStore(config) : null;
   const skills = await createSkillsPrompt(registry);
   const tools = await mcp.manager.listPrefixedTools();
-  const prompt = [system.content, meta.systemPrompt, skills.content]
+  const append = await mcp.manager.listServerInstructions();
+  const prompt = [system.content, meta.systemPrompt, ...append, skills.content]
     .filter((x) => !!x)
     .join(SECTION_BREAK);
   return new Agent({
