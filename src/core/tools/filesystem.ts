@@ -2,9 +2,20 @@ import { createHash } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
-import { tool } from "@strands-agents/sdk";
+import {
+  DocumentBlock,
+  ImageBlock,
+  TextBlock,
+  VideoBlock,
+  tool,
+  type JSONValue,
+} from "@strands-agents/sdk";
 import { getCwd } from "../utils/cwd-context.ts";
-import type { JSONValue } from "@strands-agents/sdk";
+import {
+  detectDocumentFormat,
+  detectImageFormat,
+  detectVideoFormat,
+} from "../utils/file-formats.ts";
 import { z } from "zod";
 
 const DEFAULT_READ_LIMIT = 250;
@@ -190,7 +201,7 @@ async function readTextFile(
   const buffer = await fs.readFile(filePath);
   if (isProbablyBinary(buffer)) {
     throw new Error(
-      "File appears to be binary. Use get_file_info or read_file with as_base64 if you extend the tool for binary reads.",
+      "File appears to be binary. Call read_file again with `binary: true` — images (png/jpeg/gif/webp), videos (mp4/mov/mkv/webm/etc.), and documents (pdf/docx/csv/etc.) are returned as multimodal content blocks the provider can forward to the model; unknown binary types come back as base64.",
     );
   }
 
@@ -211,14 +222,87 @@ async function readTextFile(
   };
 }
 
-async function readBinaryFile(filePath: string): Promise<{
-  path: string;
-  encoding: "base64";
-  content: string;
-  sizeBytes: number;
-}> {
+type BinaryReadResult =
+  | Array<TextBlock | ImageBlock | VideoBlock | DocumentBlock>
+  | {
+      path: string;
+      encoding: "base64";
+      content: string;
+      sizeBytes: number;
+    };
+
+async function readBinaryFile(
+  filePath: string,
+  options?: { maxBytes?: number },
+): Promise<BinaryReadResult> {
   await ensureFile(filePath);
+  const stat = await fs.stat(filePath);
+
+  if (stat.size > (options?.maxBytes ?? DEFAULT_MAX_READ_BYTES)) {
+    throw new Error(
+      `File too large to read safely (${stat.size} bytes). Use get_file_info for metadata or process the file with another tool.`,
+    );
+  }
+
   const buffer = await fs.readFile(filePath);
+  // ImageBlock / DocumentBlock expect Uint8Array; construct a zero-copy view.
+  const bytes = new Uint8Array(
+    buffer.buffer,
+    buffer.byteOffset,
+    buffer.byteLength,
+  );
+
+  const imageFormat = detectImageFormat(filePath);
+  if (imageFormat) {
+    const metadata = new TextBlock(
+      JSON.stringify({
+        path: filePath,
+        kind: "image",
+        format: imageFormat,
+        size_bytes: stat.size,
+      }),
+    );
+    const image = new ImageBlock({
+      format: imageFormat,
+      source: { bytes },
+    });
+    return [metadata, image];
+  }
+
+  const videoFormat = detectVideoFormat(filePath);
+  if (videoFormat) {
+    const metadata = new TextBlock(
+      JSON.stringify({
+        path: filePath,
+        kind: "video",
+        format: videoFormat,
+        size_bytes: stat.size,
+      }),
+    );
+    const video = new VideoBlock({
+      format: videoFormat,
+      source: { bytes },
+    });
+    return [metadata, video];
+  }
+
+  const documentFormat = detectDocumentFormat(filePath);
+  if (documentFormat) {
+    const metadata = new TextBlock(
+      JSON.stringify({
+        path: filePath,
+        kind: "document",
+        format: documentFormat,
+        size_bytes: stat.size,
+      }),
+    );
+    const document = new DocumentBlock({
+      name: path.basename(filePath),
+      format: documentFormat,
+      source: { bytes },
+    });
+    return [metadata, document];
+  }
 
   return {
     path: filePath,
@@ -437,7 +521,9 @@ function createFilesystemSchema() {
       binary: z
         .boolean()
         .optional()
-        .describe("Return file as base64 instead of UTF-8 text."),
+        .describe(
+          "Read as binary. Images, videos, and documents are returned as multimodal content blocks (forwarded to the active provider's native media format where supported); other binary files come back as base64.",
+        ),
     }),
     readMultipleFiles: z.object({
       paths: z.array(z.string()).min(1).describe("List of file paths to read."),
@@ -519,17 +605,23 @@ export function createFilesystemTools() {
     tool({
       name: "read_file",
       description:
-        "Read a text file with optional line offset/limit. For binary files, enable the `binary` option to return base64.",
+        "Read a file. Defaults to UTF-8 text with optional line offset/limit. Pass `binary: true` for non-text files: images (jpeg/png/gif/webp), videos (mp4/mov/mkv/webm/etc.), and documents (pdf/docx/csv/etc.) are returned as multimodal content blocks — the active model provider forwards them natively where supported (Bedrock for all; Anthropic for images + docs; Google for images + docs; OpenAI for images; Ollama for images) and logs a warning for unsupported kinds. Any other binary file is returned as base64.",
       inputSchema: schema.readFile,
       callback: async (input) => {
         const filePath = normalizeUserPath(input.path);
-        const result = input.binary
-          ? await readBinaryFile(filePath)
-          : await readTextFile(filePath, {
-              offset: input.offset,
-              limit: input.limit,
-            });
 
+        if (input.binary) {
+          // Binary reads can return SDK media blocks (ImageBlock / DocumentBlock)
+          // or a plain base64 JSON object. Both are accepted by FunctionTool's
+          // result wrapping, but the callback signature is JSONValue, so cast.
+          const result = await readBinaryFile(filePath);
+          return result as unknown as JSONValue;
+        }
+
+        const result = await readTextFile(filePath, {
+          offset: input.offset,
+          limit: input.limit,
+        });
         return toJsonValue(result);
       },
     }),

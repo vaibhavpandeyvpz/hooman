@@ -134,12 +134,17 @@ program
     "MCP notification channel to subscribe to (repeatable).",
     (value: string, previous?: string[]) => [...(previous ?? []), value],
   )
+  .option(
+    "--debug",
+    "Log each MCP channel notification payload to the console.",
+  )
   .addOption(createToolkitOption())
   .action(
     async (options: {
       session?: string;
       toolkit?: Toolkit;
       channel?: string[];
+      debug?: boolean;
     }) => {
       const sessionId = options.session?.trim() || crypto.randomUUID();
       const channels = options.channel ?? [];
@@ -151,7 +156,12 @@ program
         true,
       );
       try {
-        await daemon({ agent, manager, channels });
+        await daemon({
+          agent,
+          manager,
+          channels,
+          debug: Boolean(options.debug),
+        });
       } finally {
         try {
           await manager.disconnect();

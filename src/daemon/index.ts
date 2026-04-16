@@ -10,6 +10,7 @@ type RunDaemonOptions = {
   agent: Agent;
   manager: McpManager;
   channels: string[];
+  debug?: boolean;
 };
 
 function debug(text: string): void {
@@ -39,13 +40,16 @@ export async function main(options: RunDaemonOptions): Promise<void> {
   );
 
   const [queue, stop] = await createQueue(async (message: ChannelMessage) => {
-    debug(`notification from ${message.meta.server}:${message.meta.channel}`);
+    debug(`processing → ${message.meta.server}:${message.meta.channel}`);
+    if (options.debug) {
+      debug(`raw → ${JSON.stringify(message.meta)}`);
+    }
     try {
       await options.agent.invoke(message.prompt);
     } catch (error) {
       const text = error instanceof Error ? error.message : String(error);
       debug(
-        `turn failed for ${message.meta.server}:${message.meta.channel}: ${text}`,
+        `turn failed → ${message.meta.server}:${message.meta.channel}: ${text}`,
       );
     }
   }, unsubscribe);
