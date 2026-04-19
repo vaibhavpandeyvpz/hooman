@@ -146,20 +146,27 @@ program
       channel?: string[];
       debug?: boolean;
     }) => {
-      const sessionId = options.session?.trim() || crypto.randomUUID();
+      const session = options.session?.trim();
       const channels = options.channel ?? [];
       const {
         agent,
         mcp: { manager },
       } = await bootstrap(
-        { sessionId, toolkit: options.toolkit ?? "full" },
+        {
+          sessionId: session,
+          userId: session,
+          toolkit: options.toolkit ?? "full",
+        },
         true,
       );
+      // Daemon mode is non-interactive: approve tool calls by default.
+      agent.addHook(BeforeToolCallEvent, async () => {});
       try {
         await daemon({
           agent,
           manager,
           channels,
+          session,
           debug: Boolean(options.debug),
         });
       } finally {

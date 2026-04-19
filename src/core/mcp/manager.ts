@@ -4,6 +4,7 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
+import { get } from "lodash";
 import { z } from "zod";
 import { Config, type NamedMcpTransport } from "./config.ts";
 import type { McpTransport } from "./types.ts";
@@ -13,6 +14,10 @@ export type ChannelMessageMeta = {
   channel: string;
   method: string;
   params: unknown;
+  identity: {
+    user?: string;
+    session?: string;
+  };
 };
 
 export type ChannelMessage = {
@@ -47,6 +52,34 @@ function transportFor(spec: McpTransport): Transport {
       return _exhaustive;
     }
   }
+}
+
+function readPathValue(
+  value: unknown,
+  path: string | undefined,
+): string | undefined {
+  const key = path?.trim();
+  if (!key) {
+    return undefined;
+  }
+
+  const current = get(value, key);
+  if (typeof current !== "string") {
+    return undefined;
+  }
+
+  const trimmed = current.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
+function readIdentityPath(
+  experimental: unknown,
+  key: "identity/user" | "identity/session",
+): string | undefined {
+  const path = get(experimental, [key, "path"]);
+  return typeof path === "string" && path.trim().length > 0
+    ? path.trim()
+    : undefined;
 }
 
 /**
@@ -173,6 +206,8 @@ export class Manager {
       await client.connect();
       const experimental =
         client.client.getServerCapabilities()?.experimental ?? {};
+      const user = readIdentityPath(experimental, "identity/user");
+      const session = readIdentityPath(experimental, "identity/session");
       for (const channel of requested) {
         if (!Object.hasOwn(experimental, channel)) {
           continue;
@@ -200,6 +235,10 @@ export class Manager {
               channel,
               method,
               params,
+              identity: {
+                user: readPathValue(params, user),
+                session: readPathValue(params, session),
+              },
             },
           });
         };

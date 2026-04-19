@@ -22,7 +22,7 @@ import {
 export async function bootstrap(
   meta: {
     userId?: string;
-    sessionId: string;
+    sessionId?: string;
     systemPrompt?: string;
     mcpServers?: NamedMcpTransport[];
     toolkit?: Toolkit;
@@ -45,10 +45,9 @@ export async function bootstrap(
     config,
     toolkit,
   );
-  const sessionId = meta?.sessionId ?? crypto.randomUUID();
   const agent = await createAgent(config, system, registry, mcp, print, {
-    userId: meta?.userId ?? sessionId,
-    sessionId,
+    userId: meta?.userId ?? meta?.sessionId,
+    sessionId: meta?.sessionId,
     systemPrompt: meta?.systemPrompt,
     toolkit,
   });

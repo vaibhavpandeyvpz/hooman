@@ -35,7 +35,7 @@ export async function create(
   print: boolean = false,
   meta: {
     userId?: string;
-    sessionId: string;
+    sessionId?: string;
     systemPrompt?: string;
     toolkit?: Toolkit;
   },
@@ -57,8 +57,8 @@ export async function create(
     systemPrompt: prompt,
     model: llm.create(config.llm.model, config.llm.params),
     appState: {
-      userId,
-      sessionId,
+      ...(userId ? { userId } : {}),
+      ...(sessionId ? { sessionId } : {}),
     },
     tools: [
       ...createTimeTools(),
