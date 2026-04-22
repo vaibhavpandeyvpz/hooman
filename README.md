@@ -26,7 +26,7 @@ It gives you:
 
 ## Features
 
-- Multiple LLM providers: `ollama`, `openai`, `anthropic`, `google`, `bedrock`, `groq`, `xai`
+- Multiple LLM providers: `ollama`, `openai`, `anthropic`, `google`, `bedrock`, `groq`, `moonshot`, `xai`
 - Local configuration under `~/.hooman`
 - MCP server support via `stdio`, `streamable-http`, and `sse`
 - MCP server `instructions` support: server-provided instructions are appended to the agent system prompt
@@ -263,6 +263,7 @@ Supported `llm.provider` values:
 - `google`
 - `bedrock`
 - `groq`
+- `moonshot`
 - `xai`
 
 ## Provider Notes
@@ -338,6 +339,21 @@ Uses the Vercel AI SDK Groq provider (`@ai-sdk/groq`) on top of Strands `VercelM
 {
   "provider": "groq",
   "model": "gemma2-9b-it",
+  "params": {
+    "apiKey": "...",
+    "temperature": 0.7
+  }
+}
+```
+
+### Moonshot
+
+Uses the Vercel AI SDK Moonshot provider (`@ai-sdk/moonshotai`) on top of Strands `VercelModel`. Provider-specific settings `apiKey`, `baseURL`, `headers`, and `fetch` are picked up; other values are forwarded into the model config (`temperature`, `maxTokens`, `providerOptions`, etc.). Defaults to `MOONSHOT_API_KEY` from the environment when no `apiKey` is supplied. Moonshot reasoning models such as `kimi-k2-thinking` can be configured through `params.providerOptions.moonshotai`.
+
+```json
+{
+  "provider": "moonshot",
+  "model": "kimi-k2.5",
   "params": {
     "apiKey": "...",
     "temperature": 0.7

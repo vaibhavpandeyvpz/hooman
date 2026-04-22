@@ -6,6 +6,7 @@ export enum LlmProvider {
   Anthropic = "anthropic",
   Google = "google",
   Groq = "groq",
+  Moonshot = "moonshot",
   OpenAI = "openai",
   Ollama = "ollama",
   Bedrock = "bedrock",

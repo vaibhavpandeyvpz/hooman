@@ -12,6 +12,7 @@ export const modelProviders: Record<string, () => Promise<ModelProvider>> = {
   bedrock: () => import("./bedrock.ts"),
   google: () => import("./google.ts"),
   groq: () => import("./groq.ts"),
+  moonshot: () => import("./moonshot.ts"),
   ollama: () => import("./ollama/index.ts"),
   openai: () => import("./openai.ts"),
   xai: () => import("./xai.ts"),
