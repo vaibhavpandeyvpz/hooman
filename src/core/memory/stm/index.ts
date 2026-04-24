@@ -1,9 +1,9 @@
 import {
-  FileStorage,
   SessionManager,
   SummarizingConversationManager,
 } from "@strands-agents/sdk";
 import { sessionsPath } from "../../utils/paths";
+import { FlatFileStorage } from "./flat-file-storage";
 import { LazySessionManager } from "./lazy-session-manager";
 
 export function create(sessionId?: string) {
@@ -11,7 +11,7 @@ export function create(sessionId?: string) {
     summaryRatio: 0.5,
     preserveRecentMessages: 5,
   });
-  const storage = new FileStorage(sessionsPath());
+  const storage = new FlatFileStorage(sessionsPath());
 
   if (!sessionId) {
     return {
