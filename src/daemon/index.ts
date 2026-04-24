@@ -1,5 +1,6 @@
 import { stderr } from "node:process";
 import type { Agent } from "@strands-agents/sdk";
+import { HOOMAN_CHANNEL } from "../core/mcp/index.ts";
 import type {
   ChannelMessage,
   Manager as McpManager,
@@ -10,7 +11,7 @@ type RunDaemonOptions = {
   agent: Agent;
   manager: McpManager;
   session?: string;
-  channels: string[];
+  channels: boolean;
   debug?: boolean;
 };
 
@@ -42,13 +43,11 @@ function resolveUserId(
 }
 
 export async function main(options: RunDaemonOptions): Promise<void> {
-  const channels = [
-    ...new Set(options.channels.map((value) => value.trim()).filter(Boolean)),
-  ];
-  if (channels.length === 0) {
-    throw new Error("At least one --channel <name> is required.");
+  if (!options.channels) {
+    throw new Error("No daemon inputs enabled. Pass --channels.");
   }
-  debug(`starting daemon for channels: ${channels.join(", ")}`);
+  const channels = [HOOMAN_CHANNEL];
+  debug(`starting daemon for channel(s): ${channels.join(", ")}`);
 
   let unsubscribe = () => {};
 
@@ -65,6 +64,14 @@ export async function main(options: RunDaemonOptions): Promise<void> {
 
       options.agent.appState.set("userId", user);
       options.agent.appState.set("sessionId", session);
+      options.agent.appState.set("origin", {
+        server: message.meta.server,
+        channel: message.meta.channel,
+        source: message.meta.source,
+        user: message.meta.identity.user,
+        session: message.meta.identity.session,
+        thread: message.meta.identity.thread,
+      });
 
       try {
         await options.agent.invoke(message.prompt);

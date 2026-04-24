@@ -1,8 +1,15 @@
 import { Config, type NamedMcpTransport } from "./config.ts";
-import { Manager, type ChannelMessage } from "./manager.ts";
+import {
+  Manager,
+  HOOMAN_CHANNEL,
+  HOOMAN_CHANNEL_PERMISSION,
+  type ChannelMessage,
+  type ChannelPermissionBehavior,
+} from "./manager.ts";
 
 export { Config, Manager };
-export type { ChannelMessage, NamedMcpTransport };
+export { HOOMAN_CHANNEL, HOOMAN_CHANNEL_PERMISSION };
+export type { ChannelMessage, ChannelPermissionBehavior, NamedMcpTransport };
 export { createMcpTools } from "./tools.ts";
 
 export function createMcpConfig(path: string): Config {

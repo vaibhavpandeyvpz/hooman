@@ -10,6 +10,7 @@ import { chat } from "./chat/index.tsx";
 import { configure } from "./configure/index.tsx";
 import { runAcpStdio } from "./acp/acp-agent.ts";
 import { main as daemon } from "./daemon/index.ts";
+import { createDaemonApprovalHandler } from "./daemon/approvals.ts";
 
 async function readPackageMeta(): Promise<{
   name: string;
@@ -129,11 +130,7 @@ program
     "Run a background daemon that processes MCP channel notifications as prompts.",
   )
   .option("-s, --session <id>", "Session ID to use.")
-  .requiredOption(
-    "-c, --channel <name>",
-    "MCP notification channel to subscribe to (repeatable).",
-    (value: string, previous?: string[]) => [...(previous ?? []), value],
-  )
+  .option("--channels", "Subscribe to MCP servers advertising hooman/channel.")
   .option(
     "--debug",
     "Log each MCP channel notification payload to the console.",
@@ -143,12 +140,12 @@ program
     async (options: {
       session?: string;
       toolkit?: Toolkit;
-      channel?: string[];
+      channels?: boolean;
       debug?: boolean;
     }) => {
       const session = options.session?.trim();
-      const channels = options.channel ?? [];
       const {
+        config,
         agent,
         mcp: { manager },
       } = await bootstrap(
@@ -159,13 +156,15 @@ program
         },
         true,
       );
-      // Daemon mode is non-interactive: approve tool calls by default.
-      agent.addHook(BeforeToolCallEvent, async () => {});
+      agent.addHook(
+        BeforeToolCallEvent,
+        createDaemonApprovalHandler(config, manager, agent),
+      );
       try {
         await daemon({
           agent,
           manager,
-          channels,
+          channels: Boolean(options.channels),
           session,
           debug: Boolean(options.debug),
         });

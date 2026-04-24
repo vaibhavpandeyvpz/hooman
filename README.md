@@ -27,10 +27,10 @@ It gives you:
 ## Features
 
 - Multiple LLM providers: `ollama`, `openai`, `anthropic`, `google`, `bedrock`, `groq`, `moonshot`, `xai`
-- Local configuration under `~/.hooman`
+- Local configuration under `./.hooman` when that folder exists in the current working directory, otherwise `~/.hooman`
 - MCP server support via `stdio`, `streamable-http`, and `sse`
 - MCP server `instructions` support: server-provided instructions are appended to the agent system prompt
-- MCP channel notification support through `hooman daemon --channel <name>`
+- MCP channel notification support through `hooman daemon --channels`
 - Skill discovery / install / removal through the integrated configure flow
 - Interactive terminal UI for chat and configuration
 
@@ -137,28 +137,22 @@ hooman chat --toolkit max
 
 ### `hooman daemon`
 
-Run a long-lived daemon that subscribes to one or more MCP notification channels and feeds each received notification into the agent as a queued prompt.
+Run a long-lived daemon that subscribes to MCP servers advertising the fixed `hooman/channel` capability and feeds each received notification into the agent as a queued prompt.
 
 ```bash
-hooman daemon --channel hooman/channel
-```
-
-Subscribe to multiple channels:
-
-```bash
-hooman daemon --channel hooman/channel --channel alerts/channel
+hooman daemon --channels
 ```
 
 Resume or pin a session id:
 
 ```bash
-hooman daemon --session my-daemon --channel hooman/channel
+hooman daemon --session my-daemon --channels
 ```
 
 Choose a toolkit size:
 
 ```bash
-hooman daemon --toolkit full --channel hoomanjs/channel
+hooman daemon --toolkit full --channels
 ```
 
 ### Toolkit Levels
@@ -202,7 +196,7 @@ hooman acp --toolkit max
 
 ACP notes:
 
-- ACP sessions are stored under `~/.hooman/acp-sessions`
+- ACP sessions are stored under the active Hooman data directory in `acp-sessions/`
 - ACP loads MCP servers passed on `session/new` and `session/load`, in addition to Hooman's local `mcp.json`
 - ACP `session/new` and `session/load` support `_meta.userId` and `_meta.systemPrompt`
 - when `_meta.systemPrompt` is provided, it is appended to the agent system prompt with a section break
@@ -212,7 +206,8 @@ ACP notes:
 Hooman stores its data in:
 
 ```text
-~/.hooman/
+./.hooman/   # when this folder exists in the current working directory
+~/.hooman/   # otherwise
 ```
 
 Important files and folders:
@@ -440,17 +435,19 @@ Uses the Vercel AI SDK xAI provider (`@ai-sdk/xai`) on top of Strands `VercelMod
 
 - MCP server `instructions` from the protocol `initialize` response are appended to Hooman's system prompt, after local `instructions.md` and session-specific prompt overrides.
 - Hooman reads these instructions automatically from connected MCP servers when building the agent.
-- `hooman daemon` can subscribe to server-published notification channels such as `hoomanjs/channel`.
-- Only MCP servers that advertise the requested channel capability are subscribed.
+- `hooman daemon --channels` subscribes to MCP servers that advertise the experimental `hooman/channel` capability.
+- Hooman also reads `hooman/user`, `hooman/session`, and `hooman/thread` capability paths so daemon turns preserve origin metadata from the source channel.
 - When a matching notification is received, Hooman uses `params.content` as the prompt if it is a string; otherwise it JSON-stringifies the notification params and sends that to the agent.
-- Daemon mode processes notifications sequentially, reuses the same agent session over time, and **auto-approves tool calls**.
+- Daemon mode processes notifications sequentially and reuses the same agent session over time.
+- Tool calls from daemon turns are no longer blanket auto-approved: if the originating MCP server supports `hooman/channel/permission`, Hooman relays a remote approval request back to that source; otherwise the tool call is denied.
 
 ## Skills
 
 Skills are installed under:
 
 ```text
-~/.hooman/skills
+./.hooman/skills   # when ./.hooman exists
+~/.hooman/skills   # otherwise
 ```
 
 The configure workflow can:
