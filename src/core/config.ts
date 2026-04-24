@@ -48,35 +48,70 @@ const LtmPartialSchema = z.object({
   chroma: ChromaPartialSchema.optional(),
 });
 
+const FeatureTogglePartialSchema = z.object({
+  enabled: z.boolean().optional(),
+});
+
+const FeaturesPartialSchema = z.object({
+  fetch: FeatureTogglePartialSchema.optional(),
+  filesystem: FeatureTogglePartialSchema.optional(),
+  shell: FeatureTogglePartialSchema.optional(),
+  ltm: LtmPartialSchema.optional(),
+});
+
 const ToolsPartialSchema = z.object({
   allowed: z.array(z.string().min(1)).default([]),
 });
 
-const ConfigSchema = z.object({
-  name: z.string().min(1),
-  llm: LlmSchema,
-  tools: ToolsPartialSchema.default({ allowed: [] }),
-  ltm: LtmPartialSchema.nullish().transform((ltm) => ({
-    enabled: ltm?.enabled ?? false,
-    chroma: {
-      url: ltm?.chroma?.url ?? DEFAULT_CHROMA.url,
-      collection: {
-        memory:
-          ltm?.chroma?.collection?.memory ?? DEFAULT_CHROMA.collection.memory,
+const ConfigSchema = z
+  .object({
+    name: z.string().min(1),
+    llm: LlmSchema,
+    tools: ToolsPartialSchema.default({ allowed: [] }),
+    features: FeaturesPartialSchema.nullish(),
+    compaction: CompactionPartialSchema.nullish().transform((c) => ({
+      ratio: c?.ratio ?? DEFAULT_COMPACTION.ratio,
+      keep: c?.keep ?? DEFAULT_COMPACTION.keep,
+    })),
+  })
+  .transform((input) => {
+    const ltm = input.features?.ltm;
+    return {
+      name: input.name,
+      llm: input.llm,
+      tools: input.tools,
+      features: {
+        fetch: {
+          enabled: input.features?.fetch?.enabled ?? true,
+        },
+        filesystem: {
+          enabled: input.features?.filesystem?.enabled ?? true,
+        },
+        shell: {
+          enabled: input.features?.shell?.enabled ?? true,
+        },
+        ltm: {
+          enabled: ltm?.enabled ?? false,
+          chroma: {
+            url: ltm?.chroma?.url ?? DEFAULT_CHROMA.url,
+            collection: {
+              memory:
+                ltm?.chroma?.collection?.memory ??
+                DEFAULT_CHROMA.collection.memory,
+            },
+          },
+        },
       },
-    },
-  })),
-  compaction: CompactionPartialSchema.nullish().transform((c) => ({
-    ratio: c?.ratio ?? DEFAULT_COMPACTION.ratio,
-    keep: c?.keep ?? DEFAULT_COMPACTION.keep,
-  })),
-});
+      compaction: input.compaction,
+    };
+  });
 
 export type ConfigData = z.infer<typeof ConfigSchema>;
 export type LlmConfig = z.infer<typeof LlmSchema>;
 export type CompactionConfig = ConfigData["compaction"];
-export type LtmConfig = ConfigData["ltm"];
+export type LtmConfig = ConfigData["features"]["ltm"];
 export type ToolsConfig = ConfigData["tools"];
+export type FeaturesConfig = ConfigData["features"];
 
 const defaultConfigData = (): ConfigData => ({
   name: "Hooman",
@@ -88,11 +123,22 @@ const defaultConfigData = (): ConfigData => ({
   tools: {
     allowed: [],
   },
-  ltm: {
-    enabled: false,
-    chroma: {
-      url: "http://127.0.0.1:8000",
-      collection: { memory: "memory" },
+  features: {
+    fetch: {
+      enabled: true,
+    },
+    filesystem: {
+      enabled: true,
+    },
+    shell: {
+      enabled: true,
+    },
+    ltm: {
+      enabled: false,
+      chroma: {
+        url: "http://127.0.0.1:8000",
+        collection: { memory: "memory" },
+      },
     },
   },
   compaction: {
@@ -129,8 +175,24 @@ export class Config {
     return this.data.compaction;
   }
 
+  get features(): FeaturesConfig {
+    return {
+      ...this.data.features,
+      fetch: { ...this.data.features.fetch },
+      filesystem: { ...this.data.features.filesystem },
+      shell: { ...this.data.features.shell },
+      ltm: {
+        ...this.data.features.ltm,
+        chroma: {
+          ...this.data.features.ltm.chroma,
+          collection: { ...this.data.features.ltm.chroma.collection },
+        },
+      },
+    };
+  }
+
   get ltm(): LtmConfig {
-    return this.data.ltm;
+    return this.features.ltm;
   }
 
   private readJson(): unknown {

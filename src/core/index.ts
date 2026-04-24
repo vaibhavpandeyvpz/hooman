@@ -11,7 +11,6 @@ import {
 import { createSkillsRegistry } from "./skills/index.ts";
 import type { Registry } from "./skills/index.ts";
 import { system as createSystemPrompt } from "./prompts/index.ts";
-import type { Toolkit } from "./toolkit.ts";
 import {
   basePath,
   configJsonPath,
@@ -25,7 +24,6 @@ export async function bootstrap(
     sessionId?: string;
     systemPrompt?: string;
     mcpServers?: NamedMcpTransport[];
-    toolkit?: Toolkit;
   },
   print: boolean = false,
 ): Promise<{
@@ -39,17 +37,11 @@ export async function bootstrap(
   const mcpManager = createMcpManager(mcpConfig, meta.mcpServers ?? []);
   const mcp = { config: mcpConfig, manager: mcpManager };
   const registry = createSkillsRegistry(basePath());
-  const toolkit = meta.toolkit ?? "max";
-  const system = await createSystemPrompt(
-    instructionsMdPath(),
-    config,
-    toolkit,
-  );
+  const system = await createSystemPrompt(instructionsMdPath(), config);
   const agent = await createAgent(config, system, registry, mcp, print, {
     userId: meta?.userId ?? meta?.sessionId,
     sessionId: meta?.sessionId,
     systemPrompt: meta?.systemPrompt,
-    toolkit,
   });
   return { config, agent, mcp, registry };
 }

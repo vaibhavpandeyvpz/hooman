@@ -131,7 +131,7 @@ export function ConfigureApp({
         name: config.name,
         llm: config.llm,
         tools: config.tools,
-        ltm: config.ltm,
+        features: config.features,
         compaction: config.compaction,
       }) satisfies ConfigData,
     [config, revision],
@@ -445,27 +445,81 @@ export function ConfigureApp({
           }),
       },
       {
-        label: `Long-term memory • ${configData.ltm.enabled ? "Enabled" : "Disabled"}`,
+        label: `Fetch feature • ${configData.features.fetch.enabled ? "Enabled" : "Disabled"}`,
         value: () => {
           updateConfig(
             {
-              ltm: {
-                ...config.ltm,
-                enabled: !configData.ltm.enabled,
+              features: {
+                ...config.features,
+                fetch: {
+                  enabled: !configData.features.fetch.enabled,
+                },
               },
             },
-            `Long-term memory ${configData.ltm.enabled ? "disabled" : "enabled"}.`,
+            `Fetch feature ${configData.features.fetch.enabled ? "disabled" : "enabled"}.`,
           );
           setScreen({ kind: "config" });
         },
       },
       {
-        label: `Chroma URL • ${configData.ltm.chroma.url}`,
+        label: `Filesystem feature • ${configData.features.filesystem.enabled ? "Enabled" : "Disabled"}`,
+        value: () => {
+          updateConfig(
+            {
+              features: {
+                ...config.features,
+                filesystem: {
+                  enabled: !configData.features.filesystem.enabled,
+                },
+              },
+            },
+            `Filesystem feature ${configData.features.filesystem.enabled ? "disabled" : "enabled"}.`,
+          );
+          setScreen({ kind: "config" });
+        },
+      },
+      {
+        label: `Shell feature • ${configData.features.shell.enabled ? "Enabled" : "Disabled"}`,
+        value: () => {
+          updateConfig(
+            {
+              features: {
+                ...config.features,
+                shell: {
+                  enabled: !configData.features.shell.enabled,
+                },
+              },
+            },
+            `Shell feature ${configData.features.shell.enabled ? "disabled" : "enabled"}.`,
+          );
+          setScreen({ kind: "config" });
+        },
+      },
+      {
+        label: `Long-term memory • ${configData.features.ltm.enabled ? "Enabled" : "Disabled"}`,
+        value: () => {
+          updateConfig(
+            {
+              features: {
+                ...config.features,
+                ltm: {
+                  ...config.features.ltm,
+                  enabled: !configData.features.ltm.enabled,
+                },
+              },
+            },
+            `Long-term memory ${configData.features.ltm.enabled ? "disabled" : "enabled"}.`,
+          );
+          setScreen({ kind: "config" });
+        },
+      },
+      {
+        label: `Chroma URL • ${configData.features.ltm.chroma.url}`,
         value: () =>
           promptValue({
             title: "Update Chroma URL",
             label: "URL",
-            initialValue: configData.ltm.chroma.url,
+            initialValue: configData.features.ltm.chroma.url,
             onSubmit: async (value) => {
               const url = value.trim();
               if (!url) {
@@ -473,11 +527,14 @@ export function ConfigureApp({
               }
               updateConfig(
                 {
-                  ltm: {
-                    ...config.ltm,
-                    chroma: {
-                      ...config.ltm.chroma,
-                      url,
+                  features: {
+                    ...config.features,
+                    ltm: {
+                      ...config.features.ltm,
+                      chroma: {
+                        ...config.features.ltm.chroma,
+                        url,
+                      },
                     },
                   },
                 },
@@ -488,12 +545,12 @@ export function ConfigureApp({
           }),
       },
       {
-        label: `Chroma memory collection • ${configData.ltm.chroma.collection.memory}`,
+        label: `Chroma memory collection • ${configData.features.ltm.chroma.collection.memory}`,
         value: () =>
           promptValue({
             title: "Update Chroma memory collection",
             label: "Collection name",
-            initialValue: configData.ltm.chroma.collection.memory,
+            initialValue: configData.features.ltm.chroma.collection.memory,
             onSubmit: async (value) => {
               const memory = value.trim();
               if (!memory) {
@@ -501,11 +558,14 @@ export function ConfigureApp({
               }
               updateConfig(
                 {
-                  ltm: {
-                    ...config.ltm,
-                    chroma: {
-                      ...config.ltm.chroma,
-                      collection: { memory },
+                  features: {
+                    ...config.features,
+                    ltm: {
+                      ...config.features.ltm,
+                      chroma: {
+                        ...config.features.ltm.chroma,
+                        collection: { memory },
+                      },
                     },
                   },
                 },

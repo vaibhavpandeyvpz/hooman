@@ -16,8 +16,6 @@ import {
 } from "@agentclientprotocol/sdk";
 import type { Agent as StrandsAgent } from "@strands-agents/sdk";
 import {
-  AfterToolCallEvent,
-  AgentResultEvent,
   BeforeToolCallEvent,
   isModelStreamEvent,
   Message,
@@ -27,7 +25,6 @@ import {
 import type { StopReason as StrandsStopReason } from "@strands-agents/sdk";
 import { bootstrap } from "../core/index.ts";
 import { runWithCwd } from "../core/utils/cwd-context.ts";
-import type { Toolkit } from "../core/toolkit.ts";
 import { acpSessionsRootPath } from "./utils/paths.ts";
 import { inferToolKind } from "./utils/tool-kind.ts";
 import { toolResultToAcpContent } from "./utils/tool-result-content.ts";
@@ -172,13 +169,11 @@ export class AcpAgent implements AgentContract {
   readonly #connection: AgentSideConnection;
   readonly #sessions = new Map<string, SessionRecord>();
   readonly #acpRoot: string;
-  readonly #toolkit: Toolkit;
   #version: string | null = null;
 
-  constructor(connection: AgentSideConnection, toolkit: Toolkit) {
+  constructor(connection: AgentSideConnection) {
     this.#connection = connection;
     this.#acpRoot = acpSessionsRootPath();
-    this.#toolkit = toolkit;
     queueMicrotask(() => {
       if (connection.signal.aborted) {
         void this.#disposeAllSessions();
@@ -342,7 +337,6 @@ export class AcpAgent implements AgentContract {
       {
         userId: bootstrapUserId,
         sessionId,
-        toolkit: this.#toolkit,
         mcpServers,
         ...(clientSystemPrompt ? { systemPrompt: clientSystemPrompt } : {}),
       },
@@ -440,7 +434,6 @@ export class AcpAgent implements AgentContract {
       {
         userId: bootstrapUserId,
         sessionId: params.sessionId,
-        toolkit: this.#toolkit,
         mcpServers,
         ...(clientSystemPrompt ? { systemPrompt: clientSystemPrompt } : {}),
       },
@@ -804,13 +797,13 @@ export class AcpAgent implements AgentContract {
   }
 }
 
-export async function runAcpStdio(toolkit: Toolkit = "full"): Promise<void> {
+export async function runAcpStdio(): Promise<void> {
   const stream = ndJsonStream(
     Writable.toWeb(stdout) as unknown as WritableStream<Uint8Array>,
     Readable.toWeb(stdin) as unknown as ReadableStream<Uint8Array>,
   );
   const connection = new AgentSideConnection(
-    (conn) => new AcpAgent(conn, toolkit),
+    (conn) => new AcpAgent(conn),
     stream,
   );
   await connection.closed;

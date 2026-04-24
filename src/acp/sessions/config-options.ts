@@ -45,11 +45,14 @@ export function applySessionConfigOption(
   }
   const chroma = config.ltm.chroma;
   config.update({
-    ltm: {
-      enabled: value === "on",
-      chroma: {
-        url: chroma.url,
-        collection: { memory: chroma.collection.memory },
+    features: {
+      ...config.features,
+      ltm: {
+        enabled: value === "on",
+        chroma: {
+          url: chroma.url,
+          collection: { memory: chroma.collection.memory },
+        },
       },
     },
   });

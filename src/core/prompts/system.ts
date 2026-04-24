@@ -3,8 +3,6 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { compile } from "handlebars";
 import type { Config } from "../config.ts";
-import type { Toolkit } from "../toolkit.ts";
-import { toolkitAtLeast } from "../toolkit.ts";
 
 /** Bundled markdown next to this module (`prompts/static/`). */
 const STATIC_PROMPT_FILES = [
@@ -26,26 +24,25 @@ const SECTION_BREAK = "\n\n---\n\n";
 export class System {
   private readonly path: string;
   private readonly config: Config;
-  private readonly toolkit: Toolkit;
   private data = "";
 
-  public constructor(path: string, config: Config, toolkit: Toolkit) {
+  public constructor(path: string, config: Config) {
     this.path = path;
     this.config = config;
-    this.toolkit = toolkit;
   }
 
   private staticPromptFiles(): readonly (typeof STATIC_PROMPT_FILES)[number][] {
     return STATIC_PROMPT_FILES.filter((file) => {
       switch (file) {
         case "ltm.md":
-          return this.config.ltm.enabled;
+          return this.config.features.ltm.enabled;
+        case "fetch.md":
+          return this.config.features.fetch.enabled;
         case "filesystem.md":
-        case "thinking.md":
+          return this.config.features.filesystem.enabled;
         case "shell.md":
-          return toolkitAtLeast(this.toolkit, "full");
-        case "skills.md":
-          return this.toolkit === "max";
+          return this.config.features.shell.enabled;
+        case "thinking.md":
         default:
           return true;
       }
@@ -96,7 +93,7 @@ export class System {
     return {
       name: this.config.name,
       llm: this.config.llm,
-      ltm: this.config.ltm,
+      ltm: this.config.features.ltm,
       compaction: this.config.compaction,
     };
   }

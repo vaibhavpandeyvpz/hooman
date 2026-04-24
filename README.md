@@ -103,12 +103,6 @@ Use a specific session id:
 hooman exec "What changed?" --session my-session
 ```
 
-Choose a toolkit size:
-
-```bash
-hooman exec "Summarize this repo" --toolkit lite
-```
-
 Skip interactive tool approval (allows every tool call; use only when you trust the prompt and environment):
 
 ```bash
@@ -135,12 +129,6 @@ Resume or pin a session id:
 hooman chat --session my-session
 ```
 
-Choose a toolkit size:
-
-```bash
-hooman chat --toolkit max
-```
-
 Skip the in-chat tool approval UI (same semantics as `exec --yolo`):
 
 ```bash
@@ -161,27 +149,20 @@ Resume or pin a session id:
 hooman daemon --session my-daemon --channels
 ```
 
-Choose a toolkit size:
-
-```bash
-hooman daemon --toolkit full --channels
-```
-
 Skip remote channel permission relay and allow every tool call from daemon turns (same risk profile as `exec` / `chat` with `--yolo`):
 
 ```bash
 hooman daemon --channels --yolo
 ```
 
-### Toolkit Levels
+### Feature Flags
 
-`exec`, `chat`, `daemon`, and `acp` support `-t, --toolkit <lite|full|max>`.
+Runtime tools and prompt sections are controlled from `config.json` under `features`:
 
-- `lite` - time, fetch, long-term-memory, installed skills, and configured MCP server tools
-- `full` - `lite` plus filesystem, shell, and thinking tools
-- `max` - `full` plus skills management tools and MCP config management tools
-
-Prompt loading follows the same split: filesystem / shell / thinking instructions are only included from `full` upward, while skills guidance is always included.
+- `features.fetch.enabled`
+- `features.filesystem.enabled`
+- `features.shell.enabled`
+- `features.ltm.enabled`
 
 ### `hooman configure`
 
@@ -204,12 +185,6 @@ Run Hooman as an Agent Client Protocol (ACP) agent over stdio.
 
 ```bash
 hooman acp
-```
-
-Choose a toolkit size for ACP-created sessions:
-
-```bash
-hooman acp --toolkit max
 ```
 
 ACP notes:
@@ -252,12 +227,23 @@ This is the shape managed by `hooman configure`:
   "tools": {
     "allowed": []
   },
-  "ltm": {
-    "enabled": false,
-    "chroma": {
-      "url": "http://127.0.0.1:8000",
-      "collection": {
-        "memory": "memory"
+  "features": {
+    "fetch": {
+      "enabled": true
+    },
+    "filesystem": {
+      "enabled": true
+    },
+    "shell": {
+      "enabled": true
+    },
+    "ltm": {
+      "enabled": false,
+      "chroma": {
+        "url": "http://127.0.0.1:8000",
+        "collection": {
+          "memory": "memory"
+        }
       }
     }
   },

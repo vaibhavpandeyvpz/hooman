@@ -1,10 +1,8 @@
 #!/usr/bin/env bun
 
-import { Command, Option } from "commander";
+import { Command } from "commander";
 import { BeforeToolCallEvent } from "@strands-agents/sdk";
 import { bootstrap } from "./core/index.ts";
-import { TOOLKITS } from "./core/toolkit.ts";
-import type { Toolkit } from "./core/toolkit.ts";
 import { createToolApprovalHandler } from "./exec/approvals.ts";
 import { chat } from "./chat/index.tsx";
 import { configure } from "./configure/index.tsx";
@@ -37,15 +35,6 @@ async function readPackageMeta(): Promise<{
   };
 }
 
-function createToolkitOption(): Option {
-  return new Option(
-    "-t, --toolkit <toolkit>",
-    "Toolkit size to enable: lite, full, or max.",
-  )
-    .choices([...TOOLKITS])
-    .default("full");
-}
-
 const packageMeta = await readPackageMeta();
 
 const program = new Command()
@@ -60,21 +49,14 @@ program
   .argument("<prompt>", "Prompt to run once.")
   .option("-s, --session <id>", "Session ID to use.")
   .option("--yolo", "Allow all tools without prompting for approval.")
-  .addOption(createToolkitOption())
   .action(
-    async (
-      prompt: string,
-      options: { session?: string; toolkit?: Toolkit; yolo?: boolean },
-    ) => {
+    async (prompt: string, options: { session?: string; yolo?: boolean }) => {
       const sessionId = options.session?.trim() || crypto.randomUUID();
       const {
         config,
         agent,
         mcp: { manager },
-      } = await bootstrap(
-        { sessionId, toolkit: options.toolkit ?? "full" },
-        true,
-      );
+      } = await bootstrap({ sessionId }, true);
       agent.addHook(
         BeforeToolCallEvent,
         createToolApprovalHandler(config, { yolo: Boolean(options.yolo) }),
@@ -95,11 +77,10 @@ program
   .argument("[prompt]", "Optional initial prompt to run after startup.")
   .option("-s, --session <id>", "Session ID to use.")
   .option("--yolo", "Allow all tools without prompting for approval.")
-  .addOption(createToolkitOption())
   .action(
     async (
       prompt: string | undefined,
-      options: { session?: string; toolkit?: Toolkit; yolo?: boolean },
+      options: { session?: string; yolo?: boolean },
     ) => {
       const sessionId = options.session?.trim() || crypto.randomUUID();
       const {
@@ -107,10 +88,7 @@ program
         agent,
         mcp: { manager },
         registry,
-      } = await bootstrap(
-        { sessionId, toolkit: options.toolkit ?? "full" },
-        false,
-      );
+      } = await bootstrap({ sessionId }, false);
 
       try {
         await chat({
@@ -142,11 +120,9 @@ program
     "Log each MCP channel notification payload to the console.",
   )
   .option("--yolo", "Allow all tools without remote approval or prompts.")
-  .addOption(createToolkitOption())
   .action(
     async (options: {
       session?: string;
-      toolkit?: Toolkit;
       channels?: boolean;
       debug?: boolean;
       yolo?: boolean;
@@ -160,7 +136,6 @@ program
         {
           sessionId: session,
           userId: session,
-          toolkit: options.toolkit ?? "full",
         },
         true,
       );
@@ -198,9 +173,8 @@ program
   .description(
     "Run as an Agent Client Protocol (ACP) agent on stdio for ACP-compatible clients.",
   )
-  .addOption(createToolkitOption())
-  .action(async (options: { toolkit?: Toolkit }) => {
-    await runAcpStdio(options.toolkit ?? "full");
+  .action(async () => {
+    await runAcpStdio();
   });
 
 if (process.argv.slice(2).length === 0) {

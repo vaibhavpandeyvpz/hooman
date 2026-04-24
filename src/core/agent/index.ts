@@ -1,11 +1,7 @@
 import { Agent } from "@strands-agents/sdk";
 import type { Config } from "../config.ts";
 import { modelProviders } from "../models";
-import {
-  type Config as McpConfig,
-  type Manager as McpManager,
-  createMcpTools,
-} from "../mcp";
+import { type Config as McpConfig, type Manager as McpManager } from "../mcp";
 import type { System as SystemPrompt } from "../prompts";
 import { skills as createSkillsPrompt } from "../prompts";
 import {
@@ -14,7 +10,6 @@ import {
   createLongTermMemoryTools,
 } from "../memory";
 import type { Registry } from "../skills";
-import { createSkillsTools } from "../skills";
 import {
   createFetchTools,
   createFilesystemTools,
@@ -22,8 +17,6 @@ import {
   createThinkingTools,
   createTimeTools,
 } from "../tools";
-import { toolkitAtLeast } from "../toolkit.ts";
-import type { Toolkit } from "../toolkit.ts";
 
 const SECTION_BREAK = "\n\n---\n\n";
 
@@ -37,15 +30,15 @@ export async function create(
     userId?: string;
     sessionId?: string;
     systemPrompt?: string;
-    toolkit?: Toolkit;
   },
 ): Promise<Agent> {
   const sessionId = meta.sessionId;
   const userId = meta.userId ?? sessionId;
-  const toolkit = meta.toolkit ?? "full";
   const llm = await modelProviders[config.llm.provider]!();
   const stm = createShortTermMemory(sessionId);
-  const ltm = config.ltm.enabled ? createLongTermMemoryStore(config) : null;
+  const ltm = config.features.ltm.enabled
+    ? createLongTermMemoryStore(config)
+    : null;
   const skills = await createSkillsPrompt(registry);
   const tools = await mcp.manager.listPrefixedTools();
   const append = await mcp.manager.listServerInstructions();
@@ -62,13 +55,11 @@ export async function create(
     },
     tools: [
       ...createTimeTools(),
-      ...createFetchTools(),
+      ...(config.features.fetch.enabled ? createFetchTools() : []),
       ...(ltm ? createLongTermMemoryTools(ltm) : []),
-      ...(toolkitAtLeast(toolkit, "full") ? createFilesystemTools() : []), // > lite
-      ...(toolkitAtLeast(toolkit, "full") ? createShellTools() : []),
-      ...(toolkitAtLeast(toolkit, "full") ? createThinkingTools() : []),
-      ...(toolkit === "max" ? createSkillsTools(registry) : []),
-      ...(toolkit === "max" ? createMcpTools(mcp.config) : []),
+      ...(config.features.filesystem.enabled ? createFilesystemTools() : []),
+      ...(config.features.shell.enabled ? createShellTools() : []),
+      ...createThinkingTools(),
       ...tools,
     ],
     printer: print,
