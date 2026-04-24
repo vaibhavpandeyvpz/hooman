@@ -109,6 +109,12 @@ Choose a toolkit size:
 hooman exec "Summarize this repo" --toolkit lite
 ```
 
+Skip interactive tool approval (allows every tool call; use only when you trust the prompt and environment):
+
+```bash
+hooman exec "Summarize this repo" --yolo
+```
+
 ### `hooman chat`
 
 Start an interactive stateful chat session.
@@ -135,6 +141,12 @@ Choose a toolkit size:
 hooman chat --toolkit max
 ```
 
+Skip the in-chat tool approval UI (same semantics as `exec --yolo`):
+
+```bash
+hooman chat --yolo
+```
+
 ### `hooman daemon`
 
 Run a long-lived daemon that subscribes to MCP servers advertising the fixed `hooman/channel` capability and feeds each received notification into the agent as a queued prompt.
@@ -153,6 +165,12 @@ Choose a toolkit size:
 
 ```bash
 hooman daemon --toolkit full --channels
+```
+
+Skip remote channel permission relay and allow every tool call from daemon turns (same risk profile as `exec` / `chat` with `--yolo`):
+
+```bash
+hooman daemon --channels --yolo
 ```
 
 ### Toolkit Levels
@@ -440,6 +458,7 @@ Uses the Vercel AI SDK xAI provider (`@ai-sdk/xai`) on top of Strands `VercelMod
 - When a matching notification is received, Hooman uses `params.content` as the prompt if it is a string; otherwise it JSON-stringifies the notification params and sends that to the agent.
 - Daemon mode processes notifications sequentially and reuses the same agent session over time.
 - Tool calls from daemon turns are no longer blanket auto-approved: if the originating MCP server supports `hooman/channel/permission`, Hooman relays a remote approval request back to that source; otherwise the tool call is denied.
+- `exec`, `chat`, and `daemon` accept `--yolo` to bypass those approval paths and allow all tools without prompting or relay.
 
 ## Skills
 

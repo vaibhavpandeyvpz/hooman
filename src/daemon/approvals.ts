@@ -54,9 +54,13 @@ export function createDaemonApprovalHandler(
   config: Config,
   manager: McpManager,
   agent: Agent,
+  options?: { yolo?: boolean },
 ): (event: BeforeToolCallEvent) => Promise<void> {
   return async (event: BeforeToolCallEvent) => {
     const name = event.toolUse.name;
+    if (options?.yolo) {
+      return;
+    }
     if (
       INTERNAL_ALWAYS_ALLOWED.has(name) ||
       config.tools.allowed.includes(name)

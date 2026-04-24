@@ -13,6 +13,7 @@ type LaunchChatOptions = {
   registry: Registry;
   sessionId: string;
   initialPrompt?: string;
+  yolo?: boolean;
 };
 
 export async function chat(options: LaunchChatOptions): Promise<void> {
@@ -25,6 +26,7 @@ export async function chat(options: LaunchChatOptions): Promise<void> {
       registry={options.registry}
       sessionId={options.sessionId}
       initialPrompt={options.initialPrompt}
+      yolo={options.yolo}
       onExit={() => {
         done = true;
       }}

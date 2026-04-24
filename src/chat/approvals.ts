@@ -69,9 +69,13 @@ export class ChatApprovalController {
 export function createChatApprovalHandler(
   config: Config,
   controller: ChatApprovalController,
+  options?: { yolo?: boolean },
 ): (event: BeforeToolCallEvent) => Promise<void> {
   return async (event: BeforeToolCallEvent) => {
     const toolName = event.toolUse.name;
+    if (options?.yolo) {
+      return;
+    }
     if (
       INTERNAL_ALWAYS_ALLOWED.has(toolName) ||
       config.tools.allowed.includes(toolName)

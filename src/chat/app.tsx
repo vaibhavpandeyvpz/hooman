@@ -31,6 +31,7 @@ type ChatAppProps = {
   manager: McpManager;
   registry: Registry;
   initialPrompt?: string;
+  yolo?: boolean;
   onExit: () => void;
 };
 
@@ -73,6 +74,7 @@ export function ChatApp({
   manager,
   registry,
   initialPrompt,
+  yolo,
   onExit,
 }: ChatAppProps): React.JSX.Element {
   const { exit } = useApp();
@@ -141,13 +143,13 @@ export function ChatApp({
     });
     const cleanupHook = agent.addHook(
       BeforeToolCallEvent,
-      createChatApprovalHandler(config, controller),
+      createChatApprovalHandler(config, controller, { yolo }),
     );
     return () => {
       cleanupListener();
       cleanupHook();
     };
-  }, [agent, config]);
+  }, [agent, config, yolo]);
 
   const appendLine = useCallback((line: ChatLine) => {
     setLines((prev) => [...prev, line]);

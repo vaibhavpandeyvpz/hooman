@@ -59,11 +59,12 @@ program
   .description("Bootstrap an agent and run a single prompt.")
   .argument("<prompt>", "Prompt to run once.")
   .option("-s, --session <id>", "Session ID to use.")
+  .option("--yolo", "Allow all tools without prompting for approval.")
   .addOption(createToolkitOption())
   .action(
     async (
       prompt: string,
-      options: { session?: string; toolkit?: Toolkit },
+      options: { session?: string; toolkit?: Toolkit; yolo?: boolean },
     ) => {
       const sessionId = options.session?.trim() || crypto.randomUUID();
       const {
@@ -74,7 +75,10 @@ program
         { sessionId, toolkit: options.toolkit ?? "full" },
         true,
       );
-      agent.addHook(BeforeToolCallEvent, createToolApprovalHandler(config));
+      agent.addHook(
+        BeforeToolCallEvent,
+        createToolApprovalHandler(config, { yolo: Boolean(options.yolo) }),
+      );
       try {
         await agent.invoke(prompt);
       } finally {
@@ -90,11 +94,12 @@ program
   .description("Start an interactive, stateful CLI chat session.")
   .argument("[prompt]", "Optional initial prompt to run after startup.")
   .option("-s, --session <id>", "Session ID to use.")
+  .option("--yolo", "Allow all tools without prompting for approval.")
   .addOption(createToolkitOption())
   .action(
     async (
       prompt: string | undefined,
-      options: { session?: string; toolkit?: Toolkit },
+      options: { session?: string; toolkit?: Toolkit; yolo?: boolean },
     ) => {
       const sessionId = options.session?.trim() || crypto.randomUUID();
       const {
@@ -115,6 +120,7 @@ program
           registry,
           sessionId,
           initialPrompt: prompt?.trim() || undefined,
+          yolo: Boolean(options.yolo),
         });
       } finally {
         try {
@@ -135,6 +141,7 @@ program
     "--debug",
     "Log each MCP channel notification payload to the console.",
   )
+  .option("--yolo", "Allow all tools without remote approval or prompts.")
   .addOption(createToolkitOption())
   .action(
     async (options: {
@@ -142,6 +149,7 @@ program
       toolkit?: Toolkit;
       channels?: boolean;
       debug?: boolean;
+      yolo?: boolean;
     }) => {
       const session = options.session?.trim();
       const {
@@ -158,7 +166,9 @@ program
       );
       agent.addHook(
         BeforeToolCallEvent,
-        createDaemonApprovalHandler(config, manager, agent),
+        createDaemonApprovalHandler(config, manager, agent, {
+          yolo: Boolean(options.yolo),
+        }),
       );
       try {
         await daemon({

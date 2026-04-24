@@ -59,9 +59,13 @@ type BeforeToolCallEventHandler = (event: BeforeToolCallEvent) => Promise<void>;
 
 export function createToolApprovalHandler(
   config: Config,
+  options?: { yolo?: boolean },
 ): BeforeToolCallEventHandler {
   return async function onBeforeToolCallEvent(event: BeforeToolCallEvent) {
     const name = event.toolUse.name;
+    if (options?.yolo) {
+      return;
+    }
     if (
       INTERNAL_ALWAYS_ALLOWED.has(name) ||
       config.tools.allowed.includes(name)
