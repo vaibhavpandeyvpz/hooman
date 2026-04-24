@@ -209,7 +209,7 @@ export class Registry {
       }
       const data = (await res.json()) as {
         skills: Array<{
-          id: string;
+          skillId: string;
           name: string;
           installs: number;
           source: string;
@@ -223,7 +223,7 @@ export class Registry {
       return data.skills
         .map((skill) => ({
           name: skill.name,
-          slug: skill.id,
+          slug: `${skill.source.trim()}@${skill.skillId.trim()}`,
           source: skill.source || "",
           installs: skill.installs,
         }))

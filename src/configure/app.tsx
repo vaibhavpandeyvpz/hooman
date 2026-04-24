@@ -838,7 +838,7 @@ export function ConfigureApp({
         ),
         boldSubstring: result.name,
         value: () => {
-          const source = result.source || result.slug;
+          const source = result.slug || result.source;
           void runTask(`Installing ${result.name}...`, async () => {
             await skills.install(source);
             await refreshSkills("Refreshing installed skills...");
