@@ -350,7 +350,6 @@ export class AcpAgent implements AgentContract {
       createAcpToolApprovalHook(
         this.#connection,
         sessionId,
-        config,
         () =>
           this.#sessions.get(sessionId)?.streamedToolCallIds ??
           EMPTY_STREAMED_TOOL_CALL_IDS,
@@ -458,7 +457,6 @@ export class AcpAgent implements AgentContract {
       createAcpToolApprovalHook(
         this.#connection,
         params.sessionId,
-        config,
         () =>
           this.#sessions.get(params.sessionId)?.streamedToolCallIds ??
           EMPTY_STREAMED_TOOL_CALL_IDS,

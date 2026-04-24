@@ -2,21 +2,26 @@ import {
   AfterInvocationEvent,
   BeforeInvocationEvent,
   Message,
+  contentBlockFromData,
   type LocalAgent,
   type MessageData,
   type Plugin,
+  type SystemPrompt,
+  type SystemPromptData,
   type Snapshot,
   type SnapshotLocation,
   type SnapshotStorage,
 } from "@strands-agents/sdk";
+import type { JSONValue } from "@strands-agents/sdk";
 
 const DEFAULT_SESSION_ID = "default-session";
 const DEFAULT_APP_STATE_KEY = "sessionId";
 const DEFAULT_SCOPE_ID = "agent";
-const SCHEMA_VERSION = "1.0";
+const SNAPSHOT_SCHEMA_VERSION = "1.0";
 // `FileStorage` (and any backend that follows its convention) validates ids
 // against `[a-z0-9_-]+`, so coerce anything else (e.g. `919599960600@c.us`).
 const UNSAFE_CHARS = /[^a-z0-9_-]+/g;
+const RUNTIME_OWNED_KEYS = ["userId", "origin"] as const;
 
 export type LazySessionManagerConfig = {
   /** Pluggable snapshot backend (e.g. `FileStorage`). */
@@ -86,27 +91,21 @@ export class LazySessionManager implements Plugin {
   }
 
   private async restore(agent: LocalAgent): Promise<void> {
+    const runtimeState = this.captureRuntimeState(agent);
     const snapshot = await this.storage.loadSnapshot({
       location: this.location(agent),
     });
     agent.messages.length = 0;
-    if (!snapshot) return;
-    const raw = snapshot.data.messages;
-    if (!Array.isArray(raw)) return;
-    for (const md of raw as unknown as MessageData[]) {
-      agent.messages.push(Message.fromJSON(md));
+    if (!snapshot) {
+      this.restoreRuntimeState(agent, runtimeState);
+      return;
     }
+    loadSnapshot(agent, snapshot);
+    this.restoreRuntimeState(agent, runtimeState);
   }
 
   private async save(agent: LocalAgent): Promise<void> {
-    const messages = agent.messages.map((m) => m.toJSON());
-    const snapshot: Snapshot = {
-      scope: "agent",
-      schemaVersion: SCHEMA_VERSION,
-      createdAt: new Date().toISOString(),
-      data: { messages: messages as unknown as Snapshot["data"]["messages"] },
-      appData: {},
-    };
+    const snapshot = takeSnapshot(agent);
     await this.storage.saveSnapshot({
       location: this.location(agent),
       snapshotId: "latest",
@@ -114,9 +113,108 @@ export class LazySessionManager implements Plugin {
       snapshot,
     });
   }
+
+  private captureRuntimeState(agent: LocalAgent): Map<string, unknown> {
+    const state = new Map<string, unknown>();
+    const keys = [this.appStateKey, ...RUNTIME_OWNED_KEYS];
+    for (const key of keys) {
+      state.set(key, agent.appState.get(key));
+    }
+    return state;
+  }
+
+  private restoreRuntimeState(
+    agent: LocalAgent,
+    runtimeState: Map<string, unknown>,
+  ): void {
+    for (const [key, value] of runtimeState.entries()) {
+      if (value === undefined) {
+        agent.appState.delete(key);
+        continue;
+      }
+      agent.appState.set(key, value);
+    }
+  }
 }
 
 function sanitize(value: string): string {
   const trimmed = value.trim().toLowerCase().replace(UNSAFE_CHARS, "_");
   return trimmed.length > 0 ? trimmed : DEFAULT_SESSION_ID;
+}
+
+function takeSnapshot(agent: LocalAgent): Snapshot {
+  const data: Record<string, JSONValue> = {
+    messages: agent.messages.map((message) =>
+      message.toJSON(),
+    ) as unknown as JSONValue,
+    state: agent.appState.getAll() as JSONValue,
+    systemPrompt:
+      agent.systemPrompt !== undefined
+        ? (systemPromptToData(agent.systemPrompt) as JSONValue)
+        : null,
+  };
+
+  return {
+    scope: "agent",
+    schemaVersion: SNAPSHOT_SCHEMA_VERSION,
+    createdAt: new Date().toISOString(),
+    data,
+    appData: {},
+  };
+}
+
+function loadSnapshot(agent: LocalAgent, snapshot: Snapshot): void {
+  if (snapshot.scope !== "agent") {
+    throw new Error(`Expected snapshot scope 'agent', got '${snapshot.scope}'`);
+  }
+  if (snapshot.schemaVersion !== SNAPSHOT_SCHEMA_VERSION) {
+    throw new Error(
+      `Unsupported snapshot schema version: ${snapshot.schemaVersion}. Current version: ${SNAPSHOT_SCHEMA_VERSION}`,
+    );
+  }
+
+  if ("messages" in snapshot.data) {
+    const messages = snapshot.data.messages;
+    agent.messages.length = 0;
+    for (const msgData of messages as unknown as MessageData[]) {
+      agent.messages.push(Message.fromJSON(msgData));
+    }
+  }
+
+  if ("state" in snapshot.data) {
+    const state = snapshot.data.state;
+    const nextState =
+      state && typeof state === "object" && !Array.isArray(state)
+        ? (state as Record<string, JSONValue>)
+        : {};
+    agent.appState.clear();
+    for (const [key, value] of Object.entries(nextState)) {
+      agent.appState.set(key, value);
+    }
+  }
+
+  if ("systemPrompt" in snapshot.data) {
+    const systemPrompt = snapshot.data.systemPrompt;
+    if (systemPrompt !== null) {
+      agent.systemPrompt = systemPromptFromData(
+        systemPrompt as SystemPromptData,
+      );
+    } else {
+      delete agent.systemPrompt;
+    }
+  }
+}
+
+function systemPromptToData(prompt: SystemPrompt): SystemPromptData {
+  if (typeof prompt === "string") {
+    return prompt;
+  }
+  return prompt.map((block) => block.toJSON()) as SystemPromptData;
+}
+
+function systemPromptFromData(data: SystemPromptData): SystemPrompt {
+  if (typeof data === "string") {
+    return data;
+  }
+  return data.map((block) => contentBlockFromData(block)) as SystemPrompt;
 }

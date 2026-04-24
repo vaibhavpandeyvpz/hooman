@@ -1,17 +1,16 @@
 import type { AgentSideConnection } from "@agentclientprotocol/sdk";
 import { BeforeToolCallEvent, type HookCallback } from "@strands-agents/sdk";
-import type { Config } from "../core/config.ts";
 import {
   INTERNAL_ALWAYS_ALLOWED,
-  inferToolKind,
-  toolDisplayTitle,
-} from "./utils/tool-kind.ts";
+  allowToolForSession,
+  isToolSessionAllowed,
+} from "../core/approvals/allowed-tools.ts";
+import { inferToolKind, toolDisplayTitle } from "./utils/tool-kind.ts";
 import { toolCallLocationsFromInput } from "./utils/tool-locations.ts";
 
 export function createAcpToolApprovalHook(
   connection: AgentSideConnection,
   sessionId: string,
-  config: Config,
   /** Tool calls already announced via model stream (`tool_call` pending). */
   streamPrimedToolCallIds?: () => ReadonlySet<string>,
 ): HookCallback<BeforeToolCallEvent> {
@@ -53,7 +52,7 @@ export function createAcpToolApprovalHook(
 
     if (
       INTERNAL_ALWAYS_ALLOWED.has(name) ||
-      config.tools.allowed.includes(name)
+      isToolSessionAllowed(event.agent, name)
     ) {
       await connection.sessionUpdate({
         sessionId,
@@ -122,7 +121,7 @@ export function createAcpToolApprovalHook(
       return;
     }
     if (optionId === "allow_always") {
-      config.update({ tools: { allowed: [...config.tools.allowed, name] } });
+      allowToolForSession(event.agent, name);
       await connection.sessionUpdate({
         sessionId,
         update: {

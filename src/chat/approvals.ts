@@ -1,8 +1,10 @@
 import { BeforeToolCallEvent } from "@strands-agents/sdk";
-import type { Config } from "../core/config.ts";
+import {
+  INTERNAL_ALWAYS_ALLOWED,
+  allowToolForSession,
+  isToolSessionAllowed,
+} from "../core/approvals/allowed-tools.ts";
 import type { ApprovalDecision, ApprovalRequest } from "./types.ts";
-
-const INTERNAL_ALWAYS_ALLOWED = new Set(["strands_structured_output"]);
 const INPUT_PREVIEW_LIMIT = 256;
 
 function previewInput(input: unknown): string {
@@ -67,7 +69,6 @@ export class ChatApprovalController {
 }
 
 export function createChatApprovalHandler(
-  config: Config,
   controller: ChatApprovalController,
   options?: { yolo?: boolean },
 ): (event: BeforeToolCallEvent) => Promise<void> {
@@ -78,7 +79,7 @@ export function createChatApprovalHandler(
     }
     if (
       INTERNAL_ALWAYS_ALLOWED.has(toolName) ||
-      config.tools.allowed.includes(toolName)
+      isToolSessionAllowed(event.agent, toolName)
     ) {
       return;
     }
@@ -88,11 +89,7 @@ export function createChatApprovalHandler(
       return;
     }
     if (decision === "always") {
-      if (!config.tools.allowed.includes(toolName)) {
-        config.update({
-          tools: { allowed: [...config.tools.allowed, toolName] },
-        });
-      }
+      allowToolForSession(event.agent, toolName);
       return;
     }
     event.cancel = `Tool "${toolName}" was rejected by the user.`;

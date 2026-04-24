@@ -11,7 +11,6 @@ import {
   type Agent,
   type AgentStreamEvent,
 } from "@strands-agents/sdk";
-import type { Config } from "../core/config.ts";
 import type { Manager as McpManager } from "../core/mcp/index.ts";
 import type { Registry } from "../core/skills/index.ts";
 import {
@@ -26,7 +25,6 @@ import type { ApprovalRequest, ChatLine } from "./types.ts";
 
 type ChatAppProps = {
   agent: Agent;
-  config: Config;
   sessionId: string;
   manager: McpManager;
   registry: Registry;
@@ -69,7 +67,6 @@ function toToolResultText(result: unknown): string {
 
 export function ChatApp({
   agent,
-  config,
   sessionId,
   manager,
   registry,
@@ -143,13 +140,13 @@ export function ChatApp({
     });
     const cleanupHook = agent.addHook(
       BeforeToolCallEvent,
-      createChatApprovalHandler(config, controller, { yolo }),
+      createChatApprovalHandler(controller, { yolo }),
     );
     return () => {
       cleanupListener();
       cleanupHook();
     };
-  }, [agent, config, yolo]);
+  }, [agent, yolo]);
 
   const appendLine = useCallback((line: ChatLine) => {
     setLines((prev) => [...prev, line]);

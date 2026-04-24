@@ -1,7 +1,10 @@
 import type { Agent, BeforeToolCallEvent } from "@strands-agents/sdk";
-import type { Config } from "../core/config.ts";
 import type { Manager as McpManager } from "../core/mcp/index.ts";
-import { INTERNAL_ALWAYS_ALLOWED } from "../acp/utils/tool-kind.ts";
+import {
+  INTERNAL_ALWAYS_ALLOWED,
+  allowToolForSession,
+  isToolSessionAllowed,
+} from "../core/approvals/allowed-tools.ts";
 
 const TOOL_DESCRIPTION_PREVIEW_LIMIT = 50;
 const TOOL_ARGS_PREVIEW_LIMIT = 50;
@@ -62,7 +65,6 @@ function readOrigin(agent: Agent): ChannelOrigin | null {
 }
 
 export function createDaemonApprovalHandler(
-  config: Config,
   manager: McpManager,
   agent: Agent,
   options?: { yolo?: boolean },
@@ -74,7 +76,7 @@ export function createDaemonApprovalHandler(
     }
     if (
       INTERNAL_ALWAYS_ALLOWED.has(name) ||
-      config.tools.allowed.includes(name)
+      isToolSessionAllowed(event.agent, name)
     ) {
       return;
     }
@@ -116,9 +118,7 @@ export function createDaemonApprovalHandler(
       return;
     }
     if (behavior === "allow_always") {
-      if (!config.tools.allowed.includes(name)) {
-        config.update({ tools: { allowed: [...config.tools.allowed, name] } });
-      }
+      allowToolForSession(event.agent, name);
       return;
     }
 

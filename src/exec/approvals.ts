@@ -1,9 +1,11 @@
 import { createInterface } from "node:readline/promises";
 import { stdin, stdout } from "node:process";
 import { BeforeToolCallEvent } from "@strands-agents/sdk";
-import type { Config } from "../core/config.ts";
-
-const INTERNAL_ALWAYS_ALLOWED = new Set(["strands_structured_output"]);
+import {
+  INTERNAL_ALWAYS_ALLOWED,
+  allowToolForSession,
+  isToolSessionAllowed,
+} from "../core/approvals/allowed-tools.ts";
 const INPUT_PREVIEW_LIMIT = 1_024;
 
 type ApprovalDecision = "allow" | "reject" | "always";
@@ -57,10 +59,9 @@ async function promptForApproval(
 
 type BeforeToolCallEventHandler = (event: BeforeToolCallEvent) => Promise<void>;
 
-export function createToolApprovalHandler(
-  config: Config,
-  options?: { yolo?: boolean },
-): BeforeToolCallEventHandler {
+export function createToolApprovalHandler(options?: {
+  yolo?: boolean;
+}): BeforeToolCallEventHandler {
   return async function onBeforeToolCallEvent(event: BeforeToolCallEvent) {
     const name = event.toolUse.name;
     if (options?.yolo) {
@@ -68,12 +69,12 @@ export function createToolApprovalHandler(
     }
     if (
       INTERNAL_ALWAYS_ALLOWED.has(name) ||
-      config.tools.allowed.includes(name)
+      isToolSessionAllowed(event.agent, name)
     ) {
       return;
     }
     if (!canPromptForApproval()) {
-      event.cancel = `Tool "${name}" requires approval, but no interactive terminal is available. Add it to config.tools.allowed to always allow it.`;
+      event.cancel = `Tool "${name}" requires approval, but no interactive terminal is available.`;
       return;
     }
     const decision = await promptForApproval(event);
@@ -81,7 +82,7 @@ export function createToolApprovalHandler(
       return;
     }
     if (decision === "always") {
-      config.update({ tools: { allowed: [...config.tools.allowed, name] } });
+      allowToolForSession(event.agent, name);
       return;
     }
     event.cancel = `Tool "${name}" was rejected by the user.`;

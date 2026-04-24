@@ -53,13 +53,12 @@ program
     async (prompt: string, options: { session?: string; yolo?: boolean }) => {
       const sessionId = options.session?.trim() || crypto.randomUUID();
       const {
-        config,
         agent,
         mcp: { manager },
       } = await bootstrap({ sessionId }, true);
       agent.addHook(
         BeforeToolCallEvent,
-        createToolApprovalHandler(config, { yolo: Boolean(options.yolo) }),
+        createToolApprovalHandler({ yolo: Boolean(options.yolo) }),
       );
       try {
         await agent.invoke(prompt);
@@ -84,7 +83,6 @@ program
     ) => {
       const sessionId = options.session?.trim() || crypto.randomUUID();
       const {
-        config,
         agent,
         mcp: { manager },
         registry,
@@ -93,7 +91,6 @@ program
       try {
         await chat({
           agent,
-          config,
           manager,
           registry,
           sessionId,
@@ -129,7 +126,6 @@ program
     }) => {
       const session = options.session?.trim();
       const {
-        config,
         agent,
         mcp: { manager },
       } = await bootstrap(
@@ -141,7 +137,7 @@ program
       );
       agent.addHook(
         BeforeToolCallEvent,
-        createDaemonApprovalHandler(config, manager, agent, {
+        createDaemonApprovalHandler(manager, agent, {
           yolo: Boolean(options.yolo),
         }),
       );
