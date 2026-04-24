@@ -3,7 +3,8 @@ import type { Config } from "../core/config.ts";
 import type { Manager as McpManager } from "../core/mcp/index.ts";
 import { INTERNAL_ALWAYS_ALLOWED } from "../acp/utils/tool-kind.ts";
 
-const INPUT_PREVIEW_LIMIT = 1_024;
+const TOOL_DESCRIPTION_PREVIEW_LIMIT = 50;
+const TOOL_ARGS_PREVIEW_LIMIT = 50;
 
 type ChannelOrigin = {
   server?: string;
@@ -17,14 +18,24 @@ function randomRequestId(): string {
   return crypto.randomUUID();
 }
 
+function truncateWithEllipsis(text: string, max: number): string {
+  return text.length > max ? `${text.slice(0, max)}…` : text;
+}
+
+function truncateWithHiddenCharCount(text: string, max: number): string {
+  if (text.length <= max) {
+    return text;
+  }
+  const hidden = text.length - max;
+  return `${text.slice(0, max)}…(${hidden} chars)`;
+}
+
 function inputPreview(input: unknown): string {
   try {
-    const text = JSON.stringify(input, null, 2) ?? "null";
-    return text.length > INPUT_PREVIEW_LIMIT
-      ? `${text.slice(0, INPUT_PREVIEW_LIMIT)}\n... (truncated)`
-      : text;
+    const text = JSON.stringify(input) ?? "null";
+    return truncateWithHiddenCharCount(text, TOOL_ARGS_PREVIEW_LIMIT);
   } catch {
-    return String(input);
+    return truncateWithHiddenCharCount(String(input), TOOL_ARGS_PREVIEW_LIMIT);
   }
 }
 
@@ -85,9 +96,11 @@ export function createDaemonApprovalHandler(
       behavior = await manager.requestChannelPermission(origin.server, {
         requestId: randomRequestId(),
         tool: name,
-        description:
+        description: truncateWithEllipsis(
           event.tool?.description?.trim() ??
-          `Run tool "${name}" in daemon mode.`,
+            `Run tool "${name}" in daemon mode.`,
+          TOOL_DESCRIPTION_PREVIEW_LIMIT,
+        ),
         preview: inputPreview(event.toolUse.input),
         source: origin.source,
         user: origin.user,
