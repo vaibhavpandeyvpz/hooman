@@ -33,6 +33,16 @@ export type ChannelMessage = {
 
 export type ChannelPermissionBehavior = "allow_once" | "allow_always" | "deny";
 
+export type ChannelSubscription = {
+  server: string;
+  channel: string;
+};
+
+export type ChannelSubscriptionHandle = {
+  unsubscribe: () => void;
+  subscriptions: ChannelSubscription[];
+};
+
 type ChannelPermissionRequest = {
   requestId: string;
   tool: string;
@@ -224,7 +234,7 @@ export class Manager {
   public async subscribeToChannels(
     channels: readonly string[],
     onMessage: (message: ChannelMessage) => void,
-  ): Promise<() => void> {
+  ): Promise<ChannelSubscriptionHandle> {
     if (this.instances === null) {
       this.reload();
     }
@@ -234,10 +244,11 @@ export class Manager {
       ...new Set(channels.map((c) => c.trim()).filter(Boolean)),
     ];
     if (requested.length === 0) {
-      return () => {};
+      return { unsubscribe: () => {}, subscriptions: [] };
     }
 
     const unsubs: Array<() => void> = [];
+    const subscriptions: ChannelSubscription[] = [];
     for (const [server, client] of map.entries()) {
       await client.connect();
       const experimental =
@@ -289,6 +300,8 @@ export class Manager {
           continue;
         }
 
+        subscriptions.push({ server, channel });
+
         const method = `notifications/${channel}`;
         const schema = z.object({
           method: z.literal(method),
@@ -327,10 +340,13 @@ export class Manager {
       }
     }
 
-    return () => {
-      for (const off of unsubs) {
-        off();
-      }
+    return {
+      subscriptions,
+      unsubscribe: () => {
+        for (const off of unsubs) {
+          off();
+        }
+      },
     };
   }
 

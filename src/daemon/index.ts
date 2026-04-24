@@ -3,6 +3,7 @@ import type { Agent } from "@strands-agents/sdk";
 import { HOOMAN_CHANNEL } from "../core/mcp/index.ts";
 import type {
   ChannelMessage,
+  ChannelSubscription,
   Manager as McpManager,
 } from "../core/mcp/index.ts";
 import { createQueue } from "./queue.ts";
@@ -40,6 +41,18 @@ function resolveUserId(
   // user ids by server. Channel is intentionally omitted so long-term memory
   // can stay consistent for a user across rooms within one server.
   return `${message.meta.server}:${raw}`;
+}
+
+function formatSubscriptions(
+  subscriptions: readonly ChannelSubscription[],
+): string {
+  if (subscriptions.length === 0) {
+    return "none";
+  }
+  const servers = [
+    ...new Set(subscriptions.map((subscription) => subscription.server)),
+  ].sort((left, right) => left.localeCompare(right));
+  return `${servers.length} MCP server(s): ${servers.join(", ")}`;
 }
 
 export async function main(options: RunDaemonOptions): Promise<void> {
@@ -94,7 +107,7 @@ export async function main(options: RunDaemonOptions): Promise<void> {
     () => unsubscribe(),
   );
 
-  unsubscribe = await options.manager.subscribeToChannels(
+  const handle = await options.manager.subscribeToChannels(
     channels,
     (message) => {
       debug(
@@ -103,7 +116,8 @@ export async function main(options: RunDaemonOptions): Promise<void> {
       void queue.push(message);
     },
   );
-  debug(`subscribed to ${channels.length} channel(s)`);
+  unsubscribe = handle.unsubscribe;
+  debug(`subscribed → ${formatSubscriptions(handle.subscriptions)}`);
 
   try {
     await stop();
