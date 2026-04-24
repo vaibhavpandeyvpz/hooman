@@ -163,6 +163,12 @@ Runtime tools and prompt sections are controlled from `config.json` under `featu
 - `features.filesystem.enabled`
 - `features.shell.enabled`
 - `features.ltm.enabled`
+- `features.wiki.enabled`
+
+Both `ltm` and `wiki` include dedicated Chroma settings under:
+
+- `features.ltm.chroma` (default collection: `memory`)
+- `features.wiki.chroma` (default collection: `wiki`)
 
 ### `hooman configure`
 
@@ -205,7 +211,7 @@ Hooman stores its data in:
 
 Important files and folders:
 
-- `config.json` - app name, LLM provider/model, tool approvals, long-term memory, compaction
+- `config.json` - app name, LLM provider/model, tool approvals, feature flags, LTM/wiki settings, compaction
 - `instructions.md` - system instructions used to build the agent prompt
 - `mcp.json` - MCP server definitions
 - `skills/` - installed skills
@@ -243,6 +249,15 @@ This is the shape managed by `hooman configure`:
         "url": "http://127.0.0.1:8000",
         "collection": {
           "memory": "memory"
+        }
+      }
+    },
+    "wiki": {
+      "enabled": false,
+      "chroma": {
+        "url": "http://127.0.0.1:8000",
+        "collection": {
+          "wiki": "wiki"
         }
       }
     }

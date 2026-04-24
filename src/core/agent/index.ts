@@ -16,6 +16,7 @@ import {
   createShellTools,
   createThinkingTools,
   createTimeTools,
+  createWikiTools,
 } from "../tools";
 
 const SECTION_BREAK = "\n\n---\n\n";
@@ -59,6 +60,7 @@ export async function create(
       ...(ltm ? createLongTermMemoryTools(ltm) : []),
       ...(config.features.filesystem.enabled ? createFilesystemTools() : []),
       ...(config.features.shell.enabled ? createShellTools() : []),
+      ...(config.features.wiki.enabled ? createWikiTools(config) : []),
       ...createThinkingTools(),
       ...tools,
     ],

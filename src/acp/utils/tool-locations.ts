@@ -11,6 +11,8 @@ const KNOWN_TOOL_LOCATION_KEYS = new Map<string, readonly string[]>([
   ["move_file", ["source", "destination"]],
   ["search_files", ["path"]],
   ["get_file_info", ["path"]],
+  ["wiki_read_file", ["path"]],
+  ["wiki_write_file", ["path"]],
 ]);
 
 /** ACP `locations` extracted only from known core filesystem tools. */

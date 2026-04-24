@@ -1,6 +1,6 @@
 {
   "name": "hoomanjs",
-  "version": "1.10.0",
+  "version": "1.11.0",
   "description": "Bun-powered local AI agent CLI with chat, exec, ACP, MCP, and skills support.",
   "author": {
     "name": "Vaibhav Pandey",

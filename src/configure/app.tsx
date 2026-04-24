@@ -39,6 +39,7 @@ import {
   noticeColor,
   parseNumber,
   parseObjectRecord,
+  maskSensitiveParamsForDisplay,
   parseStringArray,
   parseStringRecord,
   transportSummary,
@@ -412,7 +413,9 @@ export function ConfigureApp({
           }),
       },
       {
-        label: `LLM params • ${truncate(compactJson(configData.llm.params))}`,
+        label: `LLM params • ${truncate(
+          compactJson(maskSensitiveParamsForDisplay(configData.llm.params)),
+        )}`,
         value: () =>
           promptValue({
             title: "Update LLM params",
@@ -496,84 +499,12 @@ export function ConfigureApp({
         },
       },
       {
-        label: `Long-term memory • ${configData.features.ltm.enabled ? "Enabled" : "Disabled"}`,
-        value: () => {
-          updateConfig(
-            {
-              features: {
-                ...config.features,
-                ltm: {
-                  ...config.features.ltm,
-                  enabled: !configData.features.ltm.enabled,
-                },
-              },
-            },
-            `Long-term memory ${configData.features.ltm.enabled ? "disabled" : "enabled"}.`,
-          );
-          setScreen({ kind: "config" });
-        },
+        label: `Long-term memory • ${configData.features.ltm.enabled ? "Enabled" : "Disabled"} • ${configData.features.ltm.chroma.collection.memory}`,
+        value: () => setScreen({ kind: "config-ltm" }),
       },
       {
-        label: `Chroma URL • ${configData.features.ltm.chroma.url}`,
-        value: () =>
-          promptValue({
-            title: "Update Chroma URL",
-            label: "URL",
-            initialValue: configData.features.ltm.chroma.url,
-            onSubmit: async (value) => {
-              const url = value.trim();
-              if (!url) {
-                throw new Error("URL is required.");
-              }
-              updateConfig(
-                {
-                  features: {
-                    ...config.features,
-                    ltm: {
-                      ...config.features.ltm,
-                      chroma: {
-                        ...config.features.ltm.chroma,
-                        url,
-                      },
-                    },
-                  },
-                },
-                "Updated Chroma URL.",
-              );
-              setPrompt(null);
-            },
-          }),
-      },
-      {
-        label: `Chroma memory collection • ${configData.features.ltm.chroma.collection.memory}`,
-        value: () =>
-          promptValue({
-            title: "Update Chroma memory collection",
-            label: "Collection name",
-            initialValue: configData.features.ltm.chroma.collection.memory,
-            onSubmit: async (value) => {
-              const memory = value.trim();
-              if (!memory) {
-                throw new Error("Collection name is required.");
-              }
-              updateConfig(
-                {
-                  features: {
-                    ...config.features,
-                    ltm: {
-                      ...config.features.ltm,
-                      chroma: {
-                        ...config.features.ltm.chroma,
-                        collection: { memory },
-                      },
-                    },
-                  },
-                },
-                "Updated Chroma collection.",
-              );
-              setPrompt(null);
-            },
-          }),
+        label: `Wiki feature • ${configData.features.wiki.enabled ? "Enabled" : "Disabled"} • ${configData.features.wiki.chroma.collection.wiki}`,
+        value: () => setScreen({ kind: "config-wiki" }),
       },
       {
         label: `Compaction ratio • ${configData.compaction.ratio}`,
@@ -665,6 +596,200 @@ export function ConfigureApp({
       <MenuScreen
         title="Choose Provider"
         description="Pick which model provider to use for future sessions."
+        items={items}
+      />
+    );
+  };
+
+  const renderLtmConfigMenu = () => {
+    const items: MenuItem[] = [
+      {
+        label: `Enabled • ${configData.features.ltm.enabled ? "On" : "Off"}`,
+        value: () => {
+          updateConfig(
+            {
+              features: {
+                ...config.features,
+                ltm: {
+                  ...config.features.ltm,
+                  enabled: !configData.features.ltm.enabled,
+                },
+              },
+            },
+            `Long-term memory ${configData.features.ltm.enabled ? "disabled" : "enabled"}.`,
+          );
+          setScreen({ kind: "config-ltm" });
+        },
+      },
+      {
+        label: `Chroma URL • ${configData.features.ltm.chroma.url}`,
+        value: () =>
+          promptValue({
+            title: "Update LTM Chroma URL",
+            label: "URL",
+            initialValue: configData.features.ltm.chroma.url,
+            onSubmit: async (value) => {
+              const url = value.trim();
+              if (!url) {
+                throw new Error("URL is required.");
+              }
+              updateConfig(
+                {
+                  features: {
+                    ...config.features,
+                    ltm: {
+                      ...config.features.ltm,
+                      chroma: {
+                        ...config.features.ltm.chroma,
+                        url,
+                      },
+                    },
+                  },
+                },
+                "Updated LTM Chroma URL.",
+              );
+              setPrompt(null);
+            },
+          }),
+      },
+      {
+        label: `Chroma collection • ${configData.features.ltm.chroma.collection.memory}`,
+        value: () =>
+          promptValue({
+            title: "Update LTM Chroma collection",
+            label: "Collection name",
+            initialValue: configData.features.ltm.chroma.collection.memory,
+            onSubmit: async (value) => {
+              const memory = value.trim();
+              if (!memory) {
+                throw new Error("Collection name is required.");
+              }
+              updateConfig(
+                {
+                  features: {
+                    ...config.features,
+                    ltm: {
+                      ...config.features.ltm,
+                      chroma: {
+                        ...config.features.ltm.chroma,
+                        collection: { memory },
+                      },
+                    },
+                  },
+                },
+                "Updated LTM Chroma collection.",
+              );
+              setPrompt(null);
+            },
+          }),
+      },
+      {
+        label: "Back",
+        value: () => setScreen({ kind: "config" }),
+      },
+    ];
+
+    return (
+      <MenuScreen
+        title="Long-term Memory"
+        description="Configure LTM memory storage and Chroma settings."
+        items={items}
+      />
+    );
+  };
+
+  const renderWikiConfigMenu = () => {
+    const items: MenuItem[] = [
+      {
+        label: `Enabled • ${configData.features.wiki.enabled ? "On" : "Off"}`,
+        value: () => {
+          updateConfig(
+            {
+              features: {
+                ...config.features,
+                wiki: {
+                  ...config.features.wiki,
+                  enabled: !configData.features.wiki.enabled,
+                },
+              },
+            },
+            `Wiki feature ${configData.features.wiki.enabled ? "disabled" : "enabled"}.`,
+          );
+          setScreen({ kind: "config-wiki" });
+        },
+      },
+      {
+        label: `Chroma URL • ${configData.features.wiki.chroma.url}`,
+        value: () =>
+          promptValue({
+            title: "Update Wiki Chroma URL",
+            label: "URL",
+            initialValue: configData.features.wiki.chroma.url,
+            onSubmit: async (value) => {
+              const url = value.trim();
+              if (!url) {
+                throw new Error("URL is required.");
+              }
+              updateConfig(
+                {
+                  features: {
+                    ...config.features,
+                    wiki: {
+                      ...config.features.wiki,
+                      chroma: {
+                        ...config.features.wiki.chroma,
+                        url,
+                      },
+                    },
+                  },
+                },
+                "Updated Wiki Chroma URL.",
+              );
+              setPrompt(null);
+            },
+          }),
+      },
+      {
+        label: `Chroma collection • ${configData.features.wiki.chroma.collection.wiki}`,
+        value: () =>
+          promptValue({
+            title: "Update Wiki Chroma collection",
+            label: "Collection name",
+            initialValue: configData.features.wiki.chroma.collection.wiki,
+            onSubmit: async (value) => {
+              const wiki = value.trim();
+              if (!wiki) {
+                throw new Error("Collection name is required.");
+              }
+              updateConfig(
+                {
+                  features: {
+                    ...config.features,
+                    wiki: {
+                      ...config.features.wiki,
+                      chroma: {
+                        ...config.features.wiki.chroma,
+                        collection: { wiki },
+                      },
+                    },
+                  },
+                },
+                "Updated Wiki Chroma collection.",
+              );
+              setPrompt(null);
+            },
+          }),
+      },
+      {
+        label: "Back",
+        value: () => setScreen({ kind: "config" }),
+      },
+    ];
+
+    return (
+      <MenuScreen
+        title="Wiki"
+        description="Configure wiki features and Chroma-backed wiki search."
         items={items}
       />
     );
@@ -936,6 +1061,10 @@ export function ConfigureApp({
         return renderConfigMenu();
       case "config-provider":
         return renderProviderMenu();
+      case "config-ltm":
+        return renderLtmConfigMenu();
+      case "config-wiki":
+        return renderWikiConfigMenu();
       case "mcp":
         return renderMcpMenu();
       case "mcp-delete-confirm":

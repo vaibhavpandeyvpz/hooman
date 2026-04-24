@@ -16,6 +16,27 @@ export function compactJson(value: unknown): string {
   return JSON.stringify(value);
 }
 
+const MASKED_PARAM_KEYS = new Set(["apikey", "clientconfig"]);
+
+export function maskSensitiveParamsForDisplay(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map((item) => maskSensitiveParamsForDisplay(item));
+  }
+  if (!value || typeof value !== "object") {
+    return value;
+  }
+  const input = value as Record<string, unknown>;
+  const output: Record<string, unknown> = {};
+  for (const [key, itemValue] of Object.entries(input)) {
+    if (MASKED_PARAM_KEYS.has(key.toLowerCase())) {
+      output[key] = "[REDACTED]";
+      continue;
+    }
+    output[key] = maskSensitiveParamsForDisplay(itemValue);
+  }
+  return output;
+}
+
 export function truncate(text: string, max: number = 88): string {
   return text.length > max ? `${text.slice(0, max - 1)}…` : text;
 }

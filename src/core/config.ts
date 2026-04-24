@@ -34,7 +34,12 @@ const DEFAULT_CHROMA = {
   collection: { memory: "memory" },
 } as const;
 
-const ChromaPartialSchema = z.object({
+const DEFAULT_WIKI_CHROMA = {
+  url: "http://127.0.0.1:8000",
+  collection: { wiki: "wiki" },
+} as const;
+
+const LtmChromaPartialSchema = z.object({
   url: z.string().min(1).optional(),
   collection: z
     .object({
@@ -45,7 +50,21 @@ const ChromaPartialSchema = z.object({
 
 const LtmPartialSchema = z.object({
   enabled: z.boolean().optional(),
-  chroma: ChromaPartialSchema.optional(),
+  chroma: LtmChromaPartialSchema.optional(),
+});
+
+const WikiChromaPartialSchema = z.object({
+  url: z.string().min(1).optional(),
+  collection: z
+    .object({
+      wiki: z.string().min(1).optional(),
+    })
+    .optional(),
+});
+
+const WikiPartialSchema = z.object({
+  enabled: z.boolean().optional(),
+  chroma: WikiChromaPartialSchema.optional(),
 });
 
 const FeatureTogglePartialSchema = z.object({
@@ -57,6 +76,7 @@ const FeaturesPartialSchema = z.object({
   filesystem: FeatureTogglePartialSchema.optional(),
   shell: FeatureTogglePartialSchema.optional(),
   ltm: LtmPartialSchema.optional(),
+  wiki: WikiPartialSchema.optional(),
 });
 
 const ToolsPartialSchema = z.object({
@@ -76,6 +96,7 @@ const ConfigSchema = z
   })
   .transform((input) => {
     const ltm = input.features?.ltm;
+    const wiki = input.features?.wiki;
     return {
       name: input.name,
       llm: input.llm,
@@ -101,6 +122,17 @@ const ConfigSchema = z
             },
           },
         },
+        wiki: {
+          enabled: wiki?.enabled ?? false,
+          chroma: {
+            url: wiki?.chroma?.url ?? DEFAULT_WIKI_CHROMA.url,
+            collection: {
+              wiki:
+                wiki?.chroma?.collection?.wiki ??
+                DEFAULT_WIKI_CHROMA.collection.wiki,
+            },
+          },
+        },
       },
       compaction: input.compaction,
     };
@@ -110,6 +142,7 @@ export type ConfigData = z.infer<typeof ConfigSchema>;
 export type LlmConfig = z.infer<typeof LlmSchema>;
 export type CompactionConfig = ConfigData["compaction"];
 export type LtmConfig = ConfigData["features"]["ltm"];
+export type WikiConfig = ConfigData["features"]["wiki"];
 export type ToolsConfig = ConfigData["tools"];
 export type FeaturesConfig = ConfigData["features"];
 
@@ -138,6 +171,13 @@ const defaultConfigData = (): ConfigData => ({
       chroma: {
         url: "http://127.0.0.1:8000",
         collection: { memory: "memory" },
+      },
+    },
+    wiki: {
+      enabled: false,
+      chroma: {
+        url: "http://127.0.0.1:8000",
+        collection: { wiki: "wiki" },
       },
     },
   },
@@ -188,11 +228,22 @@ export class Config {
           collection: { ...this.data.features.ltm.chroma.collection },
         },
       },
+      wiki: {
+        ...this.data.features.wiki,
+        chroma: {
+          ...this.data.features.wiki.chroma,
+          collection: { ...this.data.features.wiki.chroma.collection },
+        },
+      },
     };
   }
 
   get ltm(): LtmConfig {
     return this.features.ltm;
+  }
+
+  get wiki(): WikiConfig {
+    return this.features.wiki;
   }
 
   private readJson(): unknown {

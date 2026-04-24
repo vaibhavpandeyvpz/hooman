@@ -13,6 +13,8 @@ export type Screen =
   | { kind: "home" }
   | { kind: "config" }
   | { kind: "config-provider" }
+  | { kind: "config-ltm" }
+  | { kind: "config-wiki" }
   | { kind: "mcp" }
   | { kind: "mcp-delete-confirm"; name: string }
   | { kind: "skills" }
