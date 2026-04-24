@@ -64,16 +64,26 @@ export async function main(options: RunDaemonOptions): Promise<void> {
 
       options.agent.appState.set("userId", user);
       options.agent.appState.set("sessionId", session);
-      options.agent.appState.set("origin", {
+      const origin = {
         server: message.meta.server,
         channel: message.meta.channel,
-        source: message.meta.source,
-        user: message.meta.identity.user,
-        session: message.meta.identity.session,
-        thread: message.meta.identity.thread,
+        ...(message.meta.source ? { source: message.meta.source } : {}),
+        ...(message.meta.identity.user
+          ? { user: message.meta.identity.user }
+          : {}),
+        ...(message.meta.identity.session
+          ? { session: message.meta.identity.session }
+          : {}),
+        ...(message.meta.identity.thread
+          ? { thread: message.meta.identity.thread }
+          : {}),
+      };
+      options.agent.appState.set("origin", {
+        ...origin,
       });
 
       try {
+        debug(`invoking agent → ${tag} session=${session} user=${user}`);
         await options.agent.invoke(message.prompt);
         debug(`completed → ${tag} session=${session} user=${user}`);
       } catch (error) {
