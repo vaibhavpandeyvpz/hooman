@@ -68,6 +68,23 @@ function toToolResultText(result: unknown): string {
   return body || `Tool finished with status: ${data.status ?? "unknown"}`;
 }
 
+function getToolUseId(value: unknown): string | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+  const data = value as {
+    toolUseId?: unknown;
+    toolUse?: { toolUseId?: unknown };
+  };
+  if (typeof data.toolUseId === "string") {
+    return data.toolUseId;
+  }
+  if (typeof data.toolUse?.toolUseId === "string") {
+    return data.toolUse.toolUseId;
+  }
+  return null;
+}
+
 export function ChatApp({
   agent,
   sessionId,
@@ -103,7 +120,8 @@ export function ChatApp({
   const controllerRef = useRef(new ChatApprovalController());
   const runningRef = useRef(false);
   const assistantLineIdRef = useRef<string | null>(null);
-  const toolLineIdRef = useRef<string | null>(null);
+  const toolLineIdsRef = useRef(new Map<string, string>());
+  const pendingToolLineIdsRef = useRef<string[]>([]);
   const initialRanRef = useRef(false);
 
   useEffect(() => {
@@ -252,7 +270,12 @@ export function ChatApp({
                 appendAssistantText(block.text ?? "");
               } else if (block.type === "toolUseBlock") {
                 const toolId = nowId();
-                toolLineIdRef.current = toolId;
+                const toolUseId = getToolUseId(block);
+                if (toolUseId) {
+                  toolLineIdsRef.current.set(toolUseId, toolId);
+                } else {
+                  pendingToolLineIdsRef.current.push(toolId);
+                }
                 appendLine({
                   id: toolId,
                   role: "tool",
@@ -270,13 +293,29 @@ export function ChatApp({
             }
             case "toolResultEvent": {
               const resultContent = toToolResultText(e.result);
-              if (toolLineIdRef.current) {
-                updateLine(toolLineIdRef.current, {
+              const toolUseId = getToolUseId(e.result);
+              let toolLineId = toolUseId
+                ? toolLineIdsRef.current.get(toolUseId)
+                : undefined;
+              if (toolLineId && toolUseId) {
+                toolLineIdsRef.current.delete(toolUseId);
+              }
+              toolLineId ??= pendingToolLineIdsRef.current.shift();
+              if (!toolLineId) {
+                const firstTrackedTool = toolLineIdsRef.current.entries().next();
+                if (!firstTrackedTool.done) {
+                  const [trackedToolUseId, trackedToolLineId] =
+                    firstTrackedTool.value;
+                  toolLineIdsRef.current.delete(trackedToolUseId);
+                  toolLineId = trackedToolLineId;
+                }
+              }
+              if (toolLineId) {
+                updateLine(toolLineId, {
                   phase: "done",
                   done: true,
                   resultContent,
                 });
-                toolLineIdRef.current = null;
               } else {
                 appendLine({
                   id: nowId(),
@@ -346,10 +385,14 @@ export function ChatApp({
       } finally {
         updateLine(assistantId, { done: true });
         assistantLineIdRef.current = null;
-        if (toolLineIdRef.current) {
-          updateLine(toolLineIdRef.current, { phase: "done", done: true });
-          toolLineIdRef.current = null;
+        for (const toolLineId of toolLineIdsRef.current.values()) {
+          updateLine(toolLineId, { phase: "done", done: true });
         }
+        for (const toolLineId of pendingToolLineIdsRef.current) {
+          updateLine(toolLineId, { phase: "done", done: true });
+        }
+        toolLineIdsRef.current.clear();
+        pendingToolLineIdsRef.current = [];
         runningRef.current = false;
         setRunning(false);
         setTurnStartedAt(null);
