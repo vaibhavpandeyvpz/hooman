@@ -76,6 +76,7 @@ const ToolsPartialSchema = z.object({
   fetch: ToolTogglePartialSchema.optional(),
   filesystem: ToolTogglePartialSchema.optional(),
   shell: ToolTogglePartialSchema.optional(),
+  sleep: ToolTogglePartialSchema.optional(),
   ltm: LtmPartialSchema.optional(),
   wiki: WikiPartialSchema.optional(),
   mcp: ToolTogglePartialSchema.optional(),
@@ -110,6 +111,9 @@ const ConfigSchema = z
         },
         shell: {
           enabled: input.tools?.shell?.enabled ?? true,
+        },
+        sleep: {
+          enabled: input.tools?.sleep?.enabled ?? true,
         },
         ltm: {
           enabled: ltm?.enabled ?? false,
@@ -171,6 +175,9 @@ const defaultConfigData = (): ConfigData => ({
     shell: {
       enabled: true,
     },
+    sleep: {
+      enabled: true,
+    },
     ltm: {
       enabled: false,
       chroma: {
@@ -222,6 +229,7 @@ export class Config {
       fetch: { ...this.data.tools.fetch },
       filesystem: { ...this.data.tools.filesystem },
       shell: { ...this.data.tools.shell },
+      sleep: { ...this.data.tools.sleep },
       ltm: {
         ...this.data.tools.ltm,
         chroma: {

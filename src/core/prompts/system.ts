@@ -13,6 +13,7 @@ const STATIC_PROMPT_FILES = [
   "filesystem.md",
   "fetch.md",
   "shell.md",
+  "sleep.md",
   "wiki.md",
   "skills.md",
 ] as const;
@@ -46,6 +47,8 @@ export class System {
           return this.config.tools.filesystem.enabled;
         case "shell.md":
           return this.config.tools.shell.enabled;
+        case "sleep.md":
+          return this.config.tools.sleep.enabled;
         case "wiki.md":
           return this.config.tools.wiki.enabled;
         case "skills.md":

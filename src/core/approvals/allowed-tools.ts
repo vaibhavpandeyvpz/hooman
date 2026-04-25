@@ -13,6 +13,7 @@ export const INTERNAL_ALWAYS_ALLOWED = new Set([
   "strands_structured_output",
   "update_todos",
   "think",
+  "sleep",
   "get_current_time",
   "convert_time",
   "wiki_list_files",

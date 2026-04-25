@@ -18,6 +18,7 @@ import {
   createTodoTools,
   createFetchTools,
   createFilesystemTools,
+  createSleepTools,
   createShellTools,
   createThinkingTools,
   createTimeTools,
@@ -68,6 +69,7 @@ export async function create(
     },
     tools: [
       ...createTimeTools(),
+      ...(config.tools.sleep.enabled ? createSleepTools() : []),
       ...(config.tools.todo.enabled ? createTodoTools() : []),
       ...(config.tools.fetch.enabled ? createFetchTools() : []),
       ...(ltm ? createLongTermMemoryTools(ltm) : []),

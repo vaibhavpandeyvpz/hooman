@@ -500,6 +500,23 @@ export function ConfigureApp({
         },
       },
       {
+        label: `Sleep tool • ${configData.tools.sleep.enabled ? "Enabled" : "Disabled"}`,
+        value: () => {
+          updateConfig(
+            {
+              tools: {
+                ...config.tools,
+                sleep: {
+                  enabled: !configData.tools.sleep.enabled,
+                },
+              },
+            },
+            `Sleep tool ${configData.tools.sleep.enabled ? "disabled" : "enabled"}.`,
+          );
+          setScreen({ kind: "config" });
+        },
+      },
+      {
         label: `Long-term memory • ${configData.tools.ltm.enabled ? "Enabled" : "Disabled"} • ${configData.tools.ltm.chroma.collection.memory}`,
         value: () => setScreen({ kind: "config-ltm" }),
       },
