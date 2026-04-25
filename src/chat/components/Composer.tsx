@@ -26,7 +26,11 @@ export function Composer({
           value={input}
           onChange={onChange}
           onSubmit={onSubmit}
-          placeholder={running ? "Wait for current turn..." : "Type a message"}
+          placeholder={
+            running
+              ? "Type a message (queued after current turn)"
+              : "Type a message"
+          }
           focus={!disabled}
           maxVisibleLines={4}
         />

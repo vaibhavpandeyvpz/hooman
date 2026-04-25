@@ -5,6 +5,7 @@ import React, {
   useRef,
   useState,
 } from "react";
+import fastq from "fastq";
 import { Box, useApp, useInput } from "ink";
 import {
   BeforeToolCallEvent,
@@ -19,6 +20,7 @@ import {
 } from "./approvals.ts";
 import { ApprovalPrompt } from "./components/ApprovalPrompt.tsx";
 import { Composer } from "./components/Composer.tsx";
+import { QueuedPrompts } from "./components/QueuedPrompts.tsx";
 import { StatusBar } from "./components/StatusBar.tsx";
 import { TodoPanel } from "./components/TodoPanel.tsx";
 import { Transcript } from "./components/Transcript.tsx";
@@ -35,8 +37,13 @@ type ChatAppProps = {
   onExit: () => void;
 };
 
+type QueuedPrompt = {
+  id: string;
+  prompt: string;
+};
+
 const INPUT_HINT =
-  "enter: send | shift/meta+enter or \\+enter: newline | esc/ctrl+c: cancel or exit";
+  "enter: queue prompt | shift/meta+enter or \\+enter: newline | esc/ctrl+c: cancel or exit";
 
 function nowId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -113,11 +120,13 @@ export function ChatApp({
   });
   const [pendingApproval, setPendingApproval] =
     useState<ApprovalRequest | null>(null);
+  const [queuedPrompts, setQueuedPrompts] = useState<QueuedPrompt[]>([]);
   const [liveReasoning, setLiveReasoning] = useState("");
   const [todoState, setTodoState] = useState<TodoViewState>(() =>
     getTodoViewState(agent),
   );
   const controllerRef = useRef(new ChatApprovalController());
+  const mountedRef = useRef(true);
   const runningRef = useRef(false);
   const assistantLineIdRef = useRef<string | null>(null);
   const toolLineIdsRef = useRef(new Map<string, string>());
@@ -229,7 +238,7 @@ export function ChatApp({
   const runTurn = useCallback(
     async (prompt: string) => {
       const trimmed = prompt.trim();
-      if (!trimmed || runningRef.current) {
+      if (!trimmed) {
         return;
       }
 
@@ -302,7 +311,9 @@ export function ChatApp({
               }
               toolLineId ??= pendingToolLineIdsRef.current.shift();
               if (!toolLineId) {
-                const firstTrackedTool = toolLineIdsRef.current.entries().next();
+                const firstTrackedTool = toolLineIdsRef.current
+                  .entries()
+                  .next();
                 if (!firstTrackedTool.done) {
                   const [trackedToolUseId, trackedToolLineId] =
                     firstTrackedTool.value;
@@ -403,22 +414,77 @@ export function ChatApp({
     [agent, appendAssistantText, appendLine, moveLineToEnd, updateLine],
   );
 
+  const runTurnRef = useRef(runTurn);
+  useEffect(() => {
+    runTurnRef.current = runTurn;
+  }, [runTurn]);
+
+  const queueRef = useRef<fastq.queueAsPromised<QueuedPrompt, void> | null>(
+    null,
+  );
+  if (!queueRef.current) {
+    queueRef.current = fastq.promise(async (item: QueuedPrompt) => {
+      if (mountedRef.current) {
+        setQueuedPrompts((prev) =>
+          prev.filter((entry) => entry.id !== item.id),
+        );
+      }
+      await runTurnRef.current(item.prompt);
+    }, 1);
+  }
+
+  useEffect(() => {
+    return () => {
+      mountedRef.current = false;
+      queueRef.current?.kill();
+    };
+  }, []);
+
+  const pushPrompt = useCallback(
+    (value: string): boolean => {
+      const trimmed = value.trim();
+      if (!trimmed) {
+        return false;
+      }
+      const item: QueuedPrompt = { id: nowId(), prompt: trimmed };
+      setQueuedPrompts((prev) => [...prev, item]);
+      void queueRef.current?.push(item).catch((error) => {
+        if (!mountedRef.current) {
+          return;
+        }
+        setQueuedPrompts((prev) =>
+          prev.filter((entry) => entry.id !== item.id),
+        );
+        appendLine({
+          id: nowId(),
+          role: "system",
+          title: "error",
+          content: error instanceof Error ? error.message : String(error),
+          done: true,
+        });
+      });
+      return true;
+    },
+    [appendLine],
+  );
+
   useEffect(() => {
     if (initialPrompt && !initialRanRef.current) {
       initialRanRef.current = true;
-      void runTurn(initialPrompt);
+      pushPrompt(initialPrompt);
     }
-  }, [initialPrompt, runTurn]);
+  }, [initialPrompt, pushPrompt]);
 
   const onSubmit = useCallback(
     (value: string) => {
-      if (running || pendingApproval) {
+      if (pendingApproval) {
         return;
       }
-      setInput("");
-      void runTurn(value);
+      if (pushPrompt(value)) {
+        setInput("");
+      }
     },
-    [pendingApproval, runTurn, running],
+    [pendingApproval, pushPrompt],
   );
 
   useInput(
@@ -470,6 +536,7 @@ export function ChatApp({
       {running && todoState.visible && todoState.todos.length > 0 ? (
         <TodoPanel todos={todoState.todos} />
       ) : null}
+      <QueuedPrompts prompts={queuedPrompts} />
 
       {pendingApproval ? (
         <ApprovalPrompt
@@ -481,7 +548,7 @@ export function ChatApp({
         <Composer
           input={input}
           running={running}
-          disabled={running || Boolean(pendingApproval)}
+          disabled={Boolean(pendingApproval)}
           hint={INPUT_HINT}
           onChange={setInput}
           onSubmit={onSubmit}
