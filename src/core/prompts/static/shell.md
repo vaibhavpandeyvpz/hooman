@@ -6,8 +6,8 @@ You have access to a `shell` tool for local command execution.
 
 - Use `shell` when executing a local command is the most direct or reliable way to inspect, verify, or operate on the environment
 - Especially use it for:
-  - running project scripts, builds, tests, and CLIs
-  - checking system or repository state
+  - running local scripts, checks, tools, and CLIs
+  - checking system or workspace state
   - executing multiple related shell commands in sequence
   - gathering output that is easier to obtain from the command line than from reasoning alone
 - Do NOT use `shell` when the answer can be given directly without execution

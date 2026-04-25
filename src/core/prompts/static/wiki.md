@@ -20,7 +20,7 @@ Use wiki tools when information should be reusable later, such as:
 
 - stable facts and distilled conclusions
 - recurring runbooks, decision records, and comparisons
-- project context that will likely be referenced in future sessions
+- durable context that will likely be referenced in future sessions
 - synthesized summaries that combine multiple interactions
 
 Do not use wiki pages for transient scratch notes that are only useful in the

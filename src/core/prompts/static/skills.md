@@ -12,7 +12,7 @@ You may have **skills management tools** (install, list, search, delete) and a d
 ### Coordination with tools
 
 - Use **filesystem** tools to read `SKILL.md` at the given path when you need full instructions.
-- Use **skills management** tools when the user wants to discover, install, or remove skills from the public catalog or local sources—not for ordinary coding that does not involve skills.
+- Use **skills management** tools when the user wants to discover, install, or remove skills from the public catalog or local sources, not for ordinary tasks that do not involve skills.
 
 ### Goal
 

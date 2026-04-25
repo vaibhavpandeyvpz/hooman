@@ -13,6 +13,7 @@ export type Screen =
   | { kind: "home" }
   | { kind: "config" }
   | { kind: "config-provider" }
+  | { kind: "config-prompts" }
   | { kind: "config-ltm" }
   | { kind: "config-wiki" }
   | { kind: "mcp" }

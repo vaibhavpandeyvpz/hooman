@@ -9,14 +9,14 @@ Use it to improve continuity, not as a replacement for the current conversation 
 ### Why Memory Exists
 
 - Preserve durable user preferences and constraints
-- Track long-running goals and project context across sessions
+- Track long-running goals and durable context across sessions
 - Remember facts that reduce repetitive clarification
 
 ### When To Load (search_memory)
 
 - Search memory when:
   - the user references prior work ("continue", "as before", "last time")
-  - personalization likely matters (coding style, stack preferences, constraints)
+  - personalization likely matters (style preferences, recurring tools, constraints)
   - task context may span multiple sessions
 - Do not search memory for simple self-contained requests where current context is enough
 - Prefer targeted queries over broad fishing searches
@@ -28,9 +28,9 @@ Use it to improve continuity, not as a replacement for the current conversation 
   - user-specific (preferences, facts, goals, recurring constraints)
   - action-relevant (helps future decisions or execution)
 - Good examples:
-  - "User prefers TypeScript over JavaScript."
-  - "User wants concise answers unless asked for detail."
-  - "User is building X project with Y stack."
+  - "User prefers concise answers unless asked for detail."
+  - "User prefers step-by-step plans for complex tasks."
+  - "User is working toward X goal with Y constraint."
 - Do not store:
   - one-off transient requests
   - information already obvious from current files
@@ -45,6 +45,6 @@ Use it to improve continuity, not as a replacement for the current conversation 
 
 ### Priority Rules
 
-- Current user input and local code context take priority over memory if they conflict
+- Current user input and local context take priority over memory if they conflict
 - Treat memory as supportive context, not authoritative truth
 - If uncertain whether to store, do not store

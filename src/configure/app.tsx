@@ -46,6 +46,14 @@ import {
   truncate,
 } from "./utils.ts";
 
+const PROMPT_LABELS: Record<keyof ConfigData["prompts"], string> = {
+  behaviour: "Behaviour",
+  communication: "Communication",
+  execution: "Execution",
+  engineering: "Engineering",
+  guardrails: "Guardrails",
+};
+
 export function ConfigureApp({
   config,
   mcpConfig,
@@ -131,6 +139,7 @@ export function ConfigureApp({
       ({
         name: config.name,
         llm: config.llm,
+        prompts: config.prompts,
         tools: config.tools,
         compaction: config.compaction,
       }) satisfies ConfigData,
@@ -369,6 +378,10 @@ export function ConfigureApp({
   };
 
   const renderConfigMenu = () => {
+    const enabledPrompts = Object.values(configData.prompts).filter(
+      Boolean,
+    ).length;
+    const totalPrompts = Object.keys(configData.prompts).length;
     const items: MenuItem[] = [
       {
         label: `Name • ${configData.name}`,
@@ -430,6 +443,10 @@ export function ConfigureApp({
               setPrompt(null);
             },
           }),
+      },
+      {
+        label: `Prompts • ${enabledPrompts}/${totalPrompts} enabled`,
+        value: () => setScreen({ kind: "config-prompts" }),
       },
       {
         label: `Todo tool • ${configData.tools.todo.enabled ? "Enabled" : "Disabled"}`,
@@ -648,6 +665,45 @@ export function ConfigureApp({
       <MenuScreen
         title="Choose Provider"
         description="Pick which model provider to use for future sessions."
+        items={items}
+      />
+    );
+  };
+
+  const renderPromptsConfigMenu = () => {
+    const promptKeys = Object.keys(
+      PROMPT_LABELS,
+    ) as (keyof ConfigData["prompts"])[];
+    const items: MenuItem[] = [
+      ...promptKeys.map((key) => {
+        const enabled = configData.prompts[key];
+        const label = PROMPT_LABELS[key];
+        return {
+          label: `${label} • ${enabled ? "Enabled" : "Disabled"}`,
+          value: () => {
+            updateConfig(
+              {
+                prompts: {
+                  ...config.prompts,
+                  [key]: !enabled,
+                },
+              },
+              `${label} prompt ${enabled ? "disabled" : "enabled"}.`,
+            );
+            setScreen({ kind: "config-prompts" });
+          },
+        };
+      }),
+      {
+        label: "Back",
+        value: () => setScreen({ kind: "config" }),
+      },
+    ];
+
+    return (
+      <MenuScreen
+        title="Prompts"
+        description="Choose which bundled harness prompt sections are included in future sessions."
         items={items}
       />
     );
@@ -1113,6 +1169,8 @@ export function ConfigureApp({
         return renderConfigMenu();
       case "config-provider":
         return renderProviderMenu();
+      case "config-prompts":
+        return renderPromptsConfigMenu();
       case "config-ltm":
         return renderLtmConfigMenu();
       case "config-wiki":

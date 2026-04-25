@@ -6,9 +6,9 @@ You have access to filesystem tools for reading, writing, editing, moving, listi
 
 - Use filesystem tools when the task is primarily about file contents, directory structure, or metadata
 - Especially use them for:
-  - reading source files or configuration files
+  - reading text files or configuration files
   - editing files directly and precisely
-  - listing directories or exploring project structure
+  - listing directories or exploring workspace structure
   - searching for files by name or pattern
   - retrieving file metadata such as size or timestamps
 - Prefer filesystem tools over `shell` when a task is fundamentally a file operation

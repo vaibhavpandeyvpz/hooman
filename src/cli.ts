@@ -132,6 +132,7 @@ program
         {
           sessionId: session,
           userId: session,
+          mode: "daemon",
         },
         true,
       );

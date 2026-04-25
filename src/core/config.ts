@@ -29,6 +29,14 @@ const CompactionPartialSchema = z.object({
 
 const DEFAULT_COMPACTION = { ratio: 0.75, keep: 5 } as const;
 
+const DEFAULT_PROMPTS = {
+  behaviour: true,
+  communication: true,
+  execution: true,
+  engineering: false,
+  guardrails: true,
+} as const;
+
 const DEFAULT_CHROMA = {
   url: "http://127.0.0.1:8000",
   collection: { memory: "memory" },
@@ -71,6 +79,14 @@ const ToolTogglePartialSchema = z.object({
   enabled: z.boolean().optional(),
 });
 
+const PromptsPartialSchema = z.object({
+  behaviour: z.boolean().optional(),
+  communication: z.boolean().optional(),
+  execution: z.boolean().optional(),
+  engineering: z.boolean().optional(),
+  guardrails: z.boolean().optional(),
+});
+
 const AgentsPartialSchema = z.object({
   enabled: z.boolean().optional(),
   concurrency: z.number().int().min(1).optional(),
@@ -93,6 +109,7 @@ const ConfigSchema = z
   .object({
     name: z.string().min(1),
     llm: LlmSchema,
+    prompts: PromptsPartialSchema.nullish(),
     tools: ToolsPartialSchema.nullish(),
     compaction: CompactionPartialSchema.nullish().transform((c) => ({
       ratio: c?.ratio ?? DEFAULT_COMPACTION.ratio,
@@ -105,6 +122,14 @@ const ConfigSchema = z
     return {
       name: input.name,
       llm: input.llm,
+      prompts: {
+        behaviour: input.prompts?.behaviour ?? DEFAULT_PROMPTS.behaviour,
+        communication:
+          input.prompts?.communication ?? DEFAULT_PROMPTS.communication,
+        execution: input.prompts?.execution ?? DEFAULT_PROMPTS.execution,
+        engineering: input.prompts?.engineering ?? DEFAULT_PROMPTS.engineering,
+        guardrails: input.prompts?.guardrails ?? DEFAULT_PROMPTS.guardrails,
+      },
       tools: {
         todo: {
           enabled: input.tools?.todo?.enabled ?? true,
@@ -161,6 +186,7 @@ const ConfigSchema = z
 export type ConfigData = z.infer<typeof ConfigSchema>;
 export type LlmConfig = z.infer<typeof LlmSchema>;
 export type CompactionConfig = ConfigData["compaction"];
+export type PromptsConfig = ConfigData["prompts"];
 export type LtmConfig = ConfigData["tools"]["ltm"];
 export type WikiConfig = ConfigData["tools"]["wiki"];
 export type ToolsConfig = ConfigData["tools"];
@@ -172,6 +198,7 @@ const defaultConfigData = (): ConfigData => ({
     model: "gemma4:e4b",
     params: {},
   },
+  prompts: { ...DEFAULT_PROMPTS },
   tools: {
     todo: {
       enabled: true,
@@ -234,6 +261,10 @@ export class Config {
 
   get llm(): LlmConfig {
     return this.data.llm;
+  }
+
+  get prompts(): PromptsConfig {
+    return { ...this.data.prompts };
   }
 
   get tools(): ToolsConfig {

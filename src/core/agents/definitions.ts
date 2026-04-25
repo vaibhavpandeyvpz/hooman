@@ -17,7 +17,7 @@ export const BUILTIN_AGENT_CONFIGS: readonly AgentConfig[] = [
   {
     id: "research",
     instructions: "research.md",
-    description: "Investigates code, docs, and context before implementation.",
+    description: "Investigates sources and context before the parent acts.",
     tools: [
       "read_file",
       "read_multiple_files",
@@ -32,8 +32,7 @@ export const BUILTIN_AGENT_CONFIGS: readonly AgentConfig[] = [
   {
     id: "plan",
     instructions: "plan.md",
-    description:
-      "Produces implementation plans, tradeoffs, risks, and validation steps.",
+    description: "Produces plans, tradeoffs, risks, and validation steps.",
     tools: [
       "read_file",
       "read_multiple_files",

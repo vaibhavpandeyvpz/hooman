@@ -21,6 +21,7 @@ import {
 export type BootstrapMeta = {
   userId?: string;
   sessionId?: string;
+  mode?: "default" | "daemon";
   acp?: AcpMeta;
 };
 
@@ -47,7 +48,11 @@ export async function bootstrap(
   );
   const mcp = { config: mcpConfig, manager: mcpManager };
   const registry = createSkillsRegistry(basePath());
-  const system = await createSystemPrompt(instructionsMdPath(), config);
+  const system = await createSystemPrompt(
+    instructionsMdPath(),
+    config,
+    meta.mode ?? "default",
+  );
   const agent = await createAgent(config, system, registry, mcp, print, {
     userId: meta?.userId ?? meta?.sessionId,
     sessionId: meta?.sessionId,

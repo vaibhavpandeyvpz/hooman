@@ -16,10 +16,21 @@ const STATIC_PROMPT_FILES = [
   "fetch.md",
   "shell.md",
   "sleep.md",
+  "daemon.md",
   "wiki.md",
   "skills.md",
   "subagents.md",
 ] as const;
+
+const HARNESS_PROMPT_FILES = [
+  { key: "behaviour", file: "behaviour.md" },
+  { key: "communication", file: "communication.md" },
+  { key: "execution", file: "execution.md" },
+  { key: "engineering", file: "engineering.md" },
+  { key: "guardrails", file: "guardrails.md" },
+] as const;
+
+export type SystemMode = "default" | "daemon";
 
 const SECTION_BREAK = "\n\n---\n\n";
 
@@ -30,11 +41,17 @@ const SECTION_BREAK = "\n\n---\n\n";
 export class System {
   private readonly path: string;
   private readonly config: Config;
+  private readonly mode: SystemMode;
   private data = "";
 
-  public constructor(path: string, config: Config) {
+  public constructor(
+    path: string,
+    config: Config,
+    mode: SystemMode = "default",
+  ) {
     this.path = path;
     this.config = config;
+    this.mode = mode;
   }
 
   private staticPromptFiles(): readonly (typeof STATIC_PROMPT_FILES)[number][] {
@@ -52,6 +69,8 @@ export class System {
           return this.config.tools.shell.enabled;
         case "sleep.md":
           return this.config.tools.sleep.enabled;
+        case "daemon.md":
+          return this.mode === "daemon";
         case "wiki.md":
           return this.config.tools.wiki.enabled;
         case "skills.md":
@@ -81,15 +100,38 @@ export class System {
     return parts.join("\n\n");
   }
 
+  private readBundledHarnessPrompts(): string {
+    const dir = join(dirname(fileURLToPath(import.meta.url)), "harness");
+    const parts: string[] = [];
+    for (const { key, file } of HARNESS_PROMPT_FILES) {
+      if (!this.config.prompts[key]) {
+        continue;
+      }
+      const full = join(dir, file);
+      if (!existsSync(full)) {
+        continue;
+      }
+      const text = readFileSync(full, "utf8").trim();
+      if (text.length > 0) {
+        parts.push(text);
+      }
+    }
+    return parts.join("\n\n");
+  }
+
   private readRawText(): string {
     const instructions = existsSync(this.path)
       ? readFileSync(this.path, "utf8").trim()
       : "";
     const bundled = this.readBundledStaticPrompts();
+    const harness = this.readBundledHarnessPrompts();
 
     const blocks: string[] = [];
     if (bundled.length > 0) {
       blocks.push(bundled);
+    }
+    if (harness.length > 0) {
+      blocks.push(harness);
     }
     if (instructions.length > 0) {
       blocks.push(instructions);
@@ -113,6 +155,7 @@ export class System {
       ltm: this.config.tools.ltm,
       wiki: this.config.tools.wiki,
       compaction: this.config.compaction,
+      mode: this.mode,
     };
   }
 

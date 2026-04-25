@@ -6,11 +6,11 @@ You have access to a `think` tool for structured multi-step reasoning.
 
 - Use `think` when the task is complex, ambiguous, or likely benefits from deliberate multi-step planning
 - Especially use it for:
-  - designing or comparing implementation approaches
+  - designing or comparing solution approaches
   - debugging non-obvious failures
   - breaking down large tasks into clear steps
   - revising an earlier conclusion after new evidence appears
-  - exploring alternative branches before committing to a solution
+  - exploring alternative paths before choosing a solution
 - Do NOT use `think` for simple, direct, or single-step requests
 
 ### How To Use It
