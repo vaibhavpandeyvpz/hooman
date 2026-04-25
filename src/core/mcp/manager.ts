@@ -121,7 +121,7 @@ function readSourceValue(value: unknown): string | undefined {
  */
 export class Manager {
   private instances: Map<string, McpClient> | null = null;
-  private readonly pendingPermissions = new Map<
+  private readonly permissions = new Map<
     string,
     {
       resolve: (behavior: ChannelPermissionBehavior) => void;
@@ -173,11 +173,11 @@ export class Manager {
   }
 
   public async disconnect(): Promise<void> {
-    for (const [key, pending] of this.pendingPermissions.entries()) {
+    for (const [key, pending] of this.permissions.entries()) {
       clearTimeout(pending.timer);
       pending.reject(new Error(`Pending permission "${key}" cancelled.`));
     }
-    this.pendingPermissions.clear();
+    this.permissions.clear();
     const toClose = this.instances;
     this.instances = null;
     if (!toClose?.size) {
@@ -281,11 +281,11 @@ export class Manager {
             return;
           }
           const key = `${server}:${requestId}`;
-          const pending = this.pendingPermissions.get(key);
+          const pending = this.permissions.get(key);
           if (!pending) {
             return;
           }
-          this.pendingPermissions.delete(key);
+          this.permissions.delete(key);
           clearTimeout(pending.timer);
           pending.resolve(behavior);
         };
@@ -390,21 +390,21 @@ export class Manager {
       throw new Error("requestId is required.");
     }
     const key = `${server}:${requestId}`;
-    if (this.pendingPermissions.has(key)) {
+    if (this.permissions.has(key)) {
       throw new Error(`Permission request "${requestId}" is already pending.`);
     }
 
     const response = new Promise<ChannelPermissionBehavior>(
       (resolve, reject) => {
         const timer = setTimeout(() => {
-          this.pendingPermissions.delete(key);
+          this.permissions.delete(key);
           reject(
             new Error(
               `Permission request "${requestId}" timed out after ${timeoutMs}ms.`,
             ),
           );
         }, timeoutMs);
-        this.pendingPermissions.set(key, { resolve, reject, timer });
+        this.permissions.set(key, { resolve, reject, timer });
       },
     );
 
@@ -439,10 +439,10 @@ export class Manager {
       });
       return await response;
     } catch (error) {
-      const pending = this.pendingPermissions.get(key);
+      const pending = this.permissions.get(key);
       if (pending) {
         clearTimeout(pending.timer);
-        this.pendingPermissions.delete(key);
+        this.permissions.delete(key);
       }
       throw error;
     }
