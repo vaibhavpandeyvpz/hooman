@@ -1,7 +1,11 @@
 import { Agent } from "@strands-agents/sdk";
 import type { Config } from "../config.ts";
 import { modelProviders } from "../models";
-import { type Config as McpConfig, type Manager as McpManager } from "../mcp";
+import {
+  createMcpTools,
+  type Config as McpConfig,
+  type Manager as McpManager,
+} from "../mcp";
 import type { System as SystemPrompt } from "../prompts";
 import { skills as createSkillsPrompt } from "../prompts";
 import {
@@ -9,7 +13,7 @@ import {
   createLongTermMemoryStore,
   createLongTermMemoryTools,
 } from "../memory";
-import type { Registry } from "../skills";
+import { createSkillsTools, type Registry } from "../skills";
 import {
   createFetchTools,
   createFilesystemTools,
@@ -37,13 +41,19 @@ export async function create(
   const userId = meta.userId ?? sessionId;
   const llm = await modelProviders[config.llm.provider]!();
   const stm = createShortTermMemory(sessionId);
-  const ltm = config.features.ltm.enabled
+  const ltm = config.tools.ltm.enabled
     ? createLongTermMemoryStore(config)
     : null;
-  const skills = await createSkillsPrompt(registry);
-  const tools = await mcp.manager.listPrefixedTools();
-  const append = await mcp.manager.listServerInstructions();
-  const prompt = [system.content, meta.systemPrompt, ...append, skills.content]
+  const skills = config.tools.skills.enabled
+    ? (await createSkillsPrompt(registry)).content
+    : "";
+  const tools = config.tools.mcp.enabled
+    ? await mcp.manager.listPrefixedTools()
+    : [];
+  const append = config.tools.mcp.enabled
+    ? await mcp.manager.listServerInstructions()
+    : [];
+  const prompt = [system.content, meta.systemPrompt, ...append, skills]
     .filter((x) => !!x)
     .join(SECTION_BREAK);
   return new Agent({
@@ -56,11 +66,13 @@ export async function create(
     },
     tools: [
       ...createTimeTools(),
-      ...(config.features.fetch.enabled ? createFetchTools() : []),
+      ...(config.tools.fetch.enabled ? createFetchTools() : []),
       ...(ltm ? createLongTermMemoryTools(ltm) : []),
-      ...(config.features.filesystem.enabled ? createFilesystemTools() : []),
-      ...(config.features.shell.enabled ? createShellTools() : []),
-      ...(config.features.wiki.enabled ? createWikiTools(config) : []),
+      ...(config.tools.filesystem.enabled ? createFilesystemTools() : []),
+      ...(config.tools.shell.enabled ? createShellTools() : []),
+      ...(config.tools.wiki.enabled ? createWikiTools(config) : []),
+      ...(config.tools.mcp.enabled ? createMcpTools(mcp.config) : []),
+      ...(config.tools.skills.enabled ? createSkillsTools(registry) : []),
       ...createThinkingTools(),
       ...tools,
     ],

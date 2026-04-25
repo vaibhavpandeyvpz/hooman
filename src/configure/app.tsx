@@ -132,7 +132,6 @@ export function ConfigureApp({
         name: config.name,
         llm: config.llm,
         tools: config.tools,
-        features: config.features,
         compaction: config.compaction,
       }) satisfies ConfigData,
     [config, revision],
@@ -433,78 +432,97 @@ export function ConfigureApp({
           }),
       },
       {
-        label: `Allowed tools • ${truncate(compactJson(configData.tools.allowed))}`,
-        value: () =>
-          promptValue({
-            title: "Update allowed list",
-            label: "Allowed",
-            initialValue: compactJson(configData.tools.allowed),
-            placeholder: '["tool_a","tool_b"]',
-            onSubmit: async (value) => {
-              const allowed = parseStringArray(value, "Allowed");
-              updateConfig({ tools: { allowed } }, "Updated allowed list.");
-              setPrompt(null);
-            },
-          }),
-      },
-      {
-        label: `Fetch feature • ${configData.features.fetch.enabled ? "Enabled" : "Disabled"}`,
+        label: `Fetch tool • ${configData.tools.fetch.enabled ? "Enabled" : "Disabled"}`,
         value: () => {
           updateConfig(
             {
-              features: {
-                ...config.features,
+              tools: {
+                ...config.tools,
                 fetch: {
-                  enabled: !configData.features.fetch.enabled,
+                  enabled: !configData.tools.fetch.enabled,
                 },
               },
             },
-            `Fetch feature ${configData.features.fetch.enabled ? "disabled" : "enabled"}.`,
+            `Fetch tool ${configData.tools.fetch.enabled ? "disabled" : "enabled"}.`,
           );
           setScreen({ kind: "config" });
         },
       },
       {
-        label: `Filesystem feature • ${configData.features.filesystem.enabled ? "Enabled" : "Disabled"}`,
+        label: `Filesystem tool • ${configData.tools.filesystem.enabled ? "Enabled" : "Disabled"}`,
         value: () => {
           updateConfig(
             {
-              features: {
-                ...config.features,
+              tools: {
+                ...config.tools,
                 filesystem: {
-                  enabled: !configData.features.filesystem.enabled,
+                  enabled: !configData.tools.filesystem.enabled,
                 },
               },
             },
-            `Filesystem feature ${configData.features.filesystem.enabled ? "disabled" : "enabled"}.`,
+            `Filesystem tool ${configData.tools.filesystem.enabled ? "disabled" : "enabled"}.`,
           );
           setScreen({ kind: "config" });
         },
       },
       {
-        label: `Shell feature • ${configData.features.shell.enabled ? "Enabled" : "Disabled"}`,
+        label: `Shell tool • ${configData.tools.shell.enabled ? "Enabled" : "Disabled"}`,
         value: () => {
           updateConfig(
             {
-              features: {
-                ...config.features,
+              tools: {
+                ...config.tools,
                 shell: {
-                  enabled: !configData.features.shell.enabled,
+                  enabled: !configData.tools.shell.enabled,
                 },
               },
             },
-            `Shell feature ${configData.features.shell.enabled ? "disabled" : "enabled"}.`,
+            `Shell tool ${configData.tools.shell.enabled ? "disabled" : "enabled"}.`,
           );
           setScreen({ kind: "config" });
         },
       },
       {
-        label: `Long-term memory • ${configData.features.ltm.enabled ? "Enabled" : "Disabled"} • ${configData.features.ltm.chroma.collection.memory}`,
+        label: `Long-term memory • ${configData.tools.ltm.enabled ? "Enabled" : "Disabled"} • ${configData.tools.ltm.chroma.collection.memory}`,
         value: () => setScreen({ kind: "config-ltm" }),
       },
       {
-        label: `Wiki feature • ${configData.features.wiki.enabled ? "Enabled" : "Disabled"} • ${configData.features.wiki.chroma.collection.wiki}`,
+        label: `Wiki tool • ${configData.tools.wiki.enabled ? "Enabled" : "Disabled"} • ${configData.tools.wiki.chroma.collection.wiki}`,
         value: () => setScreen({ kind: "config-wiki" }),
+      },
+      {
+        label: `MCP tools • ${configData.tools.mcp.enabled ? "Enabled" : "Disabled"}`,
+        value: () => {
+          updateConfig(
+            {
+              tools: {
+                ...config.tools,
+                mcp: {
+                  enabled: !configData.tools.mcp.enabled,
+                },
+              },
+            },
+            `MCP tools ${configData.tools.mcp.enabled ? "disabled" : "enabled"}.`,
+          );
+          setScreen({ kind: "config" });
+        },
+      },
+      {
+        label: `Skills tools • ${configData.tools.skills.enabled ? "Enabled" : "Disabled"}`,
+        value: () => {
+          updateConfig(
+            {
+              tools: {
+                ...config.tools,
+                skills: {
+                  enabled: !configData.tools.skills.enabled,
+                },
+              },
+            },
+            `Skills tools ${configData.tools.skills.enabled ? "disabled" : "enabled"}.`,
+          );
+          setScreen({ kind: "config" });
+        },
       },
       {
         label: `Compaction ratio • ${configData.compaction.ratio}`,
@@ -604,30 +622,30 @@ export function ConfigureApp({
   const renderLtmConfigMenu = () => {
     const items: MenuItem[] = [
       {
-        label: `Enabled • ${configData.features.ltm.enabled ? "On" : "Off"}`,
+        label: `Enabled • ${configData.tools.ltm.enabled ? "On" : "Off"}`,
         value: () => {
           updateConfig(
             {
-              features: {
-                ...config.features,
+              tools: {
+                ...config.tools,
                 ltm: {
-                  ...config.features.ltm,
-                  enabled: !configData.features.ltm.enabled,
+                  ...config.tools.ltm,
+                  enabled: !configData.tools.ltm.enabled,
                 },
               },
             },
-            `Long-term memory ${configData.features.ltm.enabled ? "disabled" : "enabled"}.`,
+            `Long-term memory ${configData.tools.ltm.enabled ? "disabled" : "enabled"}.`,
           );
           setScreen({ kind: "config-ltm" });
         },
       },
       {
-        label: `Chroma URL • ${configData.features.ltm.chroma.url}`,
+        label: `Chroma URL • ${configData.tools.ltm.chroma.url}`,
         value: () =>
           promptValue({
             title: "Update LTM Chroma URL",
             label: "URL",
-            initialValue: configData.features.ltm.chroma.url,
+            initialValue: configData.tools.ltm.chroma.url,
             onSubmit: async (value) => {
               const url = value.trim();
               if (!url) {
@@ -635,12 +653,12 @@ export function ConfigureApp({
               }
               updateConfig(
                 {
-                  features: {
-                    ...config.features,
+                  tools: {
+                    ...config.tools,
                     ltm: {
-                      ...config.features.ltm,
+                      ...config.tools.ltm,
                       chroma: {
-                        ...config.features.ltm.chroma,
+                        ...config.tools.ltm.chroma,
                         url,
                       },
                     },
@@ -653,12 +671,12 @@ export function ConfigureApp({
           }),
       },
       {
-        label: `Chroma collection • ${configData.features.ltm.chroma.collection.memory}`,
+        label: `Chroma collection • ${configData.tools.ltm.chroma.collection.memory}`,
         value: () =>
           promptValue({
             title: "Update LTM Chroma collection",
             label: "Collection name",
-            initialValue: configData.features.ltm.chroma.collection.memory,
+            initialValue: configData.tools.ltm.chroma.collection.memory,
             onSubmit: async (value) => {
               const memory = value.trim();
               if (!memory) {
@@ -666,12 +684,12 @@ export function ConfigureApp({
               }
               updateConfig(
                 {
-                  features: {
-                    ...config.features,
+                  tools: {
+                    ...config.tools,
                     ltm: {
-                      ...config.features.ltm,
+                      ...config.tools.ltm,
                       chroma: {
-                        ...config.features.ltm.chroma,
+                        ...config.tools.ltm.chroma,
                         collection: { memory },
                       },
                     },
@@ -701,30 +719,30 @@ export function ConfigureApp({
   const renderWikiConfigMenu = () => {
     const items: MenuItem[] = [
       {
-        label: `Enabled • ${configData.features.wiki.enabled ? "On" : "Off"}`,
+        label: `Enabled • ${configData.tools.wiki.enabled ? "On" : "Off"}`,
         value: () => {
           updateConfig(
             {
-              features: {
-                ...config.features,
+              tools: {
+                ...config.tools,
                 wiki: {
-                  ...config.features.wiki,
-                  enabled: !configData.features.wiki.enabled,
+                  ...config.tools.wiki,
+                  enabled: !configData.tools.wiki.enabled,
                 },
               },
             },
-            `Wiki feature ${configData.features.wiki.enabled ? "disabled" : "enabled"}.`,
+            `Wiki tool ${configData.tools.wiki.enabled ? "disabled" : "enabled"}.`,
           );
           setScreen({ kind: "config-wiki" });
         },
       },
       {
-        label: `Chroma URL • ${configData.features.wiki.chroma.url}`,
+        label: `Chroma URL • ${configData.tools.wiki.chroma.url}`,
         value: () =>
           promptValue({
             title: "Update Wiki Chroma URL",
             label: "URL",
-            initialValue: configData.features.wiki.chroma.url,
+            initialValue: configData.tools.wiki.chroma.url,
             onSubmit: async (value) => {
               const url = value.trim();
               if (!url) {
@@ -732,12 +750,12 @@ export function ConfigureApp({
               }
               updateConfig(
                 {
-                  features: {
-                    ...config.features,
+                  tools: {
+                    ...config.tools,
                     wiki: {
-                      ...config.features.wiki,
+                      ...config.tools.wiki,
                       chroma: {
-                        ...config.features.wiki.chroma,
+                        ...config.tools.wiki.chroma,
                         url,
                       },
                     },
@@ -750,12 +768,12 @@ export function ConfigureApp({
           }),
       },
       {
-        label: `Chroma collection • ${configData.features.wiki.chroma.collection.wiki}`,
+        label: `Chroma collection • ${configData.tools.wiki.chroma.collection.wiki}`,
         value: () =>
           promptValue({
             title: "Update Wiki Chroma collection",
             label: "Collection name",
-            initialValue: configData.features.wiki.chroma.collection.wiki,
+            initialValue: configData.tools.wiki.chroma.collection.wiki,
             onSubmit: async (value) => {
               const wiki = value.trim();
               if (!wiki) {
@@ -763,12 +781,12 @@ export function ConfigureApp({
               }
               updateConfig(
                 {
-                  features: {
-                    ...config.features,
+                  tools: {
+                    ...config.tools,
                     wiki: {
-                      ...config.features.wiki,
+                      ...config.tools.wiki,
                       chroma: {
-                        ...config.features.wiki.chroma,
+                        ...config.tools.wiki.chroma,
                         collection: { wiki },
                       },
                     },
@@ -789,7 +807,7 @@ export function ConfigureApp({
     return (
       <MenuScreen
         title="Wiki"
-        description="Configure wiki features and Chroma-backed wiki search."
+        description="Configure wiki tool and Chroma-backed wiki search."
         items={items}
       />
     );

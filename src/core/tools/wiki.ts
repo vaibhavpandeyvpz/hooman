@@ -353,14 +353,14 @@ function searchMetadata(page: PageRecord): Record<string, string | number> {
 export function createWikiTools(config: Config) {
   const root = wikiRoot();
   const client = new ChromaClient({
-    ...chromaClientArgsFromUrl(config.features.wiki.chroma.url),
+    ...chromaClientArgsFromUrl(config.tools.wiki.chroma.url),
   });
   let collectionPromise: Promise<Collection> | null = null;
 
   const collection = async (): Promise<Collection> => {
     if (!collectionPromise) {
       collectionPromise = client.getOrCreateCollection({
-        name: config.features.wiki.chroma.collection.wiki,
+        name: config.tools.wiki.chroma.collection.wiki,
         embeddingFunction: new HFEmbedding(),
       });
     }

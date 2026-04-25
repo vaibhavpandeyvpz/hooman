@@ -67,49 +67,45 @@ const WikiPartialSchema = z.object({
   chroma: WikiChromaPartialSchema.optional(),
 });
 
-const FeatureTogglePartialSchema = z.object({
+const ToolTogglePartialSchema = z.object({
   enabled: z.boolean().optional(),
 });
 
-const FeaturesPartialSchema = z.object({
-  fetch: FeatureTogglePartialSchema.optional(),
-  filesystem: FeatureTogglePartialSchema.optional(),
-  shell: FeatureTogglePartialSchema.optional(),
+const ToolsPartialSchema = z.object({
+  fetch: ToolTogglePartialSchema.optional(),
+  filesystem: ToolTogglePartialSchema.optional(),
+  shell: ToolTogglePartialSchema.optional(),
   ltm: LtmPartialSchema.optional(),
   wiki: WikiPartialSchema.optional(),
-});
-
-const ToolsPartialSchema = z.object({
-  allowed: z.array(z.string().min(1)).default([]),
+  mcp: ToolTogglePartialSchema.optional(),
+  skills: ToolTogglePartialSchema.optional(),
 });
 
 const ConfigSchema = z
   .object({
     name: z.string().min(1),
     llm: LlmSchema,
-    tools: ToolsPartialSchema.default({ allowed: [] }),
-    features: FeaturesPartialSchema.nullish(),
+    tools: ToolsPartialSchema.nullish(),
     compaction: CompactionPartialSchema.nullish().transform((c) => ({
       ratio: c?.ratio ?? DEFAULT_COMPACTION.ratio,
       keep: c?.keep ?? DEFAULT_COMPACTION.keep,
     })),
   })
   .transform((input) => {
-    const ltm = input.features?.ltm;
-    const wiki = input.features?.wiki;
+    const ltm = input.tools?.ltm;
+    const wiki = input.tools?.wiki;
     return {
       name: input.name,
       llm: input.llm,
-      tools: input.tools,
-      features: {
+      tools: {
         fetch: {
-          enabled: input.features?.fetch?.enabled ?? true,
+          enabled: input.tools?.fetch?.enabled ?? true,
         },
         filesystem: {
-          enabled: input.features?.filesystem?.enabled ?? true,
+          enabled: input.tools?.filesystem?.enabled ?? true,
         },
         shell: {
-          enabled: input.features?.shell?.enabled ?? true,
+          enabled: input.tools?.shell?.enabled ?? true,
         },
         ltm: {
           enabled: ltm?.enabled ?? false,
@@ -133,6 +129,12 @@ const ConfigSchema = z
             },
           },
         },
+        mcp: {
+          enabled: input.tools?.mcp?.enabled ?? false,
+        },
+        skills: {
+          enabled: input.tools?.skills?.enabled ?? false,
+        },
       },
       compaction: input.compaction,
     };
@@ -141,10 +143,9 @@ const ConfigSchema = z
 export type ConfigData = z.infer<typeof ConfigSchema>;
 export type LlmConfig = z.infer<typeof LlmSchema>;
 export type CompactionConfig = ConfigData["compaction"];
-export type LtmConfig = ConfigData["features"]["ltm"];
-export type WikiConfig = ConfigData["features"]["wiki"];
+export type LtmConfig = ConfigData["tools"]["ltm"];
+export type WikiConfig = ConfigData["tools"]["wiki"];
 export type ToolsConfig = ConfigData["tools"];
-export type FeaturesConfig = ConfigData["features"];
 
 const defaultConfigData = (): ConfigData => ({
   name: "Hooman",
@@ -154,9 +155,6 @@ const defaultConfigData = (): ConfigData => ({
     params: {},
   },
   tools: {
-    allowed: [],
-  },
-  features: {
     fetch: {
       enabled: true,
     },
@@ -179,6 +177,12 @@ const defaultConfigData = (): ConfigData => ({
         url: "http://127.0.0.1:8000",
         collection: { wiki: "wiki" },
       },
+    },
+    mcp: {
+      enabled: false,
+    },
+    skills: {
+      enabled: false,
     },
   },
   compaction: {
@@ -207,7 +211,25 @@ export class Config {
   get tools(): ToolsConfig {
     return {
       ...this.data.tools,
-      allowed: [...this.data.tools.allowed],
+      fetch: { ...this.data.tools.fetch },
+      filesystem: { ...this.data.tools.filesystem },
+      shell: { ...this.data.tools.shell },
+      ltm: {
+        ...this.data.tools.ltm,
+        chroma: {
+          ...this.data.tools.ltm.chroma,
+          collection: { ...this.data.tools.ltm.chroma.collection },
+        },
+      },
+      wiki: {
+        ...this.data.tools.wiki,
+        chroma: {
+          ...this.data.tools.wiki.chroma,
+          collection: { ...this.data.tools.wiki.chroma.collection },
+        },
+      },
+      mcp: { ...this.data.tools.mcp },
+      skills: { ...this.data.tools.skills },
     };
   }
 
@@ -215,35 +237,12 @@ export class Config {
     return this.data.compaction;
   }
 
-  get features(): FeaturesConfig {
-    return {
-      ...this.data.features,
-      fetch: { ...this.data.features.fetch },
-      filesystem: { ...this.data.features.filesystem },
-      shell: { ...this.data.features.shell },
-      ltm: {
-        ...this.data.features.ltm,
-        chroma: {
-          ...this.data.features.ltm.chroma,
-          collection: { ...this.data.features.ltm.chroma.collection },
-        },
-      },
-      wiki: {
-        ...this.data.features.wiki,
-        chroma: {
-          ...this.data.features.wiki.chroma,
-          collection: { ...this.data.features.wiki.chroma.collection },
-        },
-      },
-    };
-  }
-
   get ltm(): LtmConfig {
-    return this.features.ltm;
+    return this.tools.ltm;
   }
 
   get wiki(): WikiConfig {
-    return this.features.wiki;
+    return this.tools.wiki;
   }
 
   private readJson(): unknown {

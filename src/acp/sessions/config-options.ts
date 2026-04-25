@@ -63,8 +63,8 @@ export function applySessionConfigOption(
   if (params.configId === HOOMAN_LTM_CONFIG_ID) {
     const chroma = config.ltm.chroma;
     config.update({
-      features: {
-        ...config.features,
+      tools: {
+        ...config.tools,
         ltm: {
           enabled: value === "on",
           chroma: {
@@ -79,8 +79,8 @@ export function applySessionConfigOption(
 
   const chroma = config.wiki.chroma;
   config.update({
-    features: {
-      ...config.features,
+    tools: {
+      ...config.tools,
       wiki: {
         enabled: value === "on",
         chroma: {

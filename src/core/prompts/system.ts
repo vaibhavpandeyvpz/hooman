@@ -36,15 +36,17 @@ export class System {
     return STATIC_PROMPT_FILES.filter((file) => {
       switch (file) {
         case "ltm.md":
-          return this.config.features.ltm.enabled;
+          return this.config.tools.ltm.enabled;
         case "fetch.md":
-          return this.config.features.fetch.enabled;
+          return this.config.tools.fetch.enabled;
         case "filesystem.md":
-          return this.config.features.filesystem.enabled;
+          return this.config.tools.filesystem.enabled;
         case "shell.md":
-          return this.config.features.shell.enabled;
+          return this.config.tools.shell.enabled;
         case "wiki.md":
-          return this.config.features.wiki.enabled;
+          return this.config.tools.wiki.enabled;
+        case "skills.md":
+          return this.config.tools.skills.enabled;
         case "thinking.md":
         default:
           return true;
@@ -96,8 +98,8 @@ export class System {
     return {
       name: this.config.name,
       llm: this.config.llm,
-      ltm: this.config.features.ltm,
-      wiki: this.config.features.wiki,
+      ltm: this.config.tools.ltm,
+      wiki: this.config.tools.wiki,
       compaction: this.config.compaction,
     };
   }
