@@ -28,10 +28,13 @@ It gives you a practical toolkit to build and run agent workflows:
 
 - Multiple LLM providers: `ollama`, `openai`, `anthropic`, `google`, `bedrock`, `groq`, `moonshot`, `xai`
 - Local configuration under `./.hooman` when that folder exists in the current working directory, otherwise `~/.hooman`
+- Optional web search tool with provider selection (`brave` or `tavily`)
 - MCP server support via `stdio`, `streamable-http`, and `sse`
 - MCP server `instructions` support: server-provided instructions are appended to the agent system prompt
 - MCP channel notification support through `hooman daemon --channels`
 - Skill discovery / install / removal through the integrated configure flow
+- Bundled prompt harness toggles (`behaviour`, `communication`, `execution`, `engineering`, `guardrails`)
+- Built-in subagent runner tools (`research`, `plan`) with configurable concurrency
 - Toolkit-oriented architecture with configurable tools, prompts, memory, and transports
 - Interactive terminal UI for chat and configuration
 
@@ -46,15 +49,21 @@ It gives you a practical toolkit to build and run agent workflows:
 Fastest way to get started without cloning the repo:
 
 ```bash
-npx hoomanjs configure
-npx hoomanjs chat
-```
-
-Or with Bun:
-
-```bash
 bunx hoomanjs configure
 bunx hoomanjs chat
+
+# or install globally
+bun i -g hoomanjs
+```
+
+Or with npm:
+
+```bash
+npx hoomanjs configure
+npx hoomanjs chat
+
+# or install globally
+npm i -g hoomanjs
 ```
 
 Recommended first run:
@@ -62,6 +71,23 @@ Recommended first run:
 1. Run `hooman configure` to choose your LLM provider and model.
 2. Start chatting with `hooman chat`.
 3. Use `hooman exec "your prompt"` for one-off tasks.
+
+## Must have
+
+For the best experience, set up both:
+
+1. **MCP servers** for on-demand tools in `chat` / `exec` (task APIs, messaging, schedulers, etc.).
+2. **MCP channels** for event-driven automation with `hooman daemon --channels` (notifications become agent prompts).
+
+Suggested MCP servers from this ecosystem:
+
+- [`cronmcp`](https://github.com/vaibhavpandeyvpz/cronmcp) - lets Hooman schedule recurring prompts and automations, so routine checks and follow-ups run on time.
+- [`jiraxmcp`](https://github.com/vaibhavpandeyvpz/jiraxmcp) - gives Hooman direct Jira Cloud access to search issues, update tickets, and help drive sprint workflows.
+- [`slackxmcp`](https://github.com/vaibhavpandeyvpz/slackxmcp) - connects Hooman to Slack so it can read channel context, draft updates, and post actions where your team already works.
+- [`tgfmcp`](https://github.com/vaibhavpandeyvpz/tgfmcp) - enables Telegram bot workflows, making it easy to route notifications and respond from agent-driven chats.
+- [`wappmcp`](https://github.com/vaibhavpandeyvpz/wappmcp) - brings WhatsApp Web messaging into Hooman for customer or team communication automations.
+
+For production deployments, still review permissions and use least-privilege credentials/tokens for each integration.
 
 ## Install
 
@@ -158,16 +184,28 @@ hooman daemon --channels --yolo
 
 ### Feature Flags
 
-Runtime tools and prompt sections are controlled from `config.json` under `tools`:
+Runtime tool and prompt switches are controlled from `config.json`:
 
+- `search.enabled`
+- `search.provider` (`brave` or `tavily`)
+- `search.brave.apiKey`
+- `search.tavily.apiKey`
+- `prompts.behaviour`
+- `prompts.communication`
+- `prompts.execution`
+- `prompts.engineering`
+- `prompts.guardrails`
 - `tools.todo.enabled`
 - `tools.fetch.enabled`
 - `tools.filesystem.enabled`
 - `tools.shell.enabled`
+- `tools.sleep.enabled`
 - `tools.ltm.enabled`
 - `tools.wiki.enabled`
 - `tools.mcp.enabled` (enables MCP management tools + prefixed MCP server tools/instructions)
 - `tools.skills.enabled` (enables skills management tools + skills prompt sections)
+- `tools.agents.enabled` (enables built-in `run_agents` tool)
+- `tools.agents.concurrency`
 
 Both `ltm` and `wiki` include dedicated Chroma settings under:
 
@@ -185,6 +223,8 @@ hooman configure
 The configure UI currently lets you:
 
 - edit app configuration values
+- choose search provider and set its API key
+- toggle bundled harness prompts (`behaviour`, `communication`, `execution`, `engineering`, `guardrails`)
 - edit `instructions.md` in your `$VISUAL` / `$EDITOR` (cross-platform fallback included)
 - add, edit, and delete MCP servers with confirmation
 - search, install, refresh, and remove skills
@@ -224,7 +264,7 @@ Important files and folders:
 
 ## Example `config.json`
 
-This is the shape managed by `hooman configure`:
+This is the config shape loaded by Hooman:
 
 ```json
 {
@@ -233,6 +273,19 @@ This is the shape managed by `hooman configure`:
     "provider": "ollama",
     "model": "gemma4:e4b",
     "params": {}
+  },
+  "search": {
+    "enabled": false,
+    "provider": "brave",
+    "brave": {},
+    "tavily": {}
+  },
+  "prompts": {
+    "behaviour": true,
+    "communication": true,
+    "execution": true,
+    "engineering": false,
+    "guardrails": true
   },
   "tools": {
     "todo": {
@@ -245,6 +298,9 @@ This is the shape managed by `hooman configure`:
       "enabled": true
     },
     "shell": {
+      "enabled": true
+    },
+    "sleep": {
       "enabled": true
     },
     "ltm": {
@@ -270,6 +326,10 @@ This is the shape managed by `hooman configure`:
     },
     "skills": {
       "enabled": false
+    },
+    "agents": {
+      "enabled": true,
+      "concurrency": 3
     }
   },
   "compaction": {
@@ -291,6 +351,11 @@ Supported `llm.provider` values:
 - `groq`
 - `moonshot`
 - `xai`
+
+Supported `search.provider` values:
+
+- `brave`
+- `tavily`
 
 ## Provider Notes
 
@@ -356,6 +421,29 @@ Uses Strands `GoogleModel` on top of `@google/genai`. Top-level options like `ap
 ### Bedrock
 
 Supports `region`, `clientConfig`, and optional `apiKey`, with all other values forwarded as Bedrock model options.
+
+```json
+{
+  "provider": "bedrock",
+  "model": "anthropic.claude-sonnet-4-20250514-v1:0",
+  "params": {
+    "region": "us-east-1",
+    "clientConfig": {
+      "profile": "dev",
+      "maxAttempts": 3,
+      "credentials": {
+        "accessKeyId": "AKIA...",
+        "secretAccessKey": "...",
+        "sessionToken": "..."
+      }
+    },
+    "temperature": 0.7,
+    "maxTokens": 1024
+  }
+}
+```
+
+You can also rely on the AWS default credential chain (recommended) by setting environment variables such as `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and optionally `AWS_SESSION_TOKEN`.
 
 ### Groq
 
