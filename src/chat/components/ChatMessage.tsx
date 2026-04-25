@@ -1,6 +1,7 @@
 import { Box, Text } from "ink";
 import type { ChatLine } from "../types.ts";
 import { lineColor } from "./shared.ts";
+import { MarkdownMessage } from "./markdown/MarkdownMessage.tsx";
 import { ReasoningStrip } from "./ReasoningStrip.tsx";
 import { ThinkingStatus } from "./ThinkingStatus.tsx";
 
@@ -17,7 +18,9 @@ export function ChatMessage({ line, liveReasoning = "" }: ChatMessageProps) {
         ? "Assistant"
         : (line.title ?? "System");
   const isPendingAssistant = line.role === "assistant" && !line.done;
-  const text = line.content.trim() || (line.done ? "(empty)" : "");
+  const rawText =
+    line.role === "assistant" ? line.content : line.content.trim();
+  const text = rawText || (line.done ? "(empty)" : "");
   const shouldShowBody = Boolean(text) || !isPendingAssistant;
 
   return (
@@ -32,15 +35,15 @@ export function ChatMessage({ line, liveReasoning = "" }: ChatMessageProps) {
         <ReasoningStrip text={liveReasoning} maxVisibleLines={2} />
       ) : null}
       {shouldShowBody ? (
-        <Text
-          color={
-            line.role === "user" || line.role === "assistant"
-              ? undefined
-              : lineColor(line)
-          }
-        >
-          {text}
-        </Text>
+        line.role === "assistant" ? (
+          <MarkdownMessage streaming={isPendingAssistant}>
+            {text}
+          </MarkdownMessage>
+        ) : (
+          <Text color={line.role === "user" ? undefined : lineColor(line)}>
+            {text}
+          </Text>
+        )
       ) : null}
     </Box>
   );

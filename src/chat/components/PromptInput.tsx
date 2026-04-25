@@ -4,7 +4,7 @@ import { splitLineAtCursor } from "./prompt-input/render.ts";
 import {
   usePromptInputController,
   type PromptSubmission,
-} from "./prompt-input/usePromptInputController.ts";
+} from "./prompt-input/hooks/usePromptInputController.ts";
 
 export type PromptInputProps = {
   value: string;

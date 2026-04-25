@@ -30,7 +30,7 @@ import { Transcript } from "./components/Transcript.tsx";
 import type { ApprovalRequest, ChatLine } from "./types.ts";
 import { getTodoViewState, type TodoViewState } from "../core/tools/todo.ts";
 import { attachmentPathsToPromptBlocks } from "../core/utils/attachments.ts";
-import type { PromptSubmission } from "./components/prompt-input/usePromptInputController.ts";
+import type { PromptSubmission } from "./components/prompt-input/hooks/usePromptInputController.ts";
 
 type ChatAppProps = {
   agent: Agent;

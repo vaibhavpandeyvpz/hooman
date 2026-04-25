@@ -1,6 +1,6 @@
 import { Box, Text } from "ink";
 import { PromptInput } from "./PromptInput.tsx";
-import type { PromptSubmission } from "./prompt-input/usePromptInputController.ts";
+import type { PromptSubmission } from "./prompt-input/hooks/usePromptInputController.ts";
 
 type ComposerProps = {
   input: string;
