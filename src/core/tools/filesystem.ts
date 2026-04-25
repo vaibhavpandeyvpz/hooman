@@ -2,20 +2,12 @@ import { createHash } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
-import {
-  DocumentBlock,
-  ImageBlock,
-  TextBlock,
-  VideoBlock,
-  tool,
-  type JSONValue,
-} from "@strands-agents/sdk";
+import { tool, type JSONValue } from "@strands-agents/sdk";
 import { getCwd } from "../utils/cwd-context.ts";
 import {
-  detectDocumentFormat,
-  detectImageFormat,
-  detectVideoFormat,
-} from "../utils/file-formats.ts";
+  readAttachmentAsBlocksOrBase64,
+  type AttachmentMediaBlocks,
+} from "../utils/attachments.ts";
 import { z } from "zod";
 
 const DEFAULT_READ_LIMIT = 250;
@@ -223,7 +215,7 @@ async function readTextFile(
 }
 
 type BinaryReadResult =
-  | Array<TextBlock | ImageBlock | VideoBlock | DocumentBlock>
+  | AttachmentMediaBlocks
   | {
       path: string;
       encoding: "base64";
@@ -235,81 +227,12 @@ async function readBinaryFile(
   filePath: string,
   options?: { maxBytes?: number },
 ): Promise<BinaryReadResult> {
-  await ensureFile(filePath);
-  const stat = await fs.stat(filePath);
-
-  if (stat.size > (options?.maxBytes ?? DEFAULT_MAX_READ_BYTES)) {
-    throw new Error(
-      `File too large to read safely (${stat.size} bytes). Use get_file_info for metadata or process the file with another tool.`,
-    );
-  }
-
-  const buffer = await fs.readFile(filePath);
-  // ImageBlock / DocumentBlock expect Uint8Array; construct a zero-copy view.
-  const bytes = new Uint8Array(
-    buffer.buffer,
-    buffer.byteOffset,
-    buffer.byteLength,
-  );
-
-  const imageFormat = detectImageFormat(filePath);
-  if (imageFormat) {
-    const metadata = new TextBlock(
-      JSON.stringify({
-        path: filePath,
-        kind: "image",
-        format: imageFormat,
-        size_bytes: stat.size,
-      }),
-    );
-    const image = new ImageBlock({
-      format: imageFormat,
-      source: { bytes },
-    });
-    return [metadata, image];
-  }
-
-  const videoFormat = detectVideoFormat(filePath);
-  if (videoFormat) {
-    const metadata = new TextBlock(
-      JSON.stringify({
-        path: filePath,
-        kind: "video",
-        format: videoFormat,
-        size_bytes: stat.size,
-      }),
-    );
-    const video = new VideoBlock({
-      format: videoFormat,
-      source: { bytes },
-    });
-    return [metadata, video];
-  }
-
-  const documentFormat = detectDocumentFormat(filePath);
-  if (documentFormat) {
-    const metadata = new TextBlock(
-      JSON.stringify({
-        path: filePath,
-        kind: "document",
-        format: documentFormat,
-        size_bytes: stat.size,
-      }),
-    );
-    const document = new DocumentBlock({
-      name: path.basename(filePath),
-      format: documentFormat,
-      source: { bytes },
-    });
-    return [metadata, document];
-  }
-
-  return {
-    path: filePath,
-    encoding: "base64",
-    content: buffer.toString("base64"),
-    sizeBytes: buffer.length,
-  };
+  return readAttachmentAsBlocksOrBase64(filePath, {
+    maxBytes: options?.maxBytes ?? DEFAULT_MAX_READ_BYTES,
+    includeMetadata: true,
+    unsupportedFormat: "base64",
+    onError: "throw",
+  });
 }
 
 function snippetAroundChange(

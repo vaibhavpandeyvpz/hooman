@@ -1,5 +1,6 @@
 import { Box, Text } from "ink";
 import { PromptInput } from "./PromptInput.tsx";
+import type { PromptSubmission } from "./prompt-input/usePromptInputController.ts";
 
 type ComposerProps = {
   input: string;
@@ -7,7 +8,7 @@ type ComposerProps = {
   disabled: boolean;
   hint: string;
   onChange: (value: string) => void;
-  onSubmit: (value: string) => void;
+  onSubmit: (value: PromptSubmission) => void;
 };
 
 export function Composer({

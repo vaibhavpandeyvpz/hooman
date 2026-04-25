@@ -3,7 +3,7 @@ export type InputState = {
   cursor: number;
 };
 
-const PASTE_TOKEN_AT_END = /(^|\s)\[paste #\d+\]$/;
+const TOKEN_AT_END = /(^|\s)\[(?:paste|attachment) #\d+\]$/;
 const WORD_CHAR = /[\p{L}\p{N}_]/u;
 
 const graphemeSegmenter =
@@ -244,7 +244,7 @@ function findPasteTokenStart(value: string, cursor: number): number | null {
     return null;
   }
   const before = value.slice(0, cursor);
-  const match = before.match(PASTE_TOKEN_AT_END);
+  const match = before.match(TOKEN_AT_END);
   if (!match || match.index === undefined) {
     return null;
   }

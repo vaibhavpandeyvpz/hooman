@@ -1,8 +1,9 @@
 import React from "react";
 import { Box, Text, useStdout } from "ink";
+import type { PromptSubmission } from "./prompt-input/usePromptInputController.ts";
 
 type QueuedPromptsProps = {
-  prompts: readonly { id: string; prompt: string }[];
+  prompts: readonly { id: string; prompt: PromptSubmission }[];
 };
 
 const MIN_PROMPT_PREVIEW_CHARS = 16;
@@ -11,6 +12,17 @@ const ELLIPSIS = "...";
 
 function normalizePrompt(prompt: string): string {
   return prompt.replace(/\s+/g, " ").trim();
+}
+
+function promptPreview(prompt: PromptSubmission): string {
+  const text = normalizePrompt(prompt.text);
+  if (prompt.attachments.length === 0) {
+    return text;
+  }
+  const suffix = `${prompt.attachments.length} attachment${
+    prompt.attachments.length === 1 ? "" : "s"
+  }`;
+  return text ? `${text} (${suffix})` : suffix;
 }
 
 function truncatePrompt(prompt: string, maxChars: number): string {
@@ -49,7 +61,7 @@ export function QueuedPrompts({
       </Text>
       {prompts.map((item) => {
         const preview = truncatePrompt(
-          normalizePrompt(item.prompt),
+          promptPreview(item.prompt),
           maxPromptChars,
         );
         return (

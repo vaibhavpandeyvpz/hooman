@@ -28,6 +28,10 @@ export const sessionsPath = () => {
   return join(basePath(), "sessions");
 };
 
+export const attachmentsPath = () => {
+  return join(basePath(), "attachments");
+};
+
 export const skillsPath = () => {
   return join(basePath(), "skills");
 };

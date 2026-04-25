@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useInput } from "ink";
+import fs from "node:fs/promises";
+import path from "node:path";
 import type { InputState } from "./input-model.ts";
 import {
   clampCursor,
@@ -20,18 +22,28 @@ import {
   moveCursorWordRight,
 } from "./input-model.ts";
 import {
+  formatAttachmentRef,
   expandPasteRefs,
   formatPasteRef,
   normalizePastedText,
+  parseAttachmentRefs,
+  parsePastedFilePathCandidates,
   parsePasteRefs,
   shouldCollapsePaste,
 } from "./paste.ts";
 import { getPromptView, type PromptView } from "./render.ts";
+import { getCwd } from "../../../core/utils/cwd-context.ts";
+import { saveClipboardImageAsAttachment } from "./clipboard-image.ts";
+
+export type PromptSubmission = {
+  text: string;
+  attachments: string[];
+};
 
 type Args = {
   value: string;
   onChange: (value: string) => void;
-  onSubmit: (value: string) => void;
+  onSubmit: (value: PromptSubmission) => void;
   focus: boolean;
   maxVisibleLines: number;
 };
@@ -50,11 +62,14 @@ export function usePromptInputController({
   const [cursor, setCursor] = useState(value.length);
   const [col, setCol] = useState<number | null>(null);
   const [pastes, setPastes] = useState<Record<number, string>>({});
+  const [attachments, setAttachments] = useState<Record<number, string>>({});
 
   const valueRef = useRef(value);
   const cursorRef = useRef(cursor);
   const pastesRef = useRef(pastes);
+  const attachmentsRef = useRef(attachments);
   const nextPasteIdRef = useRef(1);
+  const nextAttachmentIdRef = useRef(1);
   const chunksRef = useRef<string[]>([]);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -69,6 +84,10 @@ export function usePromptInputController({
   useEffect(() => {
     pastesRef.current = pastes;
   }, [pastes]);
+
+  useEffect(() => {
+    attachmentsRef.current = attachments;
+  }, [attachments]);
 
   useEffect(() => {
     setCursor((prev) => clampCursor(value, prev));
@@ -106,6 +125,28 @@ export function usePromptInputController({
     });
   }, [value]);
 
+  useEffect(() => {
+    const ids = new Set(parseAttachmentRefs(value));
+    setAttachments((prev) => {
+      const entries = Object.entries(prev);
+      const hasOrphans = entries.some(([raw]) => {
+        const id = Number.parseInt(raw, 10);
+        return !ids.has(id);
+      });
+      if (!hasOrphans) {
+        return prev;
+      }
+      const next: Record<number, string> = {};
+      for (const [raw, attachmentPath] of entries) {
+        const id = Number.parseInt(raw, 10);
+        if (ids.has(id)) {
+          next[id] = attachmentPath;
+        }
+      }
+      return next;
+    });
+  }, [value]);
+
   const apply = useCallback(
     (next: InputState) => {
       const clamped = clampCursor(next.value, next.cursor);
@@ -128,19 +169,70 @@ export function usePromptInputController({
 
   const submit = useCallback(() => {
     const expanded = expandPasteRefs(valueRef.current, pastesRef.current);
-    onSubmit(expanded);
+    const attachmentIds = parseAttachmentRefs(valueRef.current);
+    const attachmentPaths = attachmentIds
+      .map((id) => attachmentsRef.current[id])
+      .filter((value): value is string => Boolean(value));
+    onSubmit({ text: expanded, attachments: [...new Set(attachmentPaths)] });
     setPastes({});
+    setAttachments({});
     nextPasteIdRef.current = 1;
+    nextAttachmentIdRef.current = 1;
     setCol(null);
   }, [onSubmit]);
 
-  const applyPaste = useCallback(
-    (raw: string) => {
-      const state = getState();
-      const text = normalizePastedText(raw);
-      if (text.length === 0) {
-        return;
+  const normalizeCandidatePath = useCallback((candidate: string): string => {
+    const expanded =
+      candidate === "~" || candidate.startsWith("~/")
+        ? path.join(process.env.HOME ?? "", candidate.slice(1))
+        : candidate;
+    return path.isAbsolute(expanded)
+      ? path.resolve(expanded)
+      : path.resolve(getCwd(), expanded);
+  }, []);
+
+  const readAttachmentPath = useCallback(
+    async (candidate: string): Promise<string | null> => {
+      const filePath = normalizeCandidatePath(candidate);
+      try {
+        const info = await fs.stat(filePath);
+        return info.isFile() ? filePath : null;
+      } catch {
+        return null;
       }
+    },
+    [normalizeCandidatePath],
+  );
+
+  const applyAttachmentPaths = useCallback(
+    (paths: string[]) => {
+      if (paths.length === 0) {
+        return false;
+      }
+      let state = getState();
+      const nextAttachments: Record<number, string> = {};
+      for (const attachmentPath of paths) {
+        const id = nextAttachmentIdRef.current;
+        nextAttachmentIdRef.current += 1;
+        nextAttachments[id] = attachmentPath;
+        const prefix =
+          state.value.length > 0 &&
+          state.cursor > 0 &&
+          !/\s/.test(state.value[state.cursor - 1] ?? "")
+            ? " "
+            : "";
+        state = insertText(state, `${prefix}${formatAttachmentRef(id)}`);
+      }
+      setAttachments((prev) => ({ ...prev, ...nextAttachments }));
+      apply(state);
+      return true;
+    },
+    [apply, getState],
+  );
+
+  const applyTextPaste = useCallback(
+    (text: string) => {
+      const state = getState();
       const collapse = text.length > 1 && shouldCollapsePaste(text);
       if (collapse) {
         const id = nextPasteIdRef.current;
@@ -156,6 +248,43 @@ export function usePromptInputController({
     },
     [apply, getState],
   );
+
+  const applyPaste = useCallback(
+    (raw: string) => {
+      const text = normalizePastedText(raw);
+      if (text.length === 0) {
+        return;
+      }
+      const candidates = parsePastedFilePathCandidates(text);
+      if (candidates.length > 0) {
+        void Promise.all(
+          candidates.map((candidate) => readAttachmentPath(candidate)),
+        ).then((paths) => {
+          const valid = paths.filter((value): value is string =>
+            Boolean(value),
+          );
+          if (
+            valid.length === candidates.length &&
+            applyAttachmentPaths(valid)
+          ) {
+            return;
+          }
+          applyTextPaste(text);
+        });
+        return;
+      }
+      applyTextPaste(text);
+    },
+    [applyAttachmentPaths, applyTextPaste, readAttachmentPath],
+  );
+
+  const applyClipboardImage = useCallback(() => {
+    void saveClipboardImageAsAttachment().then((attachmentPath) => {
+      if (attachmentPath) {
+        applyAttachmentPaths([attachmentPath]);
+      }
+    });
+  }, [applyAttachmentPaths]);
 
   const clearChunkTimer = useCallback(() => {
     if (!timerRef.current) {
@@ -309,6 +438,10 @@ export function usePromptInputController({
 
       if (key.ctrl) {
         const lower = input.toLowerCase();
+        if (lower === "v") {
+          applyClipboardImage();
+          return;
+        }
         if (lower in ctrlMoves) {
           const op = ctrlMoves[lower as keyof typeof ctrlMoves];
           apply(op(state));

@@ -4,6 +4,7 @@ export const PASTE_THRESHOLD_LINE_BREAKS = 2;
 const ANSI_ESCAPE_PATTERN =
   /[\u001B\u009B][[\]()#;?]*(?:(?:(?:[a-zA-Z\d]*(?:;[a-zA-Z\d]*)*)?\u0007)|(?:(?:\d{1,4}(?:;\d{0,4})*)?[\dA-PR-TZcf-nq-uy=><~]))/g;
 const PASTE_REF_PATTERN = /\[paste #(\d+)\]/g;
+const ATTACHMENT_REF_PATTERN = /\[attachment #(\d+)\]/g;
 
 function toPasteId(raw: string | undefined): number | null {
   if (!raw) {
@@ -35,9 +36,24 @@ export function formatPasteRef(id: number): string {
   return `[paste #${id}]`;
 }
 
+export function formatAttachmentRef(id: number): string {
+  return `[attachment #${id}]`;
+}
+
 export function parsePasteRefs(input: string): number[] {
   const ids: number[] = [];
   for (const match of input.matchAll(PASTE_REF_PATTERN)) {
+    const id = toPasteId(match[1]);
+    if (id !== null) {
+      ids.push(id);
+    }
+  }
+  return ids;
+}
+
+export function parseAttachmentRefs(input: string): number[] {
+  const ids: number[] = [];
+  for (const match of input.matchAll(ATTACHMENT_REF_PATTERN)) {
     const id = toPasteId(match[1]);
     if (id !== null) {
       ids.push(id);
@@ -65,4 +81,25 @@ export function expandPasteRefs(
     }
     return pastedContents[id] ?? match;
   });
+}
+
+function removeOuterQuotes(text: string): string {
+  return text.replace(/^["']+/, "").replace(/["']+$/, "");
+}
+
+function stripBackslashEscapes(text: string): string {
+  if (process.platform === "win32") {
+    return text;
+  }
+  return text.replace(/\\(.)/g, "$1");
+}
+
+export function parsePastedFilePathCandidates(input: string): string[] {
+  const text = normalizePastedText(input);
+  const parts = text
+    .split(/ (?=\/|~\/|\.{1,2}\/|[A-Za-z]:\\)/)
+    .flatMap((part) => part.split("\n"))
+    .map((part) => stripBackslashEscapes(removeOuterQuotes(part.trim())))
+    .filter(Boolean);
+  return [...new Set(parts)];
 }

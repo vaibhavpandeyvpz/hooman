@@ -8,6 +8,7 @@ import { get } from "lodash";
 import { z } from "zod";
 import { Config, type NamedMcpTransport } from "./config.ts";
 import type { McpTransport } from "./types.ts";
+import { normalizeAttachmentPaths } from "../utils/attachments.ts";
 
 export const HOOMAN_CHANNEL = "hooman/channel";
 export const HOOMAN_CHANNEL_PERMISSION = "hooman/channel/permission";
@@ -28,6 +29,7 @@ export type ChannelMessageMeta = {
 
 export type ChannelMessage = {
   prompt: string;
+  attachments: string[];
   meta: ChannelMessageMeta;
 };
 
@@ -113,6 +115,14 @@ function readIdentityPath(
 
 function readSourceValue(value: unknown): string | undefined {
   return readPathValue(value, "meta.source");
+}
+
+function readAttachmentsFromParams(params: unknown): string[] {
+  if (!params || typeof params !== "object") {
+    return [];
+  }
+  const topLevel = (params as { attachments?: unknown }).attachments;
+  return normalizeAttachmentPaths(topLevel);
 }
 
 /**
@@ -319,9 +329,11 @@ export class Manager {
           if (!prompt) {
             return;
           }
+          const attachments = readAttachmentsFromParams(params);
 
           onMessage({
             prompt,
+            attachments,
             meta: {
               server,
               channel,

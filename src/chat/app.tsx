@@ -9,8 +9,11 @@ import fastq from "fastq";
 import { Box, useApp, useInput } from "ink";
 import {
   BeforeToolCallEvent,
+  Message,
+  TextBlock,
   type Agent,
   type AgentStreamEvent,
+  type ContentBlock,
 } from "@strands-agents/sdk";
 import type { Manager as McpManager } from "../core/mcp/index.ts";
 import type { Registry } from "../core/skills/index.ts";
@@ -26,6 +29,8 @@ import { TodoPanel } from "./components/TodoPanel.tsx";
 import { Transcript } from "./components/Transcript.tsx";
 import type { ApprovalRequest, ChatLine } from "./types.ts";
 import { getTodoViewState, type TodoViewState } from "../core/tools/todo.ts";
+import { attachmentPathsToPromptBlocks } from "../core/utils/attachments.ts";
+import type { PromptSubmission } from "./components/prompt-input/usePromptInputController.ts";
 
 type ChatAppProps = {
   agent: Agent;
@@ -39,8 +44,22 @@ type ChatAppProps = {
 
 type QueuedPrompt = {
   id: string;
-  prompt: string;
+  prompt: PromptSubmission;
 };
+
+function normalizePromptSubmission(
+  value: string | PromptSubmission,
+): PromptSubmission {
+  if (typeof value === "string") {
+    return { text: value, attachments: [] };
+  }
+  return {
+    text: value.text,
+    attachments: [
+      ...new Set(value.attachments.map((item) => item.trim()).filter(Boolean)),
+    ],
+  };
+}
 
 const INPUT_HINT =
   "enter: queue prompt | shift/meta+enter or \\+enter: newline | esc/ctrl+c: cancel or exit";
@@ -236,11 +255,14 @@ export function ChatApp({
   }, []);
 
   const runTurn = useCallback(
-    async (prompt: string) => {
-      const trimmed = prompt.trim();
-      if (!trimmed) {
+    async (prompt: PromptSubmission) => {
+      const trimmed = prompt.text.trim();
+      if (!trimmed && prompt.attachments.length === 0) {
         return;
       }
+      const attachmentBlocks = await attachmentPathsToPromptBlocks(
+        prompt.attachments,
+      );
 
       runningRef.current = true;
       setRunning(true);
@@ -251,7 +273,12 @@ export function ChatApp({
       appendLine({
         id: nowId(),
         role: "user",
-        content: trimmed,
+        content:
+          prompt.attachments.length > 0
+            ? `${trimmed || "[attachments]"}\n\n${prompt.attachments
+                .map((attachmentPath) => `[attachment] ${attachmentPath}`)
+                .join("\n")}`
+            : trimmed,
         done: true,
       });
 
@@ -265,7 +292,19 @@ export function ChatApp({
       });
 
       try {
-        for await (const event of agent.stream(trimmed)) {
+        const streamInput =
+          attachmentBlocks.length > 0
+            ? [
+                new Message({
+                  role: "user",
+                  content: [
+                    ...(trimmed ? [new TextBlock(trimmed)] : []),
+                    ...attachmentBlocks,
+                  ] as ContentBlock[],
+                }),
+              ]
+            : trimmed;
+        for await (const event of agent.stream(streamInput)) {
           const e = event as AgentStreamEvent;
           switch (e.type) {
             case "contentBlockEvent": {
@@ -441,12 +480,16 @@ export function ChatApp({
   }, []);
 
   const pushPrompt = useCallback(
-    (value: string): boolean => {
-      const trimmed = value.trim();
-      if (!trimmed) {
+    (value: string | PromptSubmission): boolean => {
+      const normalized = normalizePromptSubmission(value);
+      const trimmed = normalized.text.trim();
+      if (!trimmed && normalized.attachments.length === 0) {
         return false;
       }
-      const item: QueuedPrompt = { id: nowId(), prompt: trimmed };
+      const item: QueuedPrompt = {
+        id: nowId(),
+        prompt: { ...normalized, text: trimmed },
+      };
       setQueuedPrompts((prev) => [...prev, item]);
       void queueRef.current?.push(item).catch((error) => {
         if (!mountedRef.current) {
@@ -476,7 +519,7 @@ export function ChatApp({
   }, [initialPrompt, pushPrompt]);
 
   const onSubmit = useCallback(
-    (value: string) => {
+    (value: PromptSubmission) => {
       if (pendingApproval) {
         return;
       }

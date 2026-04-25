@@ -1,11 +1,17 @@
 import { stderr } from "node:process";
-import type { Agent } from "@strands-agents/sdk";
+import {
+  Message,
+  TextBlock,
+  type Agent,
+  type ContentBlock,
+} from "@strands-agents/sdk";
 import { HOOMAN_CHANNEL } from "../core/mcp/index.ts";
 import type {
   ChannelMessage,
   ChannelSubscription,
   Manager as McpManager,
 } from "../core/mcp/index.ts";
+import { attachmentPathsToPromptBlocks } from "../core/utils/attachments.ts";
 import { createQueue } from "./queue.ts";
 
 type RunDaemonOptions = {
@@ -15,6 +21,8 @@ type RunDaemonOptions = {
   channels: boolean;
   debug?: boolean;
 };
+
+const MAX_ATTACHMENT_BYTES = 1024 * 1024;
 
 function debug(text: string): void {
   stderr.write(`[daemon] ${text}\n`);
@@ -53,6 +61,23 @@ function formatSubscriptions(
     ...new Set(subscriptions.map((subscription) => subscription.server)),
   ].sort((left, right) => left.localeCompare(right));
   return `${servers.length} MCP server(s): ${servers.join(", ")}`;
+}
+
+async function toInvokeInput(
+  message: ChannelMessage,
+): Promise<string | Message[]> {
+  if (message.attachments.length === 0) {
+    return message.prompt;
+  }
+  const blocks: ContentBlock[] = [new TextBlock(message.prompt)];
+  const attachmentBlocks = await attachmentPathsToPromptBlocks(
+    message.attachments,
+    {
+      maxBytes: MAX_ATTACHMENT_BYTES,
+    },
+  );
+  blocks.push(...attachmentBlocks);
+  return [new Message({ role: "user", content: blocks })];
 }
 
 export async function main(options: RunDaemonOptions): Promise<void> {
@@ -97,7 +122,14 @@ export async function main(options: RunDaemonOptions): Promise<void> {
 
       try {
         debug(`invoking agent → ${tag} session=${session} user=${user}`);
-        await options.agent.invoke(message.prompt);
+        const invokeInput = await toInvokeInput(message);
+        if (typeof invokeInput === "string") {
+          await options.agent.invoke(invokeInput);
+        } else {
+          for await (const event of options.agent.stream(invokeInput)) {
+            void event;
+          }
+        }
         debug(`completed → ${tag} session=${session} user=${user}`);
       } catch (error) {
         const text = error instanceof Error ? error.message : String(error);

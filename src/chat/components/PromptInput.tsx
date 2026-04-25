@@ -1,12 +1,15 @@
 import React from "react";
 import { Box, Text } from "ink";
 import { splitLineAtCursor } from "./prompt-input/render.ts";
-import { usePromptInputController } from "./prompt-input/usePromptInputController.ts";
+import {
+  usePromptInputController,
+  type PromptSubmission,
+} from "./prompt-input/usePromptInputController.ts";
 
 export type PromptInputProps = {
   value: string;
   onChange: (value: string) => void;
-  onSubmit: (value: string) => void;
+  onSubmit: (value: PromptSubmission) => void;
   placeholder?: string;
   focus?: boolean;
   maxVisibleLines?: number;
