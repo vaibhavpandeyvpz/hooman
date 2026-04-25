@@ -72,6 +72,7 @@ const ToolTogglePartialSchema = z.object({
 });
 
 const ToolsPartialSchema = z.object({
+  todo: ToolTogglePartialSchema.optional(),
   fetch: ToolTogglePartialSchema.optional(),
   filesystem: ToolTogglePartialSchema.optional(),
   shell: ToolTogglePartialSchema.optional(),
@@ -98,6 +99,9 @@ const ConfigSchema = z
       name: input.name,
       llm: input.llm,
       tools: {
+        todo: {
+          enabled: input.tools?.todo?.enabled ?? true,
+        },
         fetch: {
           enabled: input.tools?.fetch?.enabled ?? true,
         },
@@ -155,6 +159,9 @@ const defaultConfigData = (): ConfigData => ({
     params: {},
   },
   tools: {
+    todo: {
+      enabled: true,
+    },
     fetch: {
       enabled: true,
     },
@@ -211,6 +218,7 @@ export class Config {
   get tools(): ToolsConfig {
     return {
       ...this.data.tools,
+      todo: { ...this.data.tools.todo },
       fetch: { ...this.data.tools.fetch },
       filesystem: { ...this.data.tools.filesystem },
       shell: { ...this.data.tools.shell },

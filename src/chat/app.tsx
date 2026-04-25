@@ -20,8 +20,10 @@ import {
 import { ApprovalPrompt } from "./components/ApprovalPrompt.tsx";
 import { Composer } from "./components/Composer.tsx";
 import { StatusBar } from "./components/StatusBar.tsx";
+import { TodoPanel } from "./components/TodoPanel.tsx";
 import { Transcript } from "./components/Transcript.tsx";
 import type { ApprovalRequest, ChatLine } from "./types.ts";
+import { getTodoViewState, type TodoViewState } from "../core/tools/todo.ts";
 
 type ChatAppProps = {
   agent: Agent;
@@ -94,6 +96,9 @@ export function ChatApp({
   const [pendingApproval, setPendingApproval] =
     useState<ApprovalRequest | null>(null);
   const [liveReasoning, setLiveReasoning] = useState("");
+  const [todoState, setTodoState] = useState<TodoViewState>(() =>
+    getTodoViewState(agent),
+  );
   const controllerRef = useRef(new ChatApprovalController());
   const runningRef = useRef(false);
   const assistantLineIdRef = useRef<string | null>(null);
@@ -147,6 +152,22 @@ export function ChatApp({
       cleanupHook();
     };
   }, [agent, yolo]);
+
+  useEffect(() => {
+    let active = true;
+    const refresh = () => {
+      if (!active) {
+        return;
+      }
+      setTodoState(getTodoViewState(agent));
+    };
+    refresh();
+    const timer = setInterval(refresh, running ? 200 : 800);
+    return () => {
+      active = false;
+      clearInterval(timer);
+    };
+  }, [agent, running]);
 
   const appendLine = useCallback((line: ChatLine) => {
     setLines((prev) => [...prev, line]);
@@ -390,9 +411,21 @@ export function ChatApp({
     return `${String(min).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
   }, [turnElapsedMs]);
 
+  const activeTodo = useMemo(
+    () => todoState.todos.find((todo) => todo.status === "in_progress"),
+    [todoState.todos],
+  );
+  const statusLabel =
+    running && activeTodo
+      ? activeTodo.activeForm.trim() || activeTodo.content
+      : status;
+
   return (
     <Box flexDirection="column" width="100%" paddingX={1}>
       <Transcript lines={lines} liveReasoning={liveReasoning} />
+      {running && todoState.visible && todoState.todos.length > 0 ? (
+        <TodoPanel todos={todoState.todos} />
+      ) : null}
 
       {pendingApproval ? (
         <ApprovalPrompt
@@ -414,6 +447,7 @@ export function ChatApp({
       <StatusBar
         running={running}
         status={status}
+        statusLabel={statusLabel}
         sessionId={sessionId}
         elapsedLabel={elapsedLabel}
         turnCount={turnCount}

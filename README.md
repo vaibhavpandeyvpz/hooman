@@ -160,6 +160,7 @@ hooman daemon --channels --yolo
 
 Runtime tools and prompt sections are controlled from `config.json` under `tools`:
 
+- `tools.todo.enabled`
 - `tools.fetch.enabled`
 - `tools.filesystem.enabled`
 - `tools.shell.enabled`
@@ -234,6 +235,9 @@ This is the shape managed by `hooman configure`:
     "params": {}
   },
   "tools": {
+    "todo": {
+      "enabled": true
+    },
     "fetch": {
       "enabled": true
     },

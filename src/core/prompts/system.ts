@@ -8,6 +8,7 @@ import type { Config } from "../config.ts";
 const STATIC_PROMPT_FILES = [
   "identity.md",
   "ltm.md",
+  "todo.md",
   "thinking.md",
   "filesystem.md",
   "fetch.md",
@@ -39,6 +40,8 @@ export class System {
           return this.config.tools.ltm.enabled;
         case "fetch.md":
           return this.config.tools.fetch.enabled;
+        case "todo.md":
+          return this.config.tools.todo.enabled;
         case "filesystem.md":
           return this.config.tools.filesystem.enabled;
         case "shell.md":

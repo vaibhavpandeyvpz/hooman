@@ -7,11 +7,25 @@ import type { Config } from "../../core/config.ts";
 
 export const HOOMAN_LTM_CONFIG_ID = "hooman.longTermMemory" as const;
 export const HOOMAN_WIKI_CONFIG_ID = "hooman.wiki" as const;
+export const HOOMAN_TODO_CONFIG_ID = "hooman.todo" as const;
 
 export function buildSessionConfigOptions(
   config: Config,
 ): SessionConfigOption[] {
   return [
+    {
+      type: "select",
+      id: HOOMAN_TODO_CONFIG_ID,
+      name: "Todo tracking",
+      description:
+        "When enabled, the agent can use update_todos to track multi-step progress in app state.",
+      category: "_hooman",
+      currentValue: config.tools.todo.enabled ? "on" : "off",
+      options: [
+        { value: "on", name: "On" },
+        { value: "off", name: "Off" },
+      ],
+    },
     {
       type: "select",
       id: HOOMAN_LTM_CONFIG_ID,
@@ -51,6 +65,7 @@ export function applySessionConfigOption(
     });
   }
   if (
+    params.configId !== HOOMAN_TODO_CONFIG_ID &&
     params.configId !== HOOMAN_LTM_CONFIG_ID &&
     params.configId !== HOOMAN_WIKI_CONFIG_ID
   ) {
@@ -71,6 +86,18 @@ export function applySessionConfigOption(
             url: chroma.url,
             collection: { memory: chroma.collection.memory },
           },
+        },
+      },
+    });
+    return;
+  }
+
+  if (params.configId === HOOMAN_TODO_CONFIG_ID) {
+    config.update({
+      tools: {
+        ...config.tools,
+        todo: {
+          enabled: value === "on",
         },
       },
     });

@@ -432,6 +432,23 @@ export function ConfigureApp({
           }),
       },
       {
+        label: `Todo tool • ${configData.tools.todo.enabled ? "Enabled" : "Disabled"}`,
+        value: () => {
+          updateConfig(
+            {
+              tools: {
+                ...config.tools,
+                todo: {
+                  enabled: !configData.tools.todo.enabled,
+                },
+              },
+            },
+            `Todo tool ${configData.tools.todo.enabled ? "disabled" : "enabled"}.`,
+          );
+          setScreen({ kind: "config" });
+        },
+      },
+      {
         label: `Fetch tool • ${configData.tools.fetch.enabled ? "Enabled" : "Disabled"}`,
         value: () => {
           updateConfig(

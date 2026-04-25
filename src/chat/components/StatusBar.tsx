@@ -4,6 +4,7 @@ import type { Manager as McpManager } from "../../core/mcp/index.ts";
 type StatusBarProps = {
   running: boolean;
   status: string;
+  statusLabel?: string;
   sessionId: string;
   elapsedLabel: string;
   turnCount: number;
@@ -36,6 +37,7 @@ function statusValueColor(status: string): string {
 export function StatusBar({
   running,
   status,
+  statusLabel,
   sessionId,
   elapsedLabel,
   turnCount,
@@ -48,7 +50,7 @@ export function StatusBar({
     <Box marginTop={1} flexDirection="column">
       <Text>
         <Text color="gray">status: </Text>
-        <Text color={statusValueColor(status)}>{status}</Text>
+        <Text color={statusValueColor(status)}>{statusLabel ?? status}</Text>
         <Text color="gray"> • session: {sessionId}</Text>
       </Text>
       <Text color="gray">

@@ -9,7 +9,19 @@ type AgentLike = {
 
 const SESSION_ALLOWED_TOOLS_KEY = "allowedTools";
 
-export const INTERNAL_ALWAYS_ALLOWED = new Set(["strands_structured_output"]);
+export const INTERNAL_ALWAYS_ALLOWED = new Set([
+  "strands_structured_output",
+  "update_todos",
+  "think",
+  "get_current_time",
+  "convert_time",
+  "wiki_list_files",
+  "wiki_read_file",
+  "wiki_write_file",
+  "wiki_knowledge_graph",
+  "wiki_stats",
+  "wiki_search",
+]);
 
 function normalizeAllowedTools(value: unknown): string[] {
   if (!Array.isArray(value)) {

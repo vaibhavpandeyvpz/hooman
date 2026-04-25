@@ -1,4 +1,4 @@
-import { Agent } from "@strands-agents/sdk";
+import { Agent, BeforeInvocationEvent } from "@strands-agents/sdk";
 import type { Config } from "../config.ts";
 import { modelProviders } from "../models";
 import {
@@ -15,6 +15,7 @@ import {
 } from "../memory";
 import { createSkillsTools, type Registry } from "../skills";
 import {
+  createTodoTools,
   createFetchTools,
   createFilesystemTools,
   createShellTools,
@@ -22,6 +23,7 @@ import {
   createTimeTools,
   createWikiTools,
 } from "../tools";
+import { clearTodoState } from "../tools/todo.ts";
 
 const SECTION_BREAK = "\n\n---\n\n";
 
@@ -56,7 +58,7 @@ export async function create(
   const prompt = [system.content, meta.systemPrompt, ...append, skills]
     .filter((x) => !!x)
     .join(SECTION_BREAK);
-  return new Agent({
+  const agent = new Agent({
     name: config.name,
     systemPrompt: prompt,
     model: llm.create(config.llm.model, config.llm.params),
@@ -66,6 +68,7 @@ export async function create(
     },
     tools: [
       ...createTimeTools(),
+      ...(config.tools.todo.enabled ? createTodoTools() : []),
       ...(config.tools.fetch.enabled ? createFetchTools() : []),
       ...(ltm ? createLongTermMemoryTools(ltm) : []),
       ...(config.tools.filesystem.enabled ? createFilesystemTools() : []),
@@ -79,4 +82,8 @@ export async function create(
     printer: print,
     ...stm,
   });
+  agent.addHook(BeforeInvocationEvent, async (event) => {
+    clearTodoState(event.agent);
+  });
+  return agent;
 }

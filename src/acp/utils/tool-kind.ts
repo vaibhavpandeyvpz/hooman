@@ -22,6 +22,7 @@ const KNOWN_TOOL_KINDS = new Map<string, ToolKind>([
   ["wiki_stats", "read"],
   ["wiki_search", "search"],
   ["think", "think"],
+  ["update_todos", "other"],
   ["get_current_time", "other"],
   ["convert_time", "other"],
 ]);
