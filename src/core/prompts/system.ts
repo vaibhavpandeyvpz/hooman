@@ -14,6 +14,7 @@ const STATIC_PROMPT_FILES = [
   "thinking.md",
   "filesystem.md",
   "fetch.md",
+  "web-search.md",
   "shell.md",
   "sleep.md",
   "daemon.md",
@@ -61,6 +62,8 @@ export class System {
           return this.config.tools.ltm.enabled;
         case "fetch.md":
           return this.config.tools.fetch.enabled;
+        case "web-search.md":
+          return this.config.search.enabled;
         case "todo.md":
           return this.config.tools.todo.enabled;
         case "filesystem.md":

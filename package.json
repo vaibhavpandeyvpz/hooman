@@ -60,6 +60,7 @@
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@mozilla/readability": "^0.6.0",
     "@strands-agents/sdk": "^1.0.0-rc.3",
+    "@tavily/core": "^0.7.2",
     "chromadb": "^3.4.3",
     "cli-highlight": "^2.1.11",
     "cli-spinners": "^3.4.0",

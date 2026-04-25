@@ -5,4 +5,5 @@ export { createShellTools } from "./shell.ts";
 export { createThinkingTools } from "./thinking.ts";
 export { createTimeTools } from "./time.ts";
 export { createTodoTools } from "./todo.ts";
+export { createWebSearchTools } from "./web-search.ts";
 export { createWikiTools } from "./wiki.ts";

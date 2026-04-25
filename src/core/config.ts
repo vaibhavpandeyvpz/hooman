@@ -92,6 +92,23 @@ const AgentsPartialSchema = z.object({
   concurrency: z.number().int().min(1).optional(),
 });
 
+const SearchProviderSchema = z.enum(["brave", "tavily"]);
+
+const SearchPartialSchema = z.object({
+  enabled: z.boolean().optional(),
+  provider: SearchProviderSchema.optional(),
+  brave: z
+    .object({
+      apiKey: z.string().min(1).optional(),
+    })
+    .optional(),
+  tavily: z
+    .object({
+      apiKey: z.string().min(1).optional(),
+    })
+    .optional(),
+});
+
 const ToolsPartialSchema = z.object({
   todo: ToolTogglePartialSchema.optional(),
   fetch: ToolTogglePartialSchema.optional(),
@@ -109,6 +126,7 @@ const ConfigSchema = z
   .object({
     name: z.string().min(1),
     llm: LlmSchema,
+    search: SearchPartialSchema.nullish(),
     prompts: PromptsPartialSchema.nullish(),
     tools: ToolsPartialSchema.nullish(),
     compaction: CompactionPartialSchema.nullish().transform((c) => ({
@@ -122,6 +140,16 @@ const ConfigSchema = z
     return {
       name: input.name,
       llm: input.llm,
+      search: {
+        enabled: input.search?.enabled ?? false,
+        provider: input.search?.provider ?? "brave",
+        brave: {
+          apiKey: input.search?.brave?.apiKey,
+        },
+        tavily: {
+          apiKey: input.search?.tavily?.apiKey,
+        },
+      },
       prompts: {
         behaviour: input.prompts?.behaviour ?? DEFAULT_PROMPTS.behaviour,
         communication:
@@ -189,6 +217,7 @@ export type CompactionConfig = ConfigData["compaction"];
 export type PromptsConfig = ConfigData["prompts"];
 export type LtmConfig = ConfigData["tools"]["ltm"];
 export type WikiConfig = ConfigData["tools"]["wiki"];
+export type SearchConfig = ConfigData["search"];
 export type ToolsConfig = ConfigData["tools"];
 
 const defaultConfigData = (): ConfigData => ({
@@ -197,6 +226,12 @@ const defaultConfigData = (): ConfigData => ({
     provider: LlmProvider.Ollama,
     model: "gemma4:e4b",
     params: {},
+  },
+  search: {
+    enabled: false,
+    provider: "brave",
+    brave: { apiKey: undefined },
+    tavily: { apiKey: undefined },
   },
   prompts: { ...DEFAULT_PROMPTS },
   tools: {
@@ -261,6 +296,14 @@ export class Config {
 
   get llm(): LlmConfig {
     return this.data.llm;
+  }
+
+  get search(): SearchConfig {
+    return {
+      ...this.data.search,
+      brave: { ...this.data.search.brave },
+      tavily: { ...this.data.search.tavily },
+    };
   }
 
   get prompts(): PromptsConfig {

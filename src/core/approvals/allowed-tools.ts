@@ -30,6 +30,8 @@ export const INTERNAL_ALWAYS_ALLOWED = new Set([
   "wiki_search",
   "wiki_stats",
   "wiki_write_file",
+  // Web search
+  "web_search",
   // Long-term memory
   "archive_memory",
   "search_memory",

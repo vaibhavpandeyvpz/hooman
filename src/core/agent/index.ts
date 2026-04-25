@@ -28,6 +28,7 @@ import {
   createThinkingTools,
   createTimeTools,
   createWikiTools,
+  createWebSearchTools,
 } from "../tools";
 import { clearTodoState } from "../tools/todo.ts";
 
@@ -73,6 +74,7 @@ export async function create(
     ...(ltm ? createLongTermMemoryTools(ltm) : []),
     ...(config.tools.filesystem.enabled ? createFilesystemTools() : []),
     ...(config.tools.shell.enabled ? createShellTools() : []),
+    ...(config.search.enabled ? createWebSearchTools(config) : []),
     ...(config.tools.wiki.enabled ? createWikiTools(config) : []),
     ...(config.tools.mcp.enabled ? createMcpTools(mcp.config) : []),
     ...(config.tools.skills.enabled ? createSkillsTools(registry) : []),

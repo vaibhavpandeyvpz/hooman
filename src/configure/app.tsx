@@ -139,6 +139,7 @@ export function ConfigureApp({
       ({
         name: config.name,
         llm: config.llm,
+        search: config.search,
         prompts: config.prompts,
         tools: config.tools,
         compaction: config.compaction,
@@ -449,131 +450,8 @@ export function ConfigureApp({
         value: () => setScreen({ kind: "config-prompts" }),
       },
       {
-        label: `Todo tool • ${configData.tools.todo.enabled ? "Enabled" : "Disabled"}`,
-        value: () => {
-          updateConfig(
-            {
-              tools: {
-                ...config.tools,
-                todo: {
-                  enabled: !configData.tools.todo.enabled,
-                },
-              },
-            },
-            `Todo tool ${configData.tools.todo.enabled ? "disabled" : "enabled"}.`,
-          );
-          setScreen({ kind: "config" });
-        },
-      },
-      {
-        label: `Fetch tool • ${configData.tools.fetch.enabled ? "Enabled" : "Disabled"}`,
-        value: () => {
-          updateConfig(
-            {
-              tools: {
-                ...config.tools,
-                fetch: {
-                  enabled: !configData.tools.fetch.enabled,
-                },
-              },
-            },
-            `Fetch tool ${configData.tools.fetch.enabled ? "disabled" : "enabled"}.`,
-          );
-          setScreen({ kind: "config" });
-        },
-      },
-      {
-        label: `Filesystem tool • ${configData.tools.filesystem.enabled ? "Enabled" : "Disabled"}`,
-        value: () => {
-          updateConfig(
-            {
-              tools: {
-                ...config.tools,
-                filesystem: {
-                  enabled: !configData.tools.filesystem.enabled,
-                },
-              },
-            },
-            `Filesystem tool ${configData.tools.filesystem.enabled ? "disabled" : "enabled"}.`,
-          );
-          setScreen({ kind: "config" });
-        },
-      },
-      {
-        label: `Shell tool • ${configData.tools.shell.enabled ? "Enabled" : "Disabled"}`,
-        value: () => {
-          updateConfig(
-            {
-              tools: {
-                ...config.tools,
-                shell: {
-                  enabled: !configData.tools.shell.enabled,
-                },
-              },
-            },
-            `Shell tool ${configData.tools.shell.enabled ? "disabled" : "enabled"}.`,
-          );
-          setScreen({ kind: "config" });
-        },
-      },
-      {
-        label: `Sleep tool • ${configData.tools.sleep.enabled ? "Enabled" : "Disabled"}`,
-        value: () => {
-          updateConfig(
-            {
-              tools: {
-                ...config.tools,
-                sleep: {
-                  enabled: !configData.tools.sleep.enabled,
-                },
-              },
-            },
-            `Sleep tool ${configData.tools.sleep.enabled ? "disabled" : "enabled"}.`,
-          );
-          setScreen({ kind: "config" });
-        },
-      },
-      {
-        label: `Long-term memory • ${configData.tools.ltm.enabled ? "Enabled" : "Disabled"} • ${configData.tools.ltm.chroma.collection.memory}`,
-        value: () => setScreen({ kind: "config-ltm" }),
-      },
-      {
-        label: `Wiki tool • ${configData.tools.wiki.enabled ? "Enabled" : "Disabled"} • ${configData.tools.wiki.chroma.collection.wiki}`,
-        value: () => setScreen({ kind: "config-wiki" }),
-      },
-      {
-        label: `MCP tools • ${configData.tools.mcp.enabled ? "Enabled" : "Disabled"}`,
-        value: () => {
-          updateConfig(
-            {
-              tools: {
-                ...config.tools,
-                mcp: {
-                  enabled: !configData.tools.mcp.enabled,
-                },
-              },
-            },
-            `MCP tools ${configData.tools.mcp.enabled ? "disabled" : "enabled"}.`,
-          );
-          setScreen({ kind: "config" });
-        },
-      },
-      {
-        label: `Skills tools • ${configData.tools.skills.enabled ? "Enabled" : "Disabled"}`,
-        value: () => {
-          updateConfig(
-            {
-              tools: {
-                ...config.tools,
-                skills: {
-                  enabled: !configData.tools.skills.enabled,
-                },
-              },
-            },
-            `Skills tools ${configData.tools.skills.enabled ? "disabled" : "enabled"}.`,
-          );
-          setScreen({ kind: "config" });
-        },
+        label: "Tools • configure enabled tools",
+        value: () => setScreen({ kind: "config-tools" }),
       },
       {
         label: `Compaction ratio • ${configData.compaction.ratio}`,
@@ -640,6 +518,154 @@ export function ConfigureApp({
     );
   };
 
+  const renderToolsConfigMenu = () => {
+    const items: MenuItem[] = [
+      {
+        label: `Search tool • ${configData.search.enabled ? "Enabled" : "Disabled"} • ${configData.search.provider}`,
+        value: () => setScreen({ kind: "config-search" }),
+      },
+      {
+        label: `Todo tool • ${configData.tools.todo.enabled ? "Enabled" : "Disabled"}`,
+        value: () => {
+          updateConfig(
+            {
+              tools: {
+                ...config.tools,
+                todo: {
+                  enabled: !configData.tools.todo.enabled,
+                },
+              },
+            },
+            `Todo tool ${configData.tools.todo.enabled ? "disabled" : "enabled"}.`,
+          );
+          setScreen({ kind: "config-tools" });
+        },
+      },
+      {
+        label: `Fetch tool • ${configData.tools.fetch.enabled ? "Enabled" : "Disabled"}`,
+        value: () => {
+          updateConfig(
+            {
+              tools: {
+                ...config.tools,
+                fetch: {
+                  enabled: !configData.tools.fetch.enabled,
+                },
+              },
+            },
+            `Fetch tool ${configData.tools.fetch.enabled ? "disabled" : "enabled"}.`,
+          );
+          setScreen({ kind: "config-tools" });
+        },
+      },
+      {
+        label: `Filesystem tool • ${configData.tools.filesystem.enabled ? "Enabled" : "Disabled"}`,
+        value: () => {
+          updateConfig(
+            {
+              tools: {
+                ...config.tools,
+                filesystem: {
+                  enabled: !configData.tools.filesystem.enabled,
+                },
+              },
+            },
+            `Filesystem tool ${configData.tools.filesystem.enabled ? "disabled" : "enabled"}.`,
+          );
+          setScreen({ kind: "config-tools" });
+        },
+      },
+      {
+        label: `Shell tool • ${configData.tools.shell.enabled ? "Enabled" : "Disabled"}`,
+        value: () => {
+          updateConfig(
+            {
+              tools: {
+                ...config.tools,
+                shell: {
+                  enabled: !configData.tools.shell.enabled,
+                },
+              },
+            },
+            `Shell tool ${configData.tools.shell.enabled ? "disabled" : "enabled"}.`,
+          );
+          setScreen({ kind: "config-tools" });
+        },
+      },
+      {
+        label: `Sleep tool • ${configData.tools.sleep.enabled ? "Enabled" : "Disabled"}`,
+        value: () => {
+          updateConfig(
+            {
+              tools: {
+                ...config.tools,
+                sleep: {
+                  enabled: !configData.tools.sleep.enabled,
+                },
+              },
+            },
+            `Sleep tool ${configData.tools.sleep.enabled ? "disabled" : "enabled"}.`,
+          );
+          setScreen({ kind: "config-tools" });
+        },
+      },
+      {
+        label: `Long-term memory • ${configData.tools.ltm.enabled ? "Enabled" : "Disabled"} • ${configData.tools.ltm.chroma.collection.memory}`,
+        value: () => setScreen({ kind: "config-ltm" }),
+      },
+      {
+        label: `Wiki tool • ${configData.tools.wiki.enabled ? "Enabled" : "Disabled"} • ${configData.tools.wiki.chroma.collection.wiki}`,
+        value: () => setScreen({ kind: "config-wiki" }),
+      },
+      {
+        label: `MCP tools • ${configData.tools.mcp.enabled ? "Enabled" : "Disabled"}`,
+        value: () => {
+          updateConfig(
+            {
+              tools: {
+                ...config.tools,
+                mcp: {
+                  enabled: !configData.tools.mcp.enabled,
+                },
+              },
+            },
+            `MCP tools ${configData.tools.mcp.enabled ? "disabled" : "enabled"}.`,
+          );
+          setScreen({ kind: "config-tools" });
+        },
+      },
+      {
+        label: `Skills tools • ${configData.tools.skills.enabled ? "Enabled" : "Disabled"}`,
+        value: () => {
+          updateConfig(
+            {
+              tools: {
+                ...config.tools,
+                skills: {
+                  enabled: !configData.tools.skills.enabled,
+                },
+              },
+            },
+            `Skills tools ${configData.tools.skills.enabled ? "disabled" : "enabled"}.`,
+          );
+          setScreen({ kind: "config-tools" });
+        },
+      },
+      {
+        label: "Back",
+        value: () => setScreen({ kind: "config" }),
+      },
+    ];
+
+    return (
+      <MenuScreen
+        title="Tools"
+        description="Enable, disable, and configure built-in tools."
+        items={items}
+      />
+    );
+  };
+
   const renderProviderMenu = () => {
     const items: MenuItem[] = [
       ...Object.values(LlmProvider).map((provider) => ({
@@ -696,7 +722,7 @@ export function ConfigureApp({
       }),
       {
         label: "Back",
-        value: () => setScreen({ kind: "config" }),
+        value: () => setScreen({ kind: "config-tools" }),
       },
     ];
 
@@ -704,6 +730,113 @@ export function ConfigureApp({
       <MenuScreen
         title="Prompts"
         description="Choose which bundled harness prompt sections are included in future sessions."
+        items={items}
+      />
+    );
+  };
+
+  const renderSearchProviderMenu = () => {
+    const items: MenuItem[] = [
+      ...(["brave", "tavily"] as const).map((provider) => ({
+        label:
+          provider === configData.search.provider
+            ? `${provider} • current`
+            : provider,
+        value: () => {
+          updateConfig(
+            {
+              search: {
+                ...config.search,
+                provider,
+              },
+            },
+            `Updated search provider to "${provider}".`,
+          );
+          setScreen({ kind: "config-search" });
+        },
+      })),
+      {
+        label: "Back",
+        value: () => setScreen({ kind: "config-search" }),
+      },
+    ];
+
+    return (
+      <MenuScreen
+        title="Search Provider"
+        description="Pick which web search provider to use."
+        items={items}
+      />
+    );
+  };
+
+  const renderSearchConfigMenu = () => {
+    const activeProvider = configData.search.provider;
+    const apiKey =
+      activeProvider === "brave"
+        ? configData.search.brave.apiKey
+        : configData.search.tavily.apiKey;
+    const redacted = compactJson(
+      maskSensitiveParamsForDisplay({ apiKey: apiKey ?? "" }),
+    );
+    const items: MenuItem[] = [
+      {
+        label: `Enabled • ${configData.search.enabled ? "On" : "Off"}`,
+        value: () => {
+          updateConfig(
+            {
+              search: {
+                ...config.search,
+                enabled: !configData.search.enabled,
+              },
+            },
+            `Search tool ${configData.search.enabled ? "disabled" : "enabled"}.`,
+          );
+          setScreen({ kind: "config-search" });
+        },
+      },
+      {
+        label: `Provider • ${configData.search.provider}`,
+        value: () => setScreen({ kind: "config-search-provider" }),
+      },
+      {
+        label: `${activeProvider} API key • ${truncate(redacted, 44)}`,
+        value: () =>
+          promptValue({
+            title: `Update ${activeProvider} API key`,
+            label: "API key",
+            initialValue: apiKey ?? "",
+            onSubmit: async (value) => {
+              const nextApiKey = value.trim();
+              if (!nextApiKey) {
+                throw new Error("API key is required.");
+              }
+              updateConfig(
+                {
+                  search: {
+                    ...config.search,
+                    [activeProvider]: {
+                      ...config.search[activeProvider],
+                      apiKey: nextApiKey,
+                    },
+                  },
+                },
+                `Updated ${activeProvider} API key.`,
+              );
+              setPrompt(null);
+            },
+          }),
+      },
+      {
+        label: "Back",
+        value: () => setScreen({ kind: "config-tools" }),
+      },
+    ];
+
+    return (
+      <MenuScreen
+        title="Search"
+        description="Configure web search provider and credentials."
         items={items}
       />
     );
@@ -793,7 +926,7 @@ export function ConfigureApp({
       },
       {
         label: "Back",
-        value: () => setScreen({ kind: "config" }),
+        value: () => setScreen({ kind: "config-tools" }),
       },
     ];
 
@@ -1171,6 +1304,12 @@ export function ConfigureApp({
         return renderProviderMenu();
       case "config-prompts":
         return renderPromptsConfigMenu();
+      case "config-tools":
+        return renderToolsConfigMenu();
+      case "config-search":
+        return renderSearchConfigMenu();
+      case "config-search-provider":
+        return renderSearchProviderMenu();
       case "config-ltm":
         return renderLtmConfigMenu();
       case "config-wiki":
