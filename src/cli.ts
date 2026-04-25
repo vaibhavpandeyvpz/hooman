@@ -55,7 +55,7 @@ program
       const {
         agent,
         mcp: { manager },
-      } = await bootstrap({ sessionId }, true);
+      } = await bootstrap("default", { sessionId }, true);
       agent.addHook(
         BeforeToolCallEvent,
         createToolApprovalHandler({ yolo: Boolean(options.yolo) }),
@@ -86,7 +86,7 @@ program
         agent,
         mcp: { manager },
         registry,
-      } = await bootstrap({ sessionId }, false);
+      } = await bootstrap("default", { sessionId }, false);
 
       try {
         await chat({
@@ -129,10 +129,10 @@ program
         agent,
         mcp: { manager },
       } = await bootstrap(
+        "daemon",
         {
           sessionId: session,
           userId: session,
-          mode: "daemon",
         },
         true,
       );

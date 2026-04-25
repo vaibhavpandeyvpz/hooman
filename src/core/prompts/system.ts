@@ -30,7 +30,7 @@ const HARNESS_PROMPT_FILES = [
   { key: "guardrails", file: "guardrails.md" },
 ] as const;
 
-export type SystemMode = "default" | "daemon";
+export type SystemMode = "default" | "daemon" | "acp";
 
 const SECTION_BREAK = "\n\n---\n\n";
 

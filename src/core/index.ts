@@ -21,9 +21,10 @@ import {
 export type BootstrapMeta = {
   userId?: string;
   sessionId?: string;
-  mode?: "default" | "daemon";
   acp?: AcpMeta;
 };
+
+export type BootstrapMode = "default" | "daemon" | "acp";
 
 export type AcpMeta = {
   systemPrompt?: string;
@@ -31,6 +32,7 @@ export type AcpMeta = {
 };
 
 export async function bootstrap(
+  mode: BootstrapMode,
   meta: BootstrapMeta,
   print: boolean = false,
 ): Promise<{
@@ -43,16 +45,12 @@ export async function bootstrap(
   const mcpConfig = createMcpConfig(mcpJsonPath());
   const mcpManager = createMcpManager(
     mcpConfig,
-    meta.acp !== undefined,
+    mode === "acp",
     meta.acp?.mcpServers ?? [],
   );
   const mcp = { config: mcpConfig, manager: mcpManager };
   const registry = createSkillsRegistry(basePath());
-  const system = await createSystemPrompt(
-    instructionsMdPath(),
-    config,
-    meta.mode ?? "default",
-  );
+  const system = await createSystemPrompt(instructionsMdPath(), config, mode);
   const agent = await createAgent(config, system, registry, mcp, print, {
     userId: meta?.userId ?? meta?.sessionId,
     sessionId: meta?.sessionId,

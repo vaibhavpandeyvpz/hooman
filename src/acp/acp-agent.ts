@@ -334,6 +334,7 @@ export class AcpAgent implements AgentContract {
       agent,
       mcp: { manager },
     } = await bootstrap(
+      "acp",
       {
         userId: bootstrapUserId,
         sessionId,
@@ -432,6 +433,7 @@ export class AcpAgent implements AgentContract {
       agent,
       mcp: { manager },
     } = await bootstrap(
+      "acp",
       {
         userId: bootstrapUserId,
         sessionId: params.sessionId,
