@@ -1,7 +1,7 @@
 <div align="center">
   <h1>Hooman</h1>
   <p>
-    Hooman is a Bun-powered local AI agent CLI built with TypeScript, <a href="https://www.npmjs.com/package/@strands-agents/sdk">Strands Agents SDK</a>, and <a href="https://github.com/vadimdemedes/ink">Ink</a>.
+    Hooman is a hackable, Bun-powered AI agent toolkit for local workflows. It is built with TypeScript, <a href="https://www.npmjs.com/package/@strands-agents/sdk">Strands Agents SDK</a>, and <a href="https://github.com/vadimdemedes/ink">Ink</a>.
   </p>
   <p>
     <a href="https://bun.com"><img src="https://img.shields.io/badge/runtime-Bun-f9f1e1?logo=bun&logoColor=000000" alt="Bun" /></a>
@@ -16,12 +16,12 @@
   </p>
 </div>
 
-It gives you:
+It gives you a practical toolkit to build and run agent workflows:
 
 - a one-shot `exec` command for single prompts
-- a stateful `chat` interface for interactive sessions
-- a `daemon` command for processing MCP channel notifications in background
-- an Ink-powered `configure` workflow for editing app config, `instructions.md`, MCP servers, and installed skills
+- a stateful `chat` interface for iterative sessions
+- a `daemon` command for channel-driven MCP automation
+- an Ink-powered `configure` workflow for app config, prompts, MCP servers, and installed skills
 - an `acp` command for running Hooman as an Agent Client Protocol (ACP) agent over stdio
 
 ## Features
@@ -32,6 +32,7 @@ It gives you:
 - MCP server `instructions` support: server-provided instructions are appended to the agent system prompt
 - MCP channel notification support through `hooman daemon --channels`
 - Skill discovery / install / removal through the integrated configure flow
+- Toolkit-oriented architecture with configurable tools, prompts, memory, and transports
 - Interactive terminal UI for chat and configuration
 
 ## Requirements
@@ -157,18 +158,20 @@ hooman daemon --channels --yolo
 
 ### Feature Flags
 
-Runtime tools and prompt sections are controlled from `config.json` under `features`:
+Runtime tools and prompt sections are controlled from `config.json` under `tools`:
 
-- `features.fetch.enabled`
-- `features.filesystem.enabled`
-- `features.shell.enabled`
-- `features.ltm.enabled`
-- `features.wiki.enabled`
+- `tools.fetch.enabled`
+- `tools.filesystem.enabled`
+- `tools.shell.enabled`
+- `tools.ltm.enabled`
+- `tools.wiki.enabled`
+- `tools.mcp.enabled` (enables MCP management tools + prefixed MCP server tools/instructions)
+- `tools.skills.enabled` (enables skills management tools + skills prompt sections)
 
 Both `ltm` and `wiki` include dedicated Chroma settings under:
 
-- `features.ltm.chroma` (default collection: `memory`)
-- `features.wiki.chroma` (default collection: `wiki`)
+- `tools.ltm.chroma` (default collection: `memory`)
+- `tools.wiki.chroma` (default collection: `wiki`)
 
 ### `hooman configure`
 
@@ -211,7 +214,7 @@ Hooman stores its data in:
 
 Important files and folders:
 
-- `config.json` - app name, LLM provider/model, tool approvals, feature flags, LTM/wiki settings, compaction
+- `config.json` - app name, LLM provider/model, tool flags, LTM/wiki settings, compaction
 - `instructions.md` - system instructions used to build the agent prompt
 - `mcp.json` - MCP server definitions
 - `skills/` - installed skills
@@ -231,9 +234,6 @@ This is the shape managed by `hooman configure`:
     "params": {}
   },
   "tools": {
-    "allowed": []
-  },
-  "features": {
     "fetch": {
       "enabled": true
     },
@@ -260,6 +260,12 @@ This is the shape managed by `hooman configure`:
           "wiki": "wiki"
         }
       }
+    },
+    "mcp": {
+      "enabled": false
+    },
+    "skills": {
+      "enabled": false
     }
   },
   "compaction": {
@@ -268,6 +274,8 @@ This is the shape managed by `hooman configure`:
   }
 }
 ```
+
+Tool approvals are session-scoped and are not persisted in `config.json`.
 
 Supported `llm.provider` values:
 

@@ -1,7 +1,7 @@
 {
   "name": "hoomanjs",
   "version": "1.12.0",
-  "description": "Bun-powered local AI agent CLI with chat, exec, ACP, MCP, and skills support.",
+  "description": "Hackable Bun-powered AI agent toolkit for building local CLI, ACP, MCP, and channel-driven workflows.",
   "author": {
     "name": "Vaibhav Pandey",
     "email": "contact@vaibhavpandey.com"
