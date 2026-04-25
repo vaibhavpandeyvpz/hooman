@@ -15,16 +15,11 @@ export const HOOMAN_CHANNEL_PERMISSION = "hooman/channel/permission";
 const HOOMAN_CHANNEL_PERMISSION_METHOD = `notifications/${HOOMAN_CHANNEL_PERMISSION}`;
 
 export type ChannelMessageMeta = {
-  server: string;
-  channel: string;
-  method: string;
-  params: unknown;
+  subscription: ChannelSubscription;
   source?: string;
-  identity: {
-    user?: string;
-    session?: string;
-    thread?: string;
-  };
+  user?: string;
+  session?: string;
+  thread?: string;
 };
 
 export type ChannelMessage = {
@@ -325,7 +320,7 @@ export class Manager {
           params?: unknown;
         }) => {
           const { method, params } = notification;
-          const prompt = this.toChannelPrompt(method, params);
+          const prompt = this.toChannelPrompt(params);
           if (!prompt) {
             return;
           }
@@ -335,16 +330,11 @@ export class Manager {
             prompt,
             attachments,
             meta: {
-              server,
-              channel,
-              method,
-              params,
+              subscription: { server, channel },
               source: readSourceValue(params),
-              identity: {
-                user: readPathValue(params, user),
-                session: readPathValue(params, session),
-                thread: readPathValue(params, thread),
-              },
+              user: readPathValue(params, user),
+              session: readPathValue(params, session),
+              thread: readPathValue(params, thread),
             },
           });
         };
@@ -463,20 +453,39 @@ export class Manager {
     }
   }
 
-  private toChannelPrompt(method: string, params?: unknown): string {
+  private toChannelPrompt(params?: unknown): string {
+    const parts = [];
+
     if (
       params &&
       typeof params === "object" &&
       "content" in params &&
       typeof params.content === "string"
     ) {
-      return params.content.trim();
+      parts.push(params.content.trim());
     }
 
-    try {
-      return JSON.stringify(params).trim();
-    } catch {
-      return String(params).trim();
+    if (
+      params &&
+      typeof params === "object" &&
+      "attachments" in params &&
+      Array.isArray(params.attachments) &&
+      params.attachments.length > 0
+    ) {
+      parts.push("User sent attachments.");
     }
+
+    if (
+      params &&
+      typeof params === "object" &&
+      "event" in params &&
+      typeof params.event === "object"
+    ) {
+      parts.push(
+        "Raw event data:\n```json\n" + JSON.stringify(params.event) + "\n```",
+      );
+    }
+
+    return parts.filter(Boolean).join("\n").trim();
   }
 }

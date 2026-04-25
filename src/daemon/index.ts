@@ -32,23 +32,23 @@ function resolveSessionId(
   message: ChannelMessage,
   fallback?: string,
 ): string | undefined {
-  const raw = message.meta.identity.session?.trim() || fallback;
+  const raw = message.meta.session?.trim() || fallback;
   if (!raw) return undefined;
   // Namespace per `server:channel` so the same chat id coming from two
   // different MCP servers (or two channels on the same server) never collide.
-  return `${message.meta.server}:${message.meta.channel}:${raw}`;
+  return `${message.meta.subscription.server}:${message.meta.subscription.channel}:${raw}`;
 }
 
 function resolveUserId(
   message: ChannelMessage,
   session?: string,
 ): string | undefined {
-  const raw = message.meta.identity.user?.trim();
+  const raw = message.meta.user?.trim();
   if (!raw) return session;
   // Same user id across different servers is not the same human, so scope
   // user ids by server. Channel is intentionally omitted so long-term memory
   // can stay consistent for a user across rooms within one server.
-  return `${message.meta.server}:${raw}`;
+  return `${message.meta.subscription.server}:${raw}`;
 }
 
 function formatSubscriptions(
@@ -91,7 +91,7 @@ export async function main(options: RunDaemonOptions): Promise<void> {
 
   const [queue, stop] = await createQueue(
     async (message: ChannelMessage) => {
-      const tag = `${message.meta.server}:${message.meta.channel}`;
+      const tag = `${message.meta.subscription.server}:${message.meta.subscription.channel}`;
       const session = resolveSessionId(message, options.session);
       const user = resolveUserId(message, session);
 
@@ -103,18 +103,12 @@ export async function main(options: RunDaemonOptions): Promise<void> {
       options.agent.appState.set("userId", user);
       options.agent.appState.set("sessionId", session);
       const origin = {
-        server: message.meta.server,
-        channel: message.meta.channel,
+        server: message.meta.subscription.server,
+        channel: message.meta.subscription.channel,
         ...(message.meta.source ? { source: message.meta.source } : {}),
-        ...(message.meta.identity.user
-          ? { user: message.meta.identity.user }
-          : {}),
-        ...(message.meta.identity.session
-          ? { session: message.meta.identity.session }
-          : {}),
-        ...(message.meta.identity.thread
-          ? { thread: message.meta.identity.thread }
-          : {}),
+        ...(message.meta.user ? { user: message.meta.user } : {}),
+        ...(message.meta.session ? { session: message.meta.session } : {}),
+        ...(message.meta.thread ? { thread: message.meta.thread } : {}),
       };
       options.agent.appState.set("origin", {
         ...origin,
@@ -143,7 +137,7 @@ export async function main(options: RunDaemonOptions): Promise<void> {
     channels,
     (message) => {
       debug(
-        `received notification → ${message.meta.server}:${message.meta.channel}`,
+        `received notification → ${message.meta.subscription.server}:${message.meta.subscription.channel}`,
       );
       void queue.push(message);
     },

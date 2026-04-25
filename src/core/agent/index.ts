@@ -53,15 +53,9 @@ export async function create(
   const ltm = config.tools.ltm.enabled
     ? createLongTermMemoryStore(config)
     : null;
-  const skills = config.tools.skills.enabled
-    ? (await createSkillsPrompt(registry)).content
-    : "";
-  const prefixed = config.tools.mcp.enabled
-    ? await mcp.manager.listPrefixedTools()
-    : [];
-  const append = config.tools.mcp.enabled
-    ? await mcp.manager.listServerInstructions()
-    : [];
+  const skills = (await createSkillsPrompt(registry)).content;
+  const prefixed = await mcp.manager.listPrefixedTools();
+  const append = await mcp.manager.listServerInstructions();
   const prompt = [system.content, meta.systemPrompt, ...append, skills]
     .filter((x) => !!x)
     .join(SECTION_BREAK);

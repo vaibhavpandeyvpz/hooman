@@ -12,6 +12,8 @@ type EnvironmentPromptContext = {
   osVersion: string;
   shell: string;
   isGitRepo: boolean;
+  currentDateTime: string;
+  timeZone: string;
 };
 
 function detectPlatform(): string {
@@ -50,13 +52,20 @@ function detectGitRepo(startDir: string): boolean {
   }
 }
 
+function detectTimeZone(): string {
+  return Intl.DateTimeFormat().resolvedOptions().timeZone || "unknown";
+}
+
 export function getEnvironmentPromptContext(): EnvironmentPromptContext {
   const cwd = process.cwd();
+  const now = new Date();
   return {
     cwd,
     platform: detectPlatform(),
     osVersion: detectOsVersion(),
     shell: detectShell(),
     isGitRepo: detectGitRepo(cwd),
+    currentDateTime: now.toString(),
+    timeZone: detectTimeZone(),
   };
 }
