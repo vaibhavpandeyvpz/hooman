@@ -3,10 +3,12 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { compile } from "handlebars";
 import type { Config } from "../config.ts";
+import { getEnvironmentPromptContext } from "./environment.ts";
 
 /** Bundled markdown next to this module (`prompts/static/`). */
 const STATIC_PROMPT_FILES = [
   "identity.md",
+  "environment.md",
   "ltm.md",
   "todo.md",
   "thinking.md",
@@ -104,6 +106,7 @@ export class System {
     return {
       name: this.config.name,
       llm: this.config.llm,
+      environment: getEnvironmentPromptContext(),
       ltm: this.config.tools.ltm,
       wiki: this.config.tools.wiki,
       compaction: this.config.compaction,
