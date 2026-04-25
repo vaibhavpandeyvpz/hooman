@@ -10,18 +10,40 @@ type AgentLike = {
 const SESSION_ALLOWED_TOOLS_KEY = "allowedTools";
 
 export const INTERNAL_ALWAYS_ALLOWED = new Set([
+  // Strands / runtime
   "strands_structured_output",
+  // Todos
   "update_todos",
+  // Thinking
   "think",
+  // Sleep
   "sleep",
-  "get_current_time",
+  // Time
   "convert_time",
+  "get_current_time",
+  // Wiki
+  "wiki_knowledge_graph",
   "wiki_list_files",
   "wiki_read_file",
-  "wiki_write_file",
-  "wiki_knowledge_graph",
-  "wiki_stats",
   "wiki_search",
+  "wiki_stats",
+  "wiki_write_file",
+  // Long-term memory
+  "archive_memory",
+  "search_memory",
+  "store_memory",
+  "update_memory",
+  // Skills
+  "list_skills",
+  "search_skills",
+  // MCP config
+  "get_mcp_server",
+  "list_mcp_servers",
+  // Filesystem (list / search / metadata)
+  "directory_tree",
+  "get_file_info",
+  "list_directory",
+  "search_files",
 ]);
 
 function normalizeAllowedTools(value: unknown): string[] {
