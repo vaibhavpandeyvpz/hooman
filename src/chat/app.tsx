@@ -35,7 +35,8 @@ type ChatAppProps = {
   onExit: () => void;
 };
 
-const INPUT_HINT = "enter: send | esc/ctrl+c: cancel or exit";
+const INPUT_HINT =
+  "enter: send | shift/meta+enter or \\+enter: newline | esc/ctrl+c: cancel or exit";
 
 function nowId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
