@@ -71,6 +71,11 @@ const ToolTogglePartialSchema = z.object({
   enabled: z.boolean().optional(),
 });
 
+const AgentsPartialSchema = z.object({
+  enabled: z.boolean().optional(),
+  concurrency: z.number().int().min(1).optional(),
+});
+
 const ToolsPartialSchema = z.object({
   todo: ToolTogglePartialSchema.optional(),
   fetch: ToolTogglePartialSchema.optional(),
@@ -81,6 +86,7 @@ const ToolsPartialSchema = z.object({
   wiki: WikiPartialSchema.optional(),
   mcp: ToolTogglePartialSchema.optional(),
   skills: ToolTogglePartialSchema.optional(),
+  agents: AgentsPartialSchema.optional(),
 });
 
 const ConfigSchema = z
@@ -143,6 +149,10 @@ const ConfigSchema = z
         skills: {
           enabled: input.tools?.skills?.enabled ?? false,
         },
+        agents: {
+          enabled: input.tools?.agents?.enabled ?? true,
+          concurrency: input.tools?.agents?.concurrency ?? 3,
+        },
       },
       compaction: input.compaction,
     };
@@ -198,6 +208,10 @@ const defaultConfigData = (): ConfigData => ({
     skills: {
       enabled: false,
     },
+    agents: {
+      enabled: true,
+      concurrency: 2,
+    },
   },
   compaction: {
     ratio: 0.75,
@@ -246,6 +260,7 @@ export class Config {
       },
       mcp: { ...this.data.tools.mcp },
       skills: { ...this.data.tools.skills },
+      agents: { ...this.data.tools.agents },
     };
   }
 

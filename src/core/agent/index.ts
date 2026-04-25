@@ -1,4 +1,5 @@
 import { Agent, BeforeInvocationEvent } from "@strands-agents/sdk";
+import type { Tool } from "@strands-agents/sdk";
 import type { Config } from "../config.ts";
 import { modelProviders } from "../models";
 import {
@@ -14,6 +15,10 @@ import {
   createLongTermMemoryTools,
 } from "../memory";
 import { createSkillsTools, type Registry } from "../skills";
+import {
+  createRunAgentsTools,
+  loadBuiltInAgentDefinitions,
+} from "../agents/index.ts";
 import {
   createTodoTools,
   createFetchTools,
@@ -50,7 +55,7 @@ export async function create(
   const skills = config.tools.skills.enabled
     ? (await createSkillsPrompt(registry)).content
     : "";
-  const tools = config.tools.mcp.enabled
+  const prefixed = config.tools.mcp.enabled
     ? await mcp.manager.listPrefixedTools()
     : [];
   const append = config.tools.mcp.enabled
@@ -59,28 +64,44 @@ export async function create(
   const prompt = [system.content, meta.systemPrompt, ...append, skills]
     .filter((x) => !!x)
     .join(SECTION_BREAK);
+  const model = llm.create(config.llm.model, config.llm.params);
+  const tools: Tool[] = [
+    ...createTimeTools(),
+    ...(config.tools.sleep.enabled ? createSleepTools() : []),
+    ...(config.tools.todo.enabled ? createTodoTools() : []),
+    ...(config.tools.fetch.enabled ? createFetchTools() : []),
+    ...(ltm ? createLongTermMemoryTools(ltm) : []),
+    ...(config.tools.filesystem.enabled ? createFilesystemTools() : []),
+    ...(config.tools.shell.enabled ? createShellTools() : []),
+    ...(config.tools.wiki.enabled ? createWikiTools(config) : []),
+    ...(config.tools.mcp.enabled ? createMcpTools(mcp.config) : []),
+    ...(config.tools.skills.enabled ? createSkillsTools(registry) : []),
+    ...createThinkingTools(),
+    ...prefixed,
+  ];
+  if (config.tools.agents.enabled) {
+    const definitions = loadBuiltInAgentDefinitions(config, {
+      knownTools: tools.map((entry) => entry.name),
+    });
+    tools.push(
+      ...createRunAgentsTools({
+        parent: config.name,
+        definitions,
+        tools,
+        createModel: () => llm.create(config.llm.model, config.llm.params),
+        defaultConcurrency: config.tools.agents.concurrency,
+      }),
+    );
+  }
   const agent = new Agent({
     name: config.name,
     systemPrompt: prompt,
-    model: llm.create(config.llm.model, config.llm.params),
+    model,
     appState: {
       ...(userId ? { userId } : {}),
       ...(sessionId ? { sessionId } : {}),
     },
-    tools: [
-      ...createTimeTools(),
-      ...(config.tools.sleep.enabled ? createSleepTools() : []),
-      ...(config.tools.todo.enabled ? createTodoTools() : []),
-      ...(config.tools.fetch.enabled ? createFetchTools() : []),
-      ...(ltm ? createLongTermMemoryTools(ltm) : []),
-      ...(config.tools.filesystem.enabled ? createFilesystemTools() : []),
-      ...(config.tools.shell.enabled ? createShellTools() : []),
-      ...(config.tools.wiki.enabled ? createWikiTools(config) : []),
-      ...(config.tools.mcp.enabled ? createMcpTools(mcp.config) : []),
-      ...(config.tools.skills.enabled ? createSkillsTools(registry) : []),
-      ...createThinkingTools(),
-      ...tools,
-    ],
+    tools,
     printer: print,
     ...stm,
   });

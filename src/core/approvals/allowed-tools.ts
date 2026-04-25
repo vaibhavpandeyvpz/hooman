@@ -16,6 +16,8 @@ export const INTERNAL_ALWAYS_ALLOWED = new Set([
   "update_todos",
   // Thinking
   "think",
+  // Agent orchestration
+  "run_agents",
   // Sleep
   "sleep",
   // Time

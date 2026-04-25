@@ -18,6 +18,7 @@ const STATIC_PROMPT_FILES = [
   "sleep.md",
   "wiki.md",
   "skills.md",
+  "subagents.md",
 ] as const;
 
 const SECTION_BREAK = "\n\n---\n\n";
@@ -55,6 +56,8 @@ export class System {
           return this.config.tools.wiki.enabled;
         case "skills.md":
           return this.config.tools.skills.enabled;
+        case "subagents.md":
+          return this.config.tools.agents.enabled;
         case "thinking.md":
         default:
           return true;
