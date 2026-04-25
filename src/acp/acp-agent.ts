@@ -337,8 +337,10 @@ export class AcpAgent implements AgentContract {
       {
         userId: bootstrapUserId,
         sessionId,
-        mcpServers,
-        ...(clientSystemPrompt ? { systemPrompt: clientSystemPrompt } : {}),
+        acp: {
+          mcpServers,
+          ...(clientSystemPrompt ? { systemPrompt: clientSystemPrompt } : {}),
+        },
       },
       false,
     );
@@ -433,8 +435,10 @@ export class AcpAgent implements AgentContract {
       {
         userId: bootstrapUserId,
         sessionId: params.sessionId,
-        mcpServers,
-        ...(clientSystemPrompt ? { systemPrompt: clientSystemPrompt } : {}),
+        acp: {
+          mcpServers,
+          ...(clientSystemPrompt ? { systemPrompt: clientSystemPrompt } : {}),
+        },
       },
       false,
     );

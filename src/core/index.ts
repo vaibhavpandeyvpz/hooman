@@ -18,13 +18,19 @@ import {
   mcpJsonPath,
 } from "./utils/paths.ts";
 
+export type BootstrapMeta = {
+  userId?: string;
+  sessionId?: string;
+  acp?: AcpMeta;
+};
+
+export type AcpMeta = {
+  systemPrompt?: string;
+  mcpServers?: NamedMcpTransport[];
+};
+
 export async function bootstrap(
-  meta: {
-    userId?: string;
-    sessionId?: string;
-    systemPrompt?: string;
-    mcpServers?: NamedMcpTransport[];
-  },
+  meta: BootstrapMeta,
   print: boolean = false,
 ): Promise<{
   config: Config;
@@ -34,14 +40,18 @@ export async function bootstrap(
 }> {
   const config = new Config(configJsonPath());
   const mcpConfig = createMcpConfig(mcpJsonPath());
-  const mcpManager = createMcpManager(mcpConfig, meta.mcpServers ?? []);
+  const mcpManager = createMcpManager(
+    mcpConfig,
+    meta.acp !== undefined,
+    meta.acp?.mcpServers ?? [],
+  );
   const mcp = { config: mcpConfig, manager: mcpManager };
   const registry = createSkillsRegistry(basePath());
   const system = await createSystemPrompt(instructionsMdPath(), config);
   const agent = await createAgent(config, system, registry, mcp, print, {
     userId: meta?.userId ?? meta?.sessionId,
     sessionId: meta?.sessionId,
-    systemPrompt: meta?.systemPrompt,
+    systemPrompt: meta?.acp?.systemPrompt,
   });
   return { config, agent, mcp, registry };
 }

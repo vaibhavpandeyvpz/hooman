@@ -26,7 +26,8 @@ export function createMcpConfig(path: string): Config {
 
 export function createMcpManager(
   config: Config,
+  acp = false,
   mcpServers: readonly NamedMcpTransport[] = [],
 ): Manager {
-  return new Manager(config, mcpServers);
+  return new Manager(config, acp, mcpServers);
 }

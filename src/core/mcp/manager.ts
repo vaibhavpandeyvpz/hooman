@@ -132,7 +132,8 @@ export class Manager {
 
   public constructor(
     private readonly config: Config,
-    private readonly mcpServers: readonly NamedMcpTransport[] = [],
+    private readonly acp = false,
+    private readonly servers: readonly NamedMcpTransport[] = [],
   ) {}
 
   /** Lazily builds clients from the current in-memory config (reloads file first). */
@@ -148,13 +149,15 @@ export class Manager {
    * previous clients (stdio subprocesses, HTTP sessions).
    */
   public reload(): void {
-    this.config.reload();
+    if (!this.acp) {
+      this.config.reload();
+    }
     const previous = this.instances;
     const next = new Map<string, McpClient>();
     const transports = [
-      ...this.config.list(),
-      // Session-scoped ACP servers intentionally override local config names.
-      ...this.mcpServers,
+      ...(this.acp ? [] : this.config.list()),
+      // Session-scoped servers override local config entries on name conflicts.
+      ...this.servers,
     ];
     for (const { name, transport } of transports) {
       next.set(
