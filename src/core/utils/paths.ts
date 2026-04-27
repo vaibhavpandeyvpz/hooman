@@ -1,14 +1,9 @@
-import { existsSync } from "fs";
 import { homedir } from "os";
 import { join } from "path";
 
 const APP_FOLDER = ".hooman";
 
 export const basePath = () => {
-  const local = join(process.cwd(), APP_FOLDER);
-  if (existsSync(local)) {
-    return local;
-  }
   return join(homedir(), APP_FOLDER);
 };
 

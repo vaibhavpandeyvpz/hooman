@@ -27,7 +27,7 @@ It gives you a practical toolkit to build and run agent workflows:
 ## Features
 
 - Multiple LLM providers: `ollama`, `openai`, `anthropic`, `google`, `bedrock`, `groq`, `moonshot`, `xai`
-- Local configuration under `./.hooman` when that folder exists in the current working directory, otherwise `~/.hooman`
+- Local configuration under `~/.hooman`
 - Optional web search tool with provider selection (`brave` or `tavily`)
 - MCP server support via `stdio`, `streamable-http`, and `sse`
 - MCP server `instructions` support: server-provided instructions are appended to the agent system prompt
@@ -247,8 +247,7 @@ ACP notes:
 Hooman stores its data in:
 
 ```text
-./.hooman/   # when this folder exists in the current working directory
-~/.hooman/   # otherwise
+~/.hooman/
 ```
 
 Important files and folders:
@@ -564,8 +563,7 @@ Uses the Vercel AI SDK xAI provider (`@ai-sdk/xai`) on top of Strands `VercelMod
 Skills are installed under:
 
 ```text
-./.hooman/skills   # when ./.hooman exists
-~/.hooman/skills   # otherwise
+~/.hooman/skills
 ```
 
 The configure workflow can:
