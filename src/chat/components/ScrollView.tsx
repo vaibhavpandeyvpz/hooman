@@ -78,11 +78,13 @@ export const ScrollView = forwardRef<ScrollViewRef, ScrollViewProps>(
           size.width !== previousSize.width ||
           size.height !== previousSize.height
         ) {
-          setViewportSize({ width: size.width, height: size.height });
-          onViewportSizeChange?.(
-            { width: size.width, height: size.height },
-            previousSize,
-          );
+          const nextSize = { width: size.width, height: size.height };
+          stateRef.current = {
+            ...stateRef.current,
+            viewportSize: nextSize,
+          };
+          setViewportSize(nextSize);
+          onViewportSizeChange?.(nextSize, previousSize);
         }
       }
 
@@ -90,6 +92,10 @@ export const ScrollView = forwardRef<ScrollViewRef, ScrollViewProps>(
         const { height } = measureElement(contentRef.current);
         const previousHeight = stateRef.current.contentHeight;
         if (height !== previousHeight) {
+          stateRef.current = {
+            ...stateRef.current,
+            contentHeight: height,
+          };
           setContentHeight(height);
           onContentHeightChange?.(height, previousHeight);
         }
@@ -119,17 +125,29 @@ export const ScrollView = forwardRef<ScrollViewRef, ScrollViewProps>(
     );
 
     return (
-      <Box {...boxProps}>
-        <Box ref={viewportRef} width="100%">
-          <Box overflow="hidden" width="100%">
-            <Box
-              ref={contentRef}
-              flexDirection="column"
-              marginTop={-scrollOffset}
-              width="100%"
-            >
-              {children}
-            </Box>
+      <Box
+        flexDirection="column"
+        flexShrink={1}
+        overflow="hidden"
+        {...boxProps}
+      >
+        <Box
+          ref={viewportRef}
+          flexDirection="column"
+          flexGrow={1}
+          flexShrink={1}
+          minHeight={1}
+          overflow="hidden"
+          width="100%"
+        >
+          <Box
+            ref={contentRef}
+            flexDirection="column"
+            marginTop={-scrollOffset}
+            flexShrink={0}
+            width="100%"
+          >
+            {children}
           </Box>
         </Box>
       </Box>
