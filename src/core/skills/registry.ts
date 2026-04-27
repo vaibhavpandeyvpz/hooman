@@ -2,7 +2,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { readFile, rm } from "node:fs/promises";
 import { basename, isAbsolute, join, resolve } from "node:path";
-import matter from "gray-matter";
+import { parseSkillFrontmatter } from "./metadata.ts";
 
 const execFileAsync = promisify(execFile);
 
@@ -14,29 +14,6 @@ const SKILLS_API_URL = "https://skills.sh";
 const NPX_BIN = process.platform === "win32" ? "npx.cmd" : "npx";
 
 const ANSI_RE = /\x1b\[[0-9;]*m/g;
-
-/**
- * Parse name and description from a SKILL.md file's YAML frontmatter.
- */
-function parseSkillFrontmatter(
-  content: string,
-  dirName: string,
-): { name: string; description?: string } {
-  try {
-    const { data } = matter(content);
-    const name =
-      typeof data?.name === "string" && data.name.trim()
-        ? data.name.trim()
-        : dirName;
-    const description =
-      typeof data?.description === "string" && data.description.trim()
-        ? data.description.trim()
-        : undefined;
-    return { name, description };
-  } catch {
-    return { name: dirName };
-  }
-}
 
 function stripAnsi(s: string): string {
   return s.replace(ANSI_RE, "");

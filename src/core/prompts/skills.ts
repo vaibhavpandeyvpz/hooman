@@ -1,10 +1,48 @@
-import { existsSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { parseSkillFrontmatter } from "../skills/metadata.ts";
 import type { Registry } from "../skills/registry.ts";
+
+/** Folder names under `src/core/skills/built-in/<id>/SKILL.md` (also copied to `dist/`). */
+const BUILTIN_SKILLS = ["hooman-config"] as const;
+
+const BUILTIN_ROOT = join(
+  dirname(fileURLToPath(import.meta.url)),
+  "../skills/built-in",
+);
+
+/** Markdown for built-in skills; fixed at module load (paths match this install’s `built-in/` tree). */
+const BUILTIN_SKILLS_SECTION: string = (() => {
+  const header: string[] = [
+    "## Built-in skills",
+    "",
+    "Shipped with hooman; not removable via skills management tools. When one matches the request, read its `SKILL.md` at the path shown and follow that guidance.",
+    "",
+  ];
+  let any = false;
+  for (const id of BUILTIN_SKILLS) {
+    const mdPath = join(BUILTIN_ROOT, id, "SKILL.md");
+    let raw: string;
+    try {
+      raw = readFileSync(mdPath, "utf-8");
+    } catch {
+      continue;
+    }
+    const { name, description } = parseSkillFrontmatter(raw, id);
+    header.push(`- **${name}**`);
+    header.push(`  - Description: ${description ?? "(see SKILL.md)"}`);
+    header.push(`  - Path: \`${mdPath}\``);
+    header.push("");
+    any = true;
+  }
+  return any ? header.join("\n").trim() : "";
+})();
 
 /**
  * Builds the dynamic **Available skills** markdown block using
- * {@link Registry.list} (same source as the skills CLI).
+ * {@link Registry.list} (same source as the skills CLI), prefixed by a
+ * static **Built-in skills** section from `src/core/skills/built-in/`.
  *
  * Mirrors {@link System}: call {@link reload}, then read {@link content}.
  */
@@ -17,7 +55,7 @@ export class Skills {
   }
 
   get content(): string {
-    return this.data;
+    return [BUILTIN_SKILLS_SECTION, this.data].filter(Boolean).join("\n\n");
   }
 
   public async reload(): Promise<void> {
@@ -56,7 +94,7 @@ export class Skills {
 
     for (const e of sorted) {
       lines.push(`- **${e.name}**`);
-      lines.push(`  - Description: ${e.description}`);
+      lines.push(`  - Description: ${e.description ?? "(see SKILL.md)"}`);
       lines.push(`  - Path: \`${e.path}\``);
       lines.push("");
     }

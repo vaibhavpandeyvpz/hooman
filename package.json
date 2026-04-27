@@ -34,7 +34,9 @@
   "scripts": {
     "dev": "bun run src/cli.ts",
     "start": "bun run src/cli.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "postbuild": "bun run copy-bundled-assets",
+    "copy-bundled-assets": "bun run scripts/copy-bundled-assets.ts"
   },
   "devDependencies": {
     "@types/bun": "latest",
