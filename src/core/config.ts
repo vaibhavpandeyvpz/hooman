@@ -117,8 +117,6 @@ const ToolsPartialSchema = z.object({
   sleep: ToolTogglePartialSchema.optional(),
   ltm: LtmPartialSchema.optional(),
   wiki: WikiPartialSchema.optional(),
-  mcp: ToolTogglePartialSchema.optional(),
-  skills: ToolTogglePartialSchema.optional(),
   agents: AgentsPartialSchema.optional(),
 });
 
@@ -196,12 +194,6 @@ const ConfigSchema = z
             },
           },
         },
-        mcp: {
-          enabled: input.tools?.mcp?.enabled ?? false,
-        },
-        skills: {
-          enabled: input.tools?.skills?.enabled ?? false,
-        },
         agents: {
           enabled: input.tools?.agents?.enabled ?? true,
           concurrency: input.tools?.agents?.concurrency ?? 3,
@@ -263,12 +255,6 @@ const defaultConfigData = (): ConfigData => ({
         url: "http://127.0.0.1:8000",
         collection: { wiki: "wiki" },
       },
-    },
-    mcp: {
-      enabled: false,
-    },
-    skills: {
-      enabled: false,
     },
     agents: {
       enabled: true,
@@ -332,8 +318,6 @@ export class Config {
           collection: { ...this.data.tools.wiki.chroma.collection },
         },
       },
-      mcp: { ...this.data.tools.mcp },
-      skills: { ...this.data.tools.skills },
       agents: { ...this.data.tools.agents },
     };
   }

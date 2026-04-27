@@ -200,8 +200,6 @@ Runtime tool and prompt switches are controlled from `config.json`:
 - `tools.sleep.enabled`
 - `tools.ltm.enabled`
 - `tools.wiki.enabled`
-- `tools.mcp.enabled` (enables configured MCP server tools/instructions)
-- `tools.skills.enabled` (enables skills prompt guidance)
 - `tools.agents.enabled` (enables built-in `run_agents` tool)
 - `tools.agents.concurrency`
 
@@ -317,12 +315,6 @@ This is the config shape loaded by Hooman:
           "wiki": "wiki"
         }
       }
-    },
-    "mcp": {
-      "enabled": false
-    },
-    "skills": {
-      "enabled": false
     },
     "agents": {
       "enabled": true,

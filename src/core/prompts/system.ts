@@ -80,8 +80,6 @@ export class System {
           return this.mode === "daemon";
         case "wiki.md":
           return this.config.tools.wiki.enabled;
-        case "skills.md":
-          return this.config.tools.skills.enabled;
         case "subagents.md":
           return this.config.tools.agents.enabled;
         case "thinking.md":

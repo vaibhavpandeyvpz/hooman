@@ -86,12 +86,6 @@ This is the default shape Hooman writes when `~/.hooman/config.json` is missing:
         }
       }
     },
-    "mcp": {
-      "enabled": false
-    },
-    "skills": {
-      "enabled": false
-    },
     "agents": {
       "enabled": true,
       "concurrency": 2
@@ -265,9 +259,7 @@ Simple toggles:
     "fetch": { "enabled": true },
     "filesystem": { "enabled": true },
     "shell": { "enabled": true },
-    "sleep": { "enabled": true },
-    "mcp": { "enabled": false },
-    "skills": { "enabled": false }
+    "sleep": { "enabled": true }
   }
 }
 ```
@@ -321,7 +313,7 @@ Agents:
 }
 ```
 
-Defaults: `todo`, `fetch`, `filesystem`, `shell`, `sleep`, and `agents` enabled; `ltm`, `wiki`, `mcp`, and `skills` disabled; Chroma URL `http://127.0.0.1:8000`; memory collection `memory`; wiki collection `wiki`. `tools.mcp.enabled` and `tools.skills.enabled` are only config toggles here; do not inspect or edit MCP server definitions or installed skill files for this skill. A missing config file is created with `agents.concurrency: 2`; if `tools.agents.concurrency` is omitted from an existing config, Hooman uses `3`.
+Defaults: `todo`, `fetch`, `filesystem`, `shell`, `sleep`, and `agents` enabled; `ltm` and `wiki` disabled; Chroma URL `http://127.0.0.1:8000`; memory collection `memory`; wiki collection `wiki`. MCP server definitions and installed skill files are not controlled by config tool toggles; do not inspect or edit them for this skill. A missing config file is created with `agents.concurrency: 2`; if `tools.agents.concurrency` is omitted from an existing config, Hooman uses `3`.
 
 ## Instructions
 

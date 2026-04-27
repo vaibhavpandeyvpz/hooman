@@ -618,40 +618,6 @@ export function ConfigureApp({
         value: () => setScreen({ kind: "config-wiki" }),
       },
       {
-        label: `MCP tools • ${configData.tools.mcp.enabled ? "Enabled" : "Disabled"}`,
-        value: () => {
-          updateConfig(
-            {
-              tools: {
-                ...config.tools,
-                mcp: {
-                  enabled: !configData.tools.mcp.enabled,
-                },
-              },
-            },
-            `MCP tools ${configData.tools.mcp.enabled ? "disabled" : "enabled"}.`,
-          );
-          setScreen({ kind: "config-tools" });
-        },
-      },
-      {
-        label: `Skills tools • ${configData.tools.skills.enabled ? "Enabled" : "Disabled"}`,
-        value: () => {
-          updateConfig(
-            {
-              tools: {
-                ...config.tools,
-                skills: {
-                  enabled: !configData.tools.skills.enabled,
-                },
-              },
-            },
-            `Skills tools ${configData.tools.skills.enabled ? "disabled" : "enabled"}.`,
-          );
-          setScreen({ kind: "config-tools" });
-        },
-      },
-      {
         label: "Back",
         value: () => setScreen({ kind: "config" }),
       },
