@@ -32,8 +32,8 @@ function validateConfigs(configs: readonly AgentConfig[]): void {
     if (!config.description.trim()) {
       throw new Error(`Agent '${config.id}' description cannot be empty.`);
     }
-    if (!Array.isArray(config.tools) || config.tools.length === 0) {
-      throw new Error(`Agent '${config.id}' must declare at least one tool.`);
+    if (!Array.isArray(config.tools)) {
+      throw new Error(`Agent '${config.id}' tools must be an array.`);
     }
     for (const toolName of config.tools) {
       if (!toolName.trim()) {
@@ -43,20 +43,18 @@ function validateConfigs(configs: readonly AgentConfig[]): void {
   }
 }
 
-function assertKnownTools(
+function filterKnownTools(
   definitions: readonly AgentDefinition[],
   knownTools: readonly string[],
-): void {
+): AgentDefinition[] {
   const known = new Set(knownTools);
-  for (const definition of definitions) {
-    for (const toolName of definition.tools) {
-      if (!known.has(toolName)) {
-        throw new Error(
-          `Agent '${definition.id}' references unknown tool '${toolName}'.`,
-        );
-      }
-    }
-  }
+  return definitions.map((definition) => {
+    const tools = definition.tools.filter((toolName) => known.has(toolName));
+    return {
+      ...definition,
+      tools,
+    };
+  });
 }
 
 function context(config: Config): Record<string, unknown> {
@@ -102,7 +100,7 @@ export function loadBuiltInAgentDefinitions(
     };
   });
   if (options?.knownTools) {
-    assertKnownTools(definitions, options.knownTools);
+    return filterKnownTools(definitions, options.knownTools);
   }
   return definitions;
 }
