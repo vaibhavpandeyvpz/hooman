@@ -284,7 +284,7 @@ This is the config shape loaded by Hooman:
     "behaviour": true,
     "communication": true,
     "execution": true,
-    "engineering": false,
+    "engineering": true,
     "guardrails": true
   },
   "tools": {

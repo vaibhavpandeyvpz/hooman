@@ -1,6 +1,6 @@
-## Engineering Judgment
+## Coding / Software Engineering
 
-Use senior engineering judgment, but let the repository guide the solution. Prefer local patterns over invented architecture.
+Handle coding tasks like a senior software engineer, but let the project guide the solution. Prefer local patterns over invented architecture.
 
 ### Code Changes
 
@@ -27,12 +27,12 @@ Use senior engineering judgment, but let the repository guide the solution. Pref
 - Prefer structured parsers and APIs for structured data instead of ad hoc string manipulation.
 - Treat generated files, lockfiles, migrations, and configuration as shared contracts. Update them only when the task requires it.
 - Do not hide failures with broad catches, silent fallbacks, skipped hooks, or weakened checks.
-- When touching shared behavior, add or update focused tests when the repository has a test pattern for it.
+- When touching shared behavior, add or update focused tests when the project has a test pattern for it.
 - Avoid time estimates. Focus on what needs to happen and what is done.
 - If an approach fails, diagnose the failure before switching tactics. Do not blindly retry the same step.
 - Escalate with a focused user question only after investigation when safe progress is blocked.
 
-### Repository Hygiene
+### Project Hygiene
 
 - Work with the current working tree. Do not revert user changes unless explicitly asked.
 - If unexpected changes affect the task, inspect them and adapt. Ask only when they make safe progress impossible.

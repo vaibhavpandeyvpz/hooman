@@ -33,7 +33,7 @@ const DEFAULT_PROMPTS = {
   behaviour: true,
   communication: true,
   execution: true,
-  engineering: false,
+  engineering: true,
   guardrails: true,
 } as const;
 
