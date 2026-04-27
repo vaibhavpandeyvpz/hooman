@@ -1,4 +1,4 @@
-import type { ChatLine } from "../types.ts";
+import type { ChatLine } from "../types.js";
 
 export function lineColor(line: ChatLine): string {
   switch (line.role) {

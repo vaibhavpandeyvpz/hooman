@@ -4,9 +4,9 @@ import {
   INTERNAL_ALWAYS_ALLOWED,
   allowToolForSession,
   isToolSessionAllowed,
-} from "../core/state/tool-approvals.ts";
-import { inferToolKind, toolDisplayTitle } from "./utils/tool-kind.ts";
-import { toolCallLocationsFromInput } from "./utils/tool-locations.ts";
+} from "../core/state/tool-approvals.js";
+import { inferToolKind, toolDisplayTitle } from "./utils/tool-kind.js";
+import { toolCallLocationsFromInput } from "./utils/tool-locations.js";
 
 export function createAcpToolApprovalHook(
   connection: AgentSideConnection,

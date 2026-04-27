@@ -1,36 +1,36 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { Box, Text, useApp, useInput } from "ink";
-import { LlmProvider, type ConfigData } from "../core/config.ts";
+import { LlmProvider, type ConfigData } from "../core/config.js";
 import {
   McpTransportSchema,
   type Sse,
   type Stdio,
   type StreamableHttp,
-} from "../core/mcp/types.ts";
+} from "../core/mcp/types.js";
 import type {
   SkillListEntry,
   SkillSearchResult,
-} from "../core/skills/registry.ts";
+} from "../core/skills/registry.js";
 import {
   basePath,
   configJsonPath,
   instructionsMdPath,
   mcpJsonPath,
   skillsPath,
-} from "../core/utils/paths.ts";
-import { BusyScreen } from "./components/BusyScreen.tsx";
-import { HomeScreen } from "./components/HomeScreen.tsx";
-import { MenuScreen } from "./components/MenuScreen.tsx";
-import { PromptForm } from "./components/PromptForm.tsx";
-import { openFileInEditor } from "./open-in-editor.ts";
+} from "../core/utils/paths.js";
+import { BusyScreen } from "./components/BusyScreen.js";
+import { HomeScreen } from "./components/HomeScreen.js";
+import { MenuScreen } from "./components/MenuScreen.js";
+import { PromptForm } from "./components/PromptForm.js";
+import { openFileInEditor } from "./open-in-editor.js";
 import type {
   ConfigureAppProps,
   MenuItem,
   Notice,
   PromptState,
   Screen,
-} from "./types.ts";
+} from "./types.js";
 import {
   DEFAULT_INSTRUCTIONS,
   compactJson,
@@ -44,7 +44,7 @@ import {
   parseStringRecord,
   transportSummary,
   truncate,
-} from "./utils.ts";
+} from "./utils.js";
 
 const PROMPT_LABELS: Record<keyof ConfigData["prompts"], string> = {
   behaviour: "Behaviour",

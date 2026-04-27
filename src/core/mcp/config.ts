@@ -1,6 +1,6 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { z } from "zod";
-import { McpTransportSchema, type McpTransport } from "./types.ts";
+import { McpTransportSchema, type McpTransport } from "./types.js";
 
 const McpServersFileSchema = z.object({
   mcpServers: z.record(z.string().min(1), McpTransportSchema).default({}),

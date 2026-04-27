@@ -1,10 +1,10 @@
 import React from "react";
 import { Box, Text } from "ink";
-import { splitLineAtCursor } from "./prompt-input/render.ts";
+import { splitLineAtCursor } from "./prompt-input/render.js";
 import {
   usePromptInputController,
   type PromptSubmission,
-} from "./prompt-input/hooks/usePromptInputController.ts";
+} from "./prompt-input/hooks/usePromptInputController.js";
 
 export type PromptInputProps = {
   value: string;

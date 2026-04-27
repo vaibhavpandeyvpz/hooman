@@ -1,6 +1,6 @@
 import { Box, Text } from "ink";
 import SelectInput from "ink-select-input";
-import type { ApprovalDecision } from "../types.ts";
+import type { ApprovalDecision } from "../types.js";
 
 type ApprovalPromptProps = {
   onDecision: (decision: ApprovalDecision) => void;

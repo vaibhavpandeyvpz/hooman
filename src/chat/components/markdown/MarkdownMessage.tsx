@@ -1,6 +1,6 @@
 import { Box } from "ink";
-import { BlockRenderer } from "./BlockRenderer.tsx";
-import { useMarkdownTokens } from "./hooks/useMarkdownTokens.ts";
+import { BlockRenderer } from "./BlockRenderer.js";
+import { useMarkdownTokens } from "./hooks/useMarkdownTokens.js";
 
 type MarkdownMessageProps = {
   children: string;

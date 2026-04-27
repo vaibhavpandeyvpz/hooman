@@ -5,7 +5,7 @@ import {
   setTodoState,
   summarizeTodos,
   TodoItemSchema,
-} from "../state/todos.ts";
+} from "../state/todos.js";
 
 export const UPDATE_TODOS_TOOL_NAME = "update_todos";
 

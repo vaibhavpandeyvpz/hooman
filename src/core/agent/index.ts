@@ -1,24 +1,24 @@
 import { Agent, BeforeInvocationEvent } from "@strands-agents/sdk";
 import type { Tool } from "@strands-agents/sdk";
-import type { Config } from "../config.ts";
-import { modelProviders } from "../models";
+import type { Config } from "../config.js";
+import { modelProviders } from "../models/index.js";
 import {
   createMcpTools,
   type Config as McpConfig,
   type Manager as McpManager,
-} from "../mcp";
-import type { System as SystemPrompt } from "../prompts";
-import { skills as createSkillsPrompt } from "../prompts";
+} from "../mcp/index.js";
+import type { System as SystemPrompt } from "../prompts/index.js";
+import { skills as createSkillsPrompt } from "../prompts/index.js";
 import {
   createShortTermMemory,
   createLongTermMemoryStore,
   createLongTermMemoryTools,
-} from "../memory";
-import { createSkillsTools, type Registry } from "../skills";
+} from "../memory/index.js";
+import { createSkillsTools, type Registry } from "../skills/index.js";
 import {
   createRunAgentsTools,
   loadBuiltInAgentDefinitions,
-} from "../agents/index.ts";
+} from "../agents/index.js";
 import {
   createTodoTools,
   createFetchTools,
@@ -29,8 +29,8 @@ import {
   createTimeTools,
   createWikiTools,
   createWebSearchTools,
-} from "../tools";
-import { clearTodoState } from "../state/todos.ts";
+} from "../tools/index.js";
+import { clearTodoState } from "../state/todos.js";
 
 const SECTION_BREAK = "\n\n---\n\n";
 

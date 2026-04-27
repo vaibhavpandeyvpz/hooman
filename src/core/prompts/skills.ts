@@ -1,8 +1,8 @@
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { parseSkillFrontmatter } from "../skills/metadata.ts";
-import type { Registry } from "../skills/registry.ts";
+import { parseSkillFrontmatter } from "../skills/metadata.js";
+import type { Registry } from "../skills/registry.js";
 
 /** Folder names under `src/core/skills/built-in/<id>/SKILL.md` (also copied to `dist/`). */
 const BUILTIN_SKILLS = ["hooman-config"] as const;

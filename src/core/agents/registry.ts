@@ -1,14 +1,16 @@
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { compile } from "handlebars";
-import type { Config } from "../config.ts";
-import { getEnvironmentPromptContext } from "../prompts/environment.ts";
+import handlebars from "handlebars";
+import type { Config } from "../config.js";
+import { getEnvironmentPromptContext } from "../prompts/environment.js";
 import {
   BUILTIN_AGENT_CONFIGS,
   type AgentConfig,
   type AgentDefinition,
-} from "./definitions.ts";
+} from "./definitions.js";
+
+const { compile } = handlebars;
 
 function promptsDir(): string {
   return join(dirname(fileURLToPath(import.meta.url)), "../prompts/agents");

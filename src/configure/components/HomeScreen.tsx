@@ -1,7 +1,7 @@
 import React from "react";
 import { Box, Text } from "ink";
-import type { MenuItem } from "../types.ts";
-import { MenuScreen } from "./MenuScreen.tsx";
+import type { MenuItem } from "../types.js";
+import { MenuScreen } from "./MenuScreen.js";
 
 type HomeScreenProps = {
   rootPath: string;

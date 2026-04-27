@@ -1,6 +1,6 @@
 import React from "react";
 import { Box, Text } from "ink";
-import { Spinner } from "../../chat/components/Spinner.tsx";
+import { Spinner } from "../../chat/components/Spinner.js";
 
 type BusyScreenProps = {
   message: string;

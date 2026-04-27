@@ -1,12 +1,12 @@
 import { Box, Text } from "ink";
 import type * as React from "react";
-import type { ChatLine } from "../types.ts";
-import { compactInline, truncLine } from "./shared.ts";
-import { Spinner } from "./Spinner.tsx";
+import type { ChatLine } from "../types.js";
+import { compactInline, truncLine } from "./shared.js";
+import { Spinner } from "./Spinner.js";
 import {
   type FileToolResult,
   type StructuredPatchHunk,
-} from "./file-tool-diff/file-tool-result.ts";
+} from "./file-tool-diff/file-tool-result.js";
 
 const MAX_PATCH_LINES = 18;
 const MAX_PATCH_WIDTH = 140;

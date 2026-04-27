@@ -1,13 +1,13 @@
 import React, { useCallback, useEffect, useRef } from "react";
 import { Box, useInput, useStdin, useStdout } from "ink";
-import { ScrollView, type ScrollViewRef } from "ink-scroll-view";
-import type { ChatLine } from "../types.ts";
+import type { ChatLine } from "../types.js";
 import {
   MOUSE_REPORTING_DISABLE,
   MOUSE_REPORTING_ENABLE,
   parseMouseEvents,
-} from "../mouse.ts";
-import { Transcript } from "./Transcript.tsx";
+} from "../mouse.js";
+import { ScrollView, type ScrollViewRef } from "./ScrollView.js";
+import { Transcript } from "./Transcript.js";
 
 type TranscriptViewportProps = {
   lines: ChatLine[];

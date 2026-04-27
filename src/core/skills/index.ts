@@ -1,2 +1,2 @@
-export { Registry, create as createSkillsRegistry } from "./registry.ts";
-export { create as createSkillsTools } from "./tools.ts";
+export { Registry, create as createSkillsRegistry } from "./registry.js";
+export { create as createSkillsTools } from "./tools.js";

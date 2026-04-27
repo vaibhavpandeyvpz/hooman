@@ -1,5 +1,5 @@
 import fastq from "fastq";
-import type { ChannelMessage } from "../core/mcp/index.ts";
+import type { ChannelMessage } from "../core/mcp/index.js";
 
 type MessageQueue = fastq.queueAsPromised<ChannelMessage, void>;
 

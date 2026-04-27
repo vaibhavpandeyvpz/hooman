@@ -4,12 +4,12 @@ export {
   type AgentConfig,
   type AgentDefinition,
   type AgentKind,
-} from "./definitions.ts";
-export { loadBuiltInAgentDefinitions } from "./registry.ts";
+} from "./definitions.js";
+export { loadBuiltInAgentDefinitions } from "./registry.js";
 export {
   runAgentJobs,
   type AgentJob,
   type AgentJobResult,
   type RunAgentJobsResult,
-} from "./runner.ts";
-export { RUN_AGENTS_TOOL_NAME, createRunAgentsTools } from "./tools.ts";
+} from "./runner.js";
+export { RUN_AGENTS_TOOL_NAME, createRunAgentsTools } from "./tools.js";

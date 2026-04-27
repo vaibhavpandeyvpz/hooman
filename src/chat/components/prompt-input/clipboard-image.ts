@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
-import { attachmentsPath } from "../../../core/utils/paths.ts";
+import { attachmentsPath } from "../../../core/utils/paths.js";
 
 const execFileAsync = promisify(execFile);
 

@@ -1,8 +1,8 @@
 import React from "react";
 import { Box, Text } from "ink";
 import SelectInput from "ink-select-input";
-import type { MenuAction, MenuItem } from "../types.ts";
-import { SelectMenuItem } from "./SelectMenuItem.tsx";
+import type { MenuAction, MenuItem } from "../types.js";
+import { SelectMenuItem } from "./SelectMenuItem.js";
 
 type MenuScreenProps = {
   title?: string;

@@ -2,9 +2,9 @@ import {
   SessionManager,
   SummarizingConversationManager,
 } from "@strands-agents/sdk";
-import { sessionsPath } from "../../utils/paths";
-import { FlatFileStorage } from "./flat-file-storage";
-import { LazySessionManager } from "./lazy-session-manager";
+import { sessionsPath } from "../../utils/paths.js";
+import { FlatFileStorage } from "./flat-file-storage.js";
+import { LazySessionManager } from "./lazy-session-manager.js";
 
 export function create(sessionId?: string) {
   const conversationManager = new SummarizingConversationManager({
@@ -28,5 +28,5 @@ export function create(sessionId?: string) {
   return { sessionManager, conversationManager };
 }
 
-export { LazySessionManager } from "./lazy-session-manager";
-export type { LazySessionManagerConfig } from "./lazy-session-manager";
+export { LazySessionManager } from "./lazy-session-manager.js";
+export type { LazySessionManagerConfig } from "./lazy-session-manager.js";

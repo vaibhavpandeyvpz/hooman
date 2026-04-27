@@ -2,7 +2,7 @@ import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { SessionInfo } from "@agentclientprotocol/sdk";
 import type { MessageData } from "@strands-agents/sdk";
-import type { NamedMcpTransport } from "../../core/mcp/config.ts";
+import type { NamedMcpTransport } from "../../core/mcp/config.js";
 
 export type SessionMetaFile = {
   cwd: string;

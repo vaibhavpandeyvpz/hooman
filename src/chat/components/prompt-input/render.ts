@@ -1,4 +1,4 @@
-import { clampCursor } from "./input-model.ts";
+import { clampCursor } from "./input-model.js";
 
 const graphemeSegmenter =
   typeof Intl !== "undefined" && "Segmenter" in Intl

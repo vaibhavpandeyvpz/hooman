@@ -5,7 +5,7 @@ import {
   readThinkingState,
   type ThoughtEntry,
   writeThinkingState,
-} from "../state/thought-process.ts";
+} from "../state/thought-process.js";
 
 const coercedBoolean = z.preprocess((value) => {
   if (typeof value === "boolean") {

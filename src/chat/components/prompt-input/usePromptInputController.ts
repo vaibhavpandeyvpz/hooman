@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useInput } from "ink";
 import fs from "node:fs/promises";
 import path from "node:path";
-import type { InputState } from "./input-model.ts";
+import type { InputState } from "./input-model.js";
 import {
   clampCursor,
   deleteBackward,
@@ -20,7 +20,7 @@ import {
   moveCursorUp,
   moveCursorWordLeft,
   moveCursorWordRight,
-} from "./input-model.ts";
+} from "./input-model.js";
 import {
   formatAttachmentRef,
   expandPasteRefs,
@@ -30,11 +30,11 @@ import {
   parsePastedFilePathCandidates,
   parsePasteRefs,
   shouldCollapsePaste,
-} from "./paste.ts";
-import { getPromptView, type PromptView } from "./render.ts";
-import { getCwd } from "../../../core/utils/cwd-context.ts";
-import { saveClipboardImageAsAttachment } from "./clipboard-image.ts";
-import { isMouseInput } from "../../mouse.ts";
+} from "./paste.js";
+import { getPromptView, type PromptView } from "./render.js";
+import { getCwd } from "../../../core/utils/cwd-context.js";
+import { saveClipboardImageAsAttachment } from "./clipboard-image.js";
+import { isMouseInput } from "../../mouse.js";
 
 export type PromptSubmission = {
   text: string;

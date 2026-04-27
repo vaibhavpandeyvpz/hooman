@@ -1,8 +1,8 @@
 import { Box } from "ink";
-import type { ChatLine } from "../types.ts";
-import { ChatMessage } from "./ChatMessage.tsx";
-import { EmptyChatBanner } from "./EmptyChatBanner.tsx";
-import { ToolEvent } from "./ToolEvent.tsx";
+import type { ChatLine } from "../types.js";
+import { ChatMessage } from "./ChatMessage.js";
+import { EmptyChatBanner } from "./EmptyChatBanner.js";
+import { ToolEvent } from "./ToolEvent.js";
 
 type TranscriptProps = {
   lines: ChatLine[];

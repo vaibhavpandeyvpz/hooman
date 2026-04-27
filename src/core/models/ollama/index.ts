@@ -1,5 +1,5 @@
-import type { OllamaModelConfig } from "./strands-ollama.ts";
-import { StrandsOllamaModel } from "./strands-ollama.ts";
+import type { OllamaModelConfig } from "./strands-ollama.js";
+import { StrandsOllamaModel } from "./strands-ollama.js";
 
 /** Strands {@link Model} backed by local (or remote) Ollama via `ollama` JS. */
 export function create(

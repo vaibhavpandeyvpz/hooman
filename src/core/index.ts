@@ -1,22 +1,22 @@
 import type { Agent } from "@strands-agents/sdk";
-import { Config } from "./config.ts";
-import { create as createAgent } from "./agent/index.ts";
+import { Config } from "./config.js";
+import { create as createAgent } from "./agent/index.js";
 import {
   createMcpConfig,
   createMcpManager,
   type Config as McpServersConfig,
   type Manager as McpConnectionManager,
   type NamedMcpTransport,
-} from "./mcp/index.ts";
-import { createSkillsRegistry } from "./skills/index.ts";
-import type { Registry } from "./skills/index.ts";
-import { system as createSystemPrompt } from "./prompts/index.ts";
+} from "./mcp/index.js";
+import { createSkillsRegistry } from "./skills/index.js";
+import type { Registry } from "./skills/index.js";
+import { system as createSystemPrompt } from "./prompts/index.js";
 import {
   basePath,
   configJsonPath,
   instructionsMdPath,
   mcpJsonPath,
-} from "./utils/paths.ts";
+} from "./utils/paths.js";
 
 export type BootstrapMeta = {
   userId?: string;

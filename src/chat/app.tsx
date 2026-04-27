@@ -15,24 +15,24 @@ import {
   type AgentStreamEvent,
   type ContentBlock,
 } from "@strands-agents/sdk";
-import type { Manager as McpManager } from "../core/mcp/index.ts";
-import type { Registry } from "../core/skills/index.ts";
-import { takeFileToolDisplay } from "../core/state/file-tool-display.ts";
+import type { Manager as McpManager } from "../core/mcp/index.js";
+import type { Registry } from "../core/skills/index.js";
+import { takeFileToolDisplay } from "../core/state/file-tool-display.js";
 import {
   ChatApprovalController,
   createChatApprovalHandler,
-} from "./approvals.ts";
-import { ApprovalPrompt } from "./components/ApprovalPrompt.tsx";
-import { Composer } from "./components/Composer.tsx";
-import { QueuedPrompts } from "./components/QueuedPrompts.tsx";
-import { StatusBar } from "./components/StatusBar.tsx";
-import { TodoPanel } from "./components/TodoPanel.tsx";
-import { TranscriptViewport } from "./components/TranscriptViewport.tsx";
-import type { ApprovalRequest, ChatLine } from "./types.ts";
-import { getTodoViewState, type TodoViewState } from "../core/state/todos.ts";
-import { attachmentPathsToPromptBlocks } from "../core/utils/attachments.ts";
-import { isMouseInput } from "./mouse.ts";
-import type { PromptSubmission } from "./components/prompt-input/hooks/usePromptInputController.ts";
+} from "./approvals.js";
+import { ApprovalPrompt } from "./components/ApprovalPrompt.js";
+import { Composer } from "./components/Composer.js";
+import { QueuedPrompts } from "./components/QueuedPrompts.js";
+import { StatusBar } from "./components/StatusBar.js";
+import { TodoPanel } from "./components/TodoPanel.js";
+import { TranscriptViewport } from "./components/TranscriptViewport.js";
+import type { ApprovalRequest, ChatLine } from "./types.js";
+import { getTodoViewState, type TodoViewState } from "../core/state/todos.js";
+import { attachmentPathsToPromptBlocks } from "../core/utils/attachments.js";
+import { isMouseInput } from "./mouse.js";
+import type { PromptSubmission } from "./components/prompt-input/hooks/usePromptInputController.js";
 
 type ChatAppProps = {
   agent: Agent;

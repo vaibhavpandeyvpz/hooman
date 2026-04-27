@@ -1,9 +1,9 @@
 import { Box, Text } from "ink";
-import type { ChatLine } from "../types.ts";
-import { lineColor } from "./shared.ts";
-import { MarkdownMessage } from "./markdown/MarkdownMessage.tsx";
-import { ReasoningStrip } from "./ReasoningStrip.tsx";
-import { ThinkingStatus } from "./ThinkingStatus.tsx";
+import type { ChatLine } from "../types.js";
+import { lineColor } from "./shared.js";
+import { MarkdownMessage } from "./markdown/MarkdownMessage.js";
+import { ReasoningStrip } from "./ReasoningStrip.js";
+import { ThinkingStatus } from "./ThinkingStatus.js";
 
 type ChatMessageProps = {
   line: ChatLine;

@@ -1,9 +1,9 @@
 import { Box, Text } from "ink";
-import type { ChatLine } from "../types.ts";
-import { useFileToolResult } from "./file-tool-diff/file-tool-result.ts";
-import { compactInline, formatToolArgs } from "./shared.ts";
-import { Spinner } from "./Spinner.tsx";
-import { ToolEventFileResult } from "./ToolEventFileResult.tsx";
+import type { ChatLine } from "../types.js";
+import { useFileToolResult } from "./file-tool-diff/file-tool-result.js";
+import { compactInline, formatToolArgs } from "./shared.js";
+import { Spinner } from "./Spinner.js";
+import { ToolEventFileResult } from "./ToolEventFileResult.js";
 
 type ToolEventProps = {
   line: ChatLine;

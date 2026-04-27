@@ -2,7 +2,9 @@ import { createGroq, groq } from "@ai-sdk/groq";
 import { VercelModel } from "@strands-agents/sdk/models/vercel";
 import type { GroqProviderSettings } from "@ai-sdk/groq";
 import type { VercelModelConfig } from "@strands-agents/sdk/models/vercel";
-import { omit, pick } from "lodash";
+import lodash from "lodash";
+
+const { omit, pick } = lodash;
 
 const PROVIDER_SETTINGS_KEYS = ["apiKey", "baseURL", "headers"] as const;
 

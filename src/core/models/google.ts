@@ -1,6 +1,8 @@
 import { GoogleModel } from "@strands-agents/sdk/models/google";
 import type { GoogleModelOptions } from "@strands-agents/sdk/models/google";
-import { omit, pick } from "lodash";
+import lodash from "lodash";
+
+const { omit, pick } = lodash;
 
 /**
  * Keys passed to {@link GoogleModel} alongside `modelId` / `params`.

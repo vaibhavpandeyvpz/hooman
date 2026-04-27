@@ -1,10 +1,10 @@
 import type { Agent, BeforeToolCallEvent } from "@strands-agents/sdk";
-import type { Manager as McpManager } from "../core/mcp/index.ts";
+import type { Manager as McpManager } from "../core/mcp/index.js";
 import {
   INTERNAL_ALWAYS_ALLOWED,
   allowToolForSession,
   isToolSessionAllowed,
-} from "../core/state/tool-approvals.ts";
+} from "../core/state/tool-approvals.js";
 
 const TOOL_DESCRIPTION_PREVIEW_LIMIT = 50;
 const TOOL_ARGS_PREVIEW_LIMIT = 50;

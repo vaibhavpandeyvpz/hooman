@@ -1,14 +1,16 @@
 import { McpClient, type Tool } from "@strands-agents/sdk";
-import { PrefixedMcpTool } from "./prefixed-mcp-tool.ts";
+import { PrefixedMcpTool } from "./prefixed-mcp-tool.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
-import { get } from "lodash";
+import lodash from "lodash";
 import { z } from "zod";
-import { Config, type NamedMcpTransport } from "./config.ts";
-import type { McpTransport } from "./types.ts";
-import { normalizeAttachmentPaths } from "../utils/attachments.ts";
+import { Config, type NamedMcpTransport } from "./config.js";
+import type { McpTransport } from "./types.js";
+import { normalizeAttachmentPaths } from "../utils/attachments.js";
+
+const { get } = lodash;
 
 export const HOOMAN_CHANNEL = "hooman/channel";
 export const HOOMAN_CHANNEL_PERMISSION = "hooman/channel/permission";

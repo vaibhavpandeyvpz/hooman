@@ -1,13 +1,13 @@
 <div align="center">
   <h1>Hooman</h1>
   <p>
-    Hooman is a hackable, Bun-powered AI agent toolkit for local workflows. It is built with TypeScript, <a href="https://www.npmjs.com/package/@strands-agents/sdk">Strands Agents SDK</a>, and <a href="https://github.com/vadimdemedes/ink">Ink</a>.
+    Hooman is a hackable AI agent toolkit for local workflows. It is built with TypeScript, <a href="https://www.npmjs.com/package/@strands-agents/sdk">Strands Agents SDK</a>, and <a href="https://github.com/vadimdemedes/ink">Ink</a>.
   </p>
   <p>
-    <a href="https://bun.com"><img src="https://img.shields.io/badge/runtime-Bun-f9f1e1?logo=bun&logoColor=000000" alt="Bun" /></a>
+    <a href="https://nodejs.org"><img src="https://img.shields.io/badge/runtime-Node.js-5FA04E?logo=nodedotjs&logoColor=white" alt="Node.js" /></a>
     <a href="https://www.typescriptlang.org/"><img src="https://img.shields.io/badge/language-TypeScript-3178C6?logo=typescript&logoColor=white" alt="TypeScript" /></a>
     <a href="https://github.com/vadimdemedes/ink"><img src="https://img.shields.io/badge/ui-Ink-6f42c1" alt="Ink" /></a>
-    <a href="https://github.com/vaibhavpandeyvpz/hooman/actions/workflows/build-publish.yml"><img src="https://img.shields.io/github/actions/workflow/status/vaibhavpandeyvpz/hooman/build-publish.yml?branch=main&label=build" alt="Build" /></a>
+    <a href="https://github.com/vaibhavpandeyvpz/hooman/actions/workflows/publish-npm.yml"><img src="https://img.shields.io/github/actions/workflow/status/vaibhavpandeyvpz/hooman/publish-npm.yml?branch=main&label=build" alt="Build" /></a>
     <a href="https://github.com/vaibhavpandeyvpz/hooman/stargazers"><img src="https://img.shields.io/github/stars/vaibhavpandeyvpz/hooman?style=flat" alt="GitHub Repo stars" /></a>
     <a href="https://github.com/vaibhavpandeyvpz/hooman/commits/main"><img src="https://img.shields.io/github/last-commit/vaibhavpandeyvpz/hooman" alt="GitHub last commit" /></a>
   </p>
@@ -40,8 +40,8 @@ It gives you a practical toolkit to build and run agent workflows:
 
 ## Requirements
 
-- [Bun](https://bun.com) `>= 1.0.0`
-- Node/npm available if you want to install skills from the public skills catalog
+- [Node.js](https://nodejs.org) `>= 24`
+- npm for `npx`, global installs, and public skills catalog installs
 - Provider credentials or local model runtime depending on the LLM you choose
 
 ## Usage
@@ -49,21 +49,18 @@ It gives you a practical toolkit to build and run agent workflows:
 Fastest way to get started without cloning the repo:
 
 ```bash
-bunx hoomanjs configure
-bunx hoomanjs chat
-
-# or install globally
-bun i -g hoomanjs
-```
-
-Or with npm:
-
-```bash
 npx hoomanjs configure
 npx hoomanjs chat
 
 # or install globally
 npm i -g hoomanjs
+```
+
+Or with Bun:
+
+```bash
+bunx hoomanjs configure
+bunx hoomanjs chat
 ```
 
 Recommended first run:
@@ -92,25 +89,26 @@ For production deployments, still review permissions and use least-privilege cre
 ## Install
 
 ```bash
-bun install
+npm install
 ```
 
 Run locally:
 
 ```bash
-bun run src/cli.ts --help
+npm run dev -- --help
 ```
 
 Or use the dev alias:
 
 ```bash
-bun run dev -- --help
+npm run build
+node dist/cli.js --help
 ```
 
 Link the CLI locally:
 
 ```bash
-bun link
+npm link
 hooman --help
 ```
 
@@ -582,19 +580,19 @@ The configure workflow can:
 Install dependencies:
 
 ```bash
-bun install
+npm install
 ```
 
 Run the CLI:
 
 ```bash
-bun run src/cli.ts --help
+npm run dev -- --help
 ```
 
 Run typecheck:
 
 ```bash
-bunx tsc --noEmit
+npm run typecheck
 ```
 
 ## License

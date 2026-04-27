@@ -1,9 +1,9 @@
 import React from "react";
 import { Box, Text, useWindowSize } from "ink";
 import type { Token, Tokens } from "marked";
-import { CodeBlock } from "./CodeBlock.tsx";
-import { inlineToPlainText, renderInlineTokens } from "./InlineRenderer.tsx";
-import { MarkdownTable } from "./MarkdownTable.tsx";
+import { CodeBlock } from "./CodeBlock.js";
+import { inlineToPlainText, renderInlineTokens } from "./InlineRenderer.js";
+import { MarkdownTable } from "./MarkdownTable.js";
 
 type BlockRendererProps = {
   tokens: Token[];

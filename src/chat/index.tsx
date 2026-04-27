@@ -1,9 +1,9 @@
 import React from "react";
 import { render } from "ink";
 import type { Agent } from "@strands-agents/sdk";
-import type { Manager as McpManager } from "../core/mcp/index.ts";
-import type { Registry } from "../core/skills/index.ts";
-import { ChatApp } from "./app.tsx";
+import type { Manager as McpManager } from "../core/mcp/index.js";
+import type { Registry } from "../core/skills/index.js";
+import { ChatApp } from "./app.js";
 
 type LaunchChatOptions = {
   agent: Agent;

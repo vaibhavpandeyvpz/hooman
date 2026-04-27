@@ -1,8 +1,8 @@
 import { tool } from "@strands-agents/sdk";
 import type { JSONValue } from "@strands-agents/sdk";
 import { z } from "zod";
-import type { Config } from "./config.ts";
-import { McpTransportSchema } from "./types.ts";
+import type { Config } from "./config.js";
+import { McpTransportSchema } from "./types.js";
 
 function toJsonValue(value: unknown): JSONValue {
   return JSON.parse(JSON.stringify(value)) as JSONValue;

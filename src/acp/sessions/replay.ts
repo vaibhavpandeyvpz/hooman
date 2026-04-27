@@ -5,8 +5,8 @@ import {
   ToolUseBlock,
   type ContentBlock,
 } from "@strands-agents/sdk";
-import { inferToolKind } from "../utils/tool-kind.ts";
-import { toolResultToAcpContent } from "../utils/tool-result-content.ts";
+import { inferToolKind } from "../utils/tool-kind.js";
+import { toolResultToAcpContent } from "../utils/tool-result-content.js";
 
 function blockToFallbackText(block: ContentBlock): string | null {
   if (block.type === "textBlock") {

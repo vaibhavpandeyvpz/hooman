@@ -1,1 +1,1 @@
-export { AcpAgent, runAcpStdio } from "./acp-agent.ts";
+export { AcpAgent, runAcpStdio } from "./acp-agent.js";

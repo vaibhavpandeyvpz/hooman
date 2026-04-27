@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import type { Token, Tokens } from "marked";
-import { inlineToPlainText } from "../InlineRenderer.tsx";
+import { inlineToPlainText } from "../InlineRenderer.js";
 
 const MIN_COLUMN_WIDTH = 3;
 const MAX_ROW_LINES = 4;

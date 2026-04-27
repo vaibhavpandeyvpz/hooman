@@ -13,7 +13,7 @@ import type {
   NodeInputOptions,
   NodeResultUpdate,
 } from "@strands-agents/sdk/multiagent";
-import type { AgentDefinition, AgentKind } from "./definitions.ts";
+import type { AgentDefinition, AgentKind } from "./definitions.js";
 
 export type AgentJob = {
   id: string;

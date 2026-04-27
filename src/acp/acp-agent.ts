@@ -1,4 +1,5 @@
 import path from "node:path";
+import { readFile } from "node:fs/promises";
 import { Readable, Writable } from "node:stream";
 import { stdin, stdout } from "node:process";
 import type {
@@ -23,23 +24,23 @@ import {
   ModelStreamUpdateEvent,
 } from "@strands-agents/sdk";
 import type { StopReason as StrandsStopReason } from "@strands-agents/sdk";
-import { bootstrap } from "../core/index.ts";
-import { runWithCwd } from "../core/utils/cwd-context.ts";
-import { acpSessionsRootPath } from "./utils/paths.ts";
-import { inferToolKind } from "./utils/tool-kind.ts";
-import { toolResultToAcpContent } from "./utils/tool-result-content.ts";
-import { createAcpToolApprovalHook } from "./approvals.ts";
-import { replayConversationHistory } from "./sessions/replay.ts";
+import { bootstrap } from "../core/index.js";
+import { runWithCwd } from "../core/utils/cwd-context.js";
+import { acpSessionsRootPath } from "./utils/paths.js";
+import { inferToolKind } from "./utils/tool-kind.js";
+import { toolResultToAcpContent } from "./utils/tool-result-content.js";
+import { createAcpToolApprovalHook } from "./approvals.js";
+import { replayConversationHistory } from "./sessions/replay.js";
 import {
   applySessionConfigOption,
   buildSessionConfigOptions,
-} from "./sessions/config-options.ts";
-import { extractAcpClientSystemPrompt } from "./meta/system-prompt.ts";
-import { extractAcpClientUserId } from "./meta/user-id.ts";
-import { deriveSessionTitleFromEcho } from "./sessions/title.ts";
-import { acpPromptEchoText, acpPromptToInvokeArgs } from "./prompt-invoke.ts";
-import type { Config } from "../core/config.ts";
-import { normalizeAcpSessionMcpServers } from "./mcp-servers.ts";
+} from "./sessions/config-options.js";
+import { extractAcpClientSystemPrompt } from "./meta/system-prompt.js";
+import { extractAcpClientUserId } from "./meta/user-id.js";
+import { deriveSessionTitleFromEcho } from "./sessions/title.js";
+import { acpPromptEchoText, acpPromptToInvokeArgs } from "./prompt-invoke.js";
+import type { Config } from "../core/config.js";
+import { normalizeAcpSessionMcpServers } from "./mcp-servers.js";
 import {
   listStoredSessionIds,
   loadSessionMessages,
@@ -49,7 +50,7 @@ import {
   toSessionInfo,
   writeSessionMeta,
   type SessionMetaFile,
-} from "./sessions/store.ts";
+} from "./sessions/store.js";
 
 const DEFAULT_MODE_ID = "default" as const;
 const LIST_PAGE_SIZE = 40;
@@ -147,8 +148,8 @@ async function readPackageDetails(): Promise<{
   name: string;
   version: string;
 }> {
-  const path = new URL("../../package.json", import.meta.url);
-  const pkg = (await Bun.file(path).json()) as {
+  const packageUrl = new URL("../../package.json", import.meta.url);
+  const pkg = JSON.parse(await readFile(packageUrl, "utf8")) as {
     bin?: string | Record<string, string>;
     name?: string;
     version?: string;

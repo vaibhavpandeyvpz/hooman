@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Box, Text } from "ink";
-import { Spinner } from "./Spinner.tsx";
+import { Spinner } from "./Spinner.js";
 
 const THINKING_VERBS = [
   "is thinking",

@@ -1,6 +1,6 @@
-import type { Config as AppConfig } from "../core/config.ts";
-import type { Config as McpConfig } from "../core/mcp/config.ts";
-import type { Registry as SkillsRegistry } from "../core/skills/registry.ts";
+import type { Config as AppConfig } from "../core/config.js";
+import type { Config as McpConfig } from "../core/mcp/config.js";
+import type { Registry as SkillsRegistry } from "../core/skills/registry.js";
 
 export type ConfigureAppProps = {
   config: AppConfig;

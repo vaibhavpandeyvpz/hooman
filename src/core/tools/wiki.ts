@@ -5,10 +5,10 @@ import matter from "gray-matter";
 import { tool } from "@strands-agents/sdk";
 import type { JSONValue } from "@strands-agents/sdk";
 import { z } from "zod";
-import type { Config } from "../config.ts";
-import { HFEmbedding } from "../memory/ltm/embed.ts";
-import { chromaClientArgsFromUrl } from "../memory/ltm/utils.ts";
-import { getCwd } from "../utils/cwd-context.ts";
+import type { Config } from "../config.js";
+import { HFEmbedding } from "../memory/ltm/embed.js";
+import { chromaClientArgsFromUrl } from "../memory/ltm/utils.js";
+import { getCwd } from "../utils/cwd-context.js";
 
 const WIKI_DIR = "wiki";
 const PAGES_DIR = "pages";

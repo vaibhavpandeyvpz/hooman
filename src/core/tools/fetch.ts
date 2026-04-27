@@ -1,5 +1,6 @@
 import dns from "node:dns/promises";
 import net from "node:net";
+import { readFile } from "node:fs/promises";
 import { Readability } from "@mozilla/readability";
 import { JSDOM } from "jsdom";
 import { tool } from "@strands-agents/sdk";
@@ -8,8 +9,8 @@ import TurndownService from "turndown";
 import { z } from "zod";
 
 async function createUserAgent(): Promise<string> {
-  const path = new URL("../../../package.json", import.meta.url);
-  const pkg = (await Bun.file(path).json()) as {
+  const packageUrl = new URL("../../../package.json", import.meta.url);
+  const pkg = JSON.parse(await readFile(packageUrl, "utf8")) as {
     name?: string;
     version?: string;
   };

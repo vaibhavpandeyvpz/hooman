@@ -5,14 +5,14 @@ import {
   type Agent,
   type ContentBlock,
 } from "@strands-agents/sdk";
-import { HOOMAN_CHANNEL } from "../core/mcp/index.ts";
+import { HOOMAN_CHANNEL } from "../core/mcp/index.js";
 import type {
   ChannelMessage,
   ChannelSubscription,
   Manager as McpManager,
-} from "../core/mcp/index.ts";
-import { attachmentPathsToPromptBlocks } from "../core/utils/attachments.ts";
-import { createQueue } from "./queue.ts";
+} from "../core/mcp/index.js";
+import { attachmentPathsToPromptBlocks } from "../core/utils/attachments.js";
+import { createQueue } from "./queue.js";
 
 type RunDaemonOptions = {
   agent: Agent;

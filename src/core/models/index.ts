@@ -8,12 +8,12 @@ export type ModelProvider = {
 };
 
 export const modelProviders: Record<string, () => Promise<ModelProvider>> = {
-  anthropic: () => import("./anthropic.ts"),
-  bedrock: () => import("./bedrock.ts"),
-  google: () => import("./google.ts"),
-  groq: () => import("./groq.ts"),
-  moonshot: () => import("./moonshot.ts"),
-  ollama: () => import("./ollama/index.ts"),
-  openai: () => import("./openai.ts"),
-  xai: () => import("./xai.ts"),
+  anthropic: () => import("./anthropic.js"),
+  bedrock: () => import("./bedrock.js"),
+  google: () => import("./google.js"),
+  groq: () => import("./groq.js"),
+  moonshot: () => import("./moonshot.js"),
+  ollama: () => import("./ollama/index.js"),
+  openai: () => import("./openai.js"),
+  xai: () => import("./xai.js"),
 };

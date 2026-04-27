@@ -3,7 +3,7 @@ import type {
   SessionConfigOption,
   SetSessionConfigOptionRequest,
 } from "@agentclientprotocol/sdk";
-import type { Config } from "../../core/config.ts";
+import type { Config } from "../../core/config.js";
 
 export const HOOMAN_LTM_CONFIG_ID = "hooman.longTermMemory" as const;
 export const HOOMAN_WIKI_CONFIG_ID = "hooman.wiki" as const;

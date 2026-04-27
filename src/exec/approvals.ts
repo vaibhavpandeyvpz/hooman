@@ -5,7 +5,7 @@ import {
   INTERNAL_ALWAYS_ALLOWED,
   allowToolForSession,
   isToolSessionAllowed,
-} from "../core/state/tool-approvals.ts";
+} from "../core/state/tool-approvals.js";
 const INPUT_PREVIEW_LIMIT = 1_024;
 
 type ApprovalDecision = "allow" | "reject" | "always";

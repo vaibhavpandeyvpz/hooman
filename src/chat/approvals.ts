@@ -3,8 +3,8 @@ import {
   INTERNAL_ALWAYS_ALLOWED,
   allowToolForSession,
   isToolSessionAllowed,
-} from "../core/state/tool-approvals.ts";
-import type { ApprovalDecision, ApprovalRequest } from "./types.ts";
+} from "../core/state/tool-approvals.js";
+import type { ApprovalDecision, ApprovalRequest } from "./types.js";
 const INPUT_PREVIEW_LIMIT = 256;
 
 function previewInput(input: unknown): string {

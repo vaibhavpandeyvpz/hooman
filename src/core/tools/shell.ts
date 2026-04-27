@@ -5,7 +5,7 @@ import { setTimeout as sleep } from "node:timers/promises";
 import { tool } from "@strands-agents/sdk";
 import type { JSONValue, ToolContext } from "@strands-agents/sdk";
 import { z } from "zod";
-import { getCwd } from "../utils/cwd-context.ts";
+import { getCwd } from "../utils/cwd-context.js";
 
 const DEFAULT_TIMEOUT_SECONDS = Number.parseInt(
   process.env.SHELL_DEFAULT_TIMEOUT ?? "900",

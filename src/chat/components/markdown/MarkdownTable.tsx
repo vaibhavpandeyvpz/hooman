@@ -1,6 +1,6 @@
 import { Box, Text, useWindowSize } from "ink";
 import type { Tokens } from "marked";
-import { useMarkdownTableLayout } from "./hooks/useMarkdownTableLayout.ts";
+import { useMarkdownTableLayout } from "./hooks/useMarkdownTableLayout.js";
 
 type MarkdownTableProps = {
   token: Tokens.Table;

@@ -1,6 +1,6 @@
 import { useMemo, useRef } from "react";
 import { type Token } from "marked";
-import { lexMarkdown, splitStreamingMarkdown } from "../lexer.ts";
+import { lexMarkdown, splitStreamingMarkdown } from "../lexer.js";
 
 export type MarkdownTokenPlan = {
   fullTokens: Token[];

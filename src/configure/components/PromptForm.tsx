@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Box, Text } from "ink";
 import TextInput from "ink-text-input";
-import type { PromptState } from "../types.ts";
+import type { PromptState } from "../types.js";
 
 type PromptFormProps = {
   prompt: PromptState;

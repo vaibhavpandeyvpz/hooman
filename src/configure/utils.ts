@@ -1,8 +1,8 @@
 import { basename, dirname } from "node:path";
 import { z } from "zod";
-import type { McpTransport } from "../core/mcp/types.ts";
-import type { SkillListEntry } from "../core/skills/registry.ts";
-import type { Notice } from "./types.ts";
+import type { McpTransport } from "../core/mcp/types.js";
+import type { SkillListEntry } from "../core/skills/registry.js";
+import type { Notice } from "./types.js";
 
 const StringArraySchema = z.array(z.string());
 const StringRecordSchema = z.record(z.string(), z.string());

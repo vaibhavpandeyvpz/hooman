@@ -1,4 +1,4 @@
-import { Config, type NamedMcpTransport } from "./config.ts";
+import { Config, type NamedMcpTransport } from "./config.js";
 import {
   Manager,
   HOOMAN_CHANNEL,
@@ -7,7 +7,7 @@ import {
   type ChannelPermissionBehavior,
   type ChannelSubscription,
   type ChannelSubscriptionHandle,
-} from "./manager.ts";
+} from "./manager.js";
 
 export { Config, Manager };
 export { HOOMAN_CHANNEL, HOOMAN_CHANNEL_PERMISSION };
@@ -18,7 +18,7 @@ export type {
   ChannelSubscriptionHandle,
   NamedMcpTransport,
 };
-export { createMcpTools } from "./tools.ts";
+export { createMcpTools } from "./tools.js";
 
 export function createMcpConfig(path: string): Config {
   return new Config(path);

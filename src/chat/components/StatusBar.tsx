@@ -1,5 +1,5 @@
 import { Box, Text } from "ink";
-import type { Manager as McpManager } from "../../core/mcp/index.ts";
+import type { Manager as McpManager } from "../../core/mcp/index.js";
 
 type StatusBarProps = {
   running: boolean;

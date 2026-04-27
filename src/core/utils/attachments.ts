@@ -11,7 +11,7 @@ import {
   detectDocumentFormat,
   detectImageFormat,
   detectVideoFormat,
-} from "./file-formats.ts";
+} from "./file-formats.js";
 
 const DEFAULT_MAX_ATTACHMENT_BYTES = 1024 * 1024;
 

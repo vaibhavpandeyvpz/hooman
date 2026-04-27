@@ -1,5 +1,5 @@
 import { Box, Text, useWindowSize } from "ink";
-import { wrapTextToLines } from "./shared.ts";
+import { wrapTextToLines } from "./shared.js";
 
 type ReasoningStripProps = {
   text: string;

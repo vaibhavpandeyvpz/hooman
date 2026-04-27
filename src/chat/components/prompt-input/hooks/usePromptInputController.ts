@@ -1,4 +1,4 @@
 export {
   usePromptInputController,
   type PromptSubmission,
-} from "../usePromptInputController.ts";
+} from "../usePromptInputController.js";

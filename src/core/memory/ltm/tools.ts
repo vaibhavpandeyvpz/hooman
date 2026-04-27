@@ -1,8 +1,8 @@
 import { tool } from "@strands-agents/sdk";
 import type { JSONValue, ToolContext } from "@strands-agents/sdk";
 import { z } from "zod";
-import type { LongTermMemoryStore } from "./store.ts";
-import type { LongTermMemoryScope, MemoryType } from "./types.ts";
+import type { LongTermMemoryStore } from "./store.js";
+import type { LongTermMemoryScope, MemoryType } from "./types.js";
 
 const StoreTypes: [MemoryType, ...MemoryType[]] = [
   "fact",

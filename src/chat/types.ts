@@ -1,4 +1,4 @@
-import type { FileToolDisplay } from "../core/state/file-tool-display.ts";
+import type { FileToolDisplay } from "../core/state/file-tool-display.js";
 
 export type ChatRole = "user" | "assistant" | "tool" | "system";
 

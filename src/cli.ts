@@ -1,22 +1,23 @@
-#!/usr/bin/env bun
+#!/usr/bin/env node
 
+import { readFile } from "node:fs/promises";
 import { Command } from "commander";
 import { BeforeToolCallEvent } from "@strands-agents/sdk";
-import { bootstrap } from "./core/index.ts";
-import { createToolApprovalHandler } from "./exec/approvals.ts";
-import { chat } from "./chat/index.tsx";
-import { configure } from "./configure/index.tsx";
-import { runAcpStdio } from "./acp/acp-agent.ts";
-import { main as daemon } from "./daemon/index.ts";
-import { createDaemonApprovalHandler } from "./daemon/approvals.ts";
+import { bootstrap } from "./core/index.js";
+import { createToolApprovalHandler } from "./exec/approvals.js";
+import { chat } from "./chat/index.js";
+import { configure } from "./configure/index.js";
+import { runAcpStdio } from "./acp/acp-agent.js";
+import { main as daemon } from "./daemon/index.js";
+import { createDaemonApprovalHandler } from "./daemon/approvals.js";
 
 async function readPackageMeta(): Promise<{
   name: string;
   description: string;
   version: string;
 }> {
-  const path = new URL("../package.json", import.meta.url);
-  const pkg = (await Bun.file(path).json()) as {
+  const packageUrl = new URL("../package.json", import.meta.url);
+  const pkg = JSON.parse(await readFile(packageUrl, "utf8")) as {
     bin?: string | Record<string, string>;
     name?: string;
     description?: string;

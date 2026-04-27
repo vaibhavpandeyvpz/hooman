@@ -5,7 +5,7 @@ import type {
   MemorySource,
   MemoryStatus,
   MemoryType,
-} from "./types.ts";
+} from "./types.js";
 
 export const DEFAULT_HALF_LIFE_MS = 1000 * 60 * 60 * 24 * 30;
 export const DEFAULT_REINFORCEMENT_STEP = 0.1;

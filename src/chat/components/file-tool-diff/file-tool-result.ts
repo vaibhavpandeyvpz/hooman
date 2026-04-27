@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import type { ChatLine } from "../../types.ts";
+import type { ChatLine } from "../../types.js";
 
 export type StructuredPatchHunk = {
   oldStart: number;

@@ -2,7 +2,9 @@ import { createMoonshotAI, moonshotai } from "@ai-sdk/moonshotai";
 import { VercelModel } from "@strands-agents/sdk/models/vercel";
 import type { MoonshotAIProviderSettings } from "@ai-sdk/moonshotai";
 import type { VercelModelConfig } from "@strands-agents/sdk/models/vercel";
-import { omit, pick } from "lodash";
+import lodash from "lodash";
+
+const { omit, pick } = lodash;
 
 const PROVIDER_SETTINGS_KEYS = [
   "apiKey",

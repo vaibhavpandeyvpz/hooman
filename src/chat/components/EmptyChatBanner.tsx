@@ -1,6 +1,6 @@
 import React from "react";
 import { Box, Text, useWindowSize } from "ink";
-import { ASCII_ART } from "./ascii-logo.ts";
+import { ASCII_ART } from "./ascii-logo.js";
 
 export function EmptyChatBanner(): React.JSX.Element {
   const { columns } = useWindowSize();

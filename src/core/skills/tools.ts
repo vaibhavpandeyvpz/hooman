@@ -1,7 +1,7 @@
 import { tool } from "@strands-agents/sdk";
 import type { JSONValue } from "@strands-agents/sdk";
 import { z } from "zod";
-import type { Registry } from "./registry.ts";
+import type { Registry } from "./registry.js";
 
 function toJsonValue(value: unknown): JSONValue {
   return JSON.parse(JSON.stringify(value)) as JSONValue;

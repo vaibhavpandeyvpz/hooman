@@ -1,9 +1,9 @@
-export { create as createShortTermMemory } from "./stm";
+export { create as createShortTermMemory } from "./stm/index.js";
 export {
   createLongTermMemoryStore,
   createLongTermMemoryTools,
   LongTermMemoryStore,
-} from "./ltm";
+} from "./ltm/index.js";
 export type {
   ArchiveMemoryInput,
   LongTermMemoryOptions,
@@ -14,4 +14,4 @@ export type {
   StoreMemoryInput,
   StoreMemoryResult,
   UpdateMemoryInput,
-} from "./ltm";
+} from "./ltm/index.js";

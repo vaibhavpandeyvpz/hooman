@@ -1,6 +1,6 @@
 import React from "react";
 import { Box, Text, useStdout } from "ink";
-import type { PromptSubmission } from "./prompt-input/hooks/usePromptInputController.ts";
+import type { PromptSubmission } from "./prompt-input/hooks/usePromptInputController.js";
 
 type QueuedPromptsProps = {
   prompts: readonly { id: string; prompt: PromptSubmission }[];

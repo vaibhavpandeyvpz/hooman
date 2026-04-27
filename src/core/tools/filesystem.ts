@@ -3,15 +3,15 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
 import { tool, type JSONValue, type ToolContext } from "@strands-agents/sdk";
-import { getCwd } from "../utils/cwd-context.ts";
+import { getCwd } from "../utils/cwd-context.js";
 import {
   setFileToolDisplay,
   type StructuredPatchHunk,
-} from "../state/file-tool-display.ts";
+} from "../state/file-tool-display.js";
 import {
   readAttachmentAsBlocksOrBase64,
   type AttachmentMediaBlocks,
-} from "../utils/attachments.ts";
+} from "../utils/attachments.js";
 import { z } from "zod";
 
 const DEFAULT_READ_LIMIT = 250;

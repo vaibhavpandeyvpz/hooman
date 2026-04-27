@@ -1,5 +1,5 @@
 import { Box, Text } from "ink";
-import type { TodoItem } from "../../core/state/todos.ts";
+import type { TodoItem } from "../../core/state/todos.js";
 
 type TodoPanelProps = {
   todos: TodoItem[];

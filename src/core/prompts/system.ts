@@ -1,9 +1,11 @@
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { compile } from "handlebars";
-import type { Config } from "../config.ts";
-import { getEnvironmentPromptContext } from "./environment.ts";
+import handlebars from "handlebars";
+import type { Config } from "../config.js";
+import { getEnvironmentPromptContext } from "./environment.js";
+
+const { compile } = handlebars;
 
 /** Bundled markdown next to this module (`prompts/static/`). */
 const STATIC_PROMPT_FILES = [

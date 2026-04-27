@@ -2,7 +2,7 @@ import { tool } from "@strands-agents/sdk";
 import type { JSONValue, ToolContext } from "@strands-agents/sdk";
 import { tavily } from "@tavily/core";
 import { z } from "zod";
-import type { Config } from "../config.ts";
+import type { Config } from "../config.js";
 
 const BRAVE_ENDPOINT = "https://api.search.brave.com/res/v1/web/search";
 const DEFAULT_TIMEOUT_SECONDS = 20;

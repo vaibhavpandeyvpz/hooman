@@ -2,7 +2,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { readFile, rm } from "node:fs/promises";
 import { basename, isAbsolute, join, resolve } from "node:path";
-import { parseSkillFrontmatter } from "./metadata.ts";
+import { parseSkillFrontmatter } from "./metadata.js";
 
 const execFileAsync = promisify(execFile);
 

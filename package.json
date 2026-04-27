@@ -1,7 +1,7 @@
 {
   "name": "hoomanjs",
   "version": "1.18.0",
-  "description": "Hackable Bun-powered AI agent toolkit for building local CLI, ACP, MCP, and channel-driven workflows.",
+  "description": "Hackable AI agent toolkit for building local CLI, ACP, MCP, and channel-driven workflows.",
   "author": {
     "name": "Vaibhav Pandey",
     "email": "contact@vaibhavpandey.com"
@@ -19,7 +19,6 @@
     "acp",
     "agent",
     "ai",
-    "bun",
     "chat",
     "cli",
     "llm",
@@ -29,26 +28,37 @@
   ],
   "type": "module",
   "bin": {
-    "hooman": "src/cli.ts"
+    "hooman": "./dist/cli.js"
   },
+  "main": "./dist/cli.js",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
-    "dev": "bun run src/cli.ts",
-    "start": "bun run src/cli.ts",
-    "typecheck": "tsc --noEmit",
-    "postbuild": "bun run copy-bundled-assets",
-    "copy-bundled-assets": "bun run scripts/copy-bundled-assets.ts"
+    "build": "tsc -p tsconfig.json && node scripts/copy-bundled-assets.mjs",
+    "clean": "rm -rf dist",
+    "dev": "tsx src/cli.ts",
+    "prepack": "npm run build",
+    "start": "node dist/cli.js",
+    "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
-    "@types/bun": "latest",
     "@types/jsdom": "^28.0.1",
     "@types/lodash": "^4.17.24",
     "@types/luxon": "^3.7.1",
+    "@types/node": "^25.6.0",
     "@types/react": "^19.2.14",
     "@types/turndown": "^5.0.6",
+    "tsx": "^4.21.0",
     "typescript": "^6.0.2"
   },
+  "publishConfig": {
+    "access": "public"
+  },
   "engines": {
-    "bun": ">=1.0.0"
+    "node": ">=24"
   },
   "dependencies": {
     "@agentclientprotocol/sdk": "^0.18.2",
@@ -72,7 +82,6 @@
     "handlebars": "^4.7.9",
     "ink": "^7.0.0",
     "ink-ansi": "^1.0.0",
-    "ink-scroll-view": "^0.3.6",
     "ink-select-input": "^6.2.0",
     "ink-text-input": "^6.0.0",
     "ink-use-mouse": "^1.0.0",

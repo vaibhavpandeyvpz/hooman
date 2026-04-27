@@ -1,9 +1,9 @@
 export {
   LongTermMemoryStore,
   create as createLongTermMemoryStore,
-} from "./store.ts";
+} from "./store.js";
 
-export { create as createLongTermMemoryTools } from "./tools.ts";
+export { create as createLongTermMemoryTools } from "./tools.js";
 
 export type {
   ArchiveMemoryInput,
@@ -15,4 +15,4 @@ export type {
   StoreMemoryInput,
   StoreMemoryResult,
   UpdateMemoryInput,
-} from "./types.ts";
+} from "./types.js";

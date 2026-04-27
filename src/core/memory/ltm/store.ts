@@ -1,6 +1,6 @@
 import { ChromaClient } from "chromadb";
 import type { QueryRowResult } from "chromadb";
-import { HFEmbedding } from "./embed.ts";
+import { HFEmbedding } from "./embed.js";
 import type {
   ArchiveMemoryInput,
   LongTermMemoryOptions,
@@ -11,8 +11,8 @@ import type {
   StoreMemoryInput,
   StoreMemoryResult,
   UpdateMemoryInput,
-} from "./types.ts";
-import type { Config } from "../../config.ts";
+} from "./types.js";
+import type { Config } from "../../config.js";
 import {
   DEFAULT_DEDUPE_THRESHOLD,
   DEFAULT_HALF_LIFE_MS,
@@ -26,7 +26,7 @@ import {
   similarity,
   toChromaMetadata,
   toMemory,
-} from "./utils.ts";
+} from "./utils.js";
 
 type Collection = Awaited<ReturnType<ChromaClient["getOrCreateCollection"]>>;
 

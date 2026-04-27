@@ -6,8 +6,8 @@ import {
 } from "@strands-agents/sdk";
 import type { BaseModelConfig, Model } from "@strands-agents/sdk";
 import { z } from "zod";
-import { BUILTIN_AGENT_KINDS, type AgentDefinition } from "./definitions.ts";
-import { runAgentJobs } from "./runner.ts";
+import { BUILTIN_AGENT_KINDS, type AgentDefinition } from "./definitions.js";
+import { runAgentJobs } from "./runner.js";
 
 export const RUN_AGENTS_TOOL_NAME = "run_agents";
 

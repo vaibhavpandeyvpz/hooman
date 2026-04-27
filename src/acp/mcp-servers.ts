@@ -1,5 +1,5 @@
 import { RequestError, type McpServer } from "@agentclientprotocol/sdk";
-import type { NamedMcpTransport } from "../core/mcp/index.ts";
+import type { NamedMcpTransport } from "../core/mcp/index.js";
 
 function pairsToRecord(
   pairs: ReadonlyArray<{ name: string; value: string }>,
