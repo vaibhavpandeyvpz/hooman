@@ -6,7 +6,7 @@ import React, {
   useState,
 } from "react";
 import fastq from "fastq";
-import { Box, useApp, useInput } from "ink";
+import { Box, useApp, useInput, useWindowSize } from "ink";
 import {
   BeforeToolCallEvent,
   Message,
@@ -27,10 +27,11 @@ import { Composer } from "./components/Composer.tsx";
 import { QueuedPrompts } from "./components/QueuedPrompts.tsx";
 import { StatusBar } from "./components/StatusBar.tsx";
 import { TodoPanel } from "./components/TodoPanel.tsx";
-import { Transcript } from "./components/Transcript.tsx";
+import { TranscriptViewport } from "./components/TranscriptViewport.tsx";
 import type { ApprovalRequest, ChatLine } from "./types.ts";
 import { getTodoViewState, type TodoViewState } from "../core/state/todos.ts";
 import { attachmentPathsToPromptBlocks } from "../core/utils/attachments.ts";
+import { isMouseInput } from "./mouse.ts";
 import type { PromptSubmission } from "./components/prompt-input/hooks/usePromptInputController.ts";
 
 type ChatAppProps = {
@@ -122,6 +123,7 @@ export function ChatApp({
   onExit,
 }: ChatAppProps): React.JSX.Element {
   const { exit } = useApp();
+  const { rows } = useWindowSize();
   const totalTools =
     (agent as Agent & { tools?: unknown[] }).tools?.length ?? 0;
   const [input, setInput] = useState("");
@@ -142,6 +144,7 @@ export function ChatApp({
     useState<ApprovalRequest | null>(null);
   const [queuedPrompts, setQueuedPrompts] = useState<QueuedPrompt[]>([]);
   const [liveReasoning, setLiveReasoning] = useState("");
+  const [followRequest, setFollowRequest] = useState(0);
   const [todoState, setTodoState] = useState<TodoViewState>(() =>
     getTodoViewState(agent),
   );
@@ -531,6 +534,7 @@ export function ChatApp({
         return;
       }
       if (pushPrompt(value)) {
+        setFollowRequest((value) => value + 1);
         setInput("");
       }
     },
@@ -539,6 +543,9 @@ export function ChatApp({
 
   useInput(
     (inputKey, key) => {
+      if (isMouseInput(inputKey)) {
+        return;
+      }
       if (key.ctrl && inputKey.toLowerCase() === "c") {
         if (runningRef.current) {
           agent.cancel();
@@ -581,42 +588,49 @@ export function ChatApp({
       : status;
 
   return (
-    <Box flexDirection="column" width="100%" paddingX={1}>
-      <Transcript lines={lines} liveReasoning={liveReasoning} />
-      {running && todoState.visible && todoState.todos.length > 0 ? (
-        <TodoPanel todos={todoState.todos} />
-      ) : null}
-      <QueuedPrompts prompts={queuedPrompts} />
-
-      {pendingApproval ? (
-        <ApprovalPrompt
-          onDecision={(decision) => controllerRef.current.decide(decision)}
-        />
-      ) : null}
-
-      {!pendingApproval ? (
-        <Composer
-          input={input}
-          running={running}
-          disabled={Boolean(pendingApproval)}
-          hint={INPUT_HINT}
-          onChange={setInput}
-          onSubmit={onSubmit}
-        />
-      ) : null}
-
-      <StatusBar
-        running={running}
-        status={status}
-        statusLabel={statusLabel}
-        sessionId={sessionId}
-        elapsedLabel={elapsedLabel}
-        turnCount={turnCount}
-        totalTools={totalTools}
-        skillsFound={skillsFound}
-        manager={manager}
-        usage={usage}
+    <Box flexDirection="column" width="100%" height={rows} paddingX={1}>
+      <TranscriptViewport
+        lines={lines}
+        liveReasoning={liveReasoning}
+        followRequest={followRequest}
       />
+
+      <Box flexDirection="column" flexShrink={0}>
+        {running && todoState.visible && todoState.todos.length > 0 ? (
+          <TodoPanel todos={todoState.todos} />
+        ) : null}
+        <QueuedPrompts prompts={queuedPrompts} />
+
+        {pendingApproval ? (
+          <ApprovalPrompt
+            onDecision={(decision) => controllerRef.current.decide(decision)}
+          />
+        ) : null}
+
+        {!pendingApproval ? (
+          <Composer
+            input={input}
+            running={running}
+            disabled={Boolean(pendingApproval)}
+            hint={INPUT_HINT}
+            onChange={setInput}
+            onSubmit={onSubmit}
+          />
+        ) : null}
+
+        <StatusBar
+          running={running}
+          status={status}
+          statusLabel={statusLabel}
+          sessionId={sessionId}
+          elapsedLabel={elapsedLabel}
+          turnCount={turnCount}
+          totalTools={totalTools}
+          skillsFound={skillsFound}
+          manager={manager}
+          usage={usage}
+        />
+      </Box>
     </Box>
   );
 }

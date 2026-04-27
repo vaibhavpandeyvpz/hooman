@@ -34,6 +34,7 @@ import {
 import { getPromptView, type PromptView } from "./render.ts";
 import { getCwd } from "../../../core/utils/cwd-context.ts";
 import { saveClipboardImageAsAttachment } from "./clipboard-image.ts";
+import { isMouseInput } from "../../mouse.ts";
 
 export type PromptSubmission = {
   text: string;
@@ -355,6 +356,10 @@ export function usePromptInputController({
 
   useInput(
     (input, key) => {
+      if (isMouseInput(input)) {
+        return;
+      }
+
       const state = getState();
 
       if (key.return) {
