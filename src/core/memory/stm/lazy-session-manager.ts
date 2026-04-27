@@ -13,6 +13,7 @@ import {
   type SnapshotStorage,
 } from "@strands-agents/sdk";
 import type { JSONValue } from "@strands-agents/sdk";
+import { EXIT_REQUESTED_STATE_KEY } from "../../state/exit-request.js";
 
 const DEFAULT_SESSION_ID = "default-session";
 const DEFAULT_APP_STATE_KEY = "sessionId";
@@ -143,11 +144,16 @@ function sanitize(value: string): string {
 }
 
 function takeSnapshot(agent: LocalAgent): Snapshot {
+  const state =
+    (agent.appState.getAll() as Record<string, JSONValue> | undefined) ?? {};
+  const persistedState = { ...state };
+  delete persistedState[EXIT_REQUESTED_STATE_KEY];
+
   const data: Record<string, JSONValue> = {
     messages: agent.messages.map((message) =>
       message.toJSON(),
     ) as unknown as JSONValue,
-    state: agent.appState.getAll() as JSONValue,
+    state: persistedState as JSONValue,
     systemPrompt:
       agent.systemPrompt !== undefined
         ? (systemPromptToData(agent.systemPrompt) as JSONValue)

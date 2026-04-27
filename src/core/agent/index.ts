@@ -16,6 +16,7 @@ import {
   loadBuiltInAgentDefinitions,
 } from "../agents/index.js";
 import {
+  createByeTools,
   createTodoTools,
   createFetchTools,
   createFilesystemTools,
@@ -57,6 +58,7 @@ export async function create(
     .join(SECTION_BREAK);
   const model = llm.create(config.llm.model, config.llm.params);
   const tools: Tool[] = [
+    ...createByeTools(),
     ...createTimeTools(),
     ...(config.tools.sleep.enabled ? createSleepTools() : []),
     ...(config.tools.todo.enabled ? createTodoTools() : []),

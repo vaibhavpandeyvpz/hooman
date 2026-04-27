@@ -30,6 +30,7 @@ import { TodoPanel } from "./components/TodoPanel.js";
 import { TranscriptViewport } from "./components/TranscriptViewport.js";
 import type { ApprovalRequest, ChatLine } from "./types.js";
 import { getTodoViewState, type TodoViewState } from "../core/state/todos.js";
+import { isExitRequested } from "../core/state/exit-request.js";
 import { attachmentPathsToPromptBlocks } from "../core/utils/attachments.js";
 import { isMouseInput } from "./mouse.js";
 import type { PromptSubmission } from "./components/prompt-input/hooks/usePromptInputController.js";
@@ -458,9 +459,21 @@ export function ChatApp({
         setTurnStartedAt(null);
         setLiveReasoning("");
         setStatus("ready");
+        if (isExitRequested(agent)) {
+          onExit();
+          exit();
+        }
       }
     },
-    [agent, appendAssistantText, appendLine, moveLineToEnd, updateLine],
+    [
+      agent,
+      appendAssistantText,
+      appendLine,
+      exit,
+      moveLineToEnd,
+      onExit,
+      updateLine,
+    ],
   );
 
   const runTurnRef = useRef(runTurn);

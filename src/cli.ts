@@ -10,6 +10,10 @@ import { configure } from "./configure/index.js";
 import { runAcpStdio } from "./acp/acp-agent.js";
 import { main as daemon } from "./daemon/index.js";
 import { createDaemonApprovalHandler } from "./daemon/approvals.js";
+import {
+  consumeExitRequest,
+  EXIT_REQUESTED_CODE,
+} from "./core/state/exit-request.js";
 
 async function readPackageMeta(): Promise<{
   name: string;
@@ -61,12 +65,17 @@ program
         BeforeToolCallEvent,
         createToolApprovalHandler({ yolo: Boolean(options.yolo) }),
       );
+      let exitRequested = false;
       try {
         await agent.invoke(prompt);
+        exitRequested = consumeExitRequest(agent);
       } finally {
         try {
           await manager.disconnect();
         } catch {}
+      }
+      if (exitRequested) {
+        process.exit(EXIT_REQUESTED_CODE);
       }
     },
   );
@@ -89,8 +98,9 @@ program
         registry,
       } = await bootstrap("default", { sessionId }, false);
 
+      let exitRequested = false;
       try {
-        await chat({
+        exitRequested = await chat({
           agent,
           manager,
           registry,
@@ -102,6 +112,9 @@ program
         try {
           await manager.disconnect();
         } catch {}
+      }
+      if (exitRequested) {
+        process.exit(EXIT_REQUESTED_CODE);
       }
     },
   );
@@ -143,8 +156,9 @@ program
           yolo: Boolean(options.yolo),
         }),
       );
+      let exitRequested = false;
       try {
-        await daemon({
+        exitRequested = await daemon({
           agent,
           manager,
           channels: Boolean(options.channels),
@@ -155,6 +169,9 @@ program
         try {
           await manager.disconnect();
         } catch {}
+      }
+      if (exitRequested) {
+        process.exit(EXIT_REQUESTED_CODE);
       }
     },
   );

@@ -20,6 +20,8 @@ export const INTERNAL_ALWAYS_ALLOWED = new Set([
   "run_agents",
   // Sleep
   "sleep",
+  // Process lifecycle
+  "bye",
   // Time
   "convert_time",
   "get_current_time",

@@ -3,6 +3,7 @@ import { render } from "ink";
 import type { Agent } from "@strands-agents/sdk";
 import type { Manager as McpManager } from "../core/mcp/index.js";
 import type { Registry } from "../core/skills/index.js";
+import { consumeExitRequest } from "../core/state/exit-request.js";
 import { ChatApp } from "./app.js";
 
 type LaunchChatOptions = {
@@ -14,7 +15,7 @@ type LaunchChatOptions = {
   yolo?: boolean;
 };
 
-export async function chat(options: LaunchChatOptions): Promise<void> {
+export async function chat(options: LaunchChatOptions): Promise<boolean> {
   let done = false;
   const { waitUntilExit, unmount } = render(
     <ChatApp
@@ -38,4 +39,5 @@ export async function chat(options: LaunchChatOptions): Promise<void> {
       unmount();
     }
   }
+  return consumeExitRequest(options.agent);
 }

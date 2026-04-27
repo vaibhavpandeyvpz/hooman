@@ -7,7 +7,6 @@ import type {
   PromptResponse,
   SetSessionConfigOptionResponse,
   StopReason,
-  ToolCallContent,
 } from "@agentclientprotocol/sdk";
 import {
   AgentSideConnection,
@@ -41,6 +40,10 @@ import { deriveSessionTitleFromEcho } from "./sessions/title.js";
 import { acpPromptEchoText, acpPromptToInvokeArgs } from "./prompt-invoke.js";
 import type { Config } from "../core/config.js";
 import { normalizeAcpSessionMcpServers } from "./mcp-servers.js";
+import {
+  consumeExitRequest,
+  EXIT_REQUESTED_CODE,
+} from "../core/state/exit-request.js";
 import {
   listStoredSessionIds,
   loadSessionMessages,
@@ -653,6 +656,11 @@ export class AcpAgent implements AgentContract {
       } catch {
         /* ignore */
       }
+    }
+
+    if (consumeExitRequest(rec.agent)) {
+      await this.#disposeAllSessions();
+      setTimeout(() => process.exit(EXIT_REQUESTED_CODE), 25);
     }
 
     return { stopReason } satisfies PromptResponse;

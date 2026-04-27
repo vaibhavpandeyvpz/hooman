@@ -19,6 +19,7 @@ const STATIC_PROMPT_FILES = [
   "web-search.md",
   "shell.md",
   "sleep.md",
+  "bye.md",
   "daemon.md",
   "wiki.md",
   "skills.md",

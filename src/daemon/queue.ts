@@ -6,7 +6,7 @@ type MessageQueue = fastq.queueAsPromised<ChannelMessage, void>;
 export async function createQueue(
   handler: (message: ChannelMessage) => Promise<void>,
   cleanup: () => void,
-): Promise<[MessageQueue, () => Promise<void>]> {
+): Promise<[MessageQueue, () => Promise<void>, () => void]> {
   let stopping = false;
   let resolver: (() => void) | null = null;
   const queue: MessageQueue = fastq.promise(async (message: ChannelMessage) => {
@@ -44,5 +44,6 @@ export async function createQueue(
         process.off("SIGTERM", onSigTerm);
       }
     },
+    shutdown,
   ];
 }

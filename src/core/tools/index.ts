@@ -1,3 +1,4 @@
+export { createByeTools } from "./bye.js";
 export { createFilesystemTools } from "./filesystem.js";
 export { createFetchTools } from "./fetch.js";
 export { createSleepTools } from "./sleep.js";
