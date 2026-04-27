@@ -211,7 +211,8 @@ export class Manager {
       [...map.entries()].map(async ([server, client]) =>
         client
           .listTools()
-          .then((tools) => tools.map((t) => new PrefixedMcpTool(server, t))),
+          .then((tools) => tools.map((t) => new PrefixedMcpTool(server, t)))
+          .catch(() => []),
       ),
     );
     return batches.flat();
@@ -227,7 +228,13 @@ export class Manager {
     const map = this.instances!;
     const rows = await Promise.all(
       [...map.entries()].map(async ([server, client]) => {
-        await client.connect();
+        const connected = await client
+          .connect()
+          .then(() => true)
+          .catch(() => false);
+        if (!connected) {
+          return "";
+        }
         const instructions = client.client.getInstructions()?.trim();
         if (!instructions) {
           return "";
@@ -260,7 +267,13 @@ export class Manager {
     const unsubs: Array<() => void> = [];
     const subscriptions: ChannelSubscription[] = [];
     for (const [server, client] of map.entries()) {
-      await client.connect();
+      const connected = await client
+        .connect()
+        .then(() => true)
+        .catch(() => false);
+      if (!connected) {
+        continue;
+      }
       const experimental =
         client.client.getServerCapabilities()?.experimental ?? {};
       const user = readIdentityPath(experimental, "hooman/user");
@@ -365,7 +378,13 @@ export class Manager {
     if (!client) {
       return false;
     }
-    await client.connect();
+    const connected = await client
+      .connect()
+      .then(() => true)
+      .catch(() => false);
+    if (!connected) {
+      return false;
+    }
     const experimental =
       client.client.getServerCapabilities()?.experimental ?? {};
     return Boolean(get(experimental, [HOOMAN_CHANNEL_PERMISSION]));
