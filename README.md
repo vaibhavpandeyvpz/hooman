@@ -225,7 +225,7 @@ The configure UI currently lets you:
 - toggle bundled harness prompts (`behaviour`, `communication`, `execution`, `engineering`, `guardrails`)
 - edit `instructions.md` in your `$VISUAL` / `$EDITOR` (cross-platform fallback included)
 - add, edit, and delete MCP servers with confirmation
-- refresh and remove local skills
+- search, install, refresh, and remove skills
 
 ### `hooman acp`
 
@@ -569,6 +569,8 @@ Skills are installed under:
 Skills are discovered by scanning direct child directories for `SKILL.md`.
 The configure workflow can:
 
+- search the public skills catalog
+- install a skill from a source string, repo, URL, or local path
 - refresh installed skills
 - remove installed skills with confirmation
 
