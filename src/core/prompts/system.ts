@@ -34,6 +34,7 @@ const HARNESS_PROMPT_FILES = [
 export type SystemMode = "default" | "daemon" | "acp";
 
 const SECTION_BREAK = "\n\n---\n\n";
+const EXTRA_CWD_INSTRUCTIONS = "AGENTS.md";
 
 /**
  * Loads `prompts/static/*.md` from the package, then `instructions.md` from disk,
@@ -122,12 +123,21 @@ export class System {
     return parts.join("\n\n");
   }
 
+  private readCwdAgentsInstructions(): string {
+    const path = join(process.cwd(), EXTRA_CWD_INSTRUCTIONS);
+    if (!existsSync(path)) {
+      return "";
+    }
+    return readFileSync(path, "utf8").trim();
+  }
+
   private readRawText(): string {
     const instructions = existsSync(this.path)
       ? readFileSync(this.path, "utf8").trim()
       : "";
     const bundled = this.readBundledStaticPrompts();
     const harness = this.readBundledHarnessPrompts();
+    const extra = this.readCwdAgentsInstructions();
 
     const blocks: string[] = [];
     if (bundled.length > 0) {
@@ -138,6 +148,9 @@ export class System {
     }
     if (instructions.length > 0) {
       blocks.push(instructions);
+    }
+    if (extra.length > 0) {
+      blocks.push(extra);
     }
     if (blocks.length === 0) {
       return "";
