@@ -1,6 +1,6 @@
 import type { ToolKind } from "@agentclientprotocol/sdk";
 import type { Tool } from "@strands-agents/sdk";
-import { INTERNAL_ALWAYS_ALLOWED } from "../../core/approvals/allowed-tools.ts";
+import { INTERNAL_ALWAYS_ALLOWED } from "../../core/state/tool-approvals.ts";
 
 const KNOWN_TOOL_KINDS = new Map<string, ToolKind>([
   ["read_file", "read"],

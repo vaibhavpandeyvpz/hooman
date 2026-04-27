@@ -17,6 +17,7 @@ import {
 } from "@strands-agents/sdk";
 import type { Manager as McpManager } from "../core/mcp/index.ts";
 import type { Registry } from "../core/skills/index.ts";
+import { takeFileToolDisplay } from "../core/state/file-tool-display.ts";
 import {
   ChatApprovalController,
   createChatApprovalHandler,
@@ -28,7 +29,7 @@ import { StatusBar } from "./components/StatusBar.tsx";
 import { TodoPanel } from "./components/TodoPanel.tsx";
 import { Transcript } from "./components/Transcript.tsx";
 import type { ApprovalRequest, ChatLine } from "./types.ts";
-import { getTodoViewState, type TodoViewState } from "../core/tools/todo.ts";
+import { getTodoViewState, type TodoViewState } from "../core/state/todos.ts";
 import { attachmentPathsToPromptBlocks } from "../core/utils/attachments.ts";
 import type { PromptSubmission } from "./components/prompt-input/hooks/usePromptInputController.ts";
 
@@ -342,6 +343,10 @@ export function ChatApp({
             case "toolResultEvent": {
               const resultContent = toToolResultText(e.result);
               const toolUseId = getToolUseId(e.result);
+              const fileToolDisplay = takeFileToolDisplay(
+                agent.appState,
+                toolUseId,
+              );
               let toolLineId = toolUseId
                 ? toolLineIdsRef.current.get(toolUseId)
                 : undefined;
@@ -365,6 +370,7 @@ export function ChatApp({
                   phase: "done",
                   done: true,
                   resultContent,
+                  fileToolDisplay,
                 });
               } else {
                 appendLine({
@@ -374,6 +380,7 @@ export function ChatApp({
                   toolName: "unknown",
                   content: "",
                   resultContent,
+                  fileToolDisplay,
                   phase: "done",
                   done: true,
                 });

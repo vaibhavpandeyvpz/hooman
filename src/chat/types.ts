@@ -1,3 +1,5 @@
+import type { FileToolDisplay } from "../core/state/file-tool-display.ts";
+
 export type ChatRole = "user" | "assistant" | "tool" | "system";
 
 export interface ChatLine {
@@ -9,6 +11,7 @@ export interface ChatLine {
   toolName?: string;
   phase?: "running" | "done";
   resultContent?: string;
+  fileToolDisplay?: FileToolDisplay;
 }
 
 export type ApprovalDecision = "allow" | "reject" | "always";

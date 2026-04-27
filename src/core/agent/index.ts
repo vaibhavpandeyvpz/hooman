@@ -30,7 +30,7 @@ import {
   createWikiTools,
   createWebSearchTools,
 } from "../tools";
-import { clearTodoState } from "../tools/todo.ts";
+import { clearTodoState } from "../state/todos.ts";
 
 const SECTION_BREAK = "\n\n---\n\n";
 

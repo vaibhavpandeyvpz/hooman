@@ -2,8 +2,12 @@ import { createHash } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
-import { tool, type JSONValue } from "@strands-agents/sdk";
+import { tool, type JSONValue, type ToolContext } from "@strands-agents/sdk";
 import { getCwd } from "../utils/cwd-context.ts";
+import {
+  setFileToolDisplay,
+  type StructuredPatchHunk,
+} from "../state/file-tool-display.ts";
 import {
   readAttachmentAsBlocksOrBase64,
   type AttachmentMediaBlocks,
@@ -39,14 +43,6 @@ type TextReadState = {
   offset: number;
   limit?: number;
   isPartial: boolean;
-};
-
-type StructuredPatchHunk = {
-  oldStart: number;
-  oldLines: number;
-  newStart: number;
-  newLines: number;
-  lines: string[];
 };
 
 const textReadState = new Map<string, TextReadState>();
@@ -459,6 +455,67 @@ function buildPatchHunk(
   };
 }
 
+function patchLines(content: string): string[] {
+  return content.length === 0 ? [] : splitLines(content);
+}
+
+function buildContentPatchHunks(
+  original: string,
+  edited: string,
+): StructuredPatchHunk[] {
+  const oldLines = patchLines(original);
+  const newLines = patchLines(edited);
+  let prefix = 0;
+  while (
+    prefix < oldLines.length &&
+    prefix < newLines.length &&
+    oldLines[prefix] === newLines[prefix]
+  ) {
+    prefix += 1;
+  }
+
+  let oldEnd = oldLines.length - 1;
+  let newEnd = newLines.length - 1;
+  while (
+    oldEnd >= prefix &&
+    newEnd >= prefix &&
+    oldLines[oldEnd] === newLines[newEnd]
+  ) {
+    oldEnd -= 1;
+    newEnd -= 1;
+  }
+
+  if (oldEnd < prefix && newEnd < prefix) {
+    return [];
+  }
+
+  const contextStart = Math.max(0, prefix - SNIPPET_RADIUS);
+  const oldSuffixStart = oldEnd + 1;
+  const oldSuffixEnd = Math.min(
+    oldLines.length,
+    oldSuffixStart + SNIPPET_RADIUS,
+  );
+  const prefixContext = oldLines.slice(contextStart, prefix);
+  const removed = oldLines.slice(prefix, oldEnd + 1);
+  const added = newLines.slice(prefix, newEnd + 1);
+  const suffixContext = oldLines.slice(oldSuffixStart, oldSuffixEnd);
+
+  return [
+    {
+      oldStart: contextStart + 1,
+      oldLines: prefixContext.length + removed.length + suffixContext.length,
+      newStart: contextStart + 1,
+      newLines: prefixContext.length + added.length + suffixContext.length,
+      lines: [
+        ...prefixContext.map((line) => ` ${line}`),
+        ...removed.map((line) => `-${line}`),
+        ...added.map((line) => `+${line}`),
+        ...suffixContext.map((line) => ` ${line}`),
+      ],
+    },
+  ];
+}
+
 function applyEdits(
   original: string,
   edits: Array<z.infer<typeof EditSchema>>,
@@ -813,17 +870,42 @@ export function createFilesystemTools() {
       description:
         "Write text content to a file. Can overwrite or append, and can create parent directories when requested.",
       inputSchema: schema.writeFile,
-      callback: async (input) => {
+      callback: async (input, context?: ToolContext) => {
         const filePath = normalizeUserPath(input.path);
 
         if (input.create_parents ?? true) {
           await fs.mkdir(path.dirname(filePath), { recursive: true });
         }
 
+        let oldContent = "";
+        try {
+          oldContent = normalizeLineEndings(
+            await fs.readFile(filePath, "utf8"),
+          );
+        } catch {
+          oldContent = "";
+        }
+
         if (input.append) {
           await fs.appendFile(filePath, input.content, "utf8");
         } else {
           await fs.writeFile(filePath, input.content, "utf8");
+        }
+
+        const newContent = input.append
+          ? `${oldContent}${normalizeLineEndings(input.content)}`
+          : normalizeLineEndings(input.content);
+        const structuredPatch = buildContentPatchHunks(oldContent, newContent);
+        if (structuredPatch.length > 0) {
+          if (context) {
+            setFileToolDisplay(
+              context.agent.appState,
+              context.toolUse.toolUseId,
+              {
+                structuredPatch,
+              },
+            );
+          }
         }
 
         return toJsonValue({
@@ -838,7 +920,7 @@ export function createFilesystemTools() {
       description:
         "Apply exact text replacements to a file. Fails if any replacement target is missing or ambiguous.",
       inputSchema: schema.editFile,
-      callback: async (input) => {
+      callback: async (input, context?: ToolContext) => {
         const filePath = normalizeUserPath(input.path);
         const stat = await statFile(filePath);
         const previousRead = textReadState.get(filePath);
@@ -871,6 +953,17 @@ export function createFilesystemTools() {
           });
         }
 
+        if (context) {
+          setFileToolDisplay(
+            context.agent.appState,
+            context.toolUse.toolUseId,
+            {
+              previews: edited.replacements.map((item) => item.snippet),
+              structuredPatch: edited.replacements.map((item) => item.hunk),
+            },
+          );
+        }
+
         return toJsonValue({
           path: filePath,
           dry_run: input.dry_run ?? false,
@@ -880,8 +973,6 @@ export function createFilesystemTools() {
           sha256_after: createHash("sha256")
             .update(edited.content)
             .digest("hex"),
-          previews: edited.replacements.map((item) => item.snippet),
-          structured_patch: edited.replacements.map((item) => item.hunk),
         });
       },
     }),

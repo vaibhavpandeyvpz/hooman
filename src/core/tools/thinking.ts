@@ -1,8 +1,11 @@
 import { tool } from "@strands-agents/sdk";
 import type { JSONValue, ToolContext } from "@strands-agents/sdk";
 import { z } from "zod";
-
-const THINKING_STATE_KEY = "thinking.sequential";
+import {
+  readThinkingState,
+  type ThoughtEntry,
+  writeThinkingState,
+} from "../state/thought-process.ts";
 
 const coercedBoolean = z.preprocess((value) => {
   if (typeof value === "boolean") {
@@ -20,46 +23,8 @@ const coercedBoolean = z.preprocess((value) => {
   return value;
 }, z.boolean());
 
-type ThoughtEntry = {
-  thought: string;
-  thoughtNumber: number;
-  totalThoughts: number;
-  nextThoughtNeeded: boolean;
-  isRevision: boolean;
-  revisesThought: number | null;
-  branchFromThought: number | null;
-  branchId: string | null;
-  needsMoreThoughts: boolean;
-};
-
-type ThinkingState = {
-  history: ThoughtEntry[];
-  branches: string[];
-};
-
 function toJsonValue(value: unknown): JSONValue {
   return JSON.parse(JSON.stringify(value)) as JSONValue;
-}
-
-function readThinkingState(context: ToolContext): ThinkingState {
-  const current = context.agent.appState.get<{
-    [THINKING_STATE_KEY]: ThinkingState;
-  }>(THINKING_STATE_KEY);
-
-  if (
-    current &&
-    typeof current === "object" &&
-    Array.isArray(current.history) &&
-    Array.isArray(current.branches)
-  ) {
-    return current;
-  }
-
-  return { history: [], branches: [] };
-}
-
-function writeThinkingState(context: ToolContext, state: ThinkingState): void {
-  context.agent.appState.set(THINKING_STATE_KEY, state);
 }
 
 function normalizeThought(

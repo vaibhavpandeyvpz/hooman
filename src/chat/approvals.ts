@@ -3,7 +3,7 @@ import {
   INTERNAL_ALWAYS_ALLOWED,
   allowToolForSession,
   isToolSessionAllowed,
-} from "../core/approvals/allowed-tools.ts";
+} from "../core/state/tool-approvals.ts";
 import type { ApprovalDecision, ApprovalRequest } from "./types.ts";
 const INPUT_PREVIEW_LIMIT = 256;
 

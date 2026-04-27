@@ -4,7 +4,7 @@ import {
   INTERNAL_ALWAYS_ALLOWED,
   allowToolForSession,
   isToolSessionAllowed,
-} from "../core/approvals/allowed-tools.ts";
+} from "../core/state/tool-approvals.ts";
 import { inferToolKind, toolDisplayTitle } from "./utils/tool-kind.ts";
 import { toolCallLocationsFromInput } from "./utils/tool-locations.ts";
 

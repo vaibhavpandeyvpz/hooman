@@ -4,7 +4,7 @@ import {
   INTERNAL_ALWAYS_ALLOWED,
   allowToolForSession,
   isToolSessionAllowed,
-} from "../core/approvals/allowed-tools.ts";
+} from "../core/state/tool-approvals.ts";
 
 const TOOL_DESCRIPTION_PREVIEW_LIMIT = 50;
 const TOOL_ARGS_PREVIEW_LIMIT = 50;
