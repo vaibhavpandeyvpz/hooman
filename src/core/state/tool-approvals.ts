@@ -37,12 +37,6 @@ export const INTERNAL_ALWAYS_ALLOWED = new Set([
   "search_memory",
   "store_memory",
   "update_memory",
-  // Skills
-  "list_skills",
-  "search_skills",
-  // MCP config
-  "get_mcp_server",
-  "list_mcp_servers",
   // Filesystem (list / search / metadata)
   "directory_tree",
   "get_file_info",

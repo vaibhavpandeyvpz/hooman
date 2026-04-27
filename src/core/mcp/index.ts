@@ -18,7 +18,6 @@ export type {
   ChannelSubscriptionHandle,
   NamedMcpTransport,
 };
-export { createMcpTools } from "./tools.js";
 
 export function createMcpConfig(path: string): Config {
   return new Config(path);

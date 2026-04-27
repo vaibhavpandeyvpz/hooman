@@ -2,11 +2,7 @@ import { Agent, BeforeInvocationEvent } from "@strands-agents/sdk";
 import type { Tool } from "@strands-agents/sdk";
 import type { Config } from "../config.js";
 import { modelProviders } from "../models/index.js";
-import {
-  createMcpTools,
-  type Config as McpConfig,
-  type Manager as McpManager,
-} from "../mcp/index.js";
+import type { Manager as McpManager } from "../mcp/index.js";
 import type { System as SystemPrompt } from "../prompts/index.js";
 import { skills as createSkillsPrompt } from "../prompts/index.js";
 import {
@@ -14,7 +10,7 @@ import {
   createLongTermMemoryStore,
   createLongTermMemoryTools,
 } from "../memory/index.js";
-import { createSkillsTools, type Registry } from "../skills/index.js";
+import type { Registry } from "../skills/index.js";
 import {
   createRunAgentsTools,
   loadBuiltInAgentDefinitions,
@@ -38,7 +34,7 @@ export async function create(
   config: Config,
   system: SystemPrompt,
   registry: Registry,
-  mcp: { config: McpConfig; manager: McpManager },
+  mcp: { manager: McpManager },
   print: boolean = false,
   meta: {
     userId?: string;
@@ -70,8 +66,6 @@ export async function create(
     ...(config.tools.shell.enabled ? createShellTools() : []),
     ...(config.search.enabled ? createWebSearchTools(config) : []),
     ...(config.tools.wiki.enabled ? createWikiTools(config) : []),
-    ...(config.tools.mcp.enabled ? createMcpTools(mcp.config) : []),
-    ...(config.tools.skills.enabled ? createSkillsTools(registry) : []),
     ...createThinkingTools(),
     ...prefixed,
   ];

@@ -22,8 +22,7 @@ export type Screen =
   | { kind: "mcp" }
   | { kind: "mcp-delete-confirm"; name: string }
   | { kind: "skills" }
-  | { kind: "skills-delete-confirm"; folder: string; displayName: string }
-  | { kind: "skills-search-results"; query: string };
+  | { kind: "skills-delete-confirm"; folder: string; displayName: string };
 
 export type Notice = {
   kind: "success" | "error" | "info";

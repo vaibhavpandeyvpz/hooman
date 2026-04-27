@@ -32,7 +32,7 @@ It gives you a practical toolkit to build and run agent workflows:
 - MCP server support via `stdio`, `streamable-http`, and `sse`
 - MCP server `instructions` support: server-provided instructions are appended to the agent system prompt
 - MCP channel notification support through `hooman daemon --channels`
-- Skill discovery / install / removal through the integrated configure flow
+- Skill discovery from local `~/.hooman/skills` folders
 - Bundled prompt harness toggles (`behaviour`, `communication`, `execution`, `engineering`, `guardrails`)
 - Built-in subagent runner tools (`research`, `plan`) with configurable concurrency
 - Toolkit-oriented architecture with configurable tools, prompts, memory, and transports
@@ -41,7 +41,7 @@ It gives you a practical toolkit to build and run agent workflows:
 ## Requirements
 
 - [Node.js](https://nodejs.org) `>= 24`
-- npm for `npx`, global installs, and public skills catalog installs
+- npm for package installs and JavaScript tooling
 - Provider credentials or local model runtime depending on the LLM you choose
 
 ## Usage
@@ -200,8 +200,8 @@ Runtime tool and prompt switches are controlled from `config.json`:
 - `tools.sleep.enabled`
 - `tools.ltm.enabled`
 - `tools.wiki.enabled`
-- `tools.mcp.enabled` (enables MCP management tools + prefixed MCP server tools/instructions)
-- `tools.skills.enabled` (enables skills management tools + skills prompt sections)
+- `tools.mcp.enabled` (enables configured MCP server tools/instructions)
+- `tools.skills.enabled` (enables skills prompt guidance)
 - `tools.agents.enabled` (enables built-in `run_agents` tool)
 - `tools.agents.concurrency`
 
@@ -225,7 +225,7 @@ The configure UI currently lets you:
 - toggle bundled harness prompts (`behaviour`, `communication`, `execution`, `engineering`, `guardrails`)
 - edit `instructions.md` in your `$VISUAL` / `$EDITOR` (cross-platform fallback included)
 - add, edit, and delete MCP servers with confirmation
-- search, install, refresh, and remove skills
+- refresh and remove local skills
 
 ### `hooman acp`
 
@@ -566,10 +566,9 @@ Skills are installed under:
 ~/.hooman/skills
 ```
 
+Skills are discovered by scanning direct child directories for `SKILL.md`.
 The configure workflow can:
 
-- search the public skills catalog
-- install a skill from a source string, repo, URL, or local path
 - refresh installed skills
 - remove installed skills with confirmation
 

@@ -38,11 +38,6 @@ export class Config {
     this.servers = { ...parsed.mcpServers };
   }
 
-  private persist(): void {
-    const payload: McpServersFile = { mcpServers: { ...this.servers } };
-    writeFileSync(this.path, JSON.stringify(payload, null, 2), "utf8");
-  }
-
   /** All configured servers, stable sort by name. */
   public list(): NamedMcpTransport[] {
     return Object.entries(this.servers)
@@ -54,27 +49,33 @@ export class Config {
     return this.servers[name];
   }
 
+  private persist(): void {
+    const data: McpServersFile = { mcpServers: this.servers };
+    writeFileSync(this.path, JSON.stringify(data, null, 2), "utf8");
+  }
+
   public add(name: string, transport: McpTransport): void {
-    if (Object.hasOwn(this.servers, name)) {
-      throw new Error(`MCP server "${name}" already exists`);
+    if (this.servers[name]) {
+      throw new Error(`MCP server "${name}" already exists.`);
     }
-    this.servers[name] = transport;
+    this.servers = { ...this.servers, [name]: transport };
     this.persist();
   }
 
   public update(name: string, transport: McpTransport): void {
-    if (!Object.hasOwn(this.servers, name)) {
-      throw new Error(`MCP server "${name}" not found`);
+    if (!this.servers[name]) {
+      throw new Error(`MCP server "${name}" does not exist.`);
     }
-    this.servers[name] = transport;
+    this.servers = { ...this.servers, [name]: transport };
     this.persist();
   }
 
   public remove(name: string): void {
-    if (!Object.hasOwn(this.servers, name)) {
-      throw new Error(`MCP server "${name}" not found`);
+    if (!this.servers[name]) {
+      throw new Error(`MCP server "${name}" does not exist.`);
     }
-    delete this.servers[name];
+    const { [name]: _removed, ...remaining } = this.servers;
+    this.servers = remaining;
     this.persist();
   }
 }

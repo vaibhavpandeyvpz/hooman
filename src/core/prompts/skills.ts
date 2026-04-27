@@ -5,7 +5,11 @@ import { parseSkillFrontmatter } from "../skills/metadata.js";
 import type { Registry } from "../skills/registry.js";
 
 /** Folder names under `src/core/skills/built-in/<id>/SKILL.md` (also copied to `dist/`). */
-const BUILTIN_SKILLS = ["hooman-config"] as const;
+const BUILTIN_SKILLS = [
+  "hooman-config",
+  "hooman-mcp",
+  "hooman-skills",
+] as const;
 
 const BUILTIN_ROOT = join(
   dirname(fileURLToPath(import.meta.url)),
@@ -17,7 +21,7 @@ const BUILTIN_SKILLS_SECTION: string = (() => {
   const header: string[] = [
     "## Built-in skills",
     "",
-    "Shipped with hooman; not removable via skills management tools. When one matches the request, read its `SKILL.md` at the path shown and follow that guidance.",
+    "Shipped with hooman. When one matches the request, read its `SKILL.md` at the path shown and follow that guidance.",
     "",
   ];
   let any = false;
@@ -41,7 +45,7 @@ const BUILTIN_SKILLS_SECTION: string = (() => {
 
 /**
  * Builds the dynamic **Available skills** markdown block using
- * {@link Registry.list} (same source as the skills CLI), prefixed by a
+ * {@link Registry.list}, prefixed by a
  * static **Built-in skills** section from `src/core/skills/built-in/`.
  *
  * Mirrors {@link System}: call {@link reload}, then read {@link content}.
@@ -66,7 +70,7 @@ export class Skills {
       this.data = [
         "## Available skills",
         "",
-        "The skills list could not be loaded (for example if `npx skills` is unavailable). Skills management tools may still work; try again later.",
+        "Installed skills could not be loaded. Check `~/.hooman/skills` and try again later.",
         "",
       ].join("\n");
       return;
@@ -81,7 +85,7 @@ export class Skills {
 
     if (entries.length === 0) {
       lines.push(
-        "No skills are installed yet. Use the skills management tools to search and install packages, or add them under your agent skills directory.",
+        "No skills are installed yet. Add skill folders under `~/.hooman/skills`.",
         "",
       );
       this.data = lines.join("\n").trim();

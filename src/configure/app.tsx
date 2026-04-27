@@ -8,10 +8,7 @@ import {
   type Stdio,
   type StreamableHttp,
 } from "../core/mcp/types.js";
-import type {
-  SkillListEntry,
-  SkillSearchResult,
-} from "../core/skills/registry.js";
+import type { SkillListEntry } from "../core/skills/registry.js";
 import {
   basePath,
   configJsonPath,
@@ -67,7 +64,6 @@ export function ConfigureApp({
   const [busyMessage, setBusyMessage] = useState<string | null>(null);
   const [revision, setRevision] = useState(0);
   const [installedSkills, setInstalledSkills] = useState<SkillListEntry[]>([]);
-  const [searchResults, setSearchResults] = useState<SkillSearchResult[]>([]);
 
   const refresh = useCallback(() => {
     setRevision((value) => value + 1);
@@ -635,7 +631,7 @@ export function ConfigureApp({
         },
       },
       {
-        label: `Skills tools • ${configData.tools.skills.enabled ? "Enabled" : "Disabled"}`,
+        label: `Skills prompt • ${configData.tools.skills.enabled ? "Enabled" : "Disabled"}`,
         value: () => {
           updateConfig(
             {
@@ -646,7 +642,7 @@ export function ConfigureApp({
                 },
               },
             },
-            `Skills tools ${configData.tools.skills.enabled ? "disabled" : "enabled"}.`,
+            `Skills prompt ${configData.tools.skills.enabled ? "disabled" : "enabled"}.`,
           );
           setScreen({ kind: "config-tools" });
         },
@@ -1114,52 +1110,6 @@ export function ConfigureApp({
     });
 
     const items: MenuItem[] = [
-      {
-        label: "Search catalog and install",
-        value: () =>
-          promptValue({
-            title: "Search skills catalog",
-            label: "Query",
-            placeholder: "memory, github, playwright...",
-            onSubmit: async (value) => {
-              const query = value.trim();
-              if (query.length < 2) {
-                throw new Error("Use at least 2 characters to search.");
-              }
-              setPrompt(null);
-              await runTask(`Searching for "${query}"...`, async () => {
-                const results = await skills.search(query);
-                setSearchResults(results);
-                setScreen({ kind: "skills-search-results", query });
-                setNotice({
-                  kind: "info",
-                  text: `Found ${results.length} result${results.length === 1 ? "" : "s"} for "${query}".`,
-                });
-              });
-            },
-          }),
-      },
-      {
-        label: "Install from source",
-        value: () =>
-          promptValue({
-            title: "Install skill from source",
-            label: "Source",
-            placeholder: "owner/repo, GitHub URL, or local path",
-            onSubmit: async (value) => {
-              const source = value.trim();
-              if (!source) {
-                throw new Error("Source is required.");
-              }
-              setPrompt(null);
-              await runTask(`Installing ${source}...`, async () => {
-                await skills.install(source);
-                await refreshSkills("Refreshing installed skills...");
-                setSuccess(`Installed skill from "${source}".`);
-              });
-            },
-          }),
-      },
       ...skillItems,
       {
         label: "Refresh installed skills",
@@ -1176,7 +1126,7 @@ export function ConfigureApp({
     return (
       <MenuScreen
         title="Skills"
-        description="Search, install, and remove skills under ~/.hooman/skills."
+        description="List and remove local skill folders under ~/.hooman/skills."
         items={items}
       />
     );
@@ -1255,39 +1205,6 @@ export function ConfigureApp({
     );
   };
 
-  const renderSearchResults = () => {
-    const items: MenuItem[] = [
-      ...searchResults.map((result) => ({
-        label: truncate(
-          `${result.name} • ${result.installs} installs • ${result.source || result.slug}`,
-          100,
-        ),
-        boldSubstring: result.name,
-        value: () => {
-          const source = result.slug || result.source;
-          void runTask(`Installing ${result.name}...`, async () => {
-            await skills.install(source);
-            await refreshSkills("Refreshing installed skills...");
-            setScreen({ kind: "skills" });
-            setSuccess(`Installed "${result.name}".`);
-          });
-        },
-      })),
-      {
-        label: "Back",
-        value: () => setScreen({ kind: "skills" }),
-      },
-    ];
-
-    return (
-      <MenuScreen
-        title={`Search Results • "${screen.kind === "skills-search-results" ? screen.query : ""}"`}
-        description="Select a result to install it."
-        items={items}
-      />
-    );
-  };
-
   const body = (() => {
     if (busyMessage) {
       return <BusyScreen message={busyMessage} />;
@@ -1322,8 +1239,6 @@ export function ConfigureApp({
         return renderSkillsMenu();
       case "skills-delete-confirm":
         return renderSkillsDeleteConfirm();
-      case "skills-search-results":
-        return renderSearchResults();
       default:
         return null;
     }
