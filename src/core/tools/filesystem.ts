@@ -15,9 +15,14 @@ const DEFAULT_MAX_READ_BYTES = 1024 * 1024;
 const DEFAULT_SEARCH_MAX_RESULTS = 500;
 const DEFAULT_TREE_DEPTH = 4;
 const SNIPPET_RADIUS = 3;
+const FAST_READ_MAX_BYTES = 10 * 1024 * 1024;
+const STREAM_HIGH_WATER_MARK = 512 * 1024;
 
 const EditSchema = z.object({
-  oldText: z.string().describe("Exact text to find. Must match uniquely."),
+  oldText: z
+    .string()
+    .min(1)
+    .describe("Exact text to find. Must match uniquely."),
   newText: z.string().describe("Replacement text."),
 });
 
@@ -27,6 +32,24 @@ type TreeNode = {
   type: "file" | "directory";
   children?: TreeNode[];
 };
+
+type TextReadState = {
+  content: string;
+  mtimeMs: number;
+  offset: number;
+  limit?: number;
+  isPartial: boolean;
+};
+
+type StructuredPatchHunk = {
+  oldStart: number;
+  oldLines: number;
+  newStart: number;
+  newLines: number;
+  lines: string[];
+};
+
+const textReadState = new Map<string, TextReadState>();
 
 function toJsonValue(value: unknown): JSONValue {
   return JSON.parse(JSON.stringify(value)) as JSONValue;
@@ -91,6 +114,25 @@ function globToRegExp(pattern: string): RegExp {
 
 function splitLines(content: string): string[] {
   return content.split(/\r?\n/);
+}
+
+function normalizeLineEndings(content: string): string {
+  return content.replaceAll("\r\n", "\n");
+}
+
+function detectLineEndings(content: string): "CRLF" | "LF" {
+  return content.includes("\r\n") ? "CRLF" : "LF";
+}
+
+function restoreLineEndings(
+  content: string,
+  lineEndings: "CRLF" | "LF",
+): string {
+  if (lineEndings === "LF") {
+    return content;
+  }
+
+  return normalizeLineEndings(content).split("\n").join("\r\n");
 }
 
 function countLines(content: string): number {
@@ -169,6 +211,17 @@ async function ensureFile(filePath: string): Promise<void> {
   }
 }
 
+async function statFile(
+  filePath: string,
+): Promise<Awaited<ReturnType<typeof fs.stat>>> {
+  const stat = await fs.stat(filePath);
+  if (!stat.isFile()) {
+    throw new Error(`Path is not a file: ${filePath}`);
+  }
+
+  return stat;
+}
+
 async function readTextFile(
   filePath: string,
   options?: { offset?: number; limit?: number; maxBytes?: number },
@@ -181,37 +234,148 @@ async function readTextFile(
   truncated: boolean;
   sizeBytes: number;
 }> {
-  await ensureFile(filePath);
-  const stat = await fs.stat(filePath);
+  const stat = await statFile(filePath);
+  const maxBytes = options?.maxBytes ?? DEFAULT_MAX_READ_BYTES;
+  const offset = options?.offset ?? 1;
 
-  if (stat.size > (options?.maxBytes ?? DEFAULT_MAX_READ_BYTES)) {
+  if (stat.size > maxBytes && options?.limit === undefined) {
     throw new Error(
       `File too large to read safely (${stat.size} bytes). Use a narrower read or another tool.`,
     );
   }
 
+  const readResult =
+    stat.size < FAST_READ_MAX_BYTES
+      ? await readTextFileFast(filePath, options)
+      : await readTextFileStreaming(filePath, options);
+
+  textReadState.set(filePath, {
+    content: readResult.content,
+    mtimeMs: Number(stat.mtimeMs),
+    offset,
+    limit: options?.limit,
+    isPartial:
+      readResult.startLine !== 1 || readResult.endLine < readResult.totalLines,
+  });
+
+  return {
+    path: filePath,
+    content: readResult.content,
+    startLine: readResult.startLine,
+    endLine: readResult.endLine,
+    totalLines: readResult.totalLines,
+    truncated: readResult.truncated,
+    sizeBytes: Number(stat.size),
+  };
+}
+
+async function readTextFileFast(
+  filePath: string,
+  options?: { offset?: number; limit?: number },
+): Promise<{
+  content: string;
+  startLine: number;
+  endLine: number;
+  totalLines: number;
+  truncated: boolean;
+}> {
   const buffer = await fs.readFile(filePath);
+  assertTextBuffer(buffer);
+
+  return makeLineExcerpt(
+    buffer.toString("utf8"),
+    options?.offset,
+    options?.limit,
+  );
+}
+
+async function readTextFileStreaming(
+  filePath: string,
+  options?: { offset?: number; limit?: number },
+): Promise<{
+  content: string;
+  startLine: number;
+  endLine: number;
+  totalLines: number;
+  truncated: boolean;
+}> {
+  const offset = options?.offset ?? 1;
+  const limit = options?.limit ?? DEFAULT_READ_LIMIT;
+  const startIndex = Math.max(0, offset - 1);
+  const endIndex = startIndex + limit;
+  const selectedLines: string[] = [];
+  const handle = await fs.open(filePath, "r");
+  const buffer = Buffer.allocUnsafe(STREAM_HIGH_WATER_MARK);
+  let position = 0;
+  let lineIndex = 0;
+  let partial = "";
+  let sampledBytes = 0;
+  let sample = Buffer.alloc(0);
+
+  try {
+    for (;;) {
+      const { bytesRead } = await handle.read(
+        buffer,
+        0,
+        buffer.length,
+        position,
+      );
+
+      if (bytesRead === 0) {
+        break;
+      }
+
+      if (sampledBytes < 8000) {
+        const remaining = 8000 - sampledBytes;
+        const nextSample = buffer.subarray(0, Math.min(bytesRead, remaining));
+        sample = Buffer.concat([sample, nextSample]);
+        sampledBytes += nextSample.length;
+        assertTextBuffer(sample);
+      }
+
+      position += bytesRead;
+      const data = partial + buffer.toString("utf8", 0, bytesRead);
+      const lines = data.split("\n");
+      partial = lines.pop() ?? "";
+
+      for (const rawLine of lines) {
+        if (lineIndex >= startIndex && lineIndex < endIndex) {
+          selectedLines.push(
+            rawLine.endsWith("\r") ? rawLine.slice(0, -1) : rawLine,
+          );
+        }
+        lineIndex += 1;
+      }
+    }
+
+    if (partial.length > 0 || position > 0) {
+      if (lineIndex >= startIndex && lineIndex < endIndex) {
+        selectedLines.push(
+          partial.endsWith("\r") ? partial.slice(0, -1) : partial,
+        );
+      }
+      lineIndex += 1;
+    }
+  } finally {
+    await handle.close();
+  }
+
+  return {
+    content: selectedLines.join("\n"),
+    startLine: selectedLines.length > 0 ? startIndex + 1 : offset,
+    endLine:
+      selectedLines.length > 0 ? startIndex + selectedLines.length : offset - 1,
+    totalLines: lineIndex,
+    truncated: endIndex < lineIndex,
+  };
+}
+
+function assertTextBuffer(buffer: Buffer): void {
   if (isProbablyBinary(buffer)) {
     throw new Error(
       "File appears to be binary. Call read_file again with `binary: true` — images (png/jpeg/gif/webp), videos (mp4/mov/mkv/webm/etc.), and documents (pdf/docx/csv/etc.) are returned as multimodal content blocks the provider can forward to the model; unknown binary types come back as base64.",
     );
   }
-
-  const excerpt = makeLineExcerpt(
-    buffer.toString("utf8"),
-    options?.offset,
-    options?.limit,
-  );
-
-  return {
-    path: filePath,
-    content: excerpt.content,
-    startLine: excerpt.startLine,
-    endLine: excerpt.endLine,
-    totalLines: excerpt.totalLines,
-    truncated: excerpt.truncated,
-    sizeBytes: stat.size,
-  };
 }
 
 type BinaryReadResult =
@@ -247,15 +411,71 @@ function snippetAroundChange(
   return lines.slice(startLine, endLine).join("\n");
 }
 
+function lineNumberForIndex(content: string, index: number): number {
+  let line = 1;
+  for (let i = 0; i < index; i += 1) {
+    if (content[i] === "\n") {
+      line += 1;
+    }
+  }
+
+  return line;
+}
+
+function buildPatchHunk(
+  original: string,
+  edited: string,
+  oldText: string,
+  newText: string,
+  index: number,
+): StructuredPatchHunk {
+  const originalLines = splitLines(original);
+  const editedLines = splitLines(edited);
+  const oldLines = splitLines(oldText);
+  const newLines = splitLines(newText);
+  const changedLine = lineNumberForIndex(original, index);
+  const contextStart = Math.max(1, changedLine - SNIPPET_RADIUS);
+  const oldStart = contextStart;
+  const newStart = contextStart;
+  const prefixContext = originalLines.slice(contextStart - 1, changedLine - 1);
+  const oldEnd = changedLine + oldLines.length - 1;
+  const suffixContext = originalLines.slice(
+    oldEnd,
+    Math.min(originalLines.length, oldEnd + SNIPPET_RADIUS),
+  );
+  const lines = [
+    ...prefixContext.map((line) => ` ${line}`),
+    ...oldLines.map((line) => `-${line}`),
+    ...newLines.map((line) => `+${line}`),
+    ...suffixContext.map((line) => ` ${line}`),
+  ];
+
+  return {
+    oldStart,
+    oldLines: prefixContext.length + oldLines.length + suffixContext.length,
+    newStart,
+    newLines: prefixContext.length + newLines.length + suffixContext.length,
+    lines,
+  };
+}
+
 function applyEdits(
   original: string,
   edits: Array<z.infer<typeof EditSchema>>,
 ): {
   content: string;
-  replacements: Array<{ index: number; snippet: string }>;
+  replacements: Array<{
+    index: number;
+    snippet: string;
+    hunk: StructuredPatchHunk;
+  }>;
 } {
   let current = original;
-  const replacements: Array<{ index: number; snippet: string }> = [];
+  const replacements: Array<{
+    index: number;
+    snippet: string;
+    hunk: StructuredPatchHunk;
+  }> = [];
 
   for (const edit of edits) {
     const matches = [
@@ -273,6 +493,7 @@ function applyEdits(
 
     const match = matches[0]!;
     const index = match.index ?? -1;
+    const previous = current;
     current =
       current.slice(0, index) +
       edit.newText +
@@ -281,6 +502,13 @@ function applyEdits(
     replacements.push({
       index,
       snippet: snippetAroundChange(current, index, countLines(edit.newText)),
+      hunk: buildPatchHunk(
+        previous,
+        current,
+        edit.oldText,
+        edit.newText,
+        index,
+      ),
     });
   }
 
@@ -612,12 +840,35 @@ export function createFilesystemTools() {
       inputSchema: schema.editFile,
       callback: async (input) => {
         const filePath = normalizeUserPath(input.path);
-        await ensureFile(filePath);
-        const original = await fs.readFile(filePath, "utf8");
+        const stat = await statFile(filePath);
+        const previousRead = textReadState.get(filePath);
+        const rawOriginal = await fs.readFile(filePath, "utf8");
+        const lineEndings = detectLineEndings(rawOriginal);
+        const original = normalizeLineEndings(rawOriginal);
+
+        if (previousRead && stat.mtimeMs > previousRead.mtimeMs) {
+          const fullReadWasUnchanged =
+            !previousRead.isPartial && previousRead.content === original;
+          if (!fullReadWasUnchanged) {
+            throw new Error(
+              "File changed since it was last read. Read the file again before editing.",
+            );
+          }
+        }
+
         const edited = applyEdits(original, input.edits);
+        const contentToWrite = restoreLineEndings(edited.content, lineEndings);
 
         if (!input.dry_run) {
-          await fs.writeFile(filePath, edited.content, "utf8");
+          await fs.writeFile(filePath, contentToWrite, "utf8");
+          const updatedStat = await fs.stat(filePath);
+          textReadState.set(filePath, {
+            content: edited.content,
+            mtimeMs: updatedStat.mtimeMs,
+            offset: 1,
+            limit: undefined,
+            isPartial: false,
+          });
         }
 
         return toJsonValue({
@@ -630,6 +881,7 @@ export function createFilesystemTools() {
             .update(edited.content)
             .digest("hex"),
           previews: edited.replacements.map((item) => item.snippet),
+          structured_patch: edited.replacements.map((item) => item.hunk),
         });
       },
     }),
