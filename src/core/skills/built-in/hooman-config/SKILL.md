@@ -41,6 +41,9 @@ This is the default shape Hooman writes when `~/.hooman/config.json` is missing:
     "brave": {
       "apiKey": "..."
     },
+    "serper": {
+      "apiKey": "..."
+    },
     "tavily": {
       "apiKey": "..."
     }
@@ -211,7 +214,7 @@ For Bedrock, prefer leaving `clientConfig.credentials` out when the runtime alre
 
 ## Search
 
-`search.provider` must be `"brave"` or `"tavily"`.
+`search.provider` must be `"brave"`, `"serper"`, or `"tavily"`.
 
 ```json
 {
@@ -221,6 +224,9 @@ For Bedrock, prefer leaving `clientConfig.credentials` out when the runtime alre
     "brave": {
       "apiKey": "..."
     },
+    "serper": {
+      "apiKey": "..."
+    },
     "tavily": {
       "apiKey": "..."
     }
@@ -228,7 +234,7 @@ For Bedrock, prefer leaving `clientConfig.credentials` out when the runtime alre
 }
 ```
 
-Defaults: `enabled: false`, `provider: "brave"`, both API keys unset.
+Defaults: `enabled: false`, `provider: "brave"`, all provider API keys unset.
 
 ## Prompts
 

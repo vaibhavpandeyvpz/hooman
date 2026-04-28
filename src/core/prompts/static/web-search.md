@@ -21,6 +21,13 @@ Use only these inputs:
 
 Do not invent provider-specific parameters.
 
+### Query Construction
+
+- Keep `query` focused on the topic, entity, source, and search operators.
+- Do not add specific dates, months, or years to `query` for recency unless the user explicitly asked for that date/month/year or it is essential to disambiguate the topic.
+- For "latest", "recent", "today", "this week", "this month", or other relative-time requests, use `freshness` or `start_date` + `end_date` instead of adding date words to `query`.
+- Use the current date/time from the Environment section when interpreting relative dates. If the task needs precise real time during a later turn, call `get_current_time` before choosing `freshness` or date ranges.
+
 ### Examples
 
 - General current-information search:
