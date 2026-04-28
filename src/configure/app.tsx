@@ -54,6 +54,14 @@ const PROMPT_LABELS: Record<keyof ConfigData["prompts"], string> = {
   guardrails: "Guardrails",
 };
 
+type SearchProvider = ConfigData["search"]["provider"];
+
+const SEARCH_PROVIDER_LABELS: Record<SearchProvider, string> = {
+  brave: "Brave",
+  serper: "Serper",
+  tavily: "Tavily",
+};
+
 export function ConfigureApp({
   config,
   mcpConfig,
@@ -521,7 +529,7 @@ export function ConfigureApp({
   const renderToolsConfigMenu = () => {
     const items: MenuItem[] = [
       {
-        label: `Search tool • ${configData.search.enabled ? "Enabled" : "Disabled"} • ${configData.search.provider}`,
+        label: `Search tool • ${configData.search.enabled ? "Enabled" : "Disabled"} • ${SEARCH_PROVIDER_LABELS[configData.search.provider]}`,
         value: () => setScreen({ kind: "config-search" }),
       },
       {
@@ -703,11 +711,11 @@ export function ConfigureApp({
 
   const renderSearchProviderMenu = () => {
     const items: MenuItem[] = [
-      ...(["brave", "tavily"] as const).map((provider) => ({
+      ...(["brave", "serper", "tavily"] as const).map((provider) => ({
         label:
           provider === configData.search.provider
-            ? `${provider} • current`
-            : provider,
+            ? `${SEARCH_PROVIDER_LABELS[provider]} • current`
+            : SEARCH_PROVIDER_LABELS[provider],
         value: () => {
           updateConfig(
             {
@@ -716,7 +724,7 @@ export function ConfigureApp({
                 provider,
               },
             },
-            `Updated search provider to "${provider}".`,
+            `Updated search provider to "${SEARCH_PROVIDER_LABELS[provider]}".`,
           );
           setScreen({ kind: "config-search" });
         },
@@ -738,10 +746,8 @@ export function ConfigureApp({
 
   const renderSearchConfigMenu = () => {
     const activeProvider = configData.search.provider;
-    const apiKey =
-      activeProvider === "brave"
-        ? configData.search.brave.apiKey
-        : configData.search.tavily.apiKey;
+    const activeProviderLabel = SEARCH_PROVIDER_LABELS[activeProvider];
+    const apiKey = configData.search[activeProvider].apiKey;
     const redacted = compactJson(
       maskSensitiveParamsForDisplay({ apiKey: apiKey ?? "" }),
     );
@@ -762,14 +768,14 @@ export function ConfigureApp({
         },
       },
       {
-        label: `Provider • ${configData.search.provider}`,
+        label: `Provider • ${activeProviderLabel}`,
         value: () => setScreen({ kind: "config-search-provider" }),
       },
       {
-        label: `${activeProvider} API key • ${truncate(redacted, 44)}`,
+        label: `${activeProviderLabel} API key • ${truncate(redacted, 44)}`,
         value: () =>
           promptValue({
-            title: `Update ${activeProvider} API key`,
+            title: `Update ${activeProviderLabel} API key`,
             label: "API key",
             initialValue: apiKey ?? "",
             onSubmit: async (value) => {
@@ -787,7 +793,7 @@ export function ConfigureApp({
                     },
                   },
                 },
-                `Updated ${activeProvider} API key.`,
+                `Updated ${activeProviderLabel} API key.`,
               );
               setPrompt(null);
             },

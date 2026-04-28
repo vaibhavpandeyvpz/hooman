@@ -5,6 +5,7 @@ import { z } from "zod";
 import type { Config } from "../config.js";
 
 const BRAVE_ENDPOINT = "https://api.search.brave.com/res/v1/web/search";
+const SERPER_ENDPOINT = "https://google.serper.dev/search";
 const DEFAULT_TIMEOUT_SECONDS = 20;
 const DEFAULT_RESULT_COUNT = 5;
 const MAX_RESULT_COUNT = 20;
@@ -62,7 +63,7 @@ type NormalizedResult = {
 };
 
 type NormalizedOutput = {
-  provider: "brave" | "tavily";
+  provider: "brave" | "serper" | "tavily";
   query: string;
   results: NormalizedResult[];
   metadata: {
@@ -96,6 +97,31 @@ function toBraveFreshness(input: WebSearchInput): string | undefined {
     default:
       return undefined;
   }
+}
+
+function toSerperTbs(input: WebSearchInput): string | undefined {
+  if (input.start_date && input.end_date) {
+    const start = formatSerperDate(input.start_date);
+    const end = formatSerperDate(input.end_date);
+    return `cdr:1,cd_min:${start},cd_max:${end}`;
+  }
+  switch (input.freshness) {
+    case "day":
+      return "qdr:d";
+    case "week":
+      return "qdr:w";
+    case "month":
+      return "qdr:m";
+    case "year":
+      return "qdr:y";
+    default:
+      return undefined;
+  }
+}
+
+function formatSerperDate(date: string): string {
+  const [year, month, day] = date.split("-");
+  return `${month}/${day}/${year}`;
 }
 
 function tavilyCountryCode(code: string | undefined): string | undefined {
@@ -150,8 +176,22 @@ function normalizeTavilyResults(payload: unknown): NormalizedResult[] {
     .filter((item) => item.url.length > 0);
 }
 
+function normalizeSerperResults(payload: unknown): NormalizedResult[] {
+  const root = payload as { organic?: Array<Record<string, unknown>> };
+  if (!Array.isArray(root.organic)) {
+    return [];
+  }
+  return root.organic
+    .map((item) => ({
+      title: cleanString(item.title),
+      url: cleanString(item.link),
+      snippet: cleanString(item.snippet),
+    }))
+    .filter((item) => item.url.length > 0);
+}
+
 function normalizedOutput(
-  provider: "brave" | "tavily",
+  provider: "brave" | "serper" | "tavily",
   input: WebSearchInput,
   results: NormalizedResult[],
 ): NormalizedOutput {
@@ -206,6 +246,45 @@ async function searchBrave(
   }
   const parsed = JSON.parse(body) as unknown;
   return normalizedOutput("brave", input, normalizeBraveResults(parsed));
+}
+
+async function searchSerper(
+  input: WebSearchInput,
+  apiKey: string,
+  signal: AbortSignal,
+): Promise<NormalizedOutput> {
+  const payload: Record<string, unknown> = {
+    q: input.query,
+    num: input.count,
+  };
+  if (input.country) {
+    payload.gl = input.country.toLowerCase();
+  }
+  const tbs = toSerperTbs(input);
+  if (tbs) {
+    payload.tbs = tbs;
+  }
+  if (input.safe_search !== undefined) {
+    payload.safe = input.safe_search ? "active" : "off";
+  }
+
+  const response = await fetch(SERPER_ENDPOINT, {
+    method: "POST",
+    signal,
+    headers: {
+      "Content-Type": "application/json",
+      "X-API-KEY": apiKey,
+    },
+    body: JSON.stringify(payload),
+  });
+  const body = await response.text();
+  if (!response.ok) {
+    throw new Error(
+      `Serper search failed (${response.status} ${response.statusText}): ${body}`,
+    );
+  }
+  const parsed = JSON.parse(body) as unknown;
+  return normalizedOutput("serper", input, normalizeSerperResults(parsed));
 }
 
 async function searchTavily(
@@ -264,6 +343,15 @@ export function createWebSearchTools(config: Config) {
             );
           }
           return toJsonValue(await searchBrave(input, apiKey, signal));
+        }
+        if (provider === "serper") {
+          const apiKey = config.search.serper.apiKey;
+          if (!apiKey) {
+            throw new Error(
+              "Search provider is serper but search.serper.apiKey is missing.",
+            );
+          }
+          return toJsonValue(await searchSerper(input, apiKey, signal));
         }
         const apiKey = config.search.tavily.apiKey;
         if (!apiKey) {

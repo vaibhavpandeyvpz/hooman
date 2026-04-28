@@ -92,12 +92,17 @@ const AgentsPartialSchema = z.object({
   concurrency: z.number().int().min(1).optional(),
 });
 
-const SearchProviderSchema = z.enum(["brave", "tavily"]);
+const SearchProviderSchema = z.enum(["brave", "serper", "tavily"]);
 
 const SearchPartialSchema = z.object({
   enabled: z.boolean().optional(),
   provider: SearchProviderSchema.optional(),
   brave: z
+    .object({
+      apiKey: z.string().min(1).optional(),
+    })
+    .optional(),
+  serper: z
     .object({
       apiKey: z.string().min(1).optional(),
     })
@@ -143,6 +148,9 @@ const ConfigSchema = z
         provider: input.search?.provider ?? "brave",
         brave: {
           apiKey: input.search?.brave?.apiKey,
+        },
+        serper: {
+          apiKey: input.search?.serper?.apiKey,
         },
         tavily: {
           apiKey: input.search?.tavily?.apiKey,
@@ -223,6 +231,7 @@ const defaultConfigData = (): ConfigData => ({
     enabled: false,
     provider: "brave",
     brave: { apiKey: undefined },
+    serper: { apiKey: undefined },
     tavily: { apiKey: undefined },
   },
   prompts: { ...DEFAULT_PROMPTS },
@@ -288,6 +297,7 @@ export class Config {
     return {
       ...this.data.search,
       brave: { ...this.data.search.brave },
+      serper: { ...this.data.search.serper },
       tavily: { ...this.data.search.tavily },
     };
   }
