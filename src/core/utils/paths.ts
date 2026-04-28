@@ -2,8 +2,14 @@ import { homedir } from "os";
 import { join } from "path";
 
 const APP_FOLDER = ".hooman";
+const HOOMAN_HOME_ENV = "HOOMAN_HOME";
 
 export const basePath = () => {
+  const override = process.env[HOOMAN_HOME_ENV]?.trim();
+  if (override) {
+    return override;
+  }
+
   return join(homedir(), APP_FOLDER);
 };
 
