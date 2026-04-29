@@ -24,6 +24,10 @@ It gives you a practical toolkit to build and run agent workflows:
 - an Ink-powered `configure` workflow for app config, prompts, MCP servers, and installed skills
 - an `acp` command for running Hooman as an Agent Client Protocol (ACP) agent over stdio
 
+## Related
+
+**Looking for a focused web UI** for chat and agent configuration with lighter surface on top of the same stack? See [**Zero**](https://github.com/vaibhavpandeyvpz/zero) — [README](https://github.com/vaibhavpandeyvpz/zero#readme).
+
 ## Features
 
 - Multiple LLM providers: `ollama`, `openai`, `anthropic`, `google`, `bedrock`, `groq`, `moonshot`, `xai`
