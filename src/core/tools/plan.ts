@@ -4,16 +4,19 @@ import path from "node:path";
 import { tool } from "@strands-agents/sdk";
 import type { JSONValue, ToolContext } from "@strands-agents/sdk";
 import { z } from "zod";
+import { applySessionMode } from "../agent/sync-tool-registry-mode.js";
+import { clearPlanState, getPlanState, setPlanState } from "../state/plan.js";
 import {
-  clearPlanModeToDefault,
-  getPlanModeState,
-  setPlanSessionPlanning,
-} from "../state/plan-mode.js";
+  clearModeToDefault,
+  getModeState,
+  setSessionMode,
+} from "../state/session-mode.js";
+import {
+  ENTER_PLAN_MODE_TOOL,
+  EXIT_PLAN_MODE_TOOL,
+} from "../state/tool-approvals.js";
 import { isResolvedPathInsideDir } from "../utils/normalize-user-path.js";
 import { plansPath } from "../utils/paths.js";
-
-export const ENTER_PLAN_MODE_TOOL_NAME = "enter_plan_mode";
-export const EXIT_PLAN_MODE_TOOL_NAME = "exit_plan_mode";
 
 const PLAN_PREVIEW_MAX_BYTES = 8 * 1024;
 
@@ -32,7 +35,7 @@ function toJsonValue(value: unknown): JSONValue {
 export function createPlanTools() {
   return [
     tool({
-      name: ENTER_PLAN_MODE_TOOL_NAME,
+      name: ENTER_PLAN_MODE_TOOL,
       description: `Use when you should explore and nail down an approach before making substantive edits.
 You enter a planning phase and receive one markdown plan document to fill in with your findings, trade-offs, and intended steps.
 If you are already in that phase, calling again keeps working with the same document instead of starting over.`,
@@ -43,18 +46,19 @@ If you are already in that phase, calling again keeps working with the same docu
       ) => {
         if (!context) {
           throw new Error(
-            `${ENTER_PLAN_MODE_TOOL_NAME} requires execution context.`,
+            `${ENTER_PLAN_MODE_TOOL} requires execution context.`,
           );
         }
         const agent = context.agent;
-        const existing = getPlanModeState(agent);
-        if (existing.mode === "plan" && existing.planFile) {
+        const { mode } = getModeState(agent);
+        const plan = getPlanState(agent);
+        if (mode === "plan" && plan.planFile) {
           return toJsonValue({
             mode: "plan",
-            plan_file: existing.planFile,
+            plan_file: plan.planFile,
             already_active: true,
-            enter_reason: existing.enterReason,
-            entered_at: existing.enteredAt,
+            enter_reason: plan.enterReason,
+            entered_at: plan.enteredAt,
           });
         }
 
@@ -70,11 +74,13 @@ If you are already in that phase, calling again keeps working with the same docu
         }
 
         const enteredAt = new Date().toISOString();
-        setPlanSessionPlanning(agent, {
+        setSessionMode(agent, "plan");
+        setPlanState(agent, {
           planFile,
           enteredAt,
           enterReason: input.reason,
         });
+        applySessionMode(agent);
 
         return toJsonValue({
           mode: "plan",
@@ -86,7 +92,7 @@ If you are already in that phase, calling again keeps working with the same docu
       },
     }),
     tool({
-      name: EXIT_PLAN_MODE_TOOL_NAME,
+      name: EXIT_PLAN_MODE_TOOL,
       description: `Use when your written plan is ready and you want to leave the planning phase and move toward implementation.
 Returns a short excerpt of what you drafted so you can confirm or summarize next actions.
 Only call this after you have started planning with enter_plan_mode.`,
@@ -96,19 +102,18 @@ Only call this after you have started planning with enter_plan_mode.`,
         context?: ToolContext,
       ) => {
         if (!context) {
-          throw new Error(
-            `${EXIT_PLAN_MODE_TOOL_NAME} requires execution context.`,
-          );
+          throw new Error(`${EXIT_PLAN_MODE_TOOL} requires execution context.`);
         }
         const agent = context.agent;
-        const state = getPlanModeState(agent);
-        if (state.mode !== "plan" || !state.planFile) {
+        const { mode } = getModeState(agent);
+        const plan = getPlanState(agent);
+        if (mode !== "plan" || !plan.planFile) {
           throw new Error(
             "Not in plan mode; call enter_plan_mode before exit_plan_mode.",
           );
         }
 
-        const planPath = state.planFile;
+        const planPath = plan.planFile;
         let preview = "";
         let truncated = false;
         try {
@@ -125,7 +130,9 @@ Only call this after you have started planning with enter_plan_mode.`,
           );
         }
 
-        clearPlanModeToDefault(agent);
+        clearModeToDefault(agent);
+        clearPlanState(agent);
+        applySessionMode(agent);
 
         return toJsonValue({
           exited: true,

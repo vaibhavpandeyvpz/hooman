@@ -20,6 +20,7 @@ import {
   createTodoTools,
   createFetchTools,
   createFilesystemTools,
+  createPlanTools,
   createSleepTools,
   createShellTools,
   createThinkingTools,
@@ -27,6 +28,8 @@ import {
   createWikiTools,
   createWebSearchTools,
 } from "../tools/index.js";
+import { ModeAwareToolRegistry } from "./mode-aware-tool-registry.js";
+import { applySessionMode } from "./sync-tool-registry-mode.js";
 import { clearTodoState } from "../state/todos.js";
 
 const SECTION_BREAK = "\n\n---\n\n";
@@ -69,6 +72,7 @@ export async function create(
     ...(config.search.enabled ? createWebSearchTools(config) : []),
     ...(config.tools.wiki.enabled ? createWikiTools(config) : []),
     ...createThinkingTools(),
+    ...createPlanTools(),
     ...prefixed,
   ];
   if (config.tools.agents.enabled) {
@@ -100,5 +104,9 @@ export async function create(
   agent.addHook(BeforeInvocationEvent, async (event) => {
     clearTodoState(event.agent);
   });
+  (agent as unknown as { _toolRegistry: ModeAwareToolRegistry })._toolRegistry =
+    new ModeAwareToolRegistry(agent.toolRegistry.list());
+  await agent.initialize();
+  applySessionMode(agent);
   return agent;
 }

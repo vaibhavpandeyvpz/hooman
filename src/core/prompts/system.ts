@@ -24,6 +24,7 @@ const STATIC_PROMPT_FILES = [
   "wiki.md",
   "skills.md",
   "subagents.md",
+  "planning.md",
 ] as const;
 
 const HARNESS_PROMPT_FILES = [
@@ -76,12 +77,12 @@ export class System {
           return this.config.tools.shell.enabled;
         case "sleep.md":
           return this.config.tools.sleep.enabled;
-        case "daemon.md":
-          return this.mode === "daemon";
         case "wiki.md":
           return this.config.tools.wiki.enabled;
         case "subagents.md":
           return this.config.tools.agents.enabled;
+        case "daemon.md":
+          return this.mode === "daemon";
         case "thinking.md":
         default:
           return true;

@@ -1,7 +1,4 @@
-import {
-  ENTER_PLAN_MODE_TOOL_NAME,
-  EXIT_PLAN_MODE_TOOL_NAME,
-} from "../tools/plan.js";
+import { getModeState } from "./session-mode.js";
 import {
   isResolvedPathInsideDir,
   normalizeUserPath,
@@ -23,6 +20,95 @@ const READ_FILE_TOOL = "read_file";
 const READ_MULTIPLE_FILES_TOOL = "read_multiple_files";
 const WRITE_FILE_TOOL = "write_file";
 const EDIT_FILE_TOOL = "edit_file";
+export const ENTER_PLAN_MODE_TOOL = "enter_plan_mode";
+export const EXIT_PLAN_MODE_TOOL = "exit_plan_mode";
+
+export const INTERNAL_ALWAYS_ALLOWED = new Set([
+  // Strands / runtime
+  "strands_structured_output",
+  // Todos
+  "update_todos",
+  // Thinking
+  "think",
+  // Agent orchestration
+  "run_agents",
+  // Sleep
+  "sleep",
+  // Process lifecycle
+  "bye",
+  // Time
+  "convert_time",
+  "get_current_time",
+  // Wiki
+  "wiki_knowledge_graph",
+  "wiki_list_files",
+  "wiki_read_file",
+  "wiki_search",
+  "wiki_stats",
+  "wiki_write_file",
+  // Long-term memory
+  "archive_memory",
+  "search_memory",
+  "store_memory",
+  "update_memory",
+  // Filesystem (list / search / metadata)
+  "directory_tree",
+  "get_file_info",
+  "list_directory",
+  "search_files",
+  // Planning session (mode / plan file)
+  ENTER_PLAN_MODE_TOOL,
+  EXIT_PLAN_MODE_TOOL,
+]);
+
+export const PLAN_MODE_ALWAYS_ALLOWED = new Set([
+  "read_file",
+  "read_multiple_files",
+  "fetch",
+  "web_search",
+]);
+
+export const PLAN_MODE_VISIBLE = new Set([
+  // Internet
+  "fetch",
+  "web_search",
+  // Strands / runtime
+  "strands_structured_output",
+  // Todos
+  "update_todos",
+  // Thinking
+  "think",
+  // Agent orchestration
+  "run_agents",
+  // Sleep
+  "sleep",
+  // Process lifecycle
+  "bye",
+  // Time
+  "convert_time",
+  "get_current_time",
+  // Wiki
+  "wiki_knowledge_graph",
+  "wiki_list_files",
+  "wiki_read_file",
+  "wiki_search",
+  "wiki_stats",
+  "wiki_write_file",
+  // Long-term memory
+  "search_memory",
+  // Filesystem (list / search / metadata)
+  "directory_tree",
+  "get_file_info",
+  "list_directory",
+  "search_files",
+  "read_file",
+  "read_multiple_files",
+  "write_file",
+  "edit_file",
+  // Planning session (mode / plan file)
+  ENTER_PLAN_MODE_TOOL,
+  EXIT_PLAN_MODE_TOOL,
+]);
 
 function isPlainObjectRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -79,46 +165,6 @@ function isImplicitPathAllowed(
   return false;
 }
 
-export const INTERNAL_ALWAYS_ALLOWED = new Set([
-  // Strands / runtime
-  "strands_structured_output",
-  // Todos
-  "update_todos",
-  // Thinking
-  "think",
-  // Agent orchestration
-  "run_agents",
-  // Sleep
-  "sleep",
-  // Process lifecycle
-  "bye",
-  // Time
-  "convert_time",
-  "get_current_time",
-  // Wiki
-  "wiki_knowledge_graph",
-  "wiki_list_files",
-  "wiki_read_file",
-  "wiki_search",
-  "wiki_stats",
-  "wiki_write_file",
-  // Web search
-  "web_search",
-  // Long-term memory
-  "archive_memory",
-  "search_memory",
-  "store_memory",
-  "update_memory",
-  // Filesystem (list / search / metadata)
-  "directory_tree",
-  "get_file_info",
-  "list_directory",
-  "search_files",
-  // Planning session (mode / plan file); tools optional until wired into agent
-  ENTER_PLAN_MODE_TOOL_NAME,
-  EXIT_PLAN_MODE_TOOL_NAME,
-]);
-
 function normalizeAllowedTools(value: unknown): string[] {
   if (!Array.isArray(value)) {
     return [];
@@ -159,7 +205,11 @@ export function isToolSessionAllowed(
   toolName: string,
   toolInput?: unknown,
 ): boolean {
+  const mode = getModeState(agent).mode;
   if (getSessionAllowedTools(agent).includes(toolName)) {
+    return true;
+  }
+  if (mode === "plan" && PLAN_MODE_ALWAYS_ALLOWED.has(toolName)) {
     return true;
   }
   if (
@@ -167,6 +217,16 @@ export function isToolSessionAllowed(
     isImplicitPathAllowed(toolName, toolInput)
   ) {
     return true;
+  }
+  return false;
+}
+
+export function isToolVisible(mode: string, toolName: string): boolean {
+  if (mode === "default") {
+    return true;
+  }
+  if (mode === "plan") {
+    return PLAN_MODE_VISIBLE.has(toolName);
   }
   return false;
 }
