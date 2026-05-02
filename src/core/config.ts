@@ -19,6 +19,12 @@ const LlmSchema = z.object({
   params: z.record(z.string(), z.any()).default({}),
 });
 
+const NamedLlmSchema = z.object({
+  name: z.string().min(1),
+  options: LlmSchema,
+  default: z.boolean().default(false),
+});
+
 /** Partial compaction overrides from JSON; missing fields use defaults below. */
 const CompactionPartialSchema = z.object({
   /** Fraction of context to target after compaction (e.g. 0.75 = keep ~75% budget). */
@@ -128,7 +134,7 @@ const ToolsPartialSchema = z.object({
 const ConfigSchema = z
   .object({
     name: z.string().min(1),
-    llm: LlmSchema,
+    llms: z.array(NamedLlmSchema).min(1),
     search: SearchPartialSchema.nullish(),
     prompts: PromptsPartialSchema.nullish(),
     tools: ToolsPartialSchema.nullish(),
@@ -142,7 +148,7 @@ const ConfigSchema = z
     const wiki = input.tools?.wiki;
     return {
       name: input.name,
-      llm: input.llm,
+      llms: input.llms,
       search: {
         enabled: input.search?.enabled ?? false,
         provider: input.search?.provider ?? "brave",
@@ -213,6 +219,7 @@ const ConfigSchema = z
 
 export type ConfigData = z.infer<typeof ConfigSchema>;
 export type LlmConfig = z.infer<typeof LlmSchema>;
+export type NamedLlmConfig = z.infer<typeof NamedLlmSchema>;
 export type CompactionConfig = ConfigData["compaction"];
 export type PromptsConfig = ConfigData["prompts"];
 export type LtmConfig = ConfigData["tools"]["ltm"];
@@ -222,11 +229,17 @@ export type ToolsConfig = ConfigData["tools"];
 
 const defaultConfigData = (): ConfigData => ({
   name: "Hooman",
-  llm: {
-    provider: LlmProvider.Ollama,
-    model: "gemma4:e4b",
-    params: {},
-  },
+  llms: [
+    {
+      name: "Default",
+      options: {
+        provider: LlmProvider.Ollama,
+        model: "gemma4:e4b",
+        params: {},
+      },
+      default: true,
+    },
+  ],
   search: {
     enabled: false,
     provider: "brave",
@@ -290,7 +303,12 @@ export class Config {
   }
 
   get llm(): LlmConfig {
-    return this.data.llm;
+    const found = this.data.llms.find((m) => m.default) ?? this.data.llms[0]!;
+    return { ...found.options };
+  }
+
+  get llms(): NamedLlmConfig[] {
+    return this.data.llms.map((m) => ({ ...m, options: { ...m.options } }));
   }
 
   get search(): SearchConfig {

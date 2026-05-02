@@ -7,24 +7,24 @@ import type { Config } from "../../core/config.js";
 
 export const HOOMAN_LTM_CONFIG_ID = "hooman.longTermMemory" as const;
 export const HOOMAN_WIKI_CONFIG_ID = "hooman.wiki" as const;
-export const HOOMAN_TODO_CONFIG_ID = "hooman.todo" as const;
+export const HOOMAN_MODEL_CONFIG_ID = "hooman.model" as const;
 
 export function buildSessionConfigOptions(
   config: Config,
 ): SessionConfigOption[] {
+  const defaultLlm = config.llms.find((m) => m.default) ?? config.llms[0]!;
   return [
     {
       type: "select",
-      id: HOOMAN_TODO_CONFIG_ID,
-      name: "Todo tracking",
-      description:
-        "When enabled, the agent can use update_todos to track multi-step progress in app state.",
-      category: "_hooman",
-      currentValue: config.tools.todo.enabled ? "on" : "off",
-      options: [
-        { value: "on", name: "On" },
-        { value: "off", name: "Off" },
-      ],
+      id: HOOMAN_MODEL_CONFIG_ID,
+      name: "Model",
+      category: "model",
+      currentValue: defaultLlm.name,
+      options: config.llms.map((m) => ({
+        value: m.name,
+        name: m.name,
+        description: `${m.options.provider}/${m.options.model}`,
+      })),
     },
     {
       type: "select",
@@ -65,38 +65,35 @@ export function applySessionConfigOption(
     });
   }
   if (
-    params.configId !== HOOMAN_TODO_CONFIG_ID &&
     params.configId !== HOOMAN_LTM_CONFIG_ID &&
-    params.configId !== HOOMAN_WIKI_CONFIG_ID
+    params.configId !== HOOMAN_WIKI_CONFIG_ID &&
+    params.configId !== HOOMAN_MODEL_CONFIG_ID
   ) {
     throw RequestError.invalidParams({ configId: params.configId });
   }
   const value = params.value;
+  if (params.configId === HOOMAN_MODEL_CONFIG_ID) {
+    if (
+      typeof value !== "string" ||
+      !config.llms.some((m) => m.name === value)
+    ) {
+      throw RequestError.invalidParams({ value });
+    }
+    config.update({
+      llms: config.llms.map((m) => ({ ...m, default: m.name === value })),
+    });
+    return;
+  }
   if (value !== "on" && value !== "off") {
     throw RequestError.invalidParams({ value });
   }
+  const tools = config.tools;
   if (params.configId === HOOMAN_LTM_CONFIG_ID) {
-    const chroma = config.ltm.chroma;
     config.update({
       tools: {
-        ...config.tools,
+        ...tools,
         ltm: {
-          enabled: value === "on",
-          chroma: {
-            url: chroma.url,
-            collection: { memory: chroma.collection.memory },
-          },
-        },
-      },
-    });
-    return;
-  }
-
-  if (params.configId === HOOMAN_TODO_CONFIG_ID) {
-    config.update({
-      tools: {
-        ...config.tools,
-        todo: {
+          ...tools.ltm,
           enabled: value === "on",
         },
       },
@@ -104,16 +101,12 @@ export function applySessionConfigOption(
     return;
   }
 
-  const chroma = config.wiki.chroma;
   config.update({
     tools: {
-      ...config.tools,
+      ...tools,
       wiki: {
+        ...tools.wiki,
         enabled: value === "on",
-        chroma: {
-          url: chroma.url,
-          collection: { wiki: chroma.collection.wiki },
-        },
       },
     },
   });

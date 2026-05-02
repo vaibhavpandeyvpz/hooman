@@ -35,13 +35,13 @@ export async function bootstrap(
   mode: BootstrapMode,
   meta: BootstrapMeta,
   print: boolean = false,
+  config: Config = new Config(configJsonPath()),
 ): Promise<{
   config: Config;
   agent: Agent;
   mcp: { config: McpServersConfig; manager: McpConnectionManager };
   registry: Registry;
 }> {
-  const config = new Config(configJsonPath());
   const mcpConfig = createMcpConfig(mcpJsonPath());
   const mcpManager = createMcpManager(
     mcpConfig,

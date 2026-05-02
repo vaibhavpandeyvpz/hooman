@@ -39,6 +39,7 @@ import { extractAcpClientUserId } from "./meta/user-id.js";
 import { deriveSessionTitleFromEcho } from "./sessions/title.js";
 import { acpPromptEchoText, acpPromptToInvokeArgs } from "./prompt-invoke.js";
 import type { Config } from "../core/config.js";
+import { createAcpSessionConfig } from "./immutable-config.js";
 import { normalizeAcpSessionMcpServers } from "./mcp-servers.js";
 import {
   consumeExitRequest,
@@ -69,6 +70,8 @@ type SessionRecord = {
   readonly availableModeIds: ReadonlySet<string>;
   mcpDisconnect: () => Promise<void>;
   hookOff: () => void;
+  /** Set when an ACP-driven config change requires the agent to be rebuilt before the next turn. */
+  agentStale: boolean;
   turnAbort: AbortController | null;
   /** Chains `prompt` turns so concurrent RPCs for the same session serialize. */
   promptExclusive: Promise<void>;
@@ -248,6 +251,7 @@ export class AcpAgent implements AgentContract {
       throw RequestError.invalidParams({ sessionId: params.sessionId });
     }
     applySessionConfigOption(rec.config, params);
+    rec.agentStale = true;
     return { configOptions: buildSessionConfigOptions(rec.config) };
   }
 
@@ -348,6 +352,7 @@ export class AcpAgent implements AgentContract {
         },
       },
       false,
+      createAcpSessionConfig(),
     );
 
     const availableModeIds = new Set<string>([DEFAULT_MODE_ID]);
@@ -377,6 +382,7 @@ export class AcpAgent implements AgentContract {
           /* ignore */
         }
       },
+      agentStale: false,
       turnAbort: null,
       promptExclusive: Promise.resolve(),
       streamedToolCallIds: new Set(),
@@ -447,6 +453,7 @@ export class AcpAgent implements AgentContract {
         },
       },
       false,
+      createAcpSessionConfig(),
     );
 
     const saved = await loadSessionMessages(this.#acpRoot, params.sessionId);
@@ -487,6 +494,7 @@ export class AcpAgent implements AgentContract {
           /* ignore */
         }
       },
+      agentStale: false,
       turnAbort: null,
       promptExclusive: Promise.resolve(),
       streamedToolCallIds: new Set(),
@@ -533,6 +541,77 @@ export class AcpAgent implements AgentContract {
     }
   }
 
+  async #rebuildSessionAgent(sessionId: string): Promise<void> {
+    const rec = this.#sessions.get(sessionId);
+    if (!rec) {
+      return;
+    }
+    const meta = await readSessionMeta(this.#acpRoot, sessionId);
+    if (!meta) {
+      return;
+    }
+    const bootstrapUserId = meta.userId ?? sessionId;
+    const mcpServers = meta.mcpServers ?? [];
+
+    const messageSnapshot = serializeAgentMessages(rec.agent);
+
+    const {
+      config,
+      agent,
+      mcp: { manager },
+    } = await bootstrap(
+      "acp",
+      {
+        userId: bootstrapUserId,
+        sessionId,
+        acp: {
+          mcpServers,
+          ...(meta.systemPrompt ? { systemPrompt: meta.systemPrompt } : {}),
+        },
+      },
+      false,
+      rec.config,
+    );
+
+    agent.messages.length = 0;
+    for (const md of messageSnapshot) {
+      agent.messages.push(Message.fromJSON(md));
+    }
+
+    const hookOff = agent.addHook(
+      BeforeToolCallEvent,
+      createAcpToolApprovalHook(
+        this.#connection,
+        sessionId,
+        () =>
+          this.#sessions.get(sessionId)?.streamedToolCallIds ??
+          EMPTY_STREAMED_TOOL_CALL_IDS,
+      ),
+    );
+
+    const oldHookOff = rec.hookOff;
+    const oldMcpDisconnect = rec.mcpDisconnect;
+
+    rec.agent = agent;
+    rec.config = config;
+    rec.hookOff = hookOff;
+    rec.mcpDisconnect = async () => {
+      try {
+        await manager.disconnect();
+      } catch {
+        /* ignore */
+      }
+    };
+    rec.agentStale = false;
+
+    try {
+      oldHookOff();
+    } catch {
+      /* ignore */
+    }
+    await oldMcpDisconnect();
+  }
+
   async prompt(params: Parameters<AgentContract["prompt"]>[0]) {
     const rec = this.#sessions.get(params.sessionId);
     if (!rec) {
@@ -546,6 +625,10 @@ export class AcpAgent implements AgentContract {
     });
     rec.promptExclusive = prevExclusive.then(() => exclusiveGate);
     await prevExclusive;
+
+    if (rec.agentStale) {
+      await this.#rebuildSessionAgent(params.sessionId);
+    }
 
     const turnAbort = new AbortController();
     rec.turnAbort = turnAbort;

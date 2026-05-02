@@ -1,7 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { Box, Text, useApp, useInput } from "ink";
-import { LlmProvider, type ConfigData } from "../core/config.js";
+import {
+  LlmProvider,
+  type ConfigData,
+  type LlmConfig,
+} from "../core/config.js";
 import {
   McpTransportSchema,
   type Sse,
@@ -135,6 +139,10 @@ export function ConfigureApp({
         setScreen({ kind: "skills" });
         return;
       }
+      if (screen.kind === "config-llm-delete-confirm") {
+        setScreen({ kind: "config-llm-edit", name: screen.name });
+        return;
+      }
       if (screen.kind !== "home") {
         setScreen({ kind: "home" });
       }
@@ -146,7 +154,7 @@ export function ConfigureApp({
     () =>
       ({
         name: config.name,
-        llm: config.llm,
+        llms: config.llms,
         search: config.search,
         prompts: config.prompts,
         tools: config.tools,
@@ -168,6 +176,49 @@ export function ConfigureApp({
       setSuccess(message);
     },
     [config, refresh, setSuccess],
+  );
+
+  const patchLlm = useCallback(
+    (name: string, patch: Partial<LlmConfig>) =>
+      config.llms.map((m) =>
+        m.name === name ? { ...m, options: { ...m.options, ...patch } } : m,
+      ),
+    [config],
+  );
+
+  const renameLlm = useCallback(
+    (oldName: string, newName: string) =>
+      config.llms.map((m) =>
+        m.name === oldName ? { ...m, name: newName } : m,
+      ),
+    [config],
+  );
+
+  const setDefaultLlm = useCallback(
+    (name: string) =>
+      config.llms.map((m) => ({ ...m, default: m.name === name })),
+    [config],
+  );
+
+  const addLlm = useCallback(
+    (name: string) => [
+      ...config.llms,
+      {
+        name,
+        options: {
+          provider: LlmProvider.Ollama,
+          model: "gemma4:e4b",
+          params: {} as Record<string, unknown>,
+        },
+        default: false,
+      },
+    ],
+    [config],
+  );
+
+  const removeLlm = useCallback(
+    (name: string) => config.llms.filter((m) => m.name !== name),
+    [config],
   );
 
   const promptValue = useCallback((state: PromptState) => {
@@ -333,7 +384,7 @@ export function ConfigureApp({
   const renderHome = () => {
     const items: MenuItem[] = [
       {
-        label: `Configuration • ${configData.llm.provider}/${configData.llm.model}`,
+        label: `Configuration • ${config.llm.provider}/${config.llm.model}`,
         value: () => setScreen({ kind: "config" }),
       },
       {
@@ -410,48 +461,11 @@ export function ConfigureApp({
           }),
       },
       {
-        label: `LLM provider • ${configData.llm.provider}`,
-        value: () => setScreen({ kind: "config-provider" }),
-      },
-      {
-        label: `LLM model • ${configData.llm.model}`,
-        value: () =>
-          promptValue({
-            title: "Update model id",
-            label: "Model",
-            initialValue: configData.llm.model,
-            onSubmit: async (value) => {
-              const model = value.trim();
-              if (!model) {
-                throw new Error("Model is required.");
-              }
-              updateConfig(
-                { llm: { ...config.llm, model } },
-                "Updated model id.",
-              );
-              setPrompt(null);
-            },
-          }),
-      },
-      {
-        label: `LLM params • ${truncate(
-          compactJson(maskSensitiveParamsForDisplay(configData.llm.params)),
-        )}`,
-        value: () =>
-          promptValue({
-            title: "Update LLM params",
-            label: "Parameters",
-            initialValue: compactJson(configData.llm.params),
-            placeholder: '{"temperature":0.7}',
-            onSubmit: async (value) => {
-              const params = parseObjectRecord(value, "LLM params");
-              updateConfig(
-                { llm: { ...config.llm, params } },
-                "Updated LLM params.",
-              );
-              setPrompt(null);
-            },
-          }),
+        label: (() => {
+          const def = config.llms.find((m) => m.default) ?? config.llms[0]!;
+          return `LLMs • ${config.llms.length} configured (default: ${def.name})`;
+        })(),
+        value: () => setScreen({ kind: "config-llms" }),
       },
       {
         label: `Prompts • ${enabledPrompts}/${totalPrompts} enabled`,
@@ -640,21 +654,37 @@ export function ConfigureApp({
     );
   };
 
-  const renderProviderMenu = () => {
+  const renderLlmsMenu = () => {
+    const llmItems: MenuItem[] = config.llms.map((m) => ({
+      key: `llm:${m.name}`,
+      label: `${m.name} • ${m.options.provider}/${m.options.model}${m.default ? " • default" : ""}`,
+      boldSubstring: m.name,
+      value: () => setScreen({ kind: "config-llm-edit", name: m.name }),
+    }));
+
     const items: MenuItem[] = [
-      ...Object.values(LlmProvider).map((provider) => ({
-        label:
-          provider === configData.llm.provider
-            ? `${provider} • current`
-            : provider,
-        value: () => {
-          updateConfig(
-            { llm: { ...config.llm, provider } },
-            `Updated LLM provider to "${provider}".`,
-          );
-          setScreen({ kind: "config" });
-        },
-      })),
+      {
+        label: "Add LLM",
+        value: () =>
+          promptValue({
+            title: "Add a new LLM",
+            label: "Name",
+            placeholder: "Gemma 27B",
+            onSubmit: async (value) => {
+              const name = value.trim();
+              if (!name) {
+                throw new Error("Name is required.");
+              }
+              if (config.llms.some((m) => m.name === name)) {
+                throw new Error(`An LLM named "${name}" already exists.`);
+              }
+              updateConfig({ llms: addLlm(name) }, `Added LLM "${name}".`);
+              setPrompt(null);
+              setScreen({ kind: "config-llm-edit", name });
+            },
+          }),
+      },
+      ...llmItems,
       {
         label: "Back",
         value: () => setScreen({ kind: "config" }),
@@ -663,8 +693,208 @@ export function ConfigureApp({
 
     return (
       <MenuScreen
-        title="Choose Provider"
-        description="Pick which model provider to use for future sessions."
+        title="LLMs"
+        description="Add, edit, or remove named LLM configurations. The default is used for new sessions."
+        items={items}
+      />
+    );
+  };
+
+  const renderLlmEditMenu = () => {
+    if (screen.kind !== "config-llm-edit") {
+      return null;
+    }
+    const { name } = screen;
+    const entry = config.llms.find((m) => m.name === name);
+    if (!entry) {
+      return null;
+    }
+    const isOnly = config.llms.length === 1;
+    const isDefault = entry.default;
+
+    const items: MenuItem[] = [
+      {
+        label: `Name • ${entry.name}`,
+        value: () =>
+          promptValue({
+            title: "Rename LLM",
+            label: "Name",
+            initialValue: entry.name,
+            onSubmit: async (value) => {
+              const next = value.trim();
+              if (!next) {
+                throw new Error("Name is required.");
+              }
+              if (next === entry.name) {
+                setPrompt(null);
+                return;
+              }
+              if (config.llms.some((m) => m.name === next)) {
+                throw new Error(`An LLM named "${next}" already exists.`);
+              }
+              updateConfig(
+                { llms: renameLlm(entry.name, next) },
+                `Renamed "${entry.name}" to "${next}".`,
+              );
+              setPrompt(null);
+              setScreen({ kind: "config-llm-edit", name: next });
+            },
+          }),
+      },
+      {
+        label: `Provider • ${entry.options.provider}`,
+        value: () =>
+          setScreen({ kind: "config-llm-provider", name: entry.name }),
+      },
+      {
+        label: `Model • ${entry.options.model}`,
+        value: () =>
+          promptValue({
+            title: "Update model id",
+            label: "Model",
+            initialValue: entry.options.model,
+            onSubmit: async (value) => {
+              const model = value.trim();
+              if (!model) {
+                throw new Error("Model is required.");
+              }
+              updateConfig(
+                { llms: patchLlm(entry.name, { model }) },
+                "Updated model id.",
+              );
+              setPrompt(null);
+            },
+          }),
+      },
+      {
+        label: `Params • ${truncate(
+          compactJson(maskSensitiveParamsForDisplay(entry.options.params)),
+        )}`,
+        value: () =>
+          promptValue({
+            title: "Update LLM params",
+            label: "Parameters",
+            initialValue: compactJson(entry.options.params),
+            placeholder: '{"temperature":0.7}',
+            onSubmit: async (value) => {
+              const params = parseObjectRecord(value, "LLM params");
+              updateConfig(
+                { llms: patchLlm(entry.name, { params }) },
+                "Updated LLM params.",
+              );
+              setPrompt(null);
+            },
+          }),
+      },
+      {
+        label: isDefault ? "Default • yes" : "Set as default",
+        value: () => {
+          if (isDefault) {
+            return;
+          }
+          updateConfig(
+            { llms: setDefaultLlm(entry.name) },
+            `Set "${entry.name}" as default LLM.`,
+          );
+        },
+      },
+      ...(isOnly || isDefault
+        ? []
+        : [
+            {
+              label: `Delete "${entry.name}"`,
+              boldSubstring: entry.name,
+              value: () =>
+                setScreen({
+                  kind: "config-llm-delete-confirm",
+                  name: entry.name,
+                }),
+            } satisfies MenuItem,
+          ]),
+      {
+        label: "Back",
+        value: () => setScreen({ kind: "config-llms" }),
+      },
+    ];
+
+    return (
+      <MenuScreen
+        title={`Edit LLM • ${entry.name}`}
+        description={
+          isOnly
+            ? "This is the only LLM and cannot be deleted."
+            : isDefault
+              ? "This is the default LLM. Set another as default to enable deletion."
+              : "Edit fields, set as default, or delete this LLM."
+        }
+        items={items}
+      />
+    );
+  };
+
+  const renderLlmProviderMenu = () => {
+    if (screen.kind !== "config-llm-provider") {
+      return null;
+    }
+    const { name } = screen;
+    const entry = config.llms.find((m) => m.name === name);
+    if (!entry) {
+      return null;
+    }
+    const items: MenuItem[] = [
+      ...Object.values(LlmProvider).map((provider) => ({
+        label:
+          provider === entry.options.provider
+            ? `${provider} • current`
+            : provider,
+        value: () => {
+          updateConfig(
+            { llms: patchLlm(entry.name, { provider }) },
+            `Updated provider for "${entry.name}" to "${provider}".`,
+          );
+          setScreen({ kind: "config-llm-edit", name: entry.name });
+        },
+      })),
+      {
+        label: "Back",
+        value: () => setScreen({ kind: "config-llm-edit", name: entry.name }),
+      },
+    ];
+
+    return (
+      <MenuScreen
+        title={`Choose Provider • ${entry.name}`}
+        description="Pick which model provider to use for this LLM."
+        items={items}
+      />
+    );
+  };
+
+  const renderLlmDeleteConfirm = () => {
+    if (screen.kind !== "config-llm-delete-confirm") {
+      return null;
+    }
+    const { name } = screen;
+    const items: MenuItem[] = [
+      {
+        key: `llm-del-cancel:${name}`,
+        label: "No — keep LLM",
+        value: () => setScreen({ kind: "config-llm-edit", name }),
+      },
+      {
+        key: `llm-del-confirm:${name}`,
+        label: "Yes — remove LLM",
+        value: () => {
+          updateConfig({ llms: removeLlm(name) }, `Deleted LLM "${name}".`);
+          setScreen({ kind: "config-llms" });
+        },
+      },
+    ];
+
+    return (
+      <MenuScreen
+        title="Delete LLM?"
+        description={`Remove "${name}" from the configured LLMs?`}
         items={items}
       />
     );
@@ -1272,8 +1502,14 @@ export function ConfigureApp({
         return renderHome();
       case "config":
         return renderConfigMenu();
-      case "config-provider":
-        return renderProviderMenu();
+      case "config-llms":
+        return renderLlmsMenu();
+      case "config-llm-edit":
+        return renderLlmEditMenu();
+      case "config-llm-provider":
+        return renderLlmProviderMenu();
+      case "config-llm-delete-confirm":
+        return renderLlmDeleteConfirm();
       case "config-prompts":
         return renderPromptsConfigMenu();
       case "config-tools":
@@ -1311,7 +1547,7 @@ export function ConfigureApp({
 
       <Box marginTop={1}>
         <Text color="gray">
-          {`config: ${configData.llm.provider}/${configData.llm.model} • mcp: ${mcpServers.length} • skills: ${installedSkills.length}`}
+          {`config: ${config.llm.provider}/${config.llm.model} • mcp: ${mcpServers.length} • skills: ${installedSkills.length}`}
         </Text>
       </Box>
 

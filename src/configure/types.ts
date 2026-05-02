@@ -13,7 +13,10 @@ export type Screen =
   | { kind: "home" }
   | { kind: "config" }
   | { kind: "config-tools" }
-  | { kind: "config-provider" }
+  | { kind: "config-llms" }
+  | { kind: "config-llm-edit"; name: string }
+  | { kind: "config-llm-provider"; name: string }
+  | { kind: "config-llm-delete-confirm"; name: string }
   | { kind: "config-prompts" }
   | { kind: "config-search" }
   | { kind: "config-search-provider" }

@@ -10,6 +10,7 @@ export type {
   ConfigData,
   LlmConfig,
   LtmConfig,
+  NamedLlmConfig,
   PromptsConfig,
   SearchConfig,
   ToolsConfig,
