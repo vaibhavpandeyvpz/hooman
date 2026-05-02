@@ -14,7 +14,10 @@ import {
   type Agent,
   type AgentStreamEvent,
   type ContentBlock,
+  type MessageData,
 } from "@strands-agents/sdk";
+import { bootstrap } from "../core/index.js";
+import type { Config } from "../core/config.js";
 import type { Manager as McpManager } from "../core/mcp/index.js";
 import type { Registry } from "../core/skills/index.js";
 import { takeFileToolDisplay } from "../core/state/file-tool-display.js";
@@ -24,7 +27,9 @@ import {
 } from "./approvals.js";
 import { ApprovalPrompt } from "./components/ApprovalPrompt.js";
 import { Composer } from "./components/Composer.js";
+import { ModelPicker } from "./components/ModelPicker.js";
 import { QueuedPrompts } from "./components/QueuedPrompts.js";
+import { SlashCommands } from "./components/SlashCommands.js";
 import { StatusBar } from "./components/StatusBar.js";
 import { TodoPanel } from "./components/TodoPanel.js";
 import { TranscriptViewport } from "./components/TranscriptViewport.js";
@@ -37,6 +42,7 @@ import type { PromptSubmission } from "./components/prompt-input/hooks/usePrompt
 
 type ChatAppProps = {
   agent: Agent;
+  config: Config;
   sessionId: string;
   manager: McpManager;
   registry: Registry;
@@ -65,7 +71,7 @@ function normalizePromptSubmission(
 }
 
 const INPUT_HINT =
-  "enter: queue prompt | shift/meta+enter or \\+enter: newline | esc/ctrl+c: cancel or exit";
+  "enter: queue prompt | /model: view or switch models | shift/meta+enter or \\+enter: newline | esc/ctrl+c: cancel or exit";
 
 function nowId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -114,8 +120,83 @@ function getToolUseId(value: unknown): string | null {
   return null;
 }
 
+function currentModelName(config: Config): string {
+  return (
+    config.llms.find((m) => m.default)?.name ??
+    config.llms[0]?.name ??
+    "unknown"
+  );
+}
+
+function currentModelLabel(config: Config): string {
+  const active = config.llms.find((m) => m.default) ?? config.llms[0];
+  if (!active) {
+    return "unknown";
+  }
+  return `${active.name} (${active.options.provider}/${active.options.model})`;
+}
+
+function parseChatCommand(text: string): { name: string; args: string } | null {
+  const trimmed = text.trim();
+  if (!trimmed.startsWith("/")) {
+    return null;
+  }
+  const withoutSlash = trimmed.slice(1).trim();
+  if (!withoutSlash) {
+    return null;
+  }
+  const firstSpace = withoutSlash.indexOf(" ");
+  if (firstSpace === -1) {
+    return { name: withoutSlash.toLowerCase(), args: "" };
+  }
+  return {
+    name: withoutSlash.slice(0, firstSpace).toLowerCase(),
+    args: withoutSlash.slice(firstSpace + 1).trim(),
+  };
+}
+
+function listModelsText(config: Config): string {
+  const current = currentModelName(config);
+  const options = config.llms.map((entry) => {
+    const marker = entry.name === current ? "*" : "-";
+    return `${marker} ${entry.name} (${entry.options.provider}/${entry.options.model})`;
+  });
+  return [
+    `Current model: ${current}`,
+    "Available models:",
+    ...options,
+    'Use "/model <name>" to switch for this chat session.',
+  ].join("\n");
+}
+
+const SLASH_COMMANDS = [
+  {
+    name: "model",
+    description:
+      "Show a picker or switch to a named model for this chat session.",
+  },
+] as const;
+
+function matchingSlashCommands(
+  input: string,
+): Array<(typeof SLASH_COMMANDS)[number]> {
+  const trimmed = input.trimStart();
+  if (!trimmed.startsWith("/")) {
+    return [];
+  }
+  const query = trimmed.slice(1).toLowerCase();
+  if (!query) {
+    return [...SLASH_COMMANDS];
+  }
+  if (query.includes(" ")) {
+    return [];
+  }
+  return SLASH_COMMANDS.filter((item) => item.name.startsWith(query));
+}
+
 export function ChatApp({
   agent,
+  config,
   sessionId,
   manager,
   registry,
@@ -125,8 +206,8 @@ export function ChatApp({
 }: ChatAppProps): React.JSX.Element {
   const { exit } = useApp();
   const { rows } = useWindowSize();
-  const totalTools =
-    (agent as Agent & { tools?: unknown[] }).tools?.length ?? 0;
+  const [currentAgent, setCurrentAgent] = useState(agent);
+  const [currentManager, setCurrentManager] = useState(manager);
   const [input, setInput] = useState("");
   const [running, setRunning] = useState(false);
   const [status, setStatus] = useState("ready");
@@ -143,6 +224,7 @@ export function ChatApp({
   });
   const [pendingApproval, setPendingApproval] =
     useState<ApprovalRequest | null>(null);
+  const [showModelPicker, setShowModelPicker] = useState(false);
   const [queuedPrompts, setQueuedPrompts] = useState<QueuedPrompt[]>([]);
   const [liveReasoning, setLiveReasoning] = useState("");
   const [followRequest, setFollowRequest] = useState(0);
@@ -195,7 +277,7 @@ export function ChatApp({
     const cleanupListener = controller.subscribe(() => {
       setPendingApproval(controller.pending);
     });
-    const cleanupHook = agent.addHook(
+    const cleanupHook = currentAgent.addHook(
       BeforeToolCallEvent,
       createChatApprovalHandler(controller, { yolo }),
     );
@@ -203,7 +285,7 @@ export function ChatApp({
       cleanupListener();
       cleanupHook();
     };
-  }, [agent, yolo]);
+  }, [currentAgent, yolo]);
 
   useEffect(() => {
     let active = true;
@@ -211,7 +293,7 @@ export function ChatApp({
       if (!active) {
         return;
       }
-      setTodoState(getTodoViewState(agent));
+      setTodoState(getTodoViewState(currentAgent));
     };
     refresh();
     const timer = setInterval(refresh, running ? 200 : 800);
@@ -219,7 +301,11 @@ export function ChatApp({
       active = false;
       clearInterval(timer);
     };
-  }, [agent, running]);
+  }, [currentAgent, running]);
+
+  const totalTools =
+    (currentAgent as Agent & { tools?: unknown[] }).tools?.length ?? 0;
+  const slashCommands = useMemo(() => matchingSlashCommands(input), [input]);
 
   const appendLine = useCallback((line: ChatLine) => {
     setLines((prev) => [...prev, line]);
@@ -258,6 +344,96 @@ export function ChatApp({
       ),
     );
   }, []);
+
+  const rebuildAgent = useCallback(async () => {
+    const messageSnapshot: MessageData[] = currentAgent.messages.map(
+      (message) => message.toJSON(),
+    );
+    const {
+      agent: nextAgent,
+      mcp: { manager: nextManager },
+    } = await bootstrap("default", { sessionId }, false, config);
+    nextAgent.messages.length = 0;
+    for (const message of messageSnapshot) {
+      nextAgent.messages.push(Message.fromJSON(message));
+    }
+    setCurrentAgent(nextAgent);
+    setCurrentManager(nextManager);
+    await currentManager.disconnect();
+  }, [config, currentAgent, currentManager, sessionId]);
+
+  const handleModelCommand = useCallback(
+    async (args: string) => {
+      if (runningRef.current) {
+        appendLine({
+          id: nowId(),
+          role: "system",
+          title: "model",
+          content:
+            "Wait for the active turn to finish before switching models.",
+          done: true,
+        });
+        return;
+      }
+      if (!args) {
+        setShowModelPicker(true);
+        return;
+      }
+      const match = config.llms.find((entry) => entry.name === args);
+      if (!match) {
+        appendLine({
+          id: nowId(),
+          role: "system",
+          title: "model",
+          content: `Unknown model "${args}".\n\n${listModelsText(config)}`,
+          done: true,
+        });
+        return;
+      }
+      if (match.name === currentModelName(config)) {
+        appendLine({
+          id: nowId(),
+          role: "system",
+          title: "model",
+          content: `Already using ${currentModelLabel(config)}.`,
+          done: true,
+        });
+        return;
+      }
+      const previous = currentModelName(config);
+      config.update({
+        llms: config.llms.map((entry) => ({
+          ...entry,
+          default: entry.name === match.name,
+        })),
+      });
+      try {
+        await rebuildAgent();
+        appendLine({
+          id: nowId(),
+          role: "system",
+          title: "model",
+          content: `Switched to ${currentModelLabel(config)} for this chat session.`,
+          done: true,
+        });
+      } catch (error) {
+        config.update({
+          llms: config.llms.map((entry) => ({
+            ...entry,
+            default: entry.name === previous,
+          })),
+        });
+        appendLine({
+          id: nowId(),
+          role: "system",
+          title: "error",
+          content: error instanceof Error ? error.message : String(error),
+          done: true,
+        });
+      }
+    },
+    [appendLine, config, rebuildAgent],
+  );
 
   const runTurn = useCallback(
     async (prompt: PromptSubmission) => {
@@ -309,7 +485,7 @@ export function ChatApp({
                 }),
               ]
             : trimmed;
-        for await (const event of agent.stream(streamInput)) {
+        for await (const event of currentAgent.stream(streamInput)) {
           const e = event as AgentStreamEvent;
           switch (e.type) {
             case "contentBlockEvent": {
@@ -348,7 +524,7 @@ export function ChatApp({
               const resultContent = toToolResultText(e.result);
               const toolUseId = getToolUseId(e.result);
               const fileToolDisplay = takeFileToolDisplay(
-                agent.appState,
+                currentAgent.appState,
                 toolUseId,
               );
               let toolLineId = toolUseId
@@ -459,16 +635,16 @@ export function ChatApp({
         setTurnStartedAt(null);
         setLiveReasoning("");
         setStatus("ready");
-        if (isExitRequested(agent)) {
+        if (isExitRequested(currentAgent)) {
           onExit();
           exit();
         }
       }
     },
     [
-      agent,
       appendAssistantText,
       appendLine,
+      currentAgent,
       exit,
       moveLineToEnd,
       onExit,
@@ -546,12 +722,20 @@ export function ChatApp({
       if (pendingApproval) {
         return;
       }
+      const command = parseChatCommand(value.text);
+      if (command && value.attachments.length === 0) {
+        if (command.name === "model") {
+          void handleModelCommand(command.args);
+          setInput("");
+          return;
+        }
+      }
       if (pushPrompt(value)) {
         setFollowRequest((value) => value + 1);
         setInput("");
       }
     },
-    [pendingApproval, pushPrompt],
+    [handleModelCommand, pendingApproval, pushPrompt],
   );
 
   useInput(
@@ -561,8 +745,12 @@ export function ChatApp({
       }
       if (key.ctrl && inputKey.toLowerCase() === "c") {
         if (runningRef.current) {
-          agent.cancel();
+          currentAgent.cancel();
           setStatus("cancel requested");
+          return;
+        }
+        if (showModelPicker) {
+          setShowModelPicker(false);
           return;
         }
         onExit();
@@ -570,8 +758,12 @@ export function ChatApp({
         return;
       }
       if (key.escape) {
+        if (showModelPicker) {
+          setShowModelPicker(false);
+          return;
+        }
         if (runningRef.current) {
-          agent.cancel();
+          currentAgent.cancel();
           setStatus("cancel requested");
           return;
         }
@@ -620,15 +812,32 @@ export function ChatApp({
           />
         ) : null}
 
-        {!pendingApproval ? (
+        {!pendingApproval && showModelPicker ? (
+          <ModelPicker
+            items={config.llms.map((entry) => ({
+              label: `${entry.name} • ${entry.options.provider}/${entry.options.model}${entry.default ? " • current" : ""}`,
+              value: entry.name,
+            }))}
+            onSelect={(name) => {
+              setShowModelPicker(false);
+              void handleModelCommand(name);
+            }}
+          />
+        ) : null}
+
+        {!pendingApproval && !showModelPicker ? (
           <Composer
             input={input}
             running={running}
-            disabled={Boolean(pendingApproval)}
+            disabled={Boolean(pendingApproval) || showModelPicker}
             hint={INPUT_HINT}
             onChange={setInput}
             onSubmit={onSubmit}
           />
+        ) : null}
+
+        {!pendingApproval && !showModelPicker ? (
+          <SlashCommands items={slashCommands} />
         ) : null}
 
         <StatusBar
@@ -636,11 +845,12 @@ export function ChatApp({
           status={status}
           statusLabel={statusLabel}
           sessionId={sessionId}
+          currentModel={currentModelLabel(config)}
           elapsedLabel={elapsedLabel}
           turnCount={turnCount}
           totalTools={totalTools}
           skillsFound={skillsFound}
-          manager={manager}
+          manager={currentManager}
           usage={usage}
         />
       </Box>

@@ -6,6 +6,7 @@ type StatusBarProps = {
   status: string;
   statusLabel?: string;
   sessionId: string;
+  currentModel: string;
   elapsedLabel: string;
   turnCount: number;
   totalTools: number;
@@ -39,6 +40,7 @@ export function StatusBar({
   status,
   statusLabel,
   sessionId,
+  currentModel,
   elapsedLabel,
   turnCount,
   totalTools,
@@ -53,6 +55,7 @@ export function StatusBar({
         <Text color={statusValueColor(status)}>{statusLabel ?? status}</Text>
         <Text color="gray"> • session: {sessionId}</Text>
       </Text>
+      <Text color="gray">model: {currentModel}</Text>
       <Text color="gray">
         turns: {turnCount} • tokens in/out/total: {usage.inputTokens}/
         {usage.outputTokens}/{usage.totalTokens}

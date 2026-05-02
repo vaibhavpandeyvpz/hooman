@@ -39,7 +39,7 @@ import { extractAcpClientUserId } from "./meta/user-id.js";
 import { deriveSessionTitleFromEcho } from "./sessions/title.js";
 import { acpPromptEchoText, acpPromptToInvokeArgs } from "./prompt-invoke.js";
 import type { Config } from "../core/config.js";
-import { createAcpSessionConfig } from "./immutable-config.js";
+import { createSessionConfig } from "../core/session-config.js";
 import { normalizeAcpSessionMcpServers } from "./mcp-servers.js";
 import {
   consumeExitRequest,
@@ -352,7 +352,7 @@ export class AcpAgent implements AgentContract {
         },
       },
       false,
-      createAcpSessionConfig(),
+      createSessionConfig(),
     );
 
     const availableModeIds = new Set<string>([DEFAULT_MODE_ID]);
@@ -453,7 +453,7 @@ export class AcpAgent implements AgentContract {
         },
       },
       false,
-      createAcpSessionConfig(),
+      createSessionConfig(),
     );
 
     const saved = await loadSessionMessages(this.#acpRoot, params.sessionId);

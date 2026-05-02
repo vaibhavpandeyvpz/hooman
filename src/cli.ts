@@ -10,6 +10,7 @@ import { configure } from "./configure/index.js";
 import { runAcpStdio } from "./acp/acp-agent.js";
 import { main as daemon } from "./daemon/index.js";
 import { createDaemonApprovalHandler } from "./daemon/approvals.js";
+import { createSessionConfig } from "./core/session-config.js";
 import {
   consumeExitRequest,
   EXIT_REQUESTED_CODE,
@@ -92,16 +93,18 @@ program
       options: { session?: string; yolo?: boolean },
     ) => {
       const sessionId = options.session?.trim() || crypto.randomUUID();
+      const config = createSessionConfig();
       const {
         agent,
         mcp: { manager },
         registry,
-      } = await bootstrap("default", { sessionId }, false);
+      } = await bootstrap("default", { sessionId }, false, config);
 
       let exitRequested = false;
       try {
         exitRequested = await chat({
           agent,
+          config,
           manager,
           registry,
           sessionId,
