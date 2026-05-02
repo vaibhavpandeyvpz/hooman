@@ -38,7 +38,7 @@ It gives you a practical toolkit to build and run agent workflows:
 - MCP channel notification support through `hooman daemon --channels`
 - Skill discovery from local `~/.hooman/skills` folders
 - Bundled prompt harness toggles (`behaviour`, `communication`, `execution`, `engineering`, `guardrails`)
-- Built-in subagent runner tools (`research`, `plan`) with configurable concurrency
+- Built-in research sub-agent runner (`research`) with configurable concurrency
 - Toolkit-oriented architecture with configurable tools, prompts, memory, and transports
 - Interactive terminal UI for chat and configuration
 
@@ -149,7 +149,7 @@ hooman chat
 Optional initial prompt:
 
 ```bash
-hooman chat "Help me plan the next task"
+hooman chat "Help me prioritize the next task"
 ```
 
 Resume or pin a session id:

@@ -6,7 +6,7 @@ Use this tool when delegation makes the response better:
 
 - The task has independent parts that can run in parallel.
 - You need deeper investigation before writing a final answer.
-- You want one agent focused on research and another on planning.
+- You want focused read-only exploration of the workspace, sources, and context.
 
 Use delegation thoughtfully:
 
@@ -23,6 +23,6 @@ Do not use `run_agents` when:
 
 Output expectations:
 
-- Child agents are read-only and return findings or plans.
+- Child agents are read-only and return findings for you to interpret.
 - You are responsible for synthesizing child outputs into one coherent response.
 - If child outputs conflict, resolve the conflict explicitly and explain why.

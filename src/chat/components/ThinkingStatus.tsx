@@ -87,7 +87,7 @@ const THINKING_VERBS = [
   "is fine-tuning outputs",
   "is tracing linguistic roots",
   "is measuring semantic proximity",
-  "is formulating plans",
+  "is outlining next moves",
   "is constructing frameworks",
   "is organizing thought streams",
   "is linking references",

@@ -53,7 +53,7 @@ export function createRunAgentsTools(options: RunAgentsToolOptions) {
     tool({
       name: RUN_AGENTS_TOOL_NAME,
       description: `Run one or more specialized child agents in parallel and return their outputs.
-Use this for deeper research or planning work that can be split into independent jobs.
+Use this for deeper investigation of the workspace and sources when work can be split into independent jobs.
 Available agent kinds:
 ${kinds.join("\n")}`,
       inputSchema: RunAgentsInputSchema,
