@@ -33,6 +33,10 @@ export const attachmentsPath = () => {
   return join(basePath(), "attachments");
 };
 
+export const plansPath = () => {
+  return join(basePath(), "plans");
+};
+
 export const skillsPath = () => {
   return join(basePath(), "skills");
 };

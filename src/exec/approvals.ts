@@ -69,7 +69,7 @@ export function createToolApprovalHandler(options?: {
     }
     if (
       INTERNAL_ALWAYS_ALLOWED.has(name) ||
-      isToolSessionAllowed(event.agent, name)
+      isToolSessionAllowed(event.agent, name, event.toolUse.input)
     ) {
       return;
     }

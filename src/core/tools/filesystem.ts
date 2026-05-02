@@ -1,9 +1,8 @@
 import { createHash } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
-import os from "node:os";
 import { tool, type JSONValue, type ToolContext } from "@strands-agents/sdk";
-import { getCwd } from "../utils/cwd-context.js";
+import { normalizeUserPath } from "../utils/normalize-user-path.js";
 import {
   setFileToolDisplay,
   type StructuredPatchHunk,
@@ -49,28 +48,6 @@ const textReadState = new Map<string, TextReadState>();
 
 function toJsonValue(value: unknown): JSONValue {
   return JSON.parse(JSON.stringify(value)) as JSONValue;
-}
-
-function expandHome(inputPath: string): string {
-  if (inputPath === "~" || inputPath.startsWith("~/")) {
-    return path.join(os.homedir(), inputPath.slice(1));
-  }
-  return inputPath;
-}
-
-function normalizeUserPath(inputPath: string): string {
-  let value = inputPath.trim().replace(/^["']|["']$/g, "");
-
-  if (process.platform === "win32" && /^\/[a-zA-Z]\//.test(value)) {
-    const drive = value[1]!.toUpperCase();
-    value = `${drive}:${value.slice(2).replace(/\//g, "\\")}`;
-  }
-
-  value = expandHome(value);
-
-  return path.isAbsolute(value)
-    ? path.resolve(value)
-    : path.resolve(getCwd(), value);
 }
 
 function normalizeForGlob(inputPath: string): string {

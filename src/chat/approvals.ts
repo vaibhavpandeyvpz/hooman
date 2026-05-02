@@ -79,7 +79,7 @@ export function createChatApprovalHandler(
     }
     if (
       INTERNAL_ALWAYS_ALLOWED.has(toolName) ||
-      isToolSessionAllowed(event.agent, toolName)
+      isToolSessionAllowed(event.agent, toolName, event.toolUse.input)
     ) {
       return;
     }

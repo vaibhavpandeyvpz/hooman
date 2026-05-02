@@ -1,3 +1,13 @@
+import {
+  ENTER_PLAN_MODE_TOOL_NAME,
+  EXIT_PLAN_MODE_TOOL_NAME,
+} from "../tools/plan.js";
+import {
+  isResolvedPathInsideDir,
+  normalizeUserPath,
+} from "../utils/normalize-user-path.js";
+import { attachmentsPath, plansPath, skillsPath } from "../utils/paths.js";
+
 type AppStateLike = {
   get<T = unknown>(key: string): T;
   set(key: string, value: unknown): void;
@@ -8,6 +18,66 @@ type AgentLike = {
 };
 
 const SESSION_ALLOWED_TOOLS_KEY = "allowedTools";
+
+const READ_FILE_TOOL = "read_file";
+const READ_MULTIPLE_FILES_TOOL = "read_multiple_files";
+const WRITE_FILE_TOOL = "write_file";
+const EDIT_FILE_TOOL = "edit_file";
+
+function isPlainObjectRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/** Skip approval for filesystem tools when targets stay inside trusted app-home dirs. */
+function isImplicitPathAllowed(
+  toolName: string,
+  toolInput: Record<string, unknown>,
+): boolean {
+  const attachments = attachmentsPath();
+  const plans = plansPath();
+  const skills = skillsPath();
+  const readRoots = [attachments, plans, skills];
+
+  if (toolName === READ_FILE_TOOL) {
+    const raw = toolInput.path;
+    if (typeof raw !== "string" || !raw.trim()) {
+      return false;
+    }
+    const resolved = normalizeUserPath(raw);
+    return readRoots.some((root) => isResolvedPathInsideDir(resolved, root));
+  }
+
+  if (toolName === READ_MULTIPLE_FILES_TOOL) {
+    const paths = toolInput.paths;
+    if (!Array.isArray(paths) || paths.length === 0) {
+      return false;
+    }
+    for (const item of paths) {
+      if (typeof item !== "string" || !item.trim()) {
+        return false;
+      }
+      const resolved = normalizeUserPath(item);
+      const ok = readRoots.some((root) =>
+        isResolvedPathInsideDir(resolved, root),
+      );
+      if (!ok) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  if (toolName === WRITE_FILE_TOOL || toolName === EDIT_FILE_TOOL) {
+    const raw = toolInput.path;
+    if (typeof raw !== "string" || !raw.trim()) {
+      return false;
+    }
+    const resolved = normalizeUserPath(raw);
+    return isResolvedPathInsideDir(resolved, plans);
+  }
+
+  return false;
+}
 
 export const INTERNAL_ALWAYS_ALLOWED = new Set([
   // Strands / runtime
@@ -44,6 +114,9 @@ export const INTERNAL_ALWAYS_ALLOWED = new Set([
   "get_file_info",
   "list_directory",
   "search_files",
+  // Planning session (mode / plan file); tools optional until wired into agent
+  ENTER_PLAN_MODE_TOOL_NAME,
+  EXIT_PLAN_MODE_TOOL_NAME,
 ]);
 
 function normalizeAllowedTools(value: unknown): string[] {
@@ -76,11 +149,26 @@ export function getSessionAllowedTools(agent: AgentLike): string[] {
   return current;
 }
 
+/**
+ * Session-wide tool allowlist ("always allow" in UI), plus implicit allow for
+ * read/write/edit when paths resolve under attachments, plans, or skills (reads)
+ * or plans only (writes/edits).
+ */
 export function isToolSessionAllowed(
   agent: AgentLike,
   toolName: string,
+  toolInput?: unknown,
 ): boolean {
-  return getSessionAllowedTools(agent).includes(toolName);
+  if (getSessionAllowedTools(agent).includes(toolName)) {
+    return true;
+  }
+  if (
+    isPlainObjectRecord(toolInput) &&
+    isImplicitPathAllowed(toolName, toolInput)
+  ) {
+    return true;
+  }
+  return false;
 }
 
 export function allowToolForSession(agent: AgentLike, toolName: string): void {
