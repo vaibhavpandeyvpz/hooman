@@ -33,7 +33,11 @@ import { replayConversationHistory } from "./sessions/replay.js";
 import {
   applySessionConfigOption,
   buildSessionConfigOptions,
+  HOOMAN_YOLO_CONFIG_ID,
 } from "./sessions/config-options.js";
+import { applySessionMode } from "../core/agent/sync-tool-registry-mode.js";
+import { copyAgentAppState } from "../core/state/agent-app-state.js";
+import { isYoloEnabled } from "../core/state/yolo.js";
 import { extractAcpClientSystemPrompt } from "./meta/system-prompt.js";
 import { extractAcpClientUserId } from "./meta/user-id.js";
 import { deriveSessionTitleFromEcho } from "./sessions/title.js";
@@ -252,9 +256,13 @@ export class AcpAgent implements AgentContract {
     if (!rec) {
       throw RequestError.invalidParams({ sessionId: params.sessionId });
     }
-    applySessionConfigOption(rec.config, params);
-    rec.agentStale = true;
-    return { configOptions: buildSessionConfigOptions(rec.config) };
+    applySessionConfigOption(rec.config, params, rec.agent);
+    if (params.configId !== HOOMAN_YOLO_CONFIG_ID) {
+      rec.agentStale = true;
+    }
+    return {
+      configOptions: buildSessionConfigOptions(rec.config, rec.agent),
+    };
   }
 
   async extMethod(
@@ -368,7 +376,6 @@ export class AcpAgent implements AgentContract {
         () =>
           this.#sessions.get(sessionId)?.streamedToolCallIds ??
           EMPTY_STREAMED_TOOL_CALL_IDS,
-        () => this.#sessions.get(sessionId)?.config.yolo ?? false,
       ),
     );
 
@@ -407,7 +414,7 @@ export class AcpAgent implements AgentContract {
         ],
       },
       models: null,
-      configOptions: buildSessionConfigOptions(config),
+      configOptions: buildSessionConfigOptions(config, agent),
     };
   }
 
@@ -482,7 +489,6 @@ export class AcpAgent implements AgentContract {
         () =>
           this.#sessions.get(params.sessionId)?.streamedToolCallIds ??
           EMPTY_STREAMED_TOOL_CALL_IDS,
-        () => this.#sessions.get(params.sessionId)?.config.yolo ?? false,
       ),
     );
 
@@ -530,7 +536,7 @@ export class AcpAgent implements AgentContract {
         ],
       },
       models: null,
-      configOptions: buildSessionConfigOptions(config),
+      configOptions: buildSessionConfigOptions(config, agent),
     };
   }
 
@@ -570,6 +576,7 @@ export class AcpAgent implements AgentContract {
       {
         userId: bootstrapUserId,
         sessionId,
+        yolo: isYoloEnabled(rec.agent),
         acp: {
           mcpServers,
           ...(meta.systemPrompt ? { systemPrompt: meta.systemPrompt } : {}),
@@ -585,6 +592,9 @@ export class AcpAgent implements AgentContract {
       agent.messages.push(Message.fromJSON(md));
     }
 
+    copyAgentAppState(rec.agent, agent);
+    applySessionMode(agent);
+
     const hookOff = agent.addHook(
       BeforeToolCallEvent,
       createAcpToolApprovalHook(
@@ -593,7 +603,6 @@ export class AcpAgent implements AgentContract {
         () =>
           this.#sessions.get(sessionId)?.streamedToolCallIds ??
           EMPTY_STREAMED_TOOL_CALL_IDS,
-        () => this.#sessions.get(sessionId)?.config.yolo ?? false,
       ),
     );
 

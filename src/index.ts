@@ -196,6 +196,11 @@ export {
   isToolSessionAllowed,
 } from "./core/state/tool-approvals.js";
 export {
+  YOLO_STATE_KEY,
+  isYoloEnabled,
+  setYoloEnabled,
+} from "./core/state/yolo.js";
+export {
   TODO_ITEMS_STATE_KEY,
   TODO_VISIBLE_STATE_KEY,
   TodoItemSchema,

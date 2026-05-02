@@ -4,6 +4,7 @@ import {
   allowToolForSession,
   isToolSessionAllowed,
 } from "../core/state/tool-approvals.js";
+import { isYoloEnabled } from "../core/state/yolo.js";
 import type { ApprovalDecision, ApprovalRequest } from "./types.js";
 const INPUT_PREVIEW_LIMIT = 256;
 
@@ -70,11 +71,10 @@ export class ChatApprovalController {
 
 export function createChatApprovalHandler(
   controller: ChatApprovalController,
-  options?: { yolo?: boolean },
 ): (event: BeforeToolCallEvent) => Promise<void> {
   return async (event: BeforeToolCallEvent) => {
     const toolName = event.toolUse.name;
-    if (options?.yolo) {
+    if (isYoloEnabled(event.agent)) {
       return;
     }
     if (

@@ -5,6 +5,7 @@ import {
   allowToolForSession,
   isToolSessionAllowed,
 } from "../core/state/tool-approvals.js";
+import { isYoloEnabled } from "../core/state/yolo.js";
 import { inferToolKind, toolDisplayTitle } from "./utils/tool-kind.js";
 import { toolCallLocationsFromInput } from "./utils/tool-locations.js";
 
@@ -13,7 +14,6 @@ export function createAcpToolApprovalHook(
   sessionId: string,
   /** Tool calls already announced via model stream (`tool_call` pending). */
   streamPrimedToolCallIds?: () => ReadonlySet<string>,
-  yoloEnabled?: () => boolean,
 ): HookCallback<BeforeToolCallEvent> {
   return async function onBeforeToolCall(event) {
     const name = event.toolUse.name;
@@ -52,7 +52,7 @@ export function createAcpToolApprovalHook(
     }
 
     if (
-      yoloEnabled?.() ||
+      isYoloEnabled(event.agent) ||
       INTERNAL_ALWAYS_ALLOWED.has(name) ||
       isToolSessionAllowed(event.agent, name, event.toolUse.input)
     ) {

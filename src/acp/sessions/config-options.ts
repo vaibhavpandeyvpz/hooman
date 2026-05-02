@@ -3,16 +3,24 @@ import type {
   SessionConfigOption,
   SetSessionConfigOptionRequest,
 } from "@agentclientprotocol/sdk";
+import type { Agent } from "@strands-agents/sdk";
 import type { Config } from "../../core/config.js";
 import type { SessionConfig } from "../../core/session-config.js";
+import {
+  YOLO_STATE_KEY,
+  isYoloEnabled,
+  setYoloEnabled,
+} from "../../core/state/yolo.js";
 
 export const HOOMAN_LTM_CONFIG_ID = "hooman.longTermMemory" as const;
 export const HOOMAN_WIKI_CONFIG_ID = "hooman.wiki" as const;
 export const HOOMAN_MODEL_CONFIG_ID = "hooman.model" as const;
-export const HOOMAN_YOLO_CONFIG_ID = "hooman.yolo" as const;
+/** Same key as agent {@link YOLO_STATE_KEY}. */
+export const HOOMAN_YOLO_CONFIG_ID = YOLO_STATE_KEY;
 
 export function buildSessionConfigOptions(
   config: Config | SessionConfig,
+  agent: Agent,
 ): SessionConfigOption[] {
   const defaultLlm = config.llms.find((m) => m.default) ?? config.llms[0]!;
   return [
@@ -61,7 +69,7 @@ export function buildSessionConfigOptions(
       description:
         "When enabled, tool calls run without interactive ACP approval prompts for this session.",
       category: "_hooman",
-      currentValue: "yolo" in config && config.yolo ? "on" : "off",
+      currentValue: isYoloEnabled(agent) ? "on" : "off",
       options: [
         { value: "on", name: "On" },
         { value: "off", name: "Off" },
@@ -73,6 +81,7 @@ export function buildSessionConfigOptions(
 export function applySessionConfigOption(
   config: SessionConfig,
   params: SetSessionConfigOptionRequest,
+  agent: Agent,
 ): void {
   if ("type" in params && params.type === "boolean") {
     throw RequestError.invalidParams({
@@ -117,7 +126,7 @@ export function applySessionConfigOption(
     return;
   }
   if (params.configId === HOOMAN_YOLO_CONFIG_ID) {
-    config.setYolo(value === "on");
+    setYoloEnabled(agent, value === "on");
     return;
   }
 

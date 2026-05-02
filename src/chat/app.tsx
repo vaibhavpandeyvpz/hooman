@@ -36,6 +36,9 @@ import { TranscriptViewport } from "./components/TranscriptViewport.js";
 import type { ApprovalRequest, ChatLine } from "./types.js";
 import { getTodoViewState, type TodoViewState } from "../core/state/todos.js";
 import { isExitRequested } from "../core/state/exit-request.js";
+import { copyAgentAppState } from "../core/state/agent-app-state.js";
+import { isYoloEnabled } from "../core/state/yolo.js";
+import { applySessionMode } from "../core/agent/sync-tool-registry-mode.js";
 import { attachmentPathsToPromptBlocks } from "../core/utils/attachments.js";
 import { isMouseInput } from "./mouse.js";
 import type { PromptSubmission } from "./components/prompt-input/hooks/usePromptInputController.js";
@@ -47,7 +50,6 @@ type ChatAppProps = {
   manager: McpManager;
   registry: Registry;
   initialPrompt?: string;
-  yolo?: boolean;
   onExit: () => void;
 };
 
@@ -201,7 +203,6 @@ export function ChatApp({
   manager,
   registry,
   initialPrompt,
-  yolo,
   onExit,
 }: ChatAppProps): React.JSX.Element {
   const { exit } = useApp();
@@ -279,13 +280,13 @@ export function ChatApp({
     });
     const cleanupHook = currentAgent.addHook(
       BeforeToolCallEvent,
-      createChatApprovalHandler(controller, { yolo }),
+      createChatApprovalHandler(controller),
     );
     return () => {
       cleanupListener();
       cleanupHook();
     };
-  }, [currentAgent, yolo]);
+  }, [currentAgent]);
 
   useEffect(() => {
     let active = true;
@@ -352,11 +353,18 @@ export function ChatApp({
     const {
       agent: nextAgent,
       mcp: { manager: nextManager },
-    } = await bootstrap("default", { sessionId }, false, config);
+    } = await bootstrap(
+      "default",
+      { sessionId, yolo: isYoloEnabled(currentAgent) },
+      false,
+      config,
+    );
     nextAgent.messages.length = 0;
     for (const message of messageSnapshot) {
       nextAgent.messages.push(Message.fromJSON(message));
     }
+    copyAgentAppState(currentAgent, nextAgent);
+    applySessionMode(nextAgent);
     setCurrentAgent(nextAgent);
     setCurrentManager(nextManager);
     await currentManager.disconnect();

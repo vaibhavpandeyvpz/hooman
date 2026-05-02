@@ -21,6 +21,8 @@ import {
 export type BootstrapMeta = {
   userId?: string;
   sessionId?: string;
+  /** When true, seeds `hooman.yolo` on the agent appState (auto-approve tools). */
+  yolo?: boolean;
   acp?: AcpMeta;
 };
 
@@ -55,6 +57,7 @@ export async function bootstrap(
     userId: meta?.userId ?? meta?.sessionId,
     sessionId: meta?.sessionId,
     systemPrompt: meta?.acp?.systemPrompt,
+    yolo: meta?.yolo,
   });
   return { config, agent, mcp, registry };
 }

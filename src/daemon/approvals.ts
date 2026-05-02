@@ -5,6 +5,7 @@ import {
   allowToolForSession,
   isToolSessionAllowed,
 } from "../core/state/tool-approvals.js";
+import { isYoloEnabled } from "../core/state/yolo.js";
 
 const TOOL_DESCRIPTION_PREVIEW_LIMIT = 50;
 const TOOL_ARGS_PREVIEW_LIMIT = 50;
@@ -67,11 +68,10 @@ function readOrigin(agent: Agent): ChannelOrigin | null {
 export function createDaemonApprovalHandler(
   manager: McpManager,
   agent: Agent,
-  options?: { yolo?: boolean },
 ): (event: BeforeToolCallEvent) => Promise<void> {
   return async (event: BeforeToolCallEvent) => {
     const name = event.toolUse.name;
-    if (options?.yolo) {
+    if (isYoloEnabled(event.agent)) {
       return;
     }
     if (

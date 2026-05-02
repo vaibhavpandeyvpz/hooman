@@ -6,16 +6,6 @@ import { configJsonPath } from "./utils/paths.js";
  * rewriting the shared on-disk config file.
  */
 export class SessionConfig extends Config {
-  #yolo = false;
-
-  public get yolo(): boolean {
-    return this.#yolo;
-  }
-
-  public setYolo(value: boolean): void {
-    this.#yolo = value;
-  }
-
   public override persist(): void {
     // Session config overrides are intentionally ephemeral.
   }

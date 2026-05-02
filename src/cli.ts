@@ -61,11 +61,15 @@ program
       const {
         agent,
         mcp: { manager },
-      } = await bootstrap("default", { sessionId }, true);
-      agent.addHook(
-        BeforeToolCallEvent,
-        createToolApprovalHandler({ yolo: Boolean(options.yolo) }),
+      } = await bootstrap(
+        "default",
+        {
+          sessionId,
+          yolo: Boolean(options.yolo),
+        },
+        true,
       );
+      agent.addHook(BeforeToolCallEvent, createToolApprovalHandler());
       let exitRequested = false;
       try {
         await agent.invoke(prompt);
@@ -98,7 +102,12 @@ program
         agent,
         mcp: { manager },
         registry,
-      } = await bootstrap("default", { sessionId }, false, config);
+      } = await bootstrap(
+        "default",
+        { sessionId, yolo: Boolean(options.yolo) },
+        false,
+        config,
+      );
 
       let exitRequested = false;
       try {
@@ -109,7 +118,6 @@ program
           registry,
           sessionId,
           initialPrompt: prompt?.trim() || undefined,
-          yolo: Boolean(options.yolo),
         });
       } finally {
         try {
@@ -150,14 +158,13 @@ program
         {
           sessionId: session,
           userId: session,
+          yolo: Boolean(options.yolo),
         },
         true,
       );
       agent.addHook(
         BeforeToolCallEvent,
-        createDaemonApprovalHandler(manager, agent, {
-          yolo: Boolean(options.yolo),
-        }),
+        createDaemonApprovalHandler(manager, agent),
       );
       let exitRequested = false;
       try {

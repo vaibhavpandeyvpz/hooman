@@ -31,6 +31,7 @@ import {
 import { ModeAwareToolRegistry } from "./mode-aware-tool-registry.js";
 import { applySessionMode } from "./sync-tool-registry-mode.js";
 import { clearTodoState } from "../state/todos.js";
+import { YOLO_STATE_KEY } from "../state/yolo.js";
 
 const SECTION_BREAK = "\n\n---\n\n";
 
@@ -44,6 +45,8 @@ export async function create(
     userId?: string;
     sessionId?: string;
     systemPrompt?: string;
+    /** Auto-approve tools (CLI `--yolo`, ACP toggle); stored on {@link Agent.appState}. */
+    yolo?: boolean;
   },
 ): Promise<Agent> {
   const sessionId = meta.sessionId;
@@ -96,6 +99,7 @@ export async function create(
     appState: {
       ...(userId ? { userId } : {}),
       ...(sessionId ? { sessionId } : {}),
+      ...(meta.yolo ? { [YOLO_STATE_KEY]: true } : {}),
     },
     tools,
     printer: print,

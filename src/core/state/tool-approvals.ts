@@ -1,3 +1,4 @@
+import { RUN_AGENTS_TOOL_NAME } from "../agents/tools.js";
 import { getModeState } from "./session-mode.js";
 import {
   isResolvedPathInsideDir,
@@ -31,7 +32,7 @@ export const INTERNAL_ALWAYS_ALLOWED = new Set([
   // Thinking
   "think",
   // Agent orchestration
-  "run_agents",
+  RUN_AGENTS_TOOL_NAME,
   // Sleep
   "sleep",
   // Process lifecycle
@@ -79,7 +80,7 @@ export const PLAN_MODE_VISIBLE = new Set([
   // Thinking
   "think",
   // Agent orchestration
-  "run_agents",
+  RUN_AGENTS_TOOL_NAME,
   // Sleep
   "sleep",
   // Process lifecycle

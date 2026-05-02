@@ -6,6 +6,7 @@ import {
   allowToolForSession,
   isToolSessionAllowed,
 } from "../core/state/tool-approvals.js";
+import { isYoloEnabled } from "../core/state/yolo.js";
 const INPUT_PREVIEW_LIMIT = 1_024;
 
 type ApprovalDecision = "allow" | "reject" | "always";
@@ -59,12 +60,10 @@ async function promptForApproval(
 
 type BeforeToolCallEventHandler = (event: BeforeToolCallEvent) => Promise<void>;
 
-export function createToolApprovalHandler(options?: {
-  yolo?: boolean;
-}): BeforeToolCallEventHandler {
+export function createToolApprovalHandler(): BeforeToolCallEventHandler {
   return async function onBeforeToolCallEvent(event: BeforeToolCallEvent) {
     const name = event.toolUse.name;
-    if (options?.yolo) {
+    if (isYoloEnabled(event.agent)) {
       return;
     }
     if (
