@@ -38,8 +38,10 @@ import { extractAcpClientSystemPrompt } from "./meta/system-prompt.js";
 import { extractAcpClientUserId } from "./meta/user-id.js";
 import { deriveSessionTitleFromEcho } from "./sessions/title.js";
 import { acpPromptEchoText, acpPromptToInvokeArgs } from "./prompt-invoke.js";
-import type { Config } from "../core/config.js";
-import { createSessionConfig } from "../core/session-config.js";
+import {
+  createSessionConfig,
+  type SessionConfig,
+} from "../core/session-config.js";
 import { normalizeAcpSessionMcpServers } from "./mcp-servers.js";
 import {
   consumeExitRequest,
@@ -65,7 +67,7 @@ const EMPTY_STREAMED_TOOL_CALL_IDS = new Set<string>();
 type SessionRecord = {
   cwd: string;
   agent: StrandsAgent;
-  config: Config;
+  config: SessionConfig;
   currentModeId: string;
   readonly availableModeIds: ReadonlySet<string>;
   mcpDisconnect: () => Promise<void>;
@@ -338,7 +340,7 @@ export class AcpAgent implements AgentContract {
     await writeSessionMeta(this.#acpRoot, sessionId, meta);
 
     const {
-      config,
+      config: bootConfig,
       agent,
       mcp: { manager },
     } = await bootstrap(
@@ -354,6 +356,7 @@ export class AcpAgent implements AgentContract {
       false,
       createSessionConfig(),
     );
+    const config = bootConfig as SessionConfig;
 
     const availableModeIds = new Set<string>([DEFAULT_MODE_ID]);
 
@@ -365,6 +368,7 @@ export class AcpAgent implements AgentContract {
         () =>
           this.#sessions.get(sessionId)?.streamedToolCallIds ??
           EMPTY_STREAMED_TOOL_CALL_IDS,
+        () => this.#sessions.get(sessionId)?.config.yolo ?? false,
       ),
     );
 
@@ -439,7 +443,7 @@ export class AcpAgent implements AgentContract {
         : (existing.mcpServers ?? []);
 
     const {
-      config,
+      config: bootConfig,
       agent,
       mcp: { manager },
     } = await bootstrap(
@@ -455,6 +459,7 @@ export class AcpAgent implements AgentContract {
       false,
       createSessionConfig(),
     );
+    const config = bootConfig as SessionConfig;
 
     const saved = await loadSessionMessages(this.#acpRoot, params.sessionId);
     agent.messages.length = 0;
@@ -477,6 +482,7 @@ export class AcpAgent implements AgentContract {
         () =>
           this.#sessions.get(params.sessionId)?.streamedToolCallIds ??
           EMPTY_STREAMED_TOOL_CALL_IDS,
+        () => this.#sessions.get(params.sessionId)?.config.yolo ?? false,
       ),
     );
 
@@ -556,7 +562,7 @@ export class AcpAgent implements AgentContract {
     const messageSnapshot = serializeAgentMessages(rec.agent);
 
     const {
-      config,
+      config: bootConfig,
       agent,
       mcp: { manager },
     } = await bootstrap(
@@ -572,6 +578,7 @@ export class AcpAgent implements AgentContract {
       false,
       rec.config,
     );
+    const config = bootConfig as SessionConfig;
 
     agent.messages.length = 0;
     for (const md of messageSnapshot) {
@@ -586,6 +593,7 @@ export class AcpAgent implements AgentContract {
         () =>
           this.#sessions.get(sessionId)?.streamedToolCallIds ??
           EMPTY_STREAMED_TOOL_CALL_IDS,
+        () => this.#sessions.get(sessionId)?.config.yolo ?? false,
       ),
     );
 

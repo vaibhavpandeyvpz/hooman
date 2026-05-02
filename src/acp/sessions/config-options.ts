@@ -4,13 +4,15 @@ import type {
   SetSessionConfigOptionRequest,
 } from "@agentclientprotocol/sdk";
 import type { Config } from "../../core/config.js";
+import type { SessionConfig } from "../../core/session-config.js";
 
 export const HOOMAN_LTM_CONFIG_ID = "hooman.longTermMemory" as const;
 export const HOOMAN_WIKI_CONFIG_ID = "hooman.wiki" as const;
 export const HOOMAN_MODEL_CONFIG_ID = "hooman.model" as const;
+export const HOOMAN_YOLO_CONFIG_ID = "hooman.yolo" as const;
 
 export function buildSessionConfigOptions(
-  config: Config,
+  config: Config | SessionConfig,
 ): SessionConfigOption[] {
   const defaultLlm = config.llms.find((m) => m.default) ?? config.llms[0]!;
   return [
@@ -52,11 +54,24 @@ export function buildSessionConfigOptions(
         { value: "off", name: "Off" },
       ],
     },
+    {
+      type: "select",
+      id: HOOMAN_YOLO_CONFIG_ID,
+      name: "Auto-approve tools",
+      description:
+        "When enabled, tool calls run without interactive ACP approval prompts for this session.",
+      category: "_hooman",
+      currentValue: "yolo" in config && config.yolo ? "on" : "off",
+      options: [
+        { value: "on", name: "On" },
+        { value: "off", name: "Off" },
+      ],
+    },
   ];
 }
 
 export function applySessionConfigOption(
-  config: Config,
+  config: SessionConfig,
   params: SetSessionConfigOptionRequest,
 ): void {
   if ("type" in params && params.type === "boolean") {
@@ -67,7 +82,8 @@ export function applySessionConfigOption(
   if (
     params.configId !== HOOMAN_LTM_CONFIG_ID &&
     params.configId !== HOOMAN_WIKI_CONFIG_ID &&
-    params.configId !== HOOMAN_MODEL_CONFIG_ID
+    params.configId !== HOOMAN_MODEL_CONFIG_ID &&
+    params.configId !== HOOMAN_YOLO_CONFIG_ID
   ) {
     throw RequestError.invalidParams({ configId: params.configId });
   }
@@ -98,6 +114,10 @@ export function applySessionConfigOption(
         },
       },
     });
+    return;
+  }
+  if (params.configId === HOOMAN_YOLO_CONFIG_ID) {
+    config.setYolo(value === "on");
     return;
   }
 

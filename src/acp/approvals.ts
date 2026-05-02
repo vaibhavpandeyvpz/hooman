@@ -13,6 +13,7 @@ export function createAcpToolApprovalHook(
   sessionId: string,
   /** Tool calls already announced via model stream (`tool_call` pending). */
   streamPrimedToolCallIds?: () => ReadonlySet<string>,
+  yoloEnabled?: () => boolean,
 ): HookCallback<BeforeToolCallEvent> {
   return async function onBeforeToolCall(event) {
     const name = event.toolUse.name;
@@ -51,6 +52,7 @@ export function createAcpToolApprovalHook(
     }
 
     if (
+      yoloEnabled?.() ||
       INTERNAL_ALWAYS_ALLOWED.has(name) ||
       isToolSessionAllowed(event.agent, name)
     ) {
