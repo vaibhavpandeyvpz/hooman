@@ -212,19 +212,16 @@ function listModelsText(config: Config): string {
 
 const SLASH_COMMANDS = [
   {
+    name: "mode",
+    description: "Session mode: default, plan, or ask.",
+  },
+  {
     name: "model",
-    description:
-      "Show a picker or switch to a named model for this chat session.",
+    description: "Pick or set the chat model.",
   },
   {
     name: "yolo",
-    description:
-      "Toggle auto-approve tools (picker or /yolo on|off) for this chat session.",
-  },
-  {
-    name: "mode",
-    description:
-      "Switch session mode: Default, Plan (narrow + plan tools), or Ask (narrow, no plan tools).",
+    description: "Auto-approve tools (on|off).",
   },
 ] as const;
 
@@ -1039,13 +1036,13 @@ export function ChatApp({
                 value: "default",
               },
               {
-                label: `Plan • narrow tools + plan file${
+                label: `Plan • read only tools + plan file${
                   getModeState(currentAgent).mode === "plan" ? " • current" : ""
                 }`,
                 value: "plan",
               },
               {
-                label: `Ask • narrow tools, no plan workflow${
+                label: `Ask • read only tools, no plan workflow${
                   getModeState(currentAgent).mode === "ask" ? " • current" : ""
                 }`,
                 value: "ask",

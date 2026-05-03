@@ -50,7 +50,7 @@ function cliSessionIdOption(): Option {
 function cliSessionModeOption(): Option {
   return new Option(
     "-m, --mode <mode>",
-    "Session tool surface: default (full) or ask (narrow, no plan lifecycle tools).",
+    "Session tool surface: default (full) or ask (read only tools, no plan lifecycle tools).",
   )
     .choices(["default", "ask"])
     .default("default");

@@ -1,14 +1,58 @@
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import handlebars from "handlebars";
 import type { LocalAgent } from "@strands-agents/sdk";
-import { getModeState } from "../state/session-mode.js";
-import type { SessionMode } from "../state/session-mode.js";
+import {
+  PLAN_ENTERED_AT_STATE_KEY,
+  PLAN_ENTER_REASON_STATE_KEY,
+  PLAN_FILE_STATE_KEY,
+} from "../state/plan.js";
+import {
+  getModeState,
+  MODE_STATE_KEY,
+  type SessionMode,
+} from "../state/session-mode.js";
+
+const { compile } = handlebars;
 
 const SECTION_BREAK = "\n\n---\n\n";
 
-let cachedPlanAppendix: string | null = null;
+/** Keys exposed as `state` in session-mode Handlebars templates (e.g. plan.md). */
+const SESSION_MODE_TEMPLATE_STATE_KEYS = [
+  MODE_STATE_KEY,
+  PLAN_FILE_STATE_KEY,
+  PLAN_ENTER_REASON_STATE_KEY,
+  PLAN_ENTERED_AT_STATE_KEY,
+] as const;
+
+let cachedPlanTemplateSource: string | null = null;
+let cachedPlanTemplateCompiled: ReturnType<typeof compile> | null = null;
 let cachedAskAppendix: string | null = null;
+
+const systemPromptBaseBuilders = new WeakMap<
+  LocalAgent,
+  () => Promise<string>
+>();
+
+export function registerAgentSystemPromptBaseBuilder(
+  agent: LocalAgent,
+  buildBase: () => Promise<string>,
+): void {
+  systemPromptBaseBuilders.set(agent, buildBase);
+}
+
+/** Rebuild base instructions from disk/config and re-apply the session-mode appendix. */
+export async function refreshAgentFullSystemPrompt(
+  agent: LocalAgent,
+): Promise<void> {
+  const build = systemPromptBaseBuilders.get(agent);
+  if (!build) {
+    return;
+  }
+  const base = await build();
+  refreshAgentSystemPromptForSessionMode(agent, base);
+}
 
 function readBundledModeFile(file: "plan.md" | "ask.md"): string {
   const dir = join(dirname(fileURLToPath(import.meta.url)), "modes");
@@ -19,14 +63,39 @@ function readBundledModeFile(file: "plan.md" | "ask.md"): string {
   return readFileSync(full, "utf8").trim();
 }
 
-function appendixForMode(mode: SessionMode): string {
+/** Plain snapshot of selected `appState` entries for mode prompts (Handlebars `state`). */
+export function snapshotAppStateForSessionModePrompt(agent: {
+  appState: { get(key: string): unknown };
+}): Record<string, unknown> {
+  const state: Record<string, unknown> = {};
+  for (const key of SESSION_MODE_TEMPLATE_STATE_KEYS) {
+    state[key] = agent.appState.get(key);
+  }
+  return state;
+}
+
+function renderPlanAppendix(state: Record<string, unknown>): string {
+  if (cachedPlanTemplateSource === null) {
+    cachedPlanTemplateSource = readBundledModeFile("plan.md");
+  }
+  if (!cachedPlanTemplateSource) {
+    return "";
+  }
+  if (cachedPlanTemplateCompiled === null) {
+    cachedPlanTemplateCompiled = compile(cachedPlanTemplateSource, {
+      strict: false,
+    });
+  }
+  return cachedPlanTemplateCompiled({ state }).trim();
+}
+
+function appendixForMode(
+  mode: SessionMode,
+  state: Record<string, unknown>,
+): string {
   switch (mode) {
-    case "plan": {
-      if (cachedPlanAppendix === null) {
-        cachedPlanAppendix = readBundledModeFile("plan.md");
-      }
-      return cachedPlanAppendix;
-    }
+    case "plan":
+      return renderPlanAppendix(state);
     case "ask": {
       if (cachedAskAppendix === null) {
         cachedAskAppendix = readBundledModeFile("ask.md");
@@ -41,8 +110,10 @@ function appendixForMode(mode: SessionMode): string {
 export function composeSystemPromptWithSessionMode(
   base: string,
   mode: SessionMode,
+  /** Values read as `state` in plan mode Handlebars (e.g. `lookup state 'hooman.planFile'`). */
+  sessionModeState: Record<string, unknown> = {},
 ): string {
-  const extra = appendixForMode(mode);
+  const extra = appendixForMode(mode, sessionModeState);
   if (!extra) {
     return base;
   }
@@ -58,7 +129,8 @@ export function refreshAgentSystemPromptForSessionMode(
   base: string,
 ): void {
   const mode = getModeState(agent).mode;
-  const next = composeSystemPromptWithSessionMode(base, mode);
+  const sessionModeState = snapshotAppStateForSessionModePrompt(agent);
+  const next = composeSystemPromptWithSessionMode(base, mode, sessionModeState);
   const cur = typeof agent.systemPrompt === "string" ? agent.systemPrompt : "";
   if (cur !== next && typeof agent.systemPrompt === "string") {
     agent.systemPrompt = next;

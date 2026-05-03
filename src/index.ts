@@ -195,6 +195,7 @@ export {
   allowToolForSession,
   getSessionAllowedTools,
   isToolSessionAllowed,
+  planModeWriteEditRejectionMessage,
 } from "./core/state/tool-approvals.js";
 export {
   YOLO_STATE_KEY,

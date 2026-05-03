@@ -36,7 +36,7 @@ export function buildSessionConfigOptions(
       id: HOOMAN_SESSION_MODE_CONFIG_ID,
       name: "Session mode",
       description:
-        "Default: full tools. Plan: narrowed tools plus plan file workflow. Ask: same narrowed tools without enter/exit plan.",
+        "Default: full tools. Plan: read only tools plus plan file workflow. Ask: same read only tools without enter/exit plan.",
       category: "mode",
       currentValue: getModeState(agent).mode,
       options: [
@@ -55,7 +55,7 @@ export function buildSessionConfigOptions(
           value: "ask",
           name: "Ask",
           description:
-            "Like plan mode’s narrowed tools for Q&A and exploration, without plan-mode tools.",
+            "Like plan mode’s read only tools for Q&A and exploration, without plan-mode tools.",
         },
       ],
     },

@@ -22,22 +22,20 @@ export function SlashCommands({ items, highlightIndex }: SlashCommandsProps) {
       {items.map((item, index) => {
         const selected = index === safeIndex;
         const cmd = `/${item.name}`;
-        const rest = ` — ${item.description}`;
+        const desc = ` — ${item.description}`;
         return selected ? (
           <Text key={item.name} inverse>
             <Text bold>{cmd}</Text>
-            <Text>{rest}</Text>
+            <Text dimColor>{desc}</Text>
           </Text>
         ) : (
           <Text key={item.name} color="gray">
             <Text bold>{cmd}</Text>
-            <Text>{rest}</Text>
+            <Text dimColor>{desc}</Text>
           </Text>
         );
       })}
-      <Text color="gray">
-        ↑↓ select • tab completes • enter completes name or submits
-      </Text>
+      <Text dimColor>↑↓ • tab complete • enter submit</Text>
     </Box>
   );
 }

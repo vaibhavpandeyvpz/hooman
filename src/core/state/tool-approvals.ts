@@ -122,6 +122,37 @@ function isPlainObjectRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+/**
+ * In session mode `plan`, block `write_file` / `edit_file` unless the target path resolves
+ * under the app plans directory. Runs before session-wide “always allow” so plan boundaries
+ * cannot be overridden by tooling preferences.
+ */
+export function planModeWriteEditRejectionMessage(
+  agent: AgentLike,
+  toolName: string,
+  toolInput: unknown,
+): string | null {
+  if (getModeState(agent).mode !== "plan") {
+    return null;
+  }
+  if (toolName !== WRITE_FILE_TOOL && toolName !== EDIT_FILE_TOOL) {
+    return null;
+  }
+  const plansRoot = plansPath();
+  if (!isPlainObjectRecord(toolInput)) {
+    return `In plan mode, "${toolName}" only applies to files under the plans directory (${plansRoot}).`;
+  }
+  const raw = toolInput.path;
+  if (typeof raw !== "string" || !raw.trim()) {
+    return `In plan mode, "${toolName}" requires a path under the plans directory (${plansRoot}).`;
+  }
+  const resolved = normalizeUserPath(raw.trim());
+  if (isResolvedPathInsideDir(resolved, plansRoot)) {
+    return null;
+  }
+  return `In plan mode, "${toolName}" was rejected automatically: path must be under the plans directory (${plansRoot}).`;
+}
+
 /** Skip approval for filesystem tools when targets stay inside trusted app-home dirs. */
 function isImplicitPathAllowed(
   toolName: string,

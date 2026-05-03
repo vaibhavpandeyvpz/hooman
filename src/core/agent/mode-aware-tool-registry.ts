@@ -63,10 +63,7 @@ export class ModeAwareToolRegistry {
       );
     }
     if (tool.description !== undefined && tool.description !== null) {
-      if (
-        typeof tool.description !== "string" ||
-        tool.description.length < 1
-      ) {
+      if (typeof tool.description !== "string" || tool.description.length < 1) {
         throw new ToolValidationError(
           "Tool description must be a non-empty string",
         );

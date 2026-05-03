@@ -4,6 +4,7 @@ import {
   INTERNAL_ALWAYS_ALLOWED,
   allowToolForSession,
   isToolSessionAllowed,
+  planModeWriteEditRejectionMessage,
 } from "../core/state/tool-approvals.js";
 import { isYoloEnabled } from "../core/state/yolo.js";
 
@@ -71,6 +72,15 @@ export function createDaemonApprovalHandler(
 ): (event: BeforeToolCallEvent) => Promise<void> {
   return async (event: BeforeToolCallEvent) => {
     const name = event.toolUse.name;
+    const planReject = planModeWriteEditRejectionMessage(
+      event.agent,
+      name,
+      event.toolUse.input,
+    );
+    if (planReject) {
+      event.cancel = planReject;
+      return;
+    }
     if (isYoloEnabled(event.agent)) {
       return;
     }

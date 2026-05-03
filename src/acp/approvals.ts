@@ -4,6 +4,7 @@ import {
   INTERNAL_ALWAYS_ALLOWED,
   allowToolForSession,
   isToolSessionAllowed,
+  planModeWriteEditRejectionMessage,
 } from "../core/state/tool-approvals.js";
 import { isYoloEnabled } from "../core/state/yolo.js";
 import { inferToolKind, toolDisplayTitle } from "./utils/tool-kind.js";
@@ -20,6 +21,12 @@ export function createAcpToolApprovalHook(
     const title = toolDisplayTitle(name, event.tool);
     const kind = inferToolKind(name);
     const locations = toolCallLocationsFromInput(name, event.toolUse.input);
+
+    const planReject = planModeWriteEditRejectionMessage(
+      event.agent,
+      name,
+      event.toolUse.input,
+    );
 
     const primed =
       streamPrimedToolCallIds?.().has(event.toolUse.toolUseId) ?? false;
@@ -49,6 +56,20 @@ export function createAcpToolApprovalHook(
           ...(locations ? { locations } : {}),
         },
       });
+    }
+
+    if (planReject) {
+      event.cancel = planReject;
+      await connection.sessionUpdate({
+        sessionId,
+        update: {
+          sessionUpdate: "tool_call_update",
+          toolCallId: event.toolUse.toolUseId,
+          status: "failed",
+          rawOutput: { reason: "plan_mode_path_rejected", message: planReject },
+        },
+      });
+      return;
     }
 
     if (

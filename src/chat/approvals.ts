@@ -3,6 +3,7 @@ import {
   INTERNAL_ALWAYS_ALLOWED,
   allowToolForSession,
   isToolSessionAllowed,
+  planModeWriteEditRejectionMessage,
 } from "../core/state/tool-approvals.js";
 import { isYoloEnabled } from "../core/state/yolo.js";
 import type { ApprovalDecision, ApprovalRequest } from "./types.js";
@@ -74,6 +75,15 @@ export function createChatApprovalHandler(
 ): (event: BeforeToolCallEvent) => Promise<void> {
   return async (event: BeforeToolCallEvent) => {
     const toolName = event.toolUse.name;
+    const planReject = planModeWriteEditRejectionMessage(
+      event.agent,
+      toolName,
+      event.toolUse.input,
+    );
+    if (planReject) {
+      event.cancel = planReject;
+      return;
+    }
     if (isYoloEnabled(event.agent)) {
       return;
     }

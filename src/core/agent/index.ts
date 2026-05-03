@@ -31,6 +31,7 @@ import {
 import {
   composeSystemPromptWithSessionMode,
   refreshAgentSystemPromptForSessionMode,
+  registerAgentSystemPromptBaseBuilder,
 } from "../prompts/session-mode-appendix.js";
 import { ModeAwareToolRegistry } from "./mode-aware-tool-registry.js";
 import { applySessionMode } from "./sync-tool-registry-mode.js";
@@ -79,7 +80,7 @@ export async function create(
 
   const base = await buildBaseSystemPrompt();
   const mode = normalizeSessionMode(meta.sessionMode);
-  const prompt = composeSystemPromptWithSessionMode(base, mode);
+  const prompt = composeSystemPromptWithSessionMode(base, mode, {});
   const model = llm.create(config.llm.model, config.llm.params);
   const tools: Tool[] = [
     ...createByeTools(),
@@ -131,6 +132,7 @@ export async function create(
       await buildBaseSystemPrompt(),
     );
   });
+  registerAgentSystemPromptBaseBuilder(agent, buildBaseSystemPrompt);
   (agent as unknown as { _toolRegistry: ModeAwareToolRegistry })._toolRegistry =
     new ModeAwareToolRegistry(agent.toolRegistry.list());
   await agent.initialize();
