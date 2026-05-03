@@ -3,6 +3,7 @@ import { join } from "node:path";
 import type { SessionInfo } from "@agentclientprotocol/sdk";
 import type { MessageData } from "@strands-agents/sdk";
 import type { NamedMcpTransport } from "../../core/mcp/config.js";
+import type { SessionMode } from "../../core/state/session-mode.js";
 
 export type SessionMetaFile = {
   cwd: string;
@@ -20,6 +21,8 @@ export type SessionMetaFile = {
    * Persisted so loadSession restores the same behaviour.
    */
   yolo?: boolean;
+  /** Persisted session planning mode (`hooman.sessionMode` / agent appState `mode`). */
+  sessionMode?: SessionMode;
 };
 
 const META = "meta.json";

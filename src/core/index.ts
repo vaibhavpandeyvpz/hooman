@@ -1,6 +1,7 @@
 import type { Agent } from "@strands-agents/sdk";
 import { Config } from "./config.js";
 import { create as createAgent } from "./agent/index.js";
+import type { SessionMode } from "./state/session-mode.js";
 import {
   createMcpConfig,
   createMcpManager,
@@ -23,6 +24,8 @@ export type BootstrapMeta = {
   sessionId?: string;
   /** When true, seeds `hooman.yolo` on the agent appState (auto-approve tools). */
   yolo?: boolean;
+  /** Seeds session mode on agent appState (`default` vs `plan`). */
+  sessionMode?: SessionMode;
   acp?: AcpMeta;
 };
 
@@ -58,6 +61,7 @@ export async function bootstrap(
     sessionId: meta?.sessionId,
     systemPrompt: meta?.acp?.systemPrompt,
     yolo: meta?.yolo,
+    sessionMode: meta?.sessionMode,
   });
   return { config, agent, mcp, registry };
 }

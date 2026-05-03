@@ -33,10 +33,19 @@ import { replayConversationHistory } from "./sessions/replay.js";
 import {
   applySessionConfigOption,
   buildSessionConfigOptions,
+  HOOMAN_SESSION_MODE_CONFIG_ID,
   HOOMAN_YOLO_CONFIG_ID,
 } from "./sessions/config-options.js";
 import { applySessionMode } from "../core/agent/sync-tool-registry-mode.js";
 import { copyAgentAppState } from "../core/state/agent-app-state.js";
+import {
+  getModeState,
+  normalizeSessionMode,
+} from "../core/state/session-mode.js";
+import {
+  ENTER_PLAN_MODE_TOOL,
+  EXIT_PLAN_MODE_TOOL,
+} from "../core/state/tool-approvals.js";
 import { isYoloEnabled } from "../core/state/yolo.js";
 import { extractAcpClientSystemPrompt } from "./meta/system-prompt.js";
 import { extractAcpClientUserId } from "./meta/user-id.js";
@@ -257,12 +266,16 @@ export class AcpAgent implements AgentContract {
       throw RequestError.invalidParams({ sessionId: params.sessionId });
     }
     applySessionConfigOption(rec.config, params, rec.agent);
-    if (params.configId !== HOOMAN_YOLO_CONFIG_ID) {
-      rec.agentStale = true;
-    } else {
+    if (params.configId === HOOMAN_YOLO_CONFIG_ID) {
       await patchSessionMeta(this.#acpRoot, params.sessionId, {
         yolo: isYoloEnabled(rec.agent),
       });
+    } else if (params.configId === HOOMAN_SESSION_MODE_CONFIG_ID) {
+      await patchSessionMeta(this.#acpRoot, params.sessionId, {
+        sessionMode: getModeState(rec.agent).mode,
+      });
+    } else {
+      rec.agentStale = true;
     }
     return {
       configOptions: buildSessionConfigOptions(rec.config, rec.agent),
@@ -463,6 +476,7 @@ export class AcpAgent implements AgentContract {
         userId: bootstrapUserId,
         sessionId: params.sessionId,
         yolo: existing.yolo === true,
+        sessionMode: normalizeSessionMode(existing.sessionMode),
         acp: {
           mcpServers,
           ...(clientSystemPrompt ? { systemPrompt: clientSystemPrompt } : {}),
@@ -582,6 +596,7 @@ export class AcpAgent implements AgentContract {
         userId: bootstrapUserId,
         sessionId,
         yolo: isYoloEnabled(rec.agent),
+        sessionMode: getModeState(rec.agent).mode,
         acp: {
           mcpServers,
           ...(meta.systemPrompt ? { systemPrompt: meta.systemPrompt } : {}),
@@ -719,6 +734,25 @@ export class AcpAgent implements AgentContract {
                   content: toolResultToAcpContent(ev.result),
                 },
               });
+              if (
+                ev.result.status === "success" &&
+                (ev.toolUse.name === ENTER_PLAN_MODE_TOOL ||
+                  ev.toolUse.name === EXIT_PLAN_MODE_TOOL)
+              ) {
+                await patchSessionMeta(this.#acpRoot, params.sessionId, {
+                  sessionMode: getModeState(rec.agent).mode,
+                });
+                await this.#connection.sessionUpdate({
+                  sessionId: params.sessionId,
+                  update: {
+                    sessionUpdate: "config_option_update",
+                    configOptions: buildSessionConfigOptions(
+                      rec.config,
+                      rec.agent,
+                    ),
+                  },
+                });
+              }
             } else if (ev.type === "agentResultEvent") {
               stopReason = toAcpStopReason(ev.result.stopReason);
             }

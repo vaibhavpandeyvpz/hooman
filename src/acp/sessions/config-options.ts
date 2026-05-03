@@ -6,12 +6,19 @@ import type {
 import type { Agent } from "@strands-agents/sdk";
 import type { Config } from "../../core/config.js";
 import type { SessionConfig } from "../../core/session-config.js";
+import { applySessionMode } from "../../core/agent/sync-tool-registry-mode.js";
+import {
+  getModeState,
+  SessionModeSchema,
+  setSessionMode,
+} from "../../core/state/session-mode.js";
 import {
   YOLO_STATE_KEY,
   isYoloEnabled,
   setYoloEnabled,
 } from "../../core/state/yolo.js";
 
+export const HOOMAN_SESSION_MODE_CONFIG_ID = "hooman.sessionMode" as const;
 export const HOOMAN_LTM_CONFIG_ID = "hooman.longTermMemory" as const;
 export const HOOMAN_WIKI_CONFIG_ID = "hooman.wiki" as const;
 export const HOOMAN_MODEL_CONFIG_ID = "hooman.model" as const;
@@ -24,6 +31,28 @@ export function buildSessionConfigOptions(
 ): SessionConfigOption[] {
   const defaultLlm = config.llms.find((m) => m.default) ?? config.llms[0]!;
   return [
+    {
+      type: "select",
+      id: HOOMAN_SESSION_MODE_CONFIG_ID,
+      name: "Session mode",
+      description:
+        "Default: full tool set. Plan: narrowed tools for drafting a plan before implementation.",
+      category: "mode",
+      currentValue: getModeState(agent).mode,
+      options: [
+        {
+          value: "default",
+          name: "Default",
+          description: "Standard behaviour with the full tool surface.",
+        },
+        {
+          value: "plan",
+          name: "Plan",
+          description:
+            "Planning phase with read-only exploration tools until you exit plan mode.",
+        },
+      ],
+    },
     {
       type: "select",
       id: HOOMAN_MODEL_CONFIG_ID,
@@ -89,6 +118,7 @@ export function applySessionConfigOption(
     });
   }
   if (
+    params.configId !== HOOMAN_SESSION_MODE_CONFIG_ID &&
     params.configId !== HOOMAN_LTM_CONFIG_ID &&
     params.configId !== HOOMAN_WIKI_CONFIG_ID &&
     params.configId !== HOOMAN_MODEL_CONFIG_ID &&
@@ -97,6 +127,15 @@ export function applySessionConfigOption(
     throw RequestError.invalidParams({ configId: params.configId });
   }
   const value = params.value;
+  if (params.configId === HOOMAN_SESSION_MODE_CONFIG_ID) {
+    const parsed = SessionModeSchema.safeParse(value);
+    if (!parsed.success) {
+      throw RequestError.invalidParams({ value });
+    }
+    setSessionMode(agent, parsed.data);
+    applySessionMode(agent);
+    return;
+  }
   if (params.configId === HOOMAN_MODEL_CONFIG_ID) {
     if (
       typeof value !== "string" ||

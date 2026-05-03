@@ -18,9 +18,13 @@ export type ModeState = {
   mode: SessionMode;
 };
 
-function normalizeMode(value: unknown): SessionMode {
+export function normalizeSessionMode(value: unknown): SessionMode {
   const parsed = SessionModeSchema.safeParse(value);
   return parsed.success ? parsed.data : "default";
+}
+
+function normalizeMode(value: unknown): SessionMode {
+  return normalizeSessionMode(value);
 }
 
 export function getModeState(agent: AgentLike): ModeState {
