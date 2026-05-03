@@ -190,7 +190,7 @@ function parseYoloToggleArg(raw: string): boolean | undefined {
 
 function parseSessionModeArg(raw: string): SessionMode | undefined {
   const t = raw.trim().toLowerCase();
-  if (t === "default" || t === "plan") {
+  if (t === "default" || t === "plan" || t === "ask") {
     return t;
   }
   return undefined;
@@ -224,7 +224,7 @@ const SLASH_COMMANDS = [
   {
     name: "mode",
     description:
-      "Switch session mode: Default (full tools) or Plan (narrow tool set).",
+      "Switch session mode: Default, Plan (narrow + plan tools), or Ask (narrow, no plan tools).",
   },
 ] as const;
 
@@ -579,7 +579,7 @@ export function ChatApp({
           id: nowId(),
           role: "system",
           title: "mode",
-          content: `Unknown mode "${trimmed}". Use default or plan, or open the picker with /mode.`,
+          content: `Unknown mode "${trimmed}". Use default, plan, or ask, or open the picker with /mode.`,
           done: true,
         });
         return;
@@ -1039,10 +1039,16 @@ export function ChatApp({
                 value: "default",
               },
               {
-                label: `Plan • planning tools only${
+                label: `Plan • narrow tools + plan file${
                   getModeState(currentAgent).mode === "plan" ? " • current" : ""
                 }`,
                 value: "plan",
+              },
+              {
+                label: `Ask • narrow tools, no plan workflow${
+                  getModeState(currentAgent).mode === "ask" ? " • current" : ""
+                }`,
+                value: "ask",
               },
             ]}
             onSelect={(v) => {

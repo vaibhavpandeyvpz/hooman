@@ -2,7 +2,7 @@ import { z } from "zod";
 
 export const MODE_STATE_KEY = "mode";
 
-export const SessionModeSchema = z.enum(["default", "plan"]);
+export const SessionModeSchema = z.enum(["default", "plan", "ask"]);
 export type SessionMode = z.infer<typeof SessionModeSchema>;
 
 type AppStateLike = {

@@ -19,7 +19,6 @@ type RunDaemonOptions = {
   agent: Agent;
   manager: McpManager;
   session?: string;
-  channels: boolean;
   debug?: boolean;
 };
 
@@ -82,9 +81,6 @@ async function toInvokeInput(
 }
 
 export async function main(options: RunDaemonOptions): Promise<boolean> {
-  if (!options.channels) {
-    throw new Error("No daemon inputs enabled. Pass --channels.");
-  }
   const channels = [HOOMAN_CHANNEL];
   debug(`starting daemon for channel(s): ${channels.join(", ")}`);
 

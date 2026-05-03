@@ -111,6 +111,13 @@ export const PLAN_MODE_VISIBLE = new Set([
   EXIT_PLAN_MODE_TOOL,
 ]);
 
+/** Same narrowed surface as plan mode but without plan lifecycle tools. */
+export const ASK_MODE_VISIBLE = new Set(
+  [...PLAN_MODE_VISIBLE].filter(
+    (name) => name !== ENTER_PLAN_MODE_TOOL && name !== EXIT_PLAN_MODE_TOOL,
+  ),
+);
+
 function isPlainObjectRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -210,7 +217,10 @@ export function isToolSessionAllowed(
   if (getSessionAllowedTools(agent).includes(toolName)) {
     return true;
   }
-  if (mode === "plan" && PLAN_MODE_ALWAYS_ALLOWED.has(toolName)) {
+  if (
+    (mode === "plan" || mode === "ask") &&
+    PLAN_MODE_ALWAYS_ALLOWED.has(toolName)
+  ) {
     return true;
   }
   if (
@@ -228,6 +238,9 @@ export function isToolVisible(mode: string, toolName: string): boolean {
   }
   if (mode === "plan") {
     return PLAN_MODE_VISIBLE.has(toolName);
+  }
+  if (mode === "ask") {
+    return ASK_MODE_VISIBLE.has(toolName);
   }
   return false;
 }

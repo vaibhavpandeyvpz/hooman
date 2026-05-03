@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { readFile } from "node:fs/promises";
-import { Command } from "commander";
+import { Command, Option } from "commander";
 import { BeforeToolCallEvent } from "@strands-agents/sdk";
 import { bootstrap } from "./core/index.js";
 import { createToolApprovalHandler } from "./exec/approvals.js";
@@ -43,6 +43,37 @@ async function readPackageMeta(): Promise<{
 
 const packageMeta = await readPackageMeta();
 
+function cliSessionIdOption(): Option {
+  return new Option("-s, --session <id>", "Session ID to use.");
+}
+
+function cliSessionModeOption(): Option {
+  return new Option(
+    "-m, --mode <mode>",
+    "Session tool surface: default (full) or ask (narrow, no plan lifecycle tools).",
+  )
+    .choices(["default", "ask"])
+    .default("default");
+}
+
+function cliYoloOption(kind: "interactive" | "daemon"): Option {
+  const description =
+    kind === "daemon"
+      ? "Allow all tools without remote approval or prompts."
+      : "Allow all tools without prompting for approval.";
+  return new Option("--yolo", description);
+}
+
+type CliSessionModeOption = {
+  mode: "default" | "ask";
+};
+
+/** Shared flags on commands that bootstrap an agent (exec, chat, daemon). */
+type CliAgentBootstrapFlags = CliSessionModeOption & {
+  session?: string;
+  yolo?: boolean;
+};
+
 const program = new Command()
   .name(packageMeta.name)
   .description(packageMeta.description)
@@ -53,49 +84,47 @@ program
   .command("exec")
   .description("Bootstrap an agent and run a single prompt.")
   .argument("<prompt>", "Prompt to run once.")
-  .option("-s, --session <id>", "Session ID to use.")
-  .option("--yolo", "Allow all tools without prompting for approval.")
-  .action(
-    async (prompt: string, options: { session?: string; yolo?: boolean }) => {
-      const sessionId = options.session?.trim() || crypto.randomUUID();
-      const {
-        agent,
-        mcp: { manager },
-      } = await bootstrap(
-        "default",
-        {
-          sessionId,
-          yolo: Boolean(options.yolo),
-        },
-        true,
-      );
-      agent.addHook(BeforeToolCallEvent, createToolApprovalHandler());
-      let exitRequested = false;
+  .addOption(cliSessionIdOption())
+  .addOption(cliSessionModeOption())
+  .addOption(cliYoloOption("interactive"))
+  .action(async (prompt: string, options: CliAgentBootstrapFlags) => {
+    const sessionId = options.session?.trim() || crypto.randomUUID();
+    const {
+      agent,
+      mcp: { manager },
+    } = await bootstrap(
+      "default",
+      {
+        sessionId,
+        yolo: Boolean(options.yolo),
+        sessionMode: options.mode,
+      },
+      true,
+    );
+    agent.addHook(BeforeToolCallEvent, createToolApprovalHandler());
+    let exitRequested = false;
+    try {
+      await agent.invoke(prompt);
+      exitRequested = consumeExitRequest(agent);
+    } finally {
       try {
-        await agent.invoke(prompt);
-        exitRequested = consumeExitRequest(agent);
-      } finally {
-        try {
-          await manager.disconnect();
-        } catch {}
-      }
-      if (exitRequested) {
-        process.exit(EXIT_REQUESTED_CODE);
-      }
-    },
-  );
+        await manager.disconnect();
+      } catch {}
+    }
+    if (exitRequested) {
+      process.exit(EXIT_REQUESTED_CODE);
+    }
+  });
 
 program
   .command("chat")
   .description("Start an interactive, stateful CLI chat session.")
   .argument("[prompt]", "Optional initial prompt to run after startup.")
-  .option("-s, --session <id>", "Session ID to use.")
-  .option("--yolo", "Allow all tools without prompting for approval.")
+  .addOption(cliSessionIdOption())
+  .addOption(cliSessionModeOption())
+  .addOption(cliYoloOption("interactive"))
   .action(
-    async (
-      prompt: string | undefined,
-      options: { session?: string; yolo?: boolean },
-    ) => {
+    async (prompt: string | undefined, options: CliAgentBootstrapFlags) => {
       const sessionId = options.session?.trim() || crypto.randomUUID();
       const config = createSessionConfig();
       const {
@@ -104,7 +133,11 @@ program
         registry,
       } = await bootstrap(
         "default",
-        { sessionId, yolo: Boolean(options.yolo) },
+        {
+          sessionId,
+          yolo: Boolean(options.yolo),
+          sessionMode: options.mode,
+        },
         false,
         config,
       );
@@ -135,56 +168,49 @@ program
   .description(
     "Run a background daemon that processes MCP channel notifications as prompts.",
   )
-  .option("-s, --session <id>", "Session ID to use.")
-  .option("--channels", "Subscribe to MCP servers advertising hooman/channel.")
+  .addOption(cliSessionIdOption())
+  .addOption(cliSessionModeOption())
+  .addOption(cliYoloOption("daemon"))
   .option(
     "--debug",
     "Log each MCP channel notification payload to the console.",
   )
-  .option("--yolo", "Allow all tools without remote approval or prompts.")
-  .action(
-    async (options: {
-      session?: string;
-      channels?: boolean;
-      debug?: boolean;
-      yolo?: boolean;
-    }) => {
-      const session = options.session?.trim();
-      const {
+  .action(async (options: CliAgentBootstrapFlags & { debug?: boolean }) => {
+    const session = options.session?.trim();
+    const {
+      agent,
+      mcp: { manager },
+    } = await bootstrap(
+      "daemon",
+      {
+        sessionId: session,
+        userId: session,
+        yolo: Boolean(options.yolo),
+        sessionMode: options.mode,
+      },
+      true,
+    );
+    agent.addHook(
+      BeforeToolCallEvent,
+      createDaemonApprovalHandler(manager, agent),
+    );
+    let exitRequested = false;
+    try {
+      exitRequested = await daemon({
         agent,
-        mcp: { manager },
-      } = await bootstrap(
-        "daemon",
-        {
-          sessionId: session,
-          userId: session,
-          yolo: Boolean(options.yolo),
-        },
-        true,
-      );
-      agent.addHook(
-        BeforeToolCallEvent,
-        createDaemonApprovalHandler(manager, agent),
-      );
-      let exitRequested = false;
+        manager,
+        session,
+        debug: Boolean(options.debug),
+      });
+    } finally {
       try {
-        exitRequested = await daemon({
-          agent,
-          manager,
-          channels: Boolean(options.channels),
-          session,
-          debug: Boolean(options.debug),
-        });
-      } finally {
-        try {
-          await manager.disconnect();
-        } catch {}
-      }
-      if (exitRequested) {
-        process.exit(EXIT_REQUESTED_CODE);
-      }
-    },
-  );
+        await manager.disconnect();
+      } catch {}
+    }
+    if (exitRequested) {
+      process.exit(EXIT_REQUESTED_CODE);
+    }
+  });
 
 program
   .command("configure")

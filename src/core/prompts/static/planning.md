@@ -2,6 +2,10 @@
 
 Before large or risky changes, use **plan mode** so you explore options with a reduced tool surface and write the plan to disk. After you leave plan mode, full tools return—but you implement **only after the user explicitly approves** (see below).
 
+### Ask session mode
+
+**Ask** mode uses the same **narrow tool surface** as plan mode (exploration, reads, wiki, search, etc.) but **does not expose `enter_plan_mode` or `exit_plan_mode`**. Use it for read-heavy Q&A and investigation **without** maintaining a plan file. Switch to **plan** mode when the user wants a written plan before implementation.
+
 ### When to enter plan mode
 
 Call **`enter_plan_mode`** when the task is multi-step, ambiguous, or could cause harm if executed hastily (wide refactors, migrations, security-sensitive edits, or unclear requirements).

@@ -29,7 +29,13 @@ function shortSessionId(sessionId: string): string {
 }
 
 function sessionModeValueColor(mode: string): string {
-  return mode === "plan" ? "#FFA500" : "gray";
+  if (mode === "plan") {
+    return "#FFA500";
+  }
+  if (mode === "ask") {
+    return "cyan";
+  }
+  return "gray";
 }
 
 /** Ink color for the live status token only (labels stay `gray`). */

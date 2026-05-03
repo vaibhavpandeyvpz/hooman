@@ -1,3 +1,4 @@
+import { clearPlanState } from "../state/plan.js";
 import { getModeState } from "../state/session-mode.js";
 import { ModeAwareToolRegistry } from "./mode-aware-tool-registry.js";
 
@@ -12,4 +13,7 @@ export function applySessionMode(agent: SyncAgent): void {
   }
   const { mode } = getModeState(agent);
   registry.setSessionMode(mode);
+  if (mode !== "plan") {
+    clearPlanState(agent);
+  }
 }

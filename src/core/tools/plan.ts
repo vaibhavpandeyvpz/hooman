@@ -51,6 +51,11 @@ If you are already in that phase, calling again keeps working with the same docu
         }
         const agent = context.agent;
         const { mode } = getModeState(agent);
+        if (mode === "ask") {
+          throw new Error(
+            "enter_plan_mode is not available in ask session mode. Switch to default or plan mode first.",
+          );
+        }
         const plan = getPlanState(agent);
         if (mode === "plan" && plan.planFile) {
           return toJsonValue({
