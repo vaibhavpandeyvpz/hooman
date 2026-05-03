@@ -7,6 +7,8 @@ type StatusBarProps = {
   statusLabel?: string;
   sessionId: string;
   currentModel: string;
+  yoloOn: boolean;
+  sessionMode: string;
   elapsedLabel: string;
   turnCount: number;
   totalTools: number;
@@ -19,6 +21,10 @@ type StatusBarProps = {
     latencyMs: number;
   };
 };
+
+function sessionModeValueColor(mode: string): string {
+  return mode === "plan" ? "#FFA500" : "gray";
+}
 
 /** Ink color for the live status token only (labels stay `gray`). */
 function statusValueColor(status: string): string {
@@ -41,6 +47,8 @@ export function StatusBar({
   statusLabel,
   sessionId,
   currentModel,
+  yoloOn,
+  sessionMode,
   elapsedLabel,
   turnCount,
   totalTools,
@@ -56,6 +64,12 @@ export function StatusBar({
         <Text color="gray"> • session: {sessionId}</Text>
       </Text>
       <Text color="gray">model: {currentModel}</Text>
+      <Text>
+        <Text color="gray">yolo: </Text>
+        <Text color={yoloOn ? "red" : "green"}>{yoloOn ? "on" : "off"}</Text>
+        <Text color="gray"> • mode: </Text>
+        <Text color={sessionModeValueColor(sessionMode)}>{sessionMode}</Text>
+      </Text>
       <Text color="gray">
         turns: {turnCount} • tokens in/out/total: {usage.inputTokens}/
         {usage.outputTokens}/{usage.totalTokens}

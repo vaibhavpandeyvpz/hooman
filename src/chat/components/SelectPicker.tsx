@@ -1,20 +1,21 @@
 import { Box, Text } from "ink";
 import SelectInput from "ink-select-input";
 
-type ModelPickerItem = {
+export type SelectPickerItem = {
   label: string;
   value: string;
 };
 
-type ModelPickerProps = {
-  items: ModelPickerItem[];
+type SelectPickerProps = {
+  title: string;
+  items: SelectPickerItem[];
   onSelect: (value: string) => void;
 };
 
-export function ModelPicker({ items, onSelect }: ModelPickerProps) {
+export function SelectPicker({ title, items, onSelect }: SelectPickerProps) {
   return (
     <Box flexDirection="column">
-      <Text bold>Choose Model</Text>
+      <Text bold>{title}</Text>
       <SelectInput<string>
         items={items}
         onSelect={(item) => onSelect(item.value)}

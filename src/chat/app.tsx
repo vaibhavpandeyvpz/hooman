@@ -27,7 +27,7 @@ import {
 } from "./approvals.js";
 import { ApprovalPrompt } from "./components/ApprovalPrompt.js";
 import { Composer } from "./components/Composer.js";
-import { ModelPicker } from "./components/ModelPicker.js";
+import { SelectPicker } from "./components/SelectPicker.js";
 import { QueuedPrompts } from "./components/QueuedPrompts.js";
 import { SlashCommands } from "./components/SlashCommands.js";
 import { StatusBar } from "./components/StatusBar.js";
@@ -37,7 +37,12 @@ import type { ApprovalRequest, ChatLine } from "./types.js";
 import { getTodoViewState, type TodoViewState } from "../core/state/todos.js";
 import { isExitRequested } from "../core/state/exit-request.js";
 import { copyAgentAppState } from "../core/state/agent-app-state.js";
-import { isYoloEnabled } from "../core/state/yolo.js";
+import {
+  getModeState,
+  setSessionMode,
+  type SessionMode,
+} from "../core/state/session-mode.js";
+import { isYoloEnabled, setYoloEnabled } from "../core/state/yolo.js";
 import { applySessionMode } from "../core/agent/sync-tool-registry-mode.js";
 import { attachmentPathsToPromptBlocks } from "../core/utils/attachments.js";
 import { isMouseInput } from "./mouse.js";
@@ -73,7 +78,7 @@ function normalizePromptSubmission(
 }
 
 const INPUT_HINT =
-  "enter: queue prompt | /model: view or switch models | shift/meta+enter or \\+enter: newline | esc/ctrl+c: cancel or exit";
+  "enter: queue prompt | /model /yolo /mode | shift/meta+enter or \\+enter: newline | esc/ctrl+c: cancel or exit";
 
 function nowId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -157,6 +162,39 @@ function parseChatCommand(text: string): { name: string; args: string } | null {
   };
 }
 
+function parseYoloToggleArg(raw: string): boolean | undefined {
+  const t = raw.trim().toLowerCase();
+  if (
+    t === "on" ||
+    t === "true" ||
+    t === "1" ||
+    t === "yes" ||
+    t === "enable" ||
+    t === "enabled"
+  ) {
+    return true;
+  }
+  if (
+    t === "off" ||
+    t === "false" ||
+    t === "0" ||
+    t === "no" ||
+    t === "disable" ||
+    t === "disabled"
+  ) {
+    return false;
+  }
+  return undefined;
+}
+
+function parseSessionModeArg(raw: string): SessionMode | undefined {
+  const t = raw.trim().toLowerCase();
+  if (t === "default" || t === "plan") {
+    return t;
+  }
+  return undefined;
+}
+
 function listModelsText(config: Config): string {
   const current = currentModelName(config);
   const options = config.llms.map((entry) => {
@@ -176,6 +214,16 @@ const SLASH_COMMANDS = [
     name: "model",
     description:
       "Show a picker or switch to a named model for this chat session.",
+  },
+  {
+    name: "yolo",
+    description:
+      "Toggle auto-approve tools (picker or /yolo on|off) for this chat session.",
+  },
+  {
+    name: "mode",
+    description:
+      "Switch session mode: Default (full tools) or Plan (narrow tool set).",
   },
 ] as const;
 
@@ -225,7 +273,12 @@ export function ChatApp({
   });
   const [pendingApproval, setPendingApproval] =
     useState<ApprovalRequest | null>(null);
-  const [showModelPicker, setShowModelPicker] = useState(false);
+  const [picker, setPicker] = useState<null | "model" | "yolo" | "mode">(null);
+  /** Forces StatusBar to re-read yolo/mode from agent when those change without a picker close or rebuild. */
+  const [, setSessionChromeEpoch] = useState(0);
+  const bumpSessionChrome = useCallback(() => {
+    setSessionChromeEpoch((n) => n + 1);
+  }, []);
   const [queuedPrompts, setQueuedPrompts] = useState<QueuedPrompt[]>([]);
   const [liveReasoning, setLiveReasoning] = useState("");
   const [followRequest, setFollowRequest] = useState(0);
@@ -384,7 +437,7 @@ export function ChatApp({
         return;
       }
       if (!args) {
-        setShowModelPicker(true);
+        setPicker("model");
         return;
       }
       const match = config.llms.find((entry) => entry.name === args);
@@ -399,13 +452,6 @@ export function ChatApp({
         return;
       }
       if (match.name === currentModelName(config)) {
-        appendLine({
-          id: nowId(),
-          role: "system",
-          title: "model",
-          content: `Already using ${currentModelLabel(config)}.`,
-          done: true,
-        });
         return;
       }
       const previous = currentModelName(config);
@@ -417,13 +463,6 @@ export function ChatApp({
       });
       try {
         await rebuildAgent();
-        appendLine({
-          id: nowId(),
-          role: "system",
-          title: "model",
-          content: `Switched to ${currentModelLabel(config)} for this chat session.`,
-          done: true,
-        });
       } catch (error) {
         config.update({
           llms: config.llms.map((entry) => ({
@@ -441,6 +480,85 @@ export function ChatApp({
       }
     },
     [appendLine, config, rebuildAgent],
+  );
+
+  const handleYoloCommand = useCallback(
+    async (args: string) => {
+      if (runningRef.current) {
+        appendLine({
+          id: nowId(),
+          role: "system",
+          title: "yolo",
+          content:
+            "Wait for the active turn to finish before changing yolo mode.",
+          done: true,
+        });
+        return;
+      }
+      const trimmed = args.trim();
+      if (!trimmed) {
+        setPicker("yolo");
+        return;
+      }
+      const enabled = parseYoloToggleArg(trimmed);
+      if (enabled === undefined) {
+        appendLine({
+          id: nowId(),
+          role: "system",
+          title: "yolo",
+          content: `Unknown value "${trimmed}". Use on or off (or yes/no, true/false, enable/disable).`,
+          done: true,
+        });
+        return;
+      }
+      const prev = isYoloEnabled(currentAgent);
+      if (prev === enabled) {
+        return;
+      }
+      setYoloEnabled(currentAgent, enabled);
+      bumpSessionChrome();
+    },
+    [appendLine, bumpSessionChrome, currentAgent],
+  );
+
+  const handleModeCommand = useCallback(
+    async (args: string) => {
+      if (runningRef.current) {
+        appendLine({
+          id: nowId(),
+          role: "system",
+          title: "mode",
+          content:
+            "Wait for the active turn to finish before switching session mode.",
+          done: true,
+        });
+        return;
+      }
+      const trimmed = args.trim();
+      if (!trimmed) {
+        setPicker("mode");
+        return;
+      }
+      const mode = parseSessionModeArg(trimmed);
+      if (!mode) {
+        appendLine({
+          id: nowId(),
+          role: "system",
+          title: "mode",
+          content: `Unknown mode "${trimmed}". Use default or plan, or open the picker with /mode.`,
+          done: true,
+        });
+        return;
+      }
+      const prev = getModeState(currentAgent).mode;
+      if (prev === mode) {
+        return;
+      }
+      setSessionMode(currentAgent, mode);
+      applySessionMode(currentAgent);
+      bumpSessionChrome();
+    },
+    [appendLine, bumpSessionChrome, currentAgent],
   );
 
   const runTurn = useCallback(
@@ -737,13 +855,29 @@ export function ChatApp({
           setInput("");
           return;
         }
+        if (command.name === "yolo") {
+          void handleYoloCommand(command.args);
+          setInput("");
+          return;
+        }
+        if (command.name === "mode") {
+          void handleModeCommand(command.args);
+          setInput("");
+          return;
+        }
       }
       if (pushPrompt(value)) {
         setFollowRequest((value) => value + 1);
         setInput("");
       }
     },
-    [handleModelCommand, pendingApproval, pushPrompt],
+    [
+      handleModelCommand,
+      handleModeCommand,
+      handleYoloCommand,
+      pendingApproval,
+      pushPrompt,
+    ],
   );
 
   useInput(
@@ -757,8 +891,8 @@ export function ChatApp({
           setStatus("cancel requested");
           return;
         }
-        if (showModelPicker) {
-          setShowModelPicker(false);
+        if (picker) {
+          setPicker(null);
           return;
         }
         onExit();
@@ -766,8 +900,8 @@ export function ChatApp({
         return;
       }
       if (key.escape) {
-        if (showModelPicker) {
-          setShowModelPicker(false);
+        if (picker) {
+          setPicker(null);
           return;
         }
         if (runningRef.current) {
@@ -820,31 +954,82 @@ export function ChatApp({
           />
         ) : null}
 
-        {!pendingApproval && showModelPicker ? (
-          <ModelPicker
+        {!pendingApproval && picker === "model" ? (
+          <SelectPicker
+            title="Choose model"
             items={config.llms.map((entry) => ({
               label: `${entry.name} • ${entry.options.provider}/${entry.options.model}${entry.default ? " • current" : ""}`,
               value: entry.name,
             }))}
             onSelect={(name) => {
-              setShowModelPicker(false);
+              setPicker(null);
               void handleModelCommand(name);
             }}
           />
         ) : null}
 
-        {!pendingApproval && !showModelPicker ? (
+        {!pendingApproval && picker === "yolo" ? (
+          <SelectPicker
+            title="Auto-approve tools (yolo)"
+            items={[
+              {
+                label: `Off • confirm each tool${
+                  !isYoloEnabled(currentAgent) ? " • current" : ""
+                }`,
+                value: "off",
+              },
+              {
+                label: `On • run tools without prompts${
+                  isYoloEnabled(currentAgent) ? " • current" : ""
+                }`,
+                value: "on",
+              },
+            ]}
+            onSelect={(v) => {
+              setPicker(null);
+              void handleYoloCommand(v);
+            }}
+          />
+        ) : null}
+
+        {!pendingApproval && picker === "mode" ? (
+          <SelectPicker
+            title="Session mode"
+            items={[
+              {
+                label: `Default • full tool surface${
+                  getModeState(currentAgent).mode === "default"
+                    ? " • current"
+                    : ""
+                }`,
+                value: "default",
+              },
+              {
+                label: `Plan • planning tools only${
+                  getModeState(currentAgent).mode === "plan" ? " • current" : ""
+                }`,
+                value: "plan",
+              },
+            ]}
+            onSelect={(v) => {
+              setPicker(null);
+              void handleModeCommand(v);
+            }}
+          />
+        ) : null}
+
+        {!pendingApproval && !picker ? (
           <Composer
             input={input}
             running={running}
-            disabled={Boolean(pendingApproval) || showModelPicker}
+            disabled={Boolean(pendingApproval)}
             hint={INPUT_HINT}
             onChange={setInput}
             onSubmit={onSubmit}
           />
         ) : null}
 
-        {!pendingApproval && !showModelPicker ? (
+        {!pendingApproval && !picker ? (
           <SlashCommands items={slashCommands} />
         ) : null}
 
@@ -854,6 +1039,8 @@ export function ChatApp({
           statusLabel={statusLabel}
           sessionId={sessionId}
           currentModel={currentModelLabel(config)}
+          yoloOn={isYoloEnabled(currentAgent)}
+          sessionMode={getModeState(currentAgent).mode}
           elapsedLabel={elapsedLabel}
           turnCount={turnCount}
           totalTools={totalTools}
