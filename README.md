@@ -35,7 +35,7 @@ It gives you a practical toolkit to build and run agent workflows:
 - Optional web search tool with provider selection (`brave`, `serper`, or `tavily`)
 - MCP server support via `stdio`, `streamable-http`, and `sse`
 - MCP server `instructions` support: server-provided instructions are appended to the agent system prompt
-- MCP channel notification support through `hooman daemon --channels`
+- MCP channel notifications: `hooman daemon` subscribes to servers that advertise `hooman/channel`
 - Skill discovery from local `~/.hooman/skills` folders
 - Bundled prompt harness toggles (`behaviour`, `communication`, `execution`, `engineering`, `guardrails`)
 - Built-in research sub-agent runner (`research`) with configurable concurrency
@@ -78,7 +78,7 @@ Recommended first run:
 For the best experience, set up both:
 
 1. **MCP servers** for on-demand tools in `chat` / `exec` (task APIs, messaging, schedulers, etc.).
-2. **MCP channels** for event-driven automation with `hooman daemon --channels` (notifications become agent prompts).
+2. **MCP channels** for event-driven automation with `hooman daemon` (notifications become agent prompts).
 
 Suggested MCP servers from this ecosystem:
 
@@ -138,6 +138,12 @@ Skip interactive tool approval (allows every tool call; use only when you trust 
 hooman exec "Summarize this repo" --yolo
 ```
 
+Start in **ask** mode (narrower tool surface, no plan lifecycle tools; see [Session mode](#session-mode)):
+
+```bash
+hooman exec "Map the architecture" --mode ask
+```
+
 ### `hooman chat`
 
 Start an interactive stateful chat session.
@@ -164,24 +170,47 @@ Skip the in-chat tool approval UI (same semantics as `exec --yolo`):
 hooman chat --yolo
 ```
 
-### `hooman daemon`
-
-Run a long-lived daemon that subscribes to MCP servers advertising the fixed `hooman/channel` capability and feeds each received notification into the agent as a queued prompt.
+Start in ask mode:
 
 ```bash
-hooman daemon --channels
+hooman chat --mode ask
+```
+
+### Session mode
+
+`exec`, `chat`, and `daemon` accept **`-m` / `--mode`** with:
+
+- **`default`** (default): normal tool surface and approvals.
+- **`ask`**: read-oriented, narrower surface (similar to interactive **plan** mode) but **without** `enter_plan_mode` / `exit_plan_mode`.
+
+In **`chat`**, `/mode` can also switch to **plan** (includes plan tools and a plan document workflow). **ACP** sessions can set `hooman.sessionMode` to `default`, `plan`, or `ask`.
+
+### `hooman daemon`
+
+Run a long-lived daemon that **always** subscribes to MCP servers advertising the `hooman/channel` capability and feeds each received notification into the agent as a queued prompt.
+
+```bash
+hooman daemon
 ```
 
 Resume or pin a session id:
 
 ```bash
-hooman daemon --session my-daemon --channels
+hooman daemon --session my-daemon
 ```
 
 Skip remote channel permission relay and allow every tool call from daemon turns (same risk profile as `exec` / `chat` with `--yolo`):
 
 ```bash
-hooman daemon --channels --yolo
+hooman daemon --yolo
+```
+
+Optional `--mode ask` matches `exec` / `chat` (narrow surface without plan lifecycle tools).
+
+Log raw notification payloads:
+
+```bash
+hooman daemon --debug
 ```
 
 ### Feature Flags
@@ -244,6 +273,7 @@ ACP notes:
 - ACP loads MCP servers passed on `session/new` and `session/load`, in addition to Hooman's local `mcp.json`
 - ACP `session/new` and `session/load` support `_meta.userId` and `_meta.systemPrompt`
 - when `_meta.systemPrompt` is provided, it is appended to the agent system prompt with a section break
+- session configuration includes `hooman.sessionMode` (`default`, `plan`, or `ask`); see [Session mode](#session-mode)
 
 ## Configuration Layout
 
@@ -550,7 +580,7 @@ Uses the Vercel AI SDK xAI provider (`@ai-sdk/xai`) on top of Strands `VercelMod
 
 - MCP server `instructions` from the protocol `initialize` response are appended to Hooman's system prompt, after local `instructions.md` and session-specific prompt overrides.
 - Hooman reads these instructions automatically from connected MCP servers when building the agent.
-- `hooman daemon --channels` subscribes to MCP servers that advertise the experimental `hooman/channel` capability.
+- `hooman daemon` subscribes to MCP servers that advertise the experimental `hooman/channel` capability (always on; there is no opt-out flag).
 - Hooman also reads `hooman/user`, `hooman/session`, and `hooman/thread` capability paths so daemon turns preserve origin metadata from the source channel.
 - When a matching notification is received, Hooman uses `params.content` as the prompt if it is a string; otherwise it JSON-stringifies the notification params and sends that to the agent.
 - Daemon mode processes notifications sequentially and reuses the same agent session over time.

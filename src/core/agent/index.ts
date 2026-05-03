@@ -28,10 +28,18 @@ import {
   createWikiTools,
   createWebSearchTools,
 } from "../tools/index.js";
+import {
+  composeSystemPromptWithSessionMode,
+  refreshAgentSystemPromptForSessionMode,
+} from "../prompts/session-mode-appendix.js";
 import { ModeAwareToolRegistry } from "./mode-aware-tool-registry.js";
 import { applySessionMode } from "./sync-tool-registry-mode.js";
 import { clearTodoState } from "../state/todos.js";
-import { MODE_STATE_KEY, type SessionMode } from "../state/session-mode.js";
+import {
+  MODE_STATE_KEY,
+  normalizeSessionMode,
+  type SessionMode,
+} from "../state/session-mode.js";
 import { YOLO_STATE_KEY } from "../state/yolo.js";
 
 const SECTION_BREAK = "\n\n---\n\n";
@@ -58,12 +66,20 @@ export async function create(
   const ltm = config.tools.ltm.enabled
     ? createLongTermMemoryStore(config)
     : null;
-  const skills = (await createSkillsPrompt(registry)).content;
   const prefixed = await mcp.manager.listPrefixedTools();
-  const append = await mcp.manager.listServerInstructions();
-  const prompt = [system.content, meta.systemPrompt, ...append, skills]
-    .filter((x) => !!x)
-    .join(SECTION_BREAK);
+
+  async function buildBaseSystemPrompt(): Promise<string> {
+    await system.reload();
+    const skillsContent = (await createSkillsPrompt(registry)).content;
+    const appendNext = await mcp.manager.listServerInstructions();
+    return [system.content, meta.systemPrompt, ...appendNext, skillsContent]
+      .filter((x) => !!x)
+      .join(SECTION_BREAK);
+  }
+
+  const base = await buildBaseSystemPrompt();
+  const mode = normalizeSessionMode(meta.sessionMode);
+  const prompt = composeSystemPromptWithSessionMode(base, mode);
   const model = llm.create(config.llm.model, config.llm.params);
   const tools: Tool[] = [
     ...createByeTools(),
@@ -110,6 +126,10 @@ export async function create(
   });
   agent.addHook(BeforeInvocationEvent, async (event) => {
     clearTodoState(event.agent);
+    refreshAgentSystemPromptForSessionMode(
+      event.agent,
+      await buildBaseSystemPrompt(),
+    );
   });
   (agent as unknown as { _toolRegistry: ModeAwareToolRegistry })._toolRegistry =
     new ModeAwareToolRegistry(agent.toolRegistry.list());

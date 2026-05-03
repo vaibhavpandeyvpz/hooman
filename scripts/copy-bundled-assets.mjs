@@ -21,6 +21,11 @@ const assets = [
     dest: join(root, "dist/core/prompts/harness"),
   },
   {
+    label: "session mode prompts",
+    src: join(root, "src/core/prompts/modes"),
+    dest: join(root, "dist/core/prompts/modes"),
+  },
+  {
     label: "agent prompts",
     src: join(root, "src/core/prompts/agents"),
     dest: join(root, "dist/core/prompts/agents"),
