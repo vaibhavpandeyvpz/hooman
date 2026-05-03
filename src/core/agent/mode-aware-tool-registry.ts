@@ -3,6 +3,18 @@ import type { Tool } from "@strands-agents/sdk";
 import { isToolVisible } from "../state/tool-approvals.js";
 import type { SessionMode } from "../state/session-mode.js";
 
+function toolVisibilityOptions(
+  tool: Tool,
+): { mcpReadOnlyHint?: boolean } | undefined {
+  if (
+    "mcpReadOnlyHint" in tool &&
+    (tool as { mcpReadOnlyHint?: boolean }).mcpReadOnlyHint === true
+  ) {
+    return { mcpReadOnlyHint: true };
+  }
+  return undefined;
+}
+
 /**
  * Tool registry that mirrors Strands SDK registry semantics (name validation, map storage)
  * and filters tools by {@link SessionMode}. Avoids extending SDK-internal `ToolRegistry`, which
@@ -31,10 +43,14 @@ export class ModeAwareToolRegistry {
   }
 
   get(name: string): Tool | undefined {
-    if (!isToolVisible(this.mode, name)) {
+    const t = this._tools.get(name);
+    if (!t) {
       return undefined;
     }
-    return this._tools.get(name);
+    if (!isToolVisible(this.mode, name, toolVisibilityOptions(t))) {
+      return undefined;
+    }
+    return t;
   }
 
   remove(name: string): void {
@@ -43,7 +59,7 @@ export class ModeAwareToolRegistry {
 
   list(): Tool[] {
     return Array.from(this._tools.values()).filter((t) =>
-      isToolVisible(this.mode, t.name),
+      isToolVisible(this.mode, t.name, toolVisibilityOptions(t)),
     );
   }
 

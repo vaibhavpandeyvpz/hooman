@@ -23,15 +23,19 @@ export class PrefixedMcpTool extends Tool {
   name: string;
   description: string;
   toolSpec: ToolSpec;
+  /** MCP `tools/list` field `annotations.readOnlyHint` when true (hint only; not a guarantee). */
+  readonly mcpReadOnlyHint: boolean;
 
   public constructor(
     private readonly serverKey: string,
     private readonly inner: Tool,
+    mcpReadOnlyHint = false,
   ) {
     super();
     const prefix = mcpServerPrefix(serverKey);
     this.name = `${prefix}__${inner.name}`;
     this.description = `${inner.description} (MCP server: ${serverKey})`;
+    this.mcpReadOnlyHint = mcpReadOnlyHint;
     this.toolSpec = {
       ...inner.toolSpec,
       name: this.name,

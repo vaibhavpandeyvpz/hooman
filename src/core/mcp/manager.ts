@@ -208,12 +208,25 @@ export class Manager {
     }
     const map = this.instances!;
     const batches = await Promise.all(
-      [...map.entries()].map(async ([server, client]) =>
-        client
-          .listTools()
-          .then((tools) => tools.map((t) => new PrefixedMcpTool(server, t)))
-          .catch(() => []),
-      ),
+      [...map.entries()].map(async ([server, client]) => {
+        try {
+          await client.connect();
+          const wire = await client.client.listTools();
+          const readOnly = new Map(
+            wire.tools.map((t) => [
+              t.name,
+              t.annotations?.readOnlyHint === true,
+            ]),
+          );
+          const strandsTools = await client.listTools();
+          return strandsTools.map(
+            (t) =>
+              new PrefixedMcpTool(server, t, readOnly.get(t.name) === true),
+          );
+        } catch {
+          return [];
+        }
+      }),
     );
     return batches.flat();
   }

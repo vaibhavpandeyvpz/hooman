@@ -43,6 +43,10 @@ export {
   detectVideoFormat,
 } from "./core/utils/file-formats.js";
 export { getCwd, runWithCwd } from "./core/utils/cwd-context.js";
+export {
+  isResolvedPathInsideDir,
+  normalizeUserPath,
+} from "./core/utils/normalize-user-path.js";
 
 export { create as createAgent } from "./core/agent/index.js";
 export { applySessionMode } from "./core/agent/sync-tool-registry-mode.js";

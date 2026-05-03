@@ -263,14 +263,25 @@ export function isToolSessionAllowed(
   return false;
 }
 
-export function isToolVisible(mode: string, toolName: string): boolean {
+export function isToolVisible(
+  mode: string,
+  toolName: string,
+  options?: { mcpReadOnlyHint?: boolean },
+): boolean {
+  const readOnlyHinted = options?.mcpReadOnlyHint === true;
   if (mode === "default") {
     return true;
   }
   if (mode === "plan") {
+    if (readOnlyHinted) {
+      return true;
+    }
     return PLAN_MODE_VISIBLE.has(toolName);
   }
   if (mode === "ask") {
+    if (readOnlyHinted) {
+      return true;
+    }
     return ASK_MODE_VISIBLE.has(toolName);
   }
   return false;
