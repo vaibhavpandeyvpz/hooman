@@ -45,6 +45,7 @@ export {
 export { getCwd, runWithCwd } from "./core/utils/cwd-context.js";
 
 export { create as createAgent } from "./core/agent/index.js";
+export { applySessionMode } from "./core/agent/sync-tool-registry-mode.js";
 
 export {
   HOOMAN_CHANNEL,
@@ -200,6 +201,13 @@ export {
   isYoloEnabled,
   setYoloEnabled,
 } from "./core/state/yolo.js";
+export {
+  MODE_STATE_KEY,
+  getModeState,
+  normalizeSessionMode,
+  setSessionMode,
+  type SessionMode,
+} from "./core/state/session-mode.js";
 export {
   TODO_ITEMS_STATE_KEY,
   TODO_VISIBLE_STATE_KEY,
