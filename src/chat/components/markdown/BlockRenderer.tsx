@@ -9,6 +9,11 @@ type BlockRendererProps = {
   tokens: Token[];
   streaming?: boolean;
   depth?: number;
+  /**
+   * When true, the final top-level token omits block bottom margin so spacing matches plain user
+   * messages (ChatMessage already applies marginBottom).
+   */
+  omitTrailingBlockMargin?: boolean;
 };
 
 function blockToPlainText(token: Token): string {
@@ -44,11 +49,13 @@ function renderBlock(
   depth: number,
   columns: number,
   streaming: boolean,
+  stripBottomMargin: boolean,
 ): React.ReactNode | null {
+  const mb = stripBottomMargin ? 0 : 1;
   switch (token.type) {
     case "paragraph":
       return (
-        <Box key={key} marginBottom={1}>
+        <Box key={key} marginBottom={mb}>
           <Text wrap="wrap">
             {renderInlineTokens(token.tokens, { keyPrefix: key })}
           </Text>
@@ -57,7 +64,7 @@ function renderBlock(
     case "heading": {
       const headingColor = token.depth <= 2 ? "cyan" : "white";
       return (
-        <Box key={key} marginBottom={1}>
+        <Box key={key} marginBottom={mb}>
           <Text bold color={headingColor} wrap="wrap">
             {renderInlineTokens(token.tokens, { keyPrefix: key })}
           </Text>
@@ -71,6 +78,7 @@ function renderBlock(
           code={token.text ?? ""}
           language={token.lang}
           streaming={streaming}
+          omitBottomMargin={stripBottomMargin}
         />
       );
     case "blockquote": {
@@ -79,7 +87,7 @@ function renderBlock(
         .join("\n")
         .split("\n");
       return (
-        <Box key={key} flexDirection="column" marginBottom={1}>
+        <Box key={key} flexDirection="column" marginBottom={mb}>
           {lines.map((line, index) => (
             <Text key={`${key}-${index}`} color="gray" italic>
               {`│ ${line || " "}`}
@@ -90,7 +98,7 @@ function renderBlock(
     }
     case "list":
       return (
-        <Box key={key} flexDirection="column" marginBottom={1}>
+        <Box key={key} flexDirection="column" marginBottom={mb}>
           {token.items.map((item: Tokens.ListItem, index: number) => {
             const marker = token.ordered
               ? `${(token.start ?? 1) + index}.`
@@ -120,6 +128,7 @@ function renderBlock(
                   depth + 1,
                   columns,
                   streaming,
+                  false,
                 )
               ) : (
                 <Text> </Text>
@@ -144,6 +153,7 @@ function renderBlock(
                         depth + 1,
                         columns,
                         streaming,
+                        false,
                       ),
                     )}
                   </Box>
@@ -154,10 +164,16 @@ function renderBlock(
         </Box>
       );
     case "table":
-      return <MarkdownTable key={key} token={token as Tokens.Table} />;
+      return (
+        <MarkdownTable
+          key={key}
+          token={token as Tokens.Table}
+          omitBottomMargin={stripBottomMargin}
+        />
+      );
     case "hr":
       return (
-        <Box key={key} marginBottom={1}>
+        <Box key={key} marginBottom={mb}>
           <Text color="gray">
             {"─".repeat(Math.max(8, Math.min(columns - 4, 48)))}
           </Text>
@@ -168,7 +184,7 @@ function renderBlock(
     case "text":
     case "escape":
       return (
-        <Box key={key} marginBottom={1}>
+        <Box key={key} marginBottom={mb}>
           <Text wrap="wrap">{token.text ?? token.raw ?? ""}</Text>
         </Box>
       );
@@ -178,7 +194,7 @@ function renderBlock(
       return null;
     default:
       return (
-        <Box key={key} marginBottom={1}>
+        <Box key={key} marginBottom={mb}>
           <Text wrap="wrap">{token.raw ?? ""}</Text>
         </Box>
       );
@@ -189,8 +205,10 @@ export function BlockRenderer({
   tokens,
   streaming = false,
   depth = 0,
+  omitTrailingBlockMargin = false,
 }: BlockRendererProps) {
   const { columns } = useWindowSize();
+  const lastIndex = tokens.length - 1;
   return (
     <Box flexDirection="column">
       {tokens.map((token, index) =>
@@ -200,6 +218,7 @@ export function BlockRenderer({
           depth,
           columns,
           streaming,
+          omitTrailingBlockMargin && index === lastIndex,
         ),
       )}
     </Box>

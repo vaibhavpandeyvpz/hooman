@@ -4,9 +4,13 @@ import { useMarkdownTableLayout } from "./hooks/useMarkdownTableLayout.js";
 
 type MarkdownTableProps = {
   token: Tokens.Table;
+  omitBottomMargin?: boolean;
 };
 
-export function MarkdownTable({ token }: MarkdownTableProps) {
+export function MarkdownTable({
+  token,
+  omitBottomMargin = false,
+}: MarkdownTableProps) {
   const { columns } = useWindowSize();
   const layout = useMarkdownTableLayout(token, columns);
   if (layout.lines.length === 0) {
@@ -14,7 +18,7 @@ export function MarkdownTable({ token }: MarkdownTableProps) {
   }
 
   return (
-    <Box flexDirection="column" marginBottom={1}>
+    <Box flexDirection="column" marginBottom={omitBottomMargin ? 0 : 1}>
       {layout.lines.map((line, index) => (
         <Text key={index}>{line}</Text>
       ))}

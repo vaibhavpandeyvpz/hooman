@@ -8,6 +8,8 @@ type CodeBlockProps = {
   code: string;
   language?: string;
   streaming?: boolean;
+  /** Last block in a message: skip margin so ChatMessage spacing is not doubled. */
+  omitBottomMargin?: boolean;
 };
 
 type InkAnsiComponent = React.ComponentType<{
@@ -52,6 +54,7 @@ export function CodeBlock({
   code,
   language,
   streaming = false,
+  omitBottomMargin = false,
 }: CodeBlockProps) {
   const trimmedLanguage = language?.trim() || undefined;
   const normalizedCode = useMemo(() => code.replace(/\r\n/g, "\n"), [code]);
@@ -76,7 +79,7 @@ export function CodeBlock({
   if (highlightedLines) {
     const InkAnsiText = getInkAnsi();
     return (
-      <Box flexDirection="column" marginBottom={1}>
+      <Box flexDirection="column" marginBottom={omitBottomMargin ? 0 : 1}>
         <Text color="gray">{`\`\`\`${trimmedLanguage}`}</Text>
         {highlightedLines.map((line, index) =>
           InkAnsiText ? (
@@ -91,7 +94,7 @@ export function CodeBlock({
   }
 
   return (
-    <Box flexDirection="column" marginBottom={1}>
+    <Box flexDirection="column" marginBottom={omitBottomMargin ? 0 : 1}>
       <Text color="gray">{`\`\`\`${trimmedLanguage ?? ""}`}</Text>
       {renderCodeLines(plainLines, "white")}
       <Text color="gray">```</Text>

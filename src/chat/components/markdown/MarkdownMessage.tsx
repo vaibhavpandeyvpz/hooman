@@ -21,14 +21,24 @@ export function MarkdownMessage({
   } = useMarkdownTokens(content, streaming);
 
   if (!streaming) {
-    return <BlockRenderer tokens={fullTokens} />;
+    return <BlockRenderer tokens={fullTokens} omitTrailingBlockMargin />;
   }
 
   return (
     <Box flexDirection="column">
-      {stablePrefix ? <BlockRenderer tokens={stableTokens} /> : null}
+      {stablePrefix ? (
+        <BlockRenderer
+          tokens={stableTokens}
+          streaming
+          omitTrailingBlockMargin={!unstableSuffix}
+        />
+      ) : null}
       {unstableSuffix ? (
-        <BlockRenderer tokens={unstableTokens} streaming />
+        <BlockRenderer
+          tokens={unstableTokens}
+          streaming
+          omitTrailingBlockMargin
+        />
       ) : null}
     </Box>
   );

@@ -1,6 +1,9 @@
 import { Box, Text } from "ink";
 import { PromptInput } from "./PromptInput.js";
-import type { PromptSubmission } from "./prompt-input/hooks/usePromptInputController.js";
+import type {
+  PromptSubmission,
+  SlashCommandMenuProps,
+} from "./prompt-input/hooks/usePromptInputController.js";
 
 type ComposerProps = {
   input: string;
@@ -9,6 +12,7 @@ type ComposerProps = {
   hint: string;
   onChange: (value: string) => void;
   onSubmit: (value: PromptSubmission) => void;
+  slashMenu?: SlashCommandMenuProps | undefined;
 };
 
 export function Composer({
@@ -18,19 +22,29 @@ export function Composer({
   hint,
   onChange,
   onSubmit,
+  slashMenu,
 }: ComposerProps) {
   return (
     <>
-      <Box borderStyle="round" borderColor="gray" paddingX={1}>
-        <Text color="gray">{"> "}</Text>
+      <Box
+        borderStyle="single"
+        borderColor="gray"
+        borderTop
+        borderBottom
+        borderLeft={false}
+        borderRight={false}
+        paddingY={0}
+        paddingX={0}
+      >
         <PromptInput
           value={input}
           onChange={onChange}
           onSubmit={onSubmit}
+          slashMenu={slashMenu}
           placeholder={
             running
-              ? "Type a message (queued after current turn)"
-              : "Type a message"
+              ? "type a message\u2026 (queued after current turn)"
+              : "type a message\u2026"
           }
           focus={!disabled}
           maxVisibleLines={4}

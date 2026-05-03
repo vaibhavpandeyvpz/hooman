@@ -22,6 +22,12 @@ type StatusBarProps = {
   };
 };
 
+/** Last UUID segment (or whole string) for a compact session label. */
+function shortSessionId(sessionId: string): string {
+  const parts = sessionId.split("-");
+  return parts.length > 1 ? (parts[parts.length - 1] ?? sessionId) : sessionId;
+}
+
 function sessionModeValueColor(mode: string): string {
   return mode === "plan" ? "#FFA500" : "gray";
 }
@@ -56,25 +62,26 @@ export function StatusBar({
   manager,
   usage,
 }: StatusBarProps) {
+  const sessionShort = shortSessionId(sessionId);
+  const displayStatus = statusLabel ?? status;
+
   return (
     <Box marginTop={1} flexDirection="column">
       <Text>
-        <Text color="gray">status: </Text>
-        <Text color={statusValueColor(status)}>{statusLabel ?? status}</Text>
-        <Text color="gray"> • session: {sessionId}</Text>
-      </Text>
-      <Text color="gray">model: {currentModel}</Text>
-      <Text>
-        <Text color="gray">yolo: </Text>
-        <Text color={yoloOn ? "red" : "green"}>{yoloOn ? "on" : "off"}</Text>
+        <Text color="gray">session: </Text>
+        <Text color="gray">{sessionShort}</Text>
+        <Text color="gray"> • status: </Text>
+        <Text color={statusValueColor(status)}>{displayStatus}</Text>
         <Text color="gray"> • mode: </Text>
         <Text color={sessionModeValueColor(sessionMode)}>{sessionMode}</Text>
+        <Text color="gray"> • yolo: </Text>
+        <Text color={yoloOn ? "red" : "green"}>{yoloOn ? "on" : "off"}</Text>
       </Text>
       <Text color="gray">
-        turns: {turnCount} • tokens in/out/total: {usage.inputTokens}/
-        {usage.outputTokens}/{usage.totalTokens}
+        model: {currentModel} • turns: {turnCount} • tokens: {usage.inputTokens}{" "}
+        + {usage.outputTokens} = {usage.totalTokens}
         {usage.latencyMs > 0 ? ` • latency: ${usage.latencyMs}ms` : ""}
-        {running ? <Text color="gray"> • elapsed {elapsedLabel}</Text> : null}
+        {running ? ` • elapsed ${elapsedLabel}` : ""}
       </Text>
       <Text color="gray">
         {`mcp servers: ${manager.clients.size} • tools: ${totalTools} • skills: ${skillsFound}`}

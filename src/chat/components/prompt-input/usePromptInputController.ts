@@ -36,9 +36,30 @@ import { getCwd } from "../../../core/utils/cwd-context.js";
 import { saveClipboardImageAsAttachment } from "./clipboard-image.js";
 import { isMouseInput } from "../../mouse.js";
 
+/** First slash-command token after `/` (no spaces/newlines inside token). Lowercase. Null if input does not start with `/` after trim. */
+function slashFirstCommandToken(value: string): string | null {
+  const trimmed = value.trimStart();
+  if (!trimmed.startsWith("/")) {
+    return null;
+  }
+  const rest = trimmed.slice(1);
+  const m = /^([^\s\n]*)/.exec(rest);
+  const segment = m?.[1] ?? "";
+  return segment.toLowerCase();
+}
+
 export type PromptSubmission = {
   text: string;
   attachments: string[];
+};
+
+export type SlashCommandMenuProps = {
+  itemCount: number;
+  highlightIndex: number;
+  /** Name of the highlighted command (e.g. `model`). Used so Enter completes partial `/` instead of submitting. */
+  highlightedCommandName: string;
+  onHighlightChange: (index: number) => void;
+  completeSelected: () => void;
 };
 
 type Args = {
@@ -47,6 +68,8 @@ type Args = {
   onSubmit: (value: PromptSubmission) => void;
   focus: boolean;
   maxVisibleLines: number;
+  /** When set and `itemCount > 0`, ↑/↓ cycle selection; Tab completes; Enter completes if the typed token still mismatches the highlight, otherwise submits. */
+  slashMenu?: SlashCommandMenuProps | undefined;
 };
 
 type Result = {
@@ -59,6 +82,7 @@ export function usePromptInputController({
   onSubmit,
   focus,
   maxVisibleLines,
+  slashMenu,
 }: Args): Result {
   const [cursor, setCursor] = useState(value.length);
   const [col, setCol] = useState<number | null>(null);
@@ -73,6 +97,8 @@ export function usePromptInputController({
   const nextAttachmentIdRef = useRef(1);
   const chunksRef = useRef<string[]>([]);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Previous `value` from the parent (controlled); used to snap caret after slash completion. */
+  const prevControlledValueRef = useRef<string | null>(null);
 
   useEffect(() => {
     valueRef.current = value;
@@ -91,7 +117,20 @@ export function usePromptInputController({
   }, [attachments]);
 
   useEffect(() => {
-    setCursor((prev) => clampCursor(value, prev));
+    const prev = prevControlledValueRef.current;
+    prevControlledValueRef.current = value;
+    setCursor((prevCursor) => {
+      let next = clampCursor(value, prevCursor);
+      if (
+        prev !== null &&
+        value.length > prev.length &&
+        value.startsWith(prev) &&
+        /^\/[^\s]*$/.test(prev)
+      ) {
+        next = value.length;
+      }
+      return next;
+    });
     setCol(null);
   }, [value]);
 
@@ -354,6 +393,9 @@ export function usePromptInputController({
     [],
   );
 
+  const slashMenuRef = useRef(slashMenu);
+  slashMenuRef.current = slashMenu;
+
   useInput(
     (input, key) => {
       if (isMouseInput(input)) {
@@ -361,6 +403,20 @@ export function usePromptInputController({
       }
 
       const state = getState();
+      const menu = slashMenuRef.current;
+      const slashNavActive =
+        menu && menu.itemCount > 0 && !key.ctrl && !key.meta && !key.super;
+
+      if (slashNavActive && key.upArrow) {
+        menu.onHighlightChange(
+          (menu.highlightIndex - 1 + menu.itemCount) % menu.itemCount,
+        );
+        return;
+      }
+      if (slashNavActive && key.downArrow) {
+        menu.onHighlightChange((menu.highlightIndex + 1) % menu.itemCount);
+        return;
+      }
 
       if (key.return) {
         if (flush()) {
@@ -379,6 +435,21 @@ export function usePromptInputController({
         if (key.shift || key.meta) {
           apply(insertText(state, "\n"));
           return;
+        }
+        const menuEnter = slashMenuRef.current;
+        if (
+          menuEnter &&
+          menuEnter.itemCount > 0 &&
+          menuEnter.highlightedCommandName
+        ) {
+          const token = slashFirstCommandToken(state.value);
+          if (
+            token !== null &&
+            token !== menuEnter.highlightedCommandName.toLowerCase()
+          ) {
+            menuEnter.completeSelected();
+            return;
+          }
         }
         submit();
         return;
@@ -463,7 +534,12 @@ export function usePromptInputController({
         return;
       }
 
-      if (key.tab) {
+      if (key.tab && !key.shift && !key.ctrl && !key.meta) {
+        const tabMenu = slashMenuRef.current;
+        if (tabMenu && tabMenu.itemCount > 0) {
+          tabMenu.completeSelected();
+          return;
+        }
         apply(insertText(state, "    "));
         return;
       }

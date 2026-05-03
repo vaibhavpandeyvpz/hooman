@@ -152,6 +152,7 @@ export function TranscriptViewport({
         ref={scrollRef}
         flexGrow={1}
         width="100%"
+        pinShortContentToBottom
         onScroll={(offset) => {
           const scroll = scrollRef.current;
           if (scroll) {

@@ -4,6 +4,7 @@ import { splitLineAtCursor } from "./prompt-input/render.js";
 import {
   usePromptInputController,
   type PromptSubmission,
+  type SlashCommandMenuProps,
 } from "./prompt-input/hooks/usePromptInputController.js";
 
 export type PromptInputProps = {
@@ -13,6 +14,7 @@ export type PromptInputProps = {
   placeholder?: string;
   focus?: boolean;
   maxVisibleLines?: number;
+  slashMenu?: SlashCommandMenuProps | undefined;
 };
 
 export function PromptInput({
@@ -22,6 +24,7 @@ export function PromptInput({
   placeholder = "",
   focus = true,
   maxVisibleLines = 4,
+  slashMenu,
 }: PromptInputProps): React.JSX.Element {
   const { view } = usePromptInputController({
     value,
@@ -29,6 +32,7 @@ export function PromptInput({
     onSubmit,
     focus,
     maxVisibleLines,
+    slashMenu,
   });
 
   if (view.showPlaceholder) {

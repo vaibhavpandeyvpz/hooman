@@ -7,20 +7,37 @@ type SlashCommandItem = {
 
 type SlashCommandsProps = {
   items: readonly SlashCommandItem[];
+  highlightIndex: number;
 };
 
-export function SlashCommands({ items }: SlashCommandsProps) {
+export function SlashCommands({ items, highlightIndex }: SlashCommandsProps) {
   if (items.length === 0) {
     return null;
   }
 
+  const safeIndex = Math.min(Math.max(0, highlightIndex), items.length - 1);
+
   return (
-    <Box flexDirection="column" marginTop={1}>
-      {items.map((item) => (
-        <Text key={item.name} color="gray">
-          /{item.name} - {item.description}
-        </Text>
-      ))}
+    <Box flexDirection="column" marginBottom={1}>
+      {items.map((item, index) => {
+        const selected = index === safeIndex;
+        const cmd = `/${item.name}`;
+        const rest = ` — ${item.description}`;
+        return selected ? (
+          <Text key={item.name} inverse>
+            <Text bold>{cmd}</Text>
+            <Text>{rest}</Text>
+          </Text>
+        ) : (
+          <Text key={item.name} color="gray">
+            <Text bold>{cmd}</Text>
+            <Text>{rest}</Text>
+          </Text>
+        );
+      })}
+      <Text color="gray">
+        ↑↓ select • tab completes • enter completes name or submits
+      </Text>
     </Box>
   );
 }

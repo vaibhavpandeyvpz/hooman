@@ -78,7 +78,7 @@ function normalizePromptSubmission(
 }
 
 const INPUT_HINT =
-  "enter: queue prompt | /model /yolo /mode | shift/meta+enter or \\+enter: newline | esc/ctrl+c: cancel or exit";
+  "shift/meta+enter or \\+enter: newline | esc/ctrl+c: cancel or exit";
 
 function nowId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -140,7 +140,8 @@ function currentModelLabel(config: Config): string {
   if (!active) {
     return "unknown";
   }
-  return `${active.name} (${active.options.provider}/${active.options.model})`;
+  // return `${active.name} (${active.options.provider}/${active.options.model})`;
+  return active.name;
 }
 
 function parseChatCommand(text: string): { name: string; args: string } | null {
@@ -279,6 +280,7 @@ export function ChatApp({
   const bumpSessionChrome = useCallback(() => {
     setSessionChromeEpoch((n) => n + 1);
   }, []);
+  const [slashHighlightIndex, setSlashHighlightIndex] = useState(0);
   const [queuedPrompts, setQueuedPrompts] = useState<QueuedPrompt[]>([]);
   const [liveReasoning, setLiveReasoning] = useState("");
   const [followRequest, setFollowRequest] = useState(0);
@@ -360,6 +362,38 @@ export function ChatApp({
   const totalTools =
     (currentAgent as Agent & { tools?: unknown[] }).tools?.length ?? 0;
   const slashCommands = useMemo(() => matchingSlashCommands(input), [input]);
+
+  useEffect(() => {
+    setSlashHighlightIndex((i) => {
+      if (slashCommands.length === 0) {
+        return 0;
+      }
+      return Math.min(Math.max(0, i), slashCommands.length - 1);
+    });
+  }, [slashCommands]);
+
+  const completeSlashCommand = useCallback(() => {
+    const cmd = slashCommands[slashHighlightIndex];
+    if (!cmd) {
+      return;
+    }
+    setInput(`/${cmd.name} `);
+  }, [slashCommands, slashHighlightIndex]);
+
+  const slashMenu = useMemo(() => {
+    if (slashCommands.length === 0) {
+      return undefined;
+    }
+    const hi = Math.min(slashHighlightIndex, slashCommands.length - 1);
+    const row = slashCommands[hi];
+    return {
+      itemCount: slashCommands.length,
+      highlightIndex: hi,
+      highlightedCommandName: row?.name ?? "",
+      onHighlightChange: setSlashHighlightIndex,
+      completeSelected: completeSlashCommand,
+    };
+  }, [slashCommands, slashHighlightIndex, completeSlashCommand]);
 
   const appendLine = useCallback((line: ChatLine) => {
     setLines((prev) => [...prev, line]);
@@ -1019,6 +1053,13 @@ export function ChatApp({
         ) : null}
 
         {!pendingApproval && !picker ? (
+          <SlashCommands
+            items={slashCommands}
+            highlightIndex={slashHighlightIndex}
+          />
+        ) : null}
+
+        {!pendingApproval && !picker ? (
           <Composer
             input={input}
             running={running}
@@ -1026,11 +1067,8 @@ export function ChatApp({
             hint={INPUT_HINT}
             onChange={setInput}
             onSubmit={onSubmit}
+            slashMenu={slashMenu}
           />
-        ) : null}
-
-        {!pendingApproval && !picker ? (
-          <SlashCommands items={slashCommands} />
         ) : null}
 
         <StatusBar

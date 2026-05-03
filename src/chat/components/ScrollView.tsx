@@ -25,6 +25,11 @@ type ScrollViewProps = BoxProps & {
     previousSize: { width: number; height: number },
   ) => void;
   onContentHeightChange?: (height: number, previousHeight: number) => void;
+  /**
+   * When content is shorter than the viewport, add top inset so the block sits on the
+   * bottom edge (chat-style). Scroll metrics still use raw content height.
+   */
+  pinShortContentToBottom?: boolean;
   children?: React.ReactNode;
 };
 
@@ -39,6 +44,7 @@ export const ScrollView = forwardRef<ScrollViewRef, ScrollViewProps>(
       onScroll,
       onViewportSizeChange,
       onContentHeightChange,
+      pinShortContentToBottom = false,
       ...boxProps
     },
     ref,
@@ -124,6 +130,14 @@ export const ScrollView = forwardRef<ScrollViewRef, ScrollViewProps>(
       [bottomOffset, remeasure, scrollTo],
     );
 
+    const shortContentTopPad =
+      pinShortContentToBottom &&
+      contentHeight > 0 &&
+      viewportSize.height > 0 &&
+      contentHeight < viewportSize.height
+        ? viewportSize.height - contentHeight
+        : 0;
+
     return (
       <Box
         flexDirection="column"
@@ -141,13 +155,19 @@ export const ScrollView = forwardRef<ScrollViewRef, ScrollViewProps>(
           width="100%"
         >
           <Box
-            ref={contentRef}
             flexDirection="column"
-            marginTop={-scrollOffset}
+            marginTop={-scrollOffset + shortContentTopPad}
             flexShrink={0}
             width="100%"
           >
-            {children}
+            <Box
+              ref={contentRef}
+              flexDirection="column"
+              flexShrink={0}
+              width="100%"
+            >
+              {children}
+            </Box>
           </Box>
         </Box>
       </Box>
