@@ -259,6 +259,10 @@ export class AcpAgent implements AgentContract {
     applySessionConfigOption(rec.config, params, rec.agent);
     if (params.configId !== HOOMAN_YOLO_CONFIG_ID) {
       rec.agentStale = true;
+    } else {
+      await patchSessionMeta(this.#acpRoot, params.sessionId, {
+        yolo: isYoloEnabled(rec.agent),
+      });
     }
     return {
       configOptions: buildSessionConfigOptions(rec.config, rec.agent),
@@ -458,6 +462,7 @@ export class AcpAgent implements AgentContract {
       {
         userId: bootstrapUserId,
         sessionId: params.sessionId,
+        yolo: existing.yolo === true,
         acp: {
           mcpServers,
           ...(clientSystemPrompt ? { systemPrompt: clientSystemPrompt } : {}),

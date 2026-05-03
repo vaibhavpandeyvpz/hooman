@@ -15,6 +15,11 @@ export type SessionMetaFile = {
   systemPrompt?: string | null;
   /** Session-scoped MCP servers requested by the ACP client. */
   mcpServers?: NamedMcpTransport[];
+  /**
+   * Auto-approve tools without ACP permission prompts (`hooman.yolo` on agent appState).
+   * Persisted so loadSession restores the same behaviour.
+   */
+  yolo?: boolean;
 };
 
 const META = "meta.json";

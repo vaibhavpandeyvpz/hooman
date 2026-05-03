@@ -1,6 +1,6 @@
-export const PLAN_FILE_STATE_KEY = "planFile";
-export const PLAN_ENTER_REASON_STATE_KEY = "enterReason";
-export const PLAN_ENTERED_AT_STATE_KEY = "enteredAt";
+export const PLAN_FILE_STATE_KEY = "hooman.planFile";
+export const PLAN_ENTER_REASON_STATE_KEY = "hooman.enterReason";
+export const PLAN_ENTERED_AT_STATE_KEY = "hooman.enteredAt";
 
 type AppStateLike = {
   get<T = unknown>(key: string): T;
