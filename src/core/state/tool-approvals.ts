@@ -1,3 +1,5 @@
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { RUN_AGENTS_TOOL_NAME } from "../agents/tools.js";
 import { getModeState } from "./session-mode.js";
 import {
@@ -5,6 +7,12 @@ import {
   normalizeUserPath,
 } from "../utils/normalize-user-path.js";
 import { attachmentsPath, plansPath, skillsPath } from "../utils/paths.js";
+
+/** Bundled `SKILL.md` tree (`dist/core/skills/built-in` or `src/...` under tsx). */
+const BUILTIN_SKILLS_ROOT = join(
+  dirname(fileURLToPath(import.meta.url)),
+  "../skills/built-in",
+);
 
 type AppStateLike = {
   get<T = unknown>(key: string): T;
@@ -161,7 +169,7 @@ function isImplicitPathAllowed(
   const attachments = attachmentsPath();
   const plans = plansPath();
   const skills = skillsPath();
-  const readRoots = [attachments, plans, skills];
+  const readRoots = [attachments, plans, skills, BUILTIN_SKILLS_ROOT];
 
   if (toolName === READ_FILE_TOOL) {
     const raw = toolInput.path;
@@ -236,8 +244,9 @@ export function getSessionAllowedTools(agent: AgentLike): string[] {
 
 /**
  * Session-wide tool allowlist ("always allow" in UI), plus implicit allow for
- * read/write/edit when paths resolve under attachments, plans, or skills (reads)
- * or plans only (writes/edits).
+ * read/write/edit when paths resolve under attachments, plans, skills (reads),
+ * shipped built-in skill files under `core/skills/built-in` (reads), or plans
+ * only (writes/edits).
  */
 export function isToolSessionAllowed(
   agent: AgentLike,
