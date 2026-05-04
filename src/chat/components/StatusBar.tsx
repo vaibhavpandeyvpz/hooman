@@ -1,5 +1,19 @@
 import { Box, Text } from "ink";
+import { millify } from "millify";
 import type { Manager as McpManager } from "../../core/mcp/index.js";
+
+const TOKEN_MILLIFY_OPTS = {
+  lowercase: true,
+  precision: 2,
+  space: false,
+} as const;
+
+function formatTokenCount(n: number): string {
+  if (!Number.isFinite(n) || n <= 0) {
+    return "0";
+  }
+  return millify(Math.round(n), TOKEN_MILLIFY_OPTS);
+}
 
 type StatusBarProps = {
   running: boolean;
@@ -84,8 +98,10 @@ export function StatusBar({
         <Text color={yoloOn ? "red" : "green"}>{yoloOn ? "on" : "off"}</Text>
       </Text>
       <Text color="gray">
-        model: {currentModel} • turns: {turnCount} • tokens: {usage.inputTokens}{" "}
-        + {usage.outputTokens} = {usage.totalTokens}
+        model: {currentModel} • turns: {turnCount} • tokens:{" "}
+        {formatTokenCount(usage.inputTokens)} +{" "}
+        {formatTokenCount(usage.outputTokens)} ={" "}
+        {formatTokenCount(usage.totalTokens)}
         {usage.latencyMs > 0 ? ` • latency: ${usage.latencyMs}ms` : ""}
         {running ? ` • elapsed ${elapsedLabel}` : ""}
       </Text>
