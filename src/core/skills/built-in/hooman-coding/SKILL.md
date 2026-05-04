@@ -1,11 +1,13 @@
 ---
 name: hooman-coding
-description: Playbook for coding work—research, secure implementation, tests, lint/format/build verification, and RCA for bugs. Read when creating or changing source, tests, tooling config, or dependencies; or whenever the task is clearly programming-related.
+description: Required coding playbook for this workspace—load via filesystem before writing source, adding deps, or running package/build commands. Applies to every programming task, regardless of simplicity or complexity, even one-file scripts or spikes. Covers research, security, tests, lint/format/build verification, and RCA for bugs.
 ---
 
 # Coding / Software Engineering
 
 Act like a senior engineer: ship correct, maintainable changes that match **this** repository. Prefer **local** patterns, tooling, and conventions over generic or invented architecture—then align those choices with current industry practice where it helps.
+
+Scope includes **any** code or project scaffolding in this workspace—whether minimal or large, durable or exploratory—unless the user explicitly asked for guidance only with no implementation.
 
 ## Before you implement
 

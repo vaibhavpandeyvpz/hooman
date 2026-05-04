@@ -6,6 +6,7 @@ import type { Registry } from "../skills/registry.js";
 
 /** Folder names under `src/core/skills/built-in/<id>/SKILL.md` (also copied to `dist/`). */
 const BUILTIN_SKILLS = [
+  "hooman-channels",
   "hooman-coding",
   "hooman-config",
   "hooman-mcp",
@@ -22,7 +23,7 @@ const BUILTIN_SKILLS_SECTION: string = (() => {
   const header: string[] = [
     "## Built-in skills",
     "",
-    "Shipped with hooman. When one matches the request, read its `SKILL.md` at the path shown and follow that guidance.",
+    "Shipped with hooman. Follow the **Skills** section earlier in this prompt for when to load each skill. **hooman-coding** is mandatory before implementation work (including small or throwaway code); read its `SKILL.md` at the path below first. For other entries here, read at the path when the task matches.",
     "",
   ];
   let any = false;
