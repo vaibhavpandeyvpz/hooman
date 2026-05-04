@@ -150,7 +150,8 @@ program
           manager,
           registry,
           sessionId,
-          initialPrompt: prompt?.trim() || undefined,
+          prompt: prompt?.trim() || undefined,
+          program: packageMeta.name,
         });
       } finally {
         try {

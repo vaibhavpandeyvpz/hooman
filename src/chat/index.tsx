@@ -1,5 +1,6 @@
 import React from "react";
 import { render } from "ink";
+import { styleText } from "node:util";
 import type { Agent } from "@strands-agents/sdk";
 import type { Config } from "../core/config.js";
 import type { Manager as McpManager } from "../core/mcp/index.js";
@@ -13,8 +14,17 @@ type LaunchChatOptions = {
   manager: McpManager;
   registry: Registry;
   sessionId: string;
-  initialPrompt?: string;
+  prompt?: string;
+  /** CLI binary name for resume hint (from package.json `bin`). */
+  program?: string;
 };
+
+function printSessionResumeHint(program: string, sessionId: string): void {
+  const exe = program.trim() || "hooman";
+  console.log("");
+  console.log(styleText(["dim", "gray"], " Resume this session next time:"));
+  console.log(`   ${exe} chat -s ${sessionId}`);
+}
 
 export async function chat(options: LaunchChatOptions): Promise<boolean> {
   let done = false;
@@ -25,7 +35,7 @@ export async function chat(options: LaunchChatOptions): Promise<boolean> {
       manager={options.manager}
       registry={options.registry}
       sessionId={options.sessionId}
-      initialPrompt={options.initialPrompt}
+      prompt={options.prompt}
       onExit={() => {
         done = true;
       }}
@@ -40,5 +50,6 @@ export async function chat(options: LaunchChatOptions): Promise<boolean> {
       unmount();
     }
   }
+  printSessionResumeHint(options.program ?? "hooman", options.sessionId);
   return consumeExitRequest(options.agent);
 }

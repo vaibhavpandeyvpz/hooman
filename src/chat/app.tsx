@@ -54,7 +54,7 @@ type ChatAppProps = {
   sessionId: string;
   manager: McpManager;
   registry: Registry;
-  initialPrompt?: string;
+  prompt?: string;
   onExit: () => void;
 };
 
@@ -248,7 +248,7 @@ export function ChatApp({
   sessionId,
   manager,
   registry,
-  initialPrompt,
+  prompt,
   onExit,
 }: ChatAppProps): React.JSX.Element {
   const { exit } = useApp();
@@ -868,11 +868,11 @@ export function ChatApp({
   );
 
   useEffect(() => {
-    if (initialPrompt && !initialRanRef.current) {
+    if (prompt && !initialRanRef.current) {
       initialRanRef.current = true;
-      pushPrompt(initialPrompt);
+      pushPrompt(prompt);
     }
-  }, [initialPrompt, pushPrompt]);
+  }, [prompt, pushPrompt]);
 
   const onSubmit = useCallback(
     (value: PromptSubmission) => {
