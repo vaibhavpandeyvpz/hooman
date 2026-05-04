@@ -37,7 +37,7 @@ It gives you a practical toolkit to build and run agent workflows:
 - MCP server `instructions` support: server-provided instructions are appended to the agent system prompt
 - MCP channel notifications: `hooman daemon` subscribes to servers that advertise `hooman/channel`
 - Skill discovery from local `~/.hooman/skills` folders
-- Bundled prompt harness toggles (`behaviour`, `communication`, `execution`, `engineering`, `guardrails`)
+- Bundled prompt harness toggles (`behaviour`, `communication`, `execution`, `guardrails`); coding guidance ships as the built-in `hooman-coding` skill
 - Built-in research sub-agent runner (`research`) with configurable concurrency
 - Toolkit-oriented architecture with configurable tools, prompts, memory, and transports
 - Interactive terminal UI for chat and configuration
@@ -225,7 +225,6 @@ Runtime tool and prompt switches are controlled from `config.json`:
 - `prompts.behaviour`
 - `prompts.communication`
 - `prompts.execution`
-- `prompts.engineering`
 - `prompts.guardrails`
 - `tools.todo.enabled`
 - `tools.fetch.enabled`
@@ -254,7 +253,7 @@ The configure UI currently lets you:
 
 - edit app configuration values
 - choose search provider and set its API key
-- toggle bundled harness prompts (`behaviour`, `communication`, `execution`, `engineering`, `guardrails`)
+- toggle bundled harness prompts (`behaviour`, `communication`, `execution`, `guardrails`)
 - edit `instructions.md` in your `$VISUAL` / `$EDITOR` (cross-platform fallback included)
 - add, edit, and delete MCP servers with confirmation
 - search, install, refresh, and remove skills
@@ -315,7 +314,6 @@ This is the config shape loaded by Hooman:
     "behaviour": true,
     "communication": true,
     "execution": true,
-    "engineering": true,
     "guardrails": true
   },
   "tools": {

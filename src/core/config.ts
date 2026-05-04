@@ -39,7 +39,6 @@ const DEFAULT_PROMPTS = {
   behaviour: true,
   communication: true,
   execution: true,
-  engineering: true,
   guardrails: true,
 } as const;
 
@@ -89,7 +88,6 @@ const PromptsPartialSchema = z.object({
   behaviour: z.boolean().optional(),
   communication: z.boolean().optional(),
   execution: z.boolean().optional(),
-  engineering: z.boolean().optional(),
   guardrails: z.boolean().optional(),
 });
 
@@ -167,7 +165,6 @@ const ConfigSchema = z
         communication:
           input.prompts?.communication ?? DEFAULT_PROMPTS.communication,
         execution: input.prompts?.execution ?? DEFAULT_PROMPTS.execution,
-        engineering: input.prompts?.engineering ?? DEFAULT_PROMPTS.engineering,
         guardrails: input.prompts?.guardrails ?? DEFAULT_PROMPTS.guardrails,
       },
       tools: {

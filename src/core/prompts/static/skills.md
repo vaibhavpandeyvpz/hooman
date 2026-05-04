@@ -5,6 +5,7 @@ You may have a dynamic **Available skills** section elsewhere in the system prom
 ### When to use a skill during this turn
 
 - When the user's goal, stack, or workflow clearly matches a listed skill (same product, API, or task family), treat that skill as the preferred playbook before improvising.
+- When the work is programming in a repository (source, tests, build or tooling config), read the built-in **hooman-coding** skill from the path listed under **Built-in skills** unless you already follow that guidance this session.
 - When you are unsure but a skill's title plausibly fits the task, open its `SKILL.md` using the **absolute path** from the Available skills list and skim it; if it helps, follow it for the rest of the turn.
 - Prefer **reading** `SKILL.md` over guessing conventions (naming, CLI flags, safety steps) that the skill is meant to encode.
 - Do **not** load or follow skills that are unrelated to the current request, and do not treat the available-skills listing as mandatory background reading for every reply.

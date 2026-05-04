@@ -54,7 +54,6 @@ const PROMPT_LABELS: Record<keyof ConfigData["prompts"], string> = {
   behaviour: "Behaviour",
   communication: "Communication",
   execution: "Execution",
-  engineering: "Engineering",
   guardrails: "Guardrails",
 };
 

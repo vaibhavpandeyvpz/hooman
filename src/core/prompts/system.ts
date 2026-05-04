@@ -31,7 +31,6 @@ const HARNESS_PROMPT_FILES = [
   { key: "behaviour", file: "behaviour.md" },
   { key: "communication", file: "communication.md" },
   { key: "execution", file: "execution.md" },
-  { key: "engineering", file: "engineering.md" },
   { key: "guardrails", file: "guardrails.md" },
 ] as const;
 

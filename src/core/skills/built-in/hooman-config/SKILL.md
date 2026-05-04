@@ -18,7 +18,7 @@ Use this skill when the user asks you to inspect, explain, or change Hooman's ow
 
 1. Read the existing JSON first. Preserve user values, comments are not supported, and secrets such as API keys may be present.
 2. Make the smallest JSON edit that satisfies the request. Do not rewrite unrelated sections or normalize formatting beyond valid pretty JSON.
-3. `name` and `llm` are required. `search`, `prompts`, `tools`, and `compaction` are optional in input, but Hooman expands them with defaults when loading.
+3. `name` and `llms` are required. `llms` must be a **non-empty array** of entries (see below). `search`, `prompts`, `tools`, and `compaction` are optional in input, but Hooman expands them with defaults when loading.
 4. Unknown keys are unsupported and may be dropped when Hooman parses and persists the config.
 5. If changing `tools.ltm` or `tools.wiki`, preserve the existing `chroma` object unless the user asked to change it.
 6. Any change to `config.json` or `instructions.md` requires restarting the running Hooman agent/session before it takes effect.
@@ -30,11 +30,17 @@ This is the default shape Hooman writes when `~/.hooman/config.json` is missing:
 ```json
 {
   "name": "Hooman",
-  "llm": {
-    "provider": "ollama",
-    "model": "gemma4:e4b",
-    "params": {}
-  },
+  "llms": [
+    {
+      "name": "Default",
+      "options": {
+        "provider": "ollama",
+        "model": "gemma4:e4b",
+        "params": {}
+      },
+      "default": true
+    }
+  ],
   "search": {
     "enabled": false,
     "provider": "brave",
@@ -52,7 +58,6 @@ This is the default shape Hooman writes when `~/.hooman/config.json` is missing:
     "behaviour": true,
     "communication": true,
     "execution": true,
-    "engineering": true,
     "guardrails": true
   },
   "tools": {
@@ -104,15 +109,25 @@ This is the default shape Hooman writes when `~/.hooman/config.json` is missing:
 ## Top-Level Options
 
 - `name`: non-empty display name for the agent.
-- `llm`: required model provider config.
+- `llms`: required non-empty list of named LLM configs (see **LLMs array**).
 - `search`: optional web search config; defaults to disabled Brave.
 - `prompts`: optional built-in static prompt toggles; omitted fields default to `true`. Custom user instructions live in `~/.hooman/instructions.md`.
 - `tools`: optional tool toggles and tool-specific settings.
 - `compaction`: optional context compaction settings. `ratio` must be `0..1`; `keep` must be a non-negative integer.
 
-## LLM Providers
+## LLMs array
 
-`llm.provider` must be one of:
+Each element of `llms` has:
+
+- `name`: non-empty label for this entry (for display and editing).
+- `options`: the provider configuration (`provider`, `model`, `params`) — same semantics as the former single `llm` object.
+- `default`: boolean; mark **one** entry `"default": true` for the active model. If several have `true`, the **first** in the array wins; if none have `true`, Hooman uses the **first** entry—so keep a single default when possible.
+
+Runtime APIs may still expose a single active profile as `llm` (derived from the default entry); on disk the source of truth is always `llms`.
+
+### LLM Providers
+
+`options.provider` must be one of:
 
 ```json
 [
@@ -127,23 +142,29 @@ This is the default shape Hooman writes when `~/.hooman/config.json` is missing:
 ]
 ```
 
-Common shape:
+Common shape (single default model):
 
 ```json
 {
-  "llm": {
-    "provider": "anthropic",
-    "model": "claude-sonnet-4-20250514",
-    "params": {
-      "apiKey": "...",
-      "temperature": 0.2,
-      "maxTokens": 4096
+  "llms": [
+    {
+      "name": "Default",
+      "options": {
+        "provider": "anthropic",
+        "model": "claude-sonnet-4-20250514",
+        "params": {
+          "apiKey": "...",
+          "temperature": 0.2,
+          "maxTokens": 4096
+        }
+      },
+      "default": true
     }
-  }
+  ]
 }
 ```
 
-Provider notes:
+Provider notes (these refer to fields inside `options.params` unless noted):
 
 - `anthropic`: `params.apiKey`, `authToken`, `baseURL`, and `headers` configure the provider. Other keys are forwarded as Vercel model config, such as `temperature` and `maxTokens`.
 - `google`: `params.apiKey`, `client`, `clientConfig`, and `builtInTools` are top-level Google model options. Other keys become Gemini generation params, such as `temperature`, `maxOutputTokens`, `topP`, and `topK`.
@@ -158,59 +179,108 @@ Examples:
 
 ```json
 {
-  "llm": {
-    "provider": "ollama",
-    "model": "qwen3:8b",
-    "params": {
-      "host": "http://127.0.0.1:11434",
-      "think": "medium",
+  "llms": [
+    {
+      "name": "Local",
       "options": {
-        "num_ctx": 32768,
-        "temperature": 0.2
-      }
-    }
-  }
-}
-```
-
-```json
-{
-  "llm": {
-    "provider": "google",
-    "model": "gemini-2.5-flash",
-    "params": {
-      "apiKey": "...",
-      "temperature": 0.2,
-      "maxOutputTokens": 8192
-    }
-  }
-}
-```
-
-```json
-{
-  "llm": {
-    "provider": "bedrock",
-    "model": "anthropic.claude-3-5-sonnet-20241022-v2:0",
-    "params": {
-      "region": "us-west-2",
-      "clientConfig": {
-        "profile": "dev",
-        "maxAttempts": 3,
-        "credentials": {
-          "accessKeyId": "AKIA...",
-          "secretAccessKey": "...",
-          "sessionToken": "..."
+        "provider": "ollama",
+        "model": "qwen3:8b",
+        "params": {
+          "host": "http://127.0.0.1:11434",
+          "think": "medium",
+          "options": {
+            "num_ctx": 32768,
+            "temperature": 0.2
+          }
         }
       },
-      "temperature": 0.2,
-      "maxTokens": 4096
+      "default": true
     }
-  }
+  ]
+}
+```
+
+```json
+{
+  "llms": [
+    {
+      "name": "Gemini",
+      "options": {
+        "provider": "google",
+        "model": "gemini-2.5-flash",
+        "params": {
+          "apiKey": "...",
+          "temperature": 0.2,
+          "maxOutputTokens": 8192
+        }
+      },
+      "default": true
+    }
+  ]
+}
+```
+
+```json
+{
+  "llms": [
+    {
+      "name": "Bedrock",
+      "options": {
+        "provider": "bedrock",
+        "model": "anthropic.claude-3-5-sonnet-20241022-v2:0",
+        "params": {
+          "region": "us-west-2",
+          "clientConfig": {
+            "profile": "dev",
+            "maxAttempts": 3,
+            "credentials": {
+              "accessKeyId": "AKIA...",
+              "secretAccessKey": "...",
+              "sessionToken": "..."
+            }
+          },
+          "temperature": 0.2,
+          "maxTokens": 4096
+        }
+      },
+      "default": true
+    }
+  ]
 }
 ```
 
 For Bedrock, prefer leaving `clientConfig.credentials` out when the runtime already has AWS credentials. Without explicit credentials or `profile`, Hooman falls back to the AWS SDK default credential chain, such as `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, optional `AWS_SESSION_TOKEN`, `AWS_PROFILE`, and AWS CLI/shared credential files.
+
+### Multiple models
+
+You may list several entries and flip which one is default:
+
+```json
+{
+  "llms": [
+    {
+      "name": "Fast",
+      "options": {
+        "provider": "openai",
+        "model": "gpt-4.1-mini",
+        "params": { "apiKey": "..." }
+      },
+      "default": true
+    },
+    {
+      "name": "Heavy",
+      "options": {
+        "provider": "anthropic",
+        "model": "claude-opus-4-20250514",
+        "params": { "apiKey": "..." }
+      },
+      "default": false
+    }
+  ]
+}
+```
+
+When editing `llms`, preserve unrelated entries and API keys unless the user asks to remove or replace them.
 
 ## Search
 
@@ -238,7 +308,7 @@ Defaults: `enabled: false`, `provider: "brave"`, all provider API keys unset.
 
 ## Prompts
 
-Each prompt toggle is optional and defaults to `true`.
+Each prompt toggle is optional and defaults to `true`. Coding and software-engineering guidance is not a config toggle; it lives in the built-in **hooman-coding** skill and is loaded when relevant (see the system prompt skills section).
 
 ```json
 {
@@ -246,13 +316,12 @@ Each prompt toggle is optional and defaults to `true`.
     "behaviour": true,
     "communication": true,
     "execution": true,
-    "engineering": true,
     "guardrails": true
   }
 }
 ```
 
-Set a prompt to `false` only when the user explicitly wants to omit that static prompt section.
+Set a prompt to `false` only when the user explicitly wants to omit that harness section.
 
 ## Tools
 
@@ -319,7 +388,7 @@ Agents:
 }
 ```
 
-Defaults: `todo`, `fetch`, `filesystem`, `shell`, `sleep`, and `agents` enabled; `ltm` and `wiki` disabled; Chroma URL `http://127.0.0.1:8000`; memory collection `memory`; wiki collection `wiki`. MCP server definitions and installed skill files are not controlled by config tool toggles; do not inspect or edit them for this skill. A missing config file is created with `agents.concurrency: 2`; if `tools.agents.concurrency` is omitted from an existing config, Hooman uses `3`.
+Defaults: `todo`, `fetch`, `filesystem`, `shell`, `sleep`, and `agents` enabled; `ltm` and `wiki` disabled; Chroma URL `http://127.0.0.1:8000`; memory collection `memory`; wiki collection `wiki`. MCP server definitions and installed skill files are not controlled by config tool toggles; do not inspect or edit them for this skill. A missing config file is created with `agents.concurrency: 2`; if `tools.agents.concurrency` is omitted while merging partial tool config, Hooman uses `3`.
 
 ## Instructions
 
@@ -346,11 +415,17 @@ Keep instruction edits focused and preserve existing wording unless the user ask
 ```json
 {
   "name": "Hooman",
-  "llm": {
-    "provider": "ollama",
-    "model": "gemma4:e4b",
-    "params": {}
-  }
+  "llms": [
+    {
+      "name": "Default",
+      "options": {
+        "provider": "ollama",
+        "model": "gemma4:e4b",
+        "params": {}
+      },
+      "default": true
+    }
+  ]
 }
 ```
 

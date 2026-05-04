@@ -6,6 +6,7 @@ import type { Registry } from "../skills/registry.js";
 
 /** Folder names under `src/core/skills/built-in/<id>/SKILL.md` (also copied to `dist/`). */
 const BUILTIN_SKILLS = [
+  "hooman-coding",
   "hooman-config",
   "hooman-mcp",
   "hooman-skills",
