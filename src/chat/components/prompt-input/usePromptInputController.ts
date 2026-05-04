@@ -36,6 +36,22 @@ import { getCwd } from "../../../core/utils/cwd-context.js";
 import { saveClipboardImageAsAttachment } from "./clipboard-image.js";
 import { isMouseInput } from "../../mouse.js";
 
+const MAX_PROMPT_HISTORY = 500;
+
+type PromptHistoryEntry = {
+  /** Raw buffer including `[paste #n]` / `[attachment #n]` tokens. */
+  value: string;
+  pastes: Record<number, string>;
+  attachments: Record<number, string>;
+};
+
+function nextPasteAttachmentId(map: Record<number, string>): number {
+  const ids = Object.keys(map)
+    .map((k) => Number.parseInt(k, 10))
+    .filter((n) => Number.isFinite(n));
+  return ids.length === 0 ? 1 : Math.max(...ids) + 1;
+}
+
 /** First slash-command token after `/` (no spaces/newlines inside token). Lowercase. Null if input does not start with `/` after trim. */
 function slashFirstCommandToken(value: string): string | null {
   const trimmed = value.trimStart();
@@ -100,6 +116,10 @@ export function usePromptInputController({
   /** Previous `value` from the parent (controlled); used to snap caret after slash completion. */
   const prevControlledValueRef = useRef<string | null>(null);
 
+  const promptHistoryRef = useRef<PromptHistoryEntry[]>([]);
+  /** Index into promptHistoryRef while browsing with ↑/↓; `null` when editing freely. */
+  const historyBrowseIndexRef = useRef<number | null>(null);
+
   useEffect(() => {
     valueRef.current = value;
   }, [value]);
@@ -115,6 +135,16 @@ export function usePromptInputController({
   useEffect(() => {
     attachmentsRef.current = attachments;
   }, [attachments]);
+
+  useEffect(() => {
+    const idx = historyBrowseIndexRef.current;
+    if (idx !== null) {
+      const expected = promptHistoryRef.current[idx]?.value;
+      if (expected !== undefined && value !== expected) {
+        historyBrowseIndexRef.current = null;
+      }
+    }
+  }, [value]);
 
   useEffect(() => {
     const prev = prevControlledValueRef.current;
@@ -199,6 +229,30 @@ export function usePromptInputController({
     [onChange],
   );
 
+  const resetPasteAttachmentMaps = useCallback(() => {
+    pastesRef.current = {};
+    attachmentsRef.current = {};
+    setPastes({});
+    setAttachments({});
+    nextPasteIdRef.current = 1;
+    nextAttachmentIdRef.current = 1;
+  }, []);
+
+  const applyHistoryEntry = useCallback(
+    (entry: PromptHistoryEntry) => {
+      const p = { ...entry.pastes };
+      const a = { ...entry.attachments };
+      pastesRef.current = p;
+      attachmentsRef.current = a;
+      setPastes(p);
+      setAttachments(a);
+      nextPasteIdRef.current = nextPasteAttachmentId(p);
+      nextAttachmentIdRef.current = nextPasteAttachmentId(a);
+      apply({ value: entry.value, cursor: entry.value.length });
+    },
+    [apply],
+  );
+
   const getState = useCallback(
     (): InputState => ({
       value: valueRef.current,
@@ -208,18 +262,44 @@ export function usePromptInputController({
   );
 
   const submit = useCallback(() => {
-    const expanded = expandPasteRefs(valueRef.current, pastesRef.current);
-    const attachmentIds = parseAttachmentRefs(valueRef.current);
+    const raw = valueRef.current;
+    const expanded = expandPasteRefs(raw, pastesRef.current);
+    const attachmentIds = parseAttachmentRefs(raw);
     const attachmentPaths = attachmentIds
       .map((id) => attachmentsRef.current[id])
       .filter((value): value is string => Boolean(value));
+    const trimmed = raw.trim();
+    if (trimmed.length > 0) {
+      const pastesSnap: Record<number, string> = {};
+      for (const id of parsePasteRefs(trimmed)) {
+        const blob = pastesRef.current[id];
+        if (blob !== undefined) {
+          pastesSnap[id] = blob;
+        }
+      }
+      const attachmentsSnap: Record<number, string> = {};
+      for (const id of parseAttachmentRefs(trimmed)) {
+        const path = attachmentsRef.current[id];
+        if (path !== undefined) {
+          attachmentsSnap[id] = path;
+        }
+      }
+      const entry: PromptHistoryEntry = {
+        value: trimmed,
+        pastes: pastesSnap,
+        attachments: attachmentsSnap,
+      };
+      const h = promptHistoryRef.current;
+      const last = h[h.length - 1];
+      if (!last || last.value !== entry.value) {
+        promptHistoryRef.current = [...h, entry].slice(-MAX_PROMPT_HISTORY);
+      }
+    }
+    historyBrowseIndexRef.current = null;
     onSubmit({ text: expanded, attachments: [...new Set(attachmentPaths)] });
-    setPastes({});
-    setAttachments({});
-    nextPasteIdRef.current = 1;
-    nextAttachmentIdRef.current = 1;
+    resetPasteAttachmentMaps();
     setCol(null);
-  }, [onSubmit]);
+  }, [onSubmit, resetPasteAttachmentMaps]);
 
   const normalizeCandidatePath = useCallback((candidate: string): string => {
     const expanded =
@@ -480,6 +560,45 @@ export function usePromptInputController({
         apply(moveCursorLineEnd(state));
         return;
       }
+
+      const singleLine = !state.value.includes("\n");
+      if (singleLine && !slashNavActive && key.upArrow) {
+        const h = promptHistoryRef.current;
+        if (h.length === 0) {
+          return;
+        }
+        let idx = historyBrowseIndexRef.current;
+        if (idx === null) {
+          idx = h.length - 1;
+        } else {
+          idx = Math.max(0, idx - 1);
+        }
+        historyBrowseIndexRef.current = idx;
+        applyHistoryEntry(h[idx]!);
+        return;
+      }
+      if (singleLine && !slashNavActive && key.downArrow) {
+        const h = promptHistoryRef.current;
+        const idx = historyBrowseIndexRef.current;
+        if (idx === null) {
+          const moved = moveCursorDown(state, col ?? undefined);
+          setCol(moved.targetColumn);
+          setCursor(moved.state.cursor);
+          return;
+        }
+        if (idx >= h.length - 1) {
+          historyBrowseIndexRef.current = null;
+          apply({ value: "", cursor: 0 });
+          setCol(null);
+          resetPasteAttachmentMaps();
+          return;
+        }
+        const nextIdx = idx + 1;
+        historyBrowseIndexRef.current = nextIdx;
+        applyHistoryEntry(h[nextIdx]!);
+        return;
+      }
+
       if (key.upArrow) {
         const moved = moveCursorUp(state, col ?? undefined);
         setCol(moved.targetColumn);
