@@ -427,7 +427,7 @@ Use **`bifrost`** (not `openai`) when routing through a Bifrost OpenAI-compatibl
 ```json
 {
   "provider": "bifrost",
-  "model": "Moonshot/kimi-k2.6",
+  "model": "moonshot/kimi-k2.6",
   "params": {
     "apiKey": "dummy-key",
     "clientConfig": {
