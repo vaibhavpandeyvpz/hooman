@@ -47,7 +47,7 @@ These operations automatically keep derived systems aligned:
 
 - index updates (`wiki/index.md`)
 - log entries (`wiki/log.md`)
-- Chroma page index for `wiki_search`
+- QMD vector index under `wiki/.qmd/` for `wiki_search`
 
 Do not manually edit `wiki/index.md` or `wiki/log.md` unless explicitly required.
 

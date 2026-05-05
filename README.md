@@ -238,10 +238,11 @@ Runtime tool and prompt switches are controlled from `config.json`:
 - `tools.agents.enabled` (enables built-in `run_agents` tool)
 - `tools.agents.concurrency`
 
-Both `ltm` and `wiki` include dedicated Chroma settings under:
+Long-term memory uses Chroma:
 
 - `tools.ltm.chroma` (default collection: `memory`)
-- `tools.wiki.chroma` (default collection: `wiki`)
+
+The wiki tool uses a **local QMD** index only (not Chroma): after page writes, pages under `wiki/pages/` are indexed into `wiki/.qmd/index.sqlite`. See [@tobilu/qmd](https://www.npmjs.com/package/@tobilu/qmd) for SQLite extension requirements (e.g. macOS Homebrew SQLite) and on-first-use embedding model downloads. Remove any legacy `tools.wiki.chroma` block from older configs; wiki is controlled by `tools.wiki.enabled` only.
 
 ### `hooman configure`
 
@@ -346,13 +347,7 @@ The canonical on-disk shape uses a **`llms`** array (non-empty): each item has `
       }
     },
     "wiki": {
-      "enabled": false,
-      "chroma": {
-        "url": "http://127.0.0.1:8000",
-        "collection": {
-          "wiki": "wiki"
-        }
-      }
+      "enabled": false
     },
     "agents": {
       "enabled": true,

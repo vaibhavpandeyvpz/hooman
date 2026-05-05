@@ -82,6 +82,7 @@
     "@mozilla/readability": "^0.6.0",
     "@strands-agents/sdk": "^1.0.0",
     "@tavily/core": "^0.7.2",
+    "@tobilu/qmd": "^2.1.0",
     "chromadb": "^3.4.3",
     "cli-highlight": "^2.1.11",
     "cli-spinners": "^3.4.0",
@@ -106,5 +107,10 @@
     "slugify": "^1.6.9",
     "turndown": "^7.2.4",
     "zod": "^4.3.6"
+  },
+  "overrides": {
+    "@tobilu/qmd": {
+      "typescript": "$typescript"
+    }
   }
 }

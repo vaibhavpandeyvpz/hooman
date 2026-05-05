@@ -1,13 +1,11 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { ChromaClient } from "chromadb";
+import { createStore, type QMDStore, type SearchResult } from "@tobilu/qmd";
 import matter from "gray-matter";
 import { tool } from "@strands-agents/sdk";
 import type { JSONValue } from "@strands-agents/sdk";
 import { z } from "zod";
 import type { Config } from "../config.js";
-import { HFEmbedding } from "../memory/ltm/embed.js";
-import { chromaClientArgsFromUrl } from "../memory/ltm/utils.js";
 import { getCwd } from "../utils/cwd-context.js";
 
 const WIKI_DIR = "wiki";
@@ -17,6 +15,10 @@ const LOG_FILE = "log.md";
 const SCHEMA_FILE = "schema.md";
 const DEFAULT_SEARCH_LIMIT = 5;
 const MAX_SEARCH_LIMIT = 20;
+/** QMD collection name for wiki pages (fixed; not user-configurable). */
+const QMD_COLLECTION = "wiki";
+const QMD_DIR = ".qmd";
+const QMD_DB_FILE = "index.sqlite";
 
 type PageFrontmatter = {
   title?: string;
@@ -44,8 +46,6 @@ type PageRecord = {
   body: string;
   frontmatter: PageFrontmatter;
 };
-
-type Collection = Awaited<ReturnType<ChromaClient["getOrCreateCollection"]>>;
 
 function toJsonValue(value: unknown): JSONValue {
   return JSON.parse(JSON.stringify(value)) as JSONValue;
@@ -335,51 +335,65 @@ async function appendLog(
   await fs.appendFile(logPath, buildLogEntry(operation, details), "utf8");
 }
 
-function pageIndexId(relativePath: string): string {
-  return `wiki:page:${relativePath}`;
+function qmdDbPath(): string {
+  return path.join(wikiRoot(), QMD_DIR, QMD_DB_FILE);
 }
 
-function searchMetadata(page: PageRecord): Record<string, string | number> {
+function mapVectorChunkToMatch(row: SearchResult, root: string, index: number) {
+  const wikiPath = path.relative(root, row.filepath).replace(/\\/g, "/");
+  const distance =
+    typeof row.score === "number" && Number.isFinite(row.score)
+      ? Math.max(0, 1 - row.score)
+      : null;
+  const id =
+    row.chunkPos != null
+      ? `${row.docid}:${row.chunkPos}`
+      : `${row.docid}:${index}`;
   return {
-    kind: "page",
-    path: page.path,
-    title: page.title,
-    summary: page.summary,
-    tags: page.tags.join(","),
-    word_count: page.wordCount,
+    id,
+    path: wikiPath,
+    title: row.title,
+    summary: row.context,
+    tags: "",
+    distance,
+    score: row.score,
+    source: row.source,
+    chunk_pos: row.chunkPos ?? null,
+    content: row.body ?? "",
   };
 }
 
-export function createWikiTools(config: Config) {
+export function createWikiTools(_config: Config) {
   const root = wikiRoot();
-  const client = new ChromaClient({
-    ...chromaClientArgsFromUrl(config.tools.wiki.chroma.url),
-  });
-  let collectionPromise: Promise<Collection> | null = null;
+  let storePromise: Promise<QMDStore> | null = null;
 
-  const collection = async (): Promise<Collection> => {
-    if (!collectionPromise) {
-      collectionPromise = client.getOrCreateCollection({
-        name: config.tools.wiki.chroma.collection.wiki,
-        embeddingFunction: new HFEmbedding(),
-      });
+  const getStore = async (): Promise<QMDStore> => {
+    if (!storePromise) {
+      storePromise = (async () => {
+        await ensureWikiLayout(root);
+        const dbPath = qmdDbPath();
+        await fs.mkdir(path.dirname(dbPath), { recursive: true });
+        const pagesRoot = resolveWithinRoot(root, PAGES_DIR);
+        return createStore({
+          dbPath,
+          config: {
+            collections: {
+              [QMD_COLLECTION]: {
+                path: pagesRoot,
+                pattern: "**/*.md",
+              },
+            },
+          },
+        });
+      })();
     }
-    return collectionPromise;
+    return storePromise;
   };
 
-  const upsertPageSearch = async (page: PageRecord): Promise<void> => {
-    const c = await collection();
-    const id = pageIndexId(page.path);
-    try {
-      await c.delete({ ids: [id] });
-    } catch {
-      // best-effort cleanup
-    }
-    await c.add({
-      ids: [id],
-      documents: [page.body || page.content],
-      metadatas: [searchMetadata(page)],
-    });
+  const syncWikiSearchIndex = async (): Promise<void> => {
+    const store = await getStore();
+    await store.update({ collections: [QMD_COLLECTION] });
+    await store.embed({ force: false });
   };
 
   return [
@@ -505,7 +519,7 @@ export function createWikiTools(config: Config) {
         await fs.writeFile(absolutePath, content, "utf8");
 
         const page = await readPageRecord(root, relativePath);
-        await upsertPageSearch(page);
+        await syncWikiSearchIndex();
 
         const pages = await listPages(root);
         await writeIndex(root, pages);
@@ -650,47 +664,22 @@ export function createWikiTools(config: Config) {
     tool({
       name: "wiki_search",
       description:
-        "Semantic search over indexed wiki pages using the configured wiki Chroma collection.",
+        "Semantic search over stored wiki chunks from indexed files. Returns matching snippets; use wiki_read_file on paths you need in full.",
       inputSchema: z.object({
         query: z.string().min(1),
         k: z.number().int().min(1).max(MAX_SEARCH_LIMIT).optional(),
       }),
       callback: async (input) => {
         await ensureWikiLayout(root);
-        const c = await collection();
-        const result = await c.query<Record<string, string | number>>({
-          queryTexts: [input.query],
-          nResults: input.k ?? DEFAULT_SEARCH_LIMIT,
-          include: ["documents", "metadatas", "distances"],
+        const store = await getStore();
+        const k = input.k ?? DEFAULT_SEARCH_LIMIT;
+        const rows = await store.searchVector(input.query, {
+          limit: k,
+          collection: QMD_COLLECTION,
         });
-
-        const rows = result.rows()[0] ?? [];
-        const matches = rows
-          .filter(
-            (
-              row,
-            ): row is (typeof rows)[number] & {
-              document: string;
-              metadata: Record<string, string | number>;
-            } => typeof row.document === "string" && !!row.metadata,
-          )
-          .map((row) => ({
-            id: row.id,
-            path:
-              typeof row.metadata.path === "string" ? row.metadata.path : null,
-            title:
-              typeof row.metadata.title === "string"
-                ? row.metadata.title
-                : null,
-            summary:
-              typeof row.metadata.summary === "string"
-                ? row.metadata.summary
-                : null,
-            tags:
-              typeof row.metadata.tags === "string" ? row.metadata.tags : "",
-            distance: row.distance ?? null,
-            content: row.document,
-          }));
+        const matches = rows.map((row, index) =>
+          mapVectorChunkToMatch(row, root, index),
+        );
 
         return toJsonValue({
           query: input.query,

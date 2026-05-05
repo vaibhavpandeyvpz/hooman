@@ -637,7 +637,7 @@ export function ConfigureApp({
         value: () => setScreen({ kind: "config-ltm" }),
       },
       {
-        label: `Wiki tool • ${configData.tools.wiki.enabled ? "Enabled" : "Disabled"} • ${configData.tools.wiki.chroma.collection.wiki}`,
+        label: `Wiki tool • ${configData.tools.wiki.enabled ? "Enabled" : "Disabled"}`,
         value: () => setScreen({ kind: "config-wiki" }),
       },
       {
@@ -1165,77 +1165,15 @@ export function ConfigureApp({
         },
       },
       {
-        label: `Chroma URL • ${configData.tools.wiki.chroma.url}`,
-        value: () =>
-          promptValue({
-            title: "Update Wiki Chroma URL",
-            label: "URL",
-            initialValue: configData.tools.wiki.chroma.url,
-            onSubmit: async (value) => {
-              const url = value.trim();
-              if (!url) {
-                throw new Error("URL is required.");
-              }
-              updateConfig(
-                {
-                  tools: {
-                    ...config.tools,
-                    wiki: {
-                      ...config.tools.wiki,
-                      chroma: {
-                        ...config.tools.wiki.chroma,
-                        url,
-                      },
-                    },
-                  },
-                },
-                "Updated Wiki Chroma URL.",
-              );
-              setPrompt(null);
-            },
-          }),
-      },
-      {
-        label: `Chroma collection • ${configData.tools.wiki.chroma.collection.wiki}`,
-        value: () =>
-          promptValue({
-            title: "Update Wiki Chroma collection",
-            label: "Collection name",
-            initialValue: configData.tools.wiki.chroma.collection.wiki,
-            onSubmit: async (value) => {
-              const wiki = value.trim();
-              if (!wiki) {
-                throw new Error("Collection name is required.");
-              }
-              updateConfig(
-                {
-                  tools: {
-                    ...config.tools,
-                    wiki: {
-                      ...config.tools.wiki,
-                      chroma: {
-                        ...config.tools.wiki.chroma,
-                        collection: { wiki },
-                      },
-                    },
-                  },
-                },
-                "Updated Wiki Chroma collection.",
-              );
-              setPrompt(null);
-            },
-          }),
-      },
-      {
         label: "Back",
-        value: () => setScreen({ kind: "config" }),
+        value: () => setScreen({ kind: "config-tools" }),
       },
     ];
 
     return (
       <MenuScreen
         title="Wiki"
-        description="Configure wiki tool and Chroma-backed wiki search."
+        description="Local wiki under wiki/ with semantic search via QMD (wiki/.qmd/index.sqlite). Requires QMD/SQLite setup; first embed may download models."
         items={items}
       />
     );

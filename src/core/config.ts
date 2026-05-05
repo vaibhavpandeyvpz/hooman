@@ -49,11 +49,6 @@ const DEFAULT_CHROMA = {
   collection: { memory: "memory" },
 } as const;
 
-const DEFAULT_WIKI_CHROMA = {
-  url: "http://127.0.0.1:8000",
-  collection: { wiki: "wiki" },
-} as const;
-
 const LtmChromaPartialSchema = z.object({
   url: z.string().min(1).optional(),
   collection: z
@@ -66,20 +61,6 @@ const LtmChromaPartialSchema = z.object({
 const LtmPartialSchema = z.object({
   enabled: z.boolean().optional(),
   chroma: LtmChromaPartialSchema.optional(),
-});
-
-const WikiChromaPartialSchema = z.object({
-  url: z.string().min(1).optional(),
-  collection: z
-    .object({
-      wiki: z.string().min(1).optional(),
-    })
-    .optional(),
-});
-
-const WikiPartialSchema = z.object({
-  enabled: z.boolean().optional(),
-  chroma: WikiChromaPartialSchema.optional(),
 });
 
 const ToolTogglePartialSchema = z.object({
@@ -143,7 +124,7 @@ const ToolsPartialSchema = z.object({
   shell: ToolTogglePartialSchema.optional(),
   sleep: ToolTogglePartialSchema.optional(),
   ltm: LtmPartialSchema.optional(),
-  wiki: WikiPartialSchema.optional(),
+  wiki: ToolTogglePartialSchema.optional(),
   agents: AgentsPartialSchema.optional(),
 });
 
@@ -220,14 +201,6 @@ const ConfigSchema = z
         },
         wiki: {
           enabled: wiki?.enabled ?? false,
-          chroma: {
-            url: wiki?.chroma?.url ?? DEFAULT_WIKI_CHROMA.url,
-            collection: {
-              wiki:
-                wiki?.chroma?.collection?.wiki ??
-                DEFAULT_WIKI_CHROMA.collection.wiki,
-            },
-          },
         },
         agents: {
           enabled: input.tools?.agents?.enabled ?? true,
@@ -296,10 +269,6 @@ const defaultConfigData = (): ConfigData => ({
     },
     wiki: {
       enabled: false,
-      chroma: {
-        url: "http://127.0.0.1:8000",
-        collection: { wiki: "wiki" },
-      },
     },
     agents: {
       enabled: true,
@@ -364,13 +333,7 @@ export class Config {
           collection: { ...this.data.tools.ltm.chroma.collection },
         },
       },
-      wiki: {
-        ...this.data.tools.wiki,
-        chroma: {
-          ...this.data.tools.wiki.chroma,
-          collection: { ...this.data.tools.wiki.chroma.collection },
-        },
-      },
+      wiki: { ...this.data.tools.wiki },
       agents: { ...this.data.tools.agents },
     };
   }

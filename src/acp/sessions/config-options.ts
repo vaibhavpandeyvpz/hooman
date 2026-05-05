@@ -89,7 +89,7 @@ export function buildSessionConfigOptions(
       id: HOOMAN_WIKI_CONFIG_ID,
       name: "Wiki",
       description:
-        "When enabled, the agent can read, write, and search wiki pages (requires Chroma at the configured URL).",
+        "When enabled, the agent can read, write, and search wiki pages (local QMD index under wiki/.qmd).",
       category: "_hooman",
       currentValue: config.wiki.enabled ? "on" : "off",
       options: [
