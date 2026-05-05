@@ -95,6 +95,7 @@ program
     } = await bootstrap(
       "default",
       {
+        userId: "default",
         sessionId,
         yolo: Boolean(options.yolo),
         sessionMode: options.mode,
@@ -185,8 +186,8 @@ program
     } = await bootstrap(
       "daemon",
       {
-        sessionId: session,
         userId: session,
+        sessionId: session,
         yolo: Boolean(options.yolo),
         sessionMode: options.mode,
       },
