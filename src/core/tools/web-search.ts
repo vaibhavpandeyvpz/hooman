@@ -1,15 +1,44 @@
 import { tool } from "@strands-agents/sdk";
 import type { JSONValue, ToolContext } from "@strands-agents/sdk";
+import Firecrawl from "@mendable/firecrawl-js";
+import { Exa } from "exa-js";
 import { tavily } from "@tavily/core";
 import { z } from "zod";
 import type { Config } from "../config.js";
 
 const BRAVE_ENDPOINT = "https://api.search.brave.com/res/v1/web/search";
-const EXA_ENDPOINT = "https://api.exa.ai/search";
 const SERPER_ENDPOINT = "https://google.serper.dev/search";
 const DEFAULT_TIMEOUT_SECONDS = 20;
+/** Firecrawl search+scrape can exceed the default web search timeout. */
+const FIRECRAWL_SEARCH_TIMEOUT_SECONDS = 60;
+const FIRECRAWL_SNIPPET_MAX_CHARS = 1200;
 const DEFAULT_RESULT_COUNT = 5;
 const MAX_RESULT_COUNT = 20;
+
+/** Reject when `signal` aborts (SDK calls do not accept AbortSignal). */
+function abortable<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
+  if (signal.aborted) {
+    return Promise.reject(
+      new DOMException("The operation was aborted.", "AbortError"),
+    );
+  }
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => {
+      reject(new DOMException("The operation was aborted.", "AbortError"));
+    };
+    signal.addEventListener("abort", onAbort, { once: true });
+    promise.then(
+      (value) => {
+        signal.removeEventListener("abort", onAbort);
+        resolve(value);
+      },
+      (err: unknown) => {
+        signal.removeEventListener("abort", onAbort);
+        reject(err);
+      },
+    );
+  });
+}
 
 const FreshnessSchema = z.enum(["day", "week", "month", "year"]);
 
@@ -64,7 +93,7 @@ type NormalizedResult = {
 };
 
 type NormalizedOutput = {
-  provider: "brave" | "exa" | "serper" | "tavily";
+  provider: "brave" | "exa" | "firecrawl" | "serper" | "tavily";
   query: string;
   results: NormalizedResult[];
   metadata: {
@@ -188,6 +217,14 @@ function cleanString(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function truncateSnippet(text: string, maxChars: number): string {
+  const t = text.trim();
+  if (t.length <= maxChars) {
+    return t;
+  }
+  return `${t.slice(0, maxChars).trimEnd()}…`;
+}
+
 function normalizeBraveResults(payload: unknown): NormalizedResult[] {
   const root = payload as {
     web?: { results?: Array<Record<string, unknown>> };
@@ -263,8 +300,30 @@ function normalizeExaResults(payload: unknown): NormalizedResult[] {
     .filter((item) => item.url.length > 0);
 }
 
+function normalizeFirecrawlResults(payload: unknown): NormalizedResult[] {
+  const root = payload as { data?: { web?: Array<Record<string, unknown>> } };
+  const web = root.data?.web;
+  if (!Array.isArray(web)) {
+    return [];
+  }
+  return web
+    .map((item) => {
+      const markdown = cleanString(item.markdown);
+      const description = cleanString(item.description);
+      const snippetSource = markdown || description;
+      return {
+        title: cleanString(item.title),
+        url: cleanString(item.url),
+        snippet: snippetSource
+          ? truncateSnippet(snippetSource, FIRECRAWL_SNIPPET_MAX_CHARS)
+          : "",
+      };
+    })
+    .filter((item) => item.url.length > 0);
+}
+
 function normalizedOutput(
-  provider: "brave" | "exa" | "serper" | "tavily",
+  provider: "brave" | "exa" | "firecrawl" | "serper" | "tavily",
   input: WebSearchInput,
   results: NormalizedResult[],
 ): NormalizedOutput {
@@ -326,52 +385,52 @@ async function searchExa(
   apiKey: string,
   signal: AbortSignal,
 ): Promise<NormalizedOutput> {
-  const body: Record<string, unknown> = {
-    query: input.query,
-    numResults: input.count,
-    type: "auto",
-    contents: { highlights: true },
-  };
-  if (input.country) {
-    body.userLocation = input.country.toUpperCase();
-  }
+  const exa = new Exa(apiKey);
   const published = exaPublishedRange(input);
-  if (published.startPublishedDate) {
-    body.startPublishedDate = published.startPublishedDate;
-  }
-  if (published.endPublishedDate) {
-    body.endPublishedDate = published.endPublishedDate;
-  }
-  if (input.safe_search === true) {
-    body.moderation = true;
-  }
-
-  const response = await fetch(EXA_ENDPOINT, {
-    method: "POST",
+  const result = await abortable(
+    exa.search(input.query, {
+      type: "auto",
+      numResults: input.count,
+      contents: { highlights: true },
+      ...(input.country
+        ? { userLocation: input.country.toUpperCase() }
+        : {}),
+      ...(published.startPublishedDate
+        ? { startPublishedDate: published.startPublishedDate }
+        : {}),
+      ...(published.endPublishedDate
+        ? { endPublishedDate: published.endPublishedDate }
+        : {}),
+      ...(input.safe_search === true ? { moderation: true } : {}),
+    }),
     signal,
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": apiKey,
-    },
-    body: JSON.stringify(body),
-  });
-  const responseText = await response.text();
-  if (!response.ok) {
-    let detail = responseText;
-    try {
-      const errJson = JSON.parse(responseText) as { error?: string };
-      if (typeof errJson.error === "string" && errJson.error.length > 0) {
-        detail = errJson.error;
-      }
-    } catch {
-      /* keep raw body */
-    }
-    throw new Error(
-      `Exa search failed (${response.status} ${response.statusText}): ${detail}`,
-    );
-  }
-  const parsed = JSON.parse(responseText) as unknown;
-  return normalizedOutput("exa", input, normalizeExaResults(parsed));
+  );
+  return normalizedOutput("exa", input, normalizeExaResults(result));
+}
+
+async function searchFirecrawl(
+  input: WebSearchInput,
+  apiKey: string,
+  signal: AbortSignal,
+): Promise<NormalizedOutput> {
+  type FirecrawlSearchExtras = NonNullable<Parameters<Firecrawl["search"]>[1]>;
+  const firecrawl = new Firecrawl({ apiKey });
+  const tbs = toSerperTbs(input);
+  const options: FirecrawlSearchExtras = {
+    limit: input.count,
+    scrapeOptions: { formats: ["markdown"] },
+    timeout: FIRECRAWL_SEARCH_TIMEOUT_SECONDS * 1000,
+    ...(tbs ? { tbs } : {}),
+  };
+  const data = await abortable(
+    firecrawl.search(input.query, options),
+    signal,
+  );
+  return normalizedOutput(
+    "firecrawl",
+    input,
+    normalizeFirecrawlResults({ data: { web: data.web } }),
+  );
 }
 
 async function searchSerper(
@@ -454,9 +513,11 @@ export function createWebSearchTools(config: Config) {
         "Search the web using configured provider and return normalized results.",
       inputSchema: InputSchema,
       callback: async (input, context?: ToolContext) => {
-        const timeoutSignal = AbortSignal.timeout(
-          DEFAULT_TIMEOUT_SECONDS * 1000,
-        );
+        const searchTimeoutMs =
+          config.search.provider === "firecrawl"
+            ? FIRECRAWL_SEARCH_TIMEOUT_SECONDS * 1000
+            : DEFAULT_TIMEOUT_SECONDS * 1000;
+        const timeoutSignal = AbortSignal.timeout(searchTimeoutMs);
         const signal = context
           ? AbortSignal.any([timeoutSignal, context.agent.cancelSignal])
           : timeoutSignal;
@@ -478,6 +539,15 @@ export function createWebSearchTools(config: Config) {
             );
           }
           return toJsonValue(await searchExa(input, apiKey, signal));
+        }
+        if (provider === "firecrawl") {
+          const apiKey = config.search.firecrawl.apiKey;
+          if (!apiKey) {
+            throw new Error(
+              "Search provider is firecrawl but search.firecrawl.apiKey is missing.",
+            );
+          }
+          return toJsonValue(await searchFirecrawl(input, apiKey, signal));
         }
         if (provider === "serper") {
           const apiKey = config.search.serper.apiKey;

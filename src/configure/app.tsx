@@ -62,6 +62,7 @@ type SearchProvider = ConfigData["search"]["provider"];
 const SEARCH_PROVIDER_LABELS: Record<SearchProvider, string> = {
   brave: "Brave",
   exa: "Exa",
+  firecrawl: "Firecrawl",
   serper: "Serper",
   tavily: "Tavily",
 };
@@ -941,24 +942,26 @@ export function ConfigureApp({
 
   const renderSearchProviderMenu = () => {
     const items: MenuItem[] = [
-      ...(["brave", "exa", "serper", "tavily"] as const).map((provider) => ({
-        label:
-          provider === configData.search.provider
-            ? `${SEARCH_PROVIDER_LABELS[provider]} • current`
-            : SEARCH_PROVIDER_LABELS[provider],
-        value: () => {
-          updateConfig(
-            {
-              search: {
-                ...config.search,
-                provider,
+      ...(["brave", "exa", "firecrawl", "serper", "tavily"] as const).map(
+        (provider) => ({
+          label:
+            provider === configData.search.provider
+              ? `${SEARCH_PROVIDER_LABELS[provider]} • current`
+              : SEARCH_PROVIDER_LABELS[provider],
+          value: () => {
+            updateConfig(
+              {
+                search: {
+                  ...config.search,
+                  provider,
+                },
               },
-            },
-            `Updated search provider to "${SEARCH_PROVIDER_LABELS[provider]}".`,
-          );
-          setScreen({ kind: "config-search" });
-        },
-      })),
+              `Updated search provider to "${SEARCH_PROVIDER_LABELS[provider]}".`,
+            );
+            setScreen({ kind: "config-search" });
+          },
+        }),
+      ),
       {
         label: "Back",
         value: () => setScreen({ kind: "config-search" }),

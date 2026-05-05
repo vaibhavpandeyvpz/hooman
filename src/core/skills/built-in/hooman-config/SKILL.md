@@ -50,6 +50,9 @@ This is the default shape Hooman writes when `~/.hooman/config.json` is missing:
     "exa": {
       "apiKey": "..."
     },
+    "firecrawl": {
+      "apiKey": "..."
+    },
     "serper": {
       "apiKey": "..."
     },
@@ -291,7 +294,7 @@ When editing `llms`, preserve unrelated entries and API keys unless the user ask
 
 ## Search
 
-`search.provider` must be `"brave"`, `"exa"`, `"serper"`, or `"tavily"`.
+`search.provider` must be `"brave"`, `"exa"`, `"firecrawl"`, `"serper"`, or `"tavily"`.
 
 ```json
 {
@@ -304,6 +307,9 @@ When editing `llms`, preserve unrelated entries and API keys unless the user ask
     "exa": {
       "apiKey": "..."
     },
+    "firecrawl": {
+      "apiKey": "..."
+    },
     "serper": {
       "apiKey": "..."
     },
@@ -314,7 +320,9 @@ When editing `llms`, preserve unrelated entries and API keys unless the user ask
 }
 ```
 
-Exa uses `POST https://api.exa.ai/search` with the API key in the `x-api-key` header ([Exa search API](https://exa.ai/docs/reference/search-api-guide-for-coding-agents)).
+Hooman calls Exa through the official **`exa-js`** SDK ([Exa search API](https://exa.ai/docs/reference/search-api-guide-for-coding-agents)).
+
+Hooman calls Firecrawl through **`@mendable/firecrawl-js`** ([Firecrawl search API](https://docs.firecrawl.dev/api-reference/endpoint/search)).
 
 Defaults: `enabled: false`, `provider: "brave"`, all provider API keys unset.
 

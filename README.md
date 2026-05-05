@@ -32,7 +32,7 @@ It gives you a practical toolkit to build and run agent workflows:
 
 - Multiple LLM providers: `ollama`, `openai`, `tensorzero`, `anthropic`, `google`, `bedrock`, `groq`, `moonshot`, `xai`
 - Local configuration under `~/.hooman`
-- Optional web search tool with provider selection (`brave`, `exa`, `serper`, or `tavily`)
+- Optional web search tool with provider selection (`brave`, `exa`, `firecrawl`, `serper`, or `tavily`)
 - MCP server support via `stdio`, `streamable-http`, and `sse`
 - MCP server `instructions` support: server-provided instructions are appended to the agent system prompt
 - MCP channel notifications: `hooman daemon` subscribes to servers that advertise `hooman/channel`
@@ -218,9 +218,10 @@ hooman daemon --debug
 Runtime tool and prompt switches are controlled from `config.json`:
 
 - `search.enabled`
-- `search.provider` (`brave`, `exa`, `serper`, or `tavily`)
+- `search.provider` (`brave`, `exa`, `firecrawl`, `serper`, or `tavily`)
 - `search.brave.apiKey`
 - `search.exa.apiKey`
+- `search.firecrawl.apiKey`
 - `search.serper.apiKey`
 - `search.tavily.apiKey`
 - `prompts.behaviour`
@@ -309,6 +310,7 @@ The canonical on-disk shape uses a **`llms`** array (non-empty): each item has `
     "provider": "brave",
     "brave": {},
     "exa": {},
+    "firecrawl": {},
     "serper": {},
     "tavily": {}
   },
@@ -382,6 +384,7 @@ Supported `search.provider` values:
 
 - `brave`
 - `exa`
+- `firecrawl`
 - `serper`
 - `tavily`
 
