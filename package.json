@@ -70,7 +70,7 @@
   },
   "dependencies": {
     "@agentclientprotocol/sdk": "^0.18.2",
-    "@ai-sdk/anthropic": "^3.0.69",
+    "@anthropic-ai/sdk": "^0.89.0",
     "@ai-sdk/groq": "^3.0.35",
     "@ai-sdk/moonshotai": "^2.0.16",
     "@ai-sdk/xai": "^3.0.83",

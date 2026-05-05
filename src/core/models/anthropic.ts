@@ -1,55 +1,100 @@
-import { anthropic, createAnthropic } from "@ai-sdk/anthropic";
-import { VercelModel } from "@strands-agents/sdk/models/vercel";
-import type { AnthropicProviderSettings } from "@ai-sdk/anthropic";
-import type { VercelModelConfig } from "@strands-agents/sdk/models/vercel";
-import lodash from "lodash";
+import type { ClientOptions } from "@anthropic-ai/sdk";
+import { AnthropicModel } from "@strands-agents/sdk/models/anthropic";
+import type { AnthropicModelOptions } from "@strands-agents/sdk/models/anthropic";
 
-const { omit, pick } = lodash;
+/** Config JSON / provider params (`modelId` is set by {@link create}; no injected `client`). */
+export type AnthropicModelParams = Omit<AnthropicModelOptions, "modelId" | "client">;
 
-const PROVIDER_SETTINGS_KEYS = [
+const RESERVED = new Set([
   "apiKey",
   "authToken",
   "baseURL",
   "headers",
-] as const;
+  "client",
+  "clientConfig",
+]);
 
-function pickProviderSettings(
+function pickModelOptions(
   params: Record<string, unknown>,
-): AnthropicProviderSettings {
-  const picked = pick(params, [...PROVIDER_SETTINGS_KEYS]) as Record<
-    string,
-    unknown
-  >;
-  const unset = Object.keys(picked).filter((k) => picked[k] === undefined);
-  return omit(picked, unset) as AnthropicProviderSettings;
+): Omit<AnthropicModelParams, "apiKey" | "clientConfig"> {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(params)) {
+    if (!RESERVED.has(k)) {
+      out[k] = v;
+    }
+  }
+  return out as Omit<AnthropicModelParams, "apiKey" | "clientConfig">;
 }
 
-function pickVercelModelConfig(
+function resolveApiKey(params: Record<string, unknown>): string | undefined {
+  const k = params.apiKey;
+  const t = params.authToken;
+  if (typeof k === "string" && k.length > 0) {
+    return k;
+  }
+  if (typeof t === "string" && t.length > 0) {
+    return t;
+  }
+  return undefined;
+}
+
+function mergeClientConfig(
   params: Record<string, unknown>,
-): Partial<VercelModelConfig> {
-  return omit(params, [
-    ...PROVIDER_SETTINGS_KEYS,
-  ]) as Partial<VercelModelConfig>;
+): ClientOptions | undefined {
+  const explicit = params.clientConfig as ClientOptions | undefined;
+  const baseURL =
+    typeof params.baseURL === "string" && params.baseURL.length > 0
+      ? params.baseURL
+      : undefined;
+  const headers = params.headers;
+  const defaultHeaders =
+    headers &&
+    typeof headers === "object" &&
+    headers !== null &&
+    !Array.isArray(headers)
+      ? (headers as Record<string, string | undefined>)
+      : undefined;
+
+  if (!explicit && !baseURL && !defaultHeaders) {
+    return undefined;
+  }
+
+  return {
+    ...explicit,
+    ...(baseURL ? { baseURL } : {}),
+    ...(defaultHeaders
+      ? {
+          defaultHeaders: {
+            ...explicit?.defaultHeaders,
+            ...defaultHeaders,
+          },
+        }
+      : {}),
+  };
 }
 
 /**
- * Anthropic via AI SDK + Strands {@link VercelModel}.
+ * Anthropic via Strands {@link AnthropicModel} (Messages API).
  *
- * - **`config.llm.model`**: model id passed to `anthropic(...)` (e.g. `claude-sonnet-4-20250514`).
- * - **`params`**: Settings {@link AnthropicProviderSettings} (`apiKey`, `authToken`, `baseURL`, …).
- *   If none are set, the default provider is used (`ANTHROPIC_API_KEY` / `ANTHROPIC_AUTH_TOKEN` from env).
- * - Any other `params` keys are forwarded as {@link VercelModelConfig} (e.g. `temperature`, `maxTokens`).
+ * - **`config.llm.model`**: Claude model id (e.g. `claude-sonnet-4-20250514`).
+ * - **`params`**: `apiKey` or `authToken`, optional `baseURL` / `headers` (merged into `clientConfig`),
+ *   optional `clientConfig`, plus model fields (`temperature`, `maxTokens`, `topP`, `stopSequences`, `params`, …).
+ *   If no key is set, `ANTHROPIC_API_KEY` is used.
  */
 export function create(
   model: string,
   params: Record<string, unknown> = {},
-): VercelModel {
-  const settings = pickProviderSettings(params);
-  const provider =
-    Object.keys(settings).length > 0 ? createAnthropic(settings) : anthropic;
-  const config = pickVercelModelConfig(params);
-  return new VercelModel({
-    provider: provider(model),
-    ...config,
+): AnthropicModel {
+  const apiKey = resolveApiKey(params);
+  const clientConfig = mergeClientConfig(params);
+  const modelOpts = pickModelOptions(params);
+
+  return new AnthropicModel({
+    modelId: model,
+    ...(apiKey ? { apiKey } : {}),
+    ...(clientConfig && Object.keys(clientConfig).length > 0
+      ? { clientConfig }
+      : {}),
+    ...modelOpts,
   });
 }
