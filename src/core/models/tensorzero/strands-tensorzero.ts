@@ -1,27 +1,45 @@
-import {
-  ContextWindowOverflowError,
-  ModelThrottledError,
-} from "@strands-agents/sdk";
+import { dirname, join } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import type { Message } from "@strands-agents/sdk";
 import type { StreamOptions } from "@strands-agents/sdk";
 import type { ModelStreamEvent } from "@strands-agents/sdk";
 import { OpenAIModel } from "@strands-agents/sdk/models/openai";
-import type { OpenAIModelOptions } from "@strands-agents/sdk/models/openai";
+import type {
+  OpenAIChatConfig,
+  OpenAIModelOptions,
+} from "@strands-agents/sdk/models/openai";
 import OpenAI from "openai";
 import { splitUsageOntoEmptyChoicesChunk } from "../openai/openai-stream-shims.js";
 
-const CONTEXT_OVERFLOW_PATTERNS = [
-  "maximum context length",
-  "context_length_exceeded",
-  "too many tokens",
-  "context length",
-] as const;
+/** Strands 1.x moves chat helpers into `chat-adapter.js`, which is not a package export; load it next to the public `models/openai` entry. */
+function openAiChatAdapterUrl(): string {
+  return pathToFileURL(
+    join(
+      dirname(
+        fileURLToPath(import.meta.resolve("@strands-agents/sdk/models/openai")),
+      ),
+      "chat-adapter.js",
+    ),
+  ).href;
+}
 
-const RATE_LIMIT_PATTERNS = [
-  "rate_limit_exceeded",
-  "rate limit",
-  "too many requests",
-] as const;
+let chatAdapterPromise: Promise<{
+  formatChatRequest: (
+    config: OpenAIChatConfig,
+    messages: Message[],
+    options?: StreamOptions,
+  ) => OpenAI.Chat.ChatCompletionCreateParamsStreaming;
+  mapChatChunkToEvents: (
+    chunk: OpenAI.Chat.Completions.ChatCompletionChunk,
+    state: { messageStarted: boolean; textContentBlockStarted: boolean },
+    activeToolCalls: Map<number, boolean>,
+  ) => ModelStreamEvent[];
+}> | null = null;
+
+function loadOpenAiChatAdapter() {
+  chatAdapterPromise ??= import(openAiChatAdapterUrl());
+  return chatAdapterPromise;
+}
 
 type TensorZeroStreamState = {
   messageStarted: boolean;
@@ -126,24 +144,20 @@ export class StrandsTensorZeroModel extends OpenAIModel {
     if (!messages || messages.length === 0) {
       throw new Error("At least one message is required");
     }
-    const self = this as unknown as {
-      _formatRequest: (
-        messages: Message[],
-        options?: StreamOptions,
-      ) => OpenAI.Chat.ChatCompletionCreateParamsStreaming;
-      _client: OpenAI;
-      _mapOpenAIChunkToSDKEvents: (
-        chunk: OpenAI.Chat.Completions.ChatCompletionChunk,
-        streamState: {
-          messageStarted: boolean;
-          textContentBlockStarted: boolean;
-        },
-        activeToolCalls: Map<number, boolean>,
-      ) => ModelStreamEvent[];
-    };
+    const { formatChatRequest, mapChatChunkToEvents } =
+      await loadOpenAiChatAdapter();
+    const client = (this as unknown as { _client: OpenAI })._client;
+    const rewrap = (
+      this as unknown as { _rewrapError: (e: unknown) => unknown }
+    )._rewrapError;
+
     try {
-      const request = self._formatRequest(messages, options);
-      const raw = await self._client.chat.completions.create(request);
+      const request = formatChatRequest(
+        this.getConfig() as OpenAIChatConfig,
+        messages,
+        options,
+      );
+      const raw = await client.chat.completions.create(request);
       const stream = splitUsageOntoEmptyChoicesChunk(
         raw as AsyncIterable<OpenAI.Chat.Completions.ChatCompletionChunk>,
       );
@@ -182,11 +196,7 @@ export class StrandsTensorZeroModel extends OpenAIModel {
           | Record<string, unknown>
           | undefined;
         const prelude = preludeEventsForTensorZeroDelta(delta, streamState);
-        const base = self._mapOpenAIChunkToSDKEvents(
-          chunk,
-          streamState,
-          activeToolCalls,
-        );
+        const base = mapChatChunkToEvents(chunk, streamState, activeToolCalls);
         const events = injectReasoningStopBeforeMessageStop(
           [...prelude, ...base],
           streamState,
@@ -204,24 +214,7 @@ export class StrandsTensorZeroModel extends OpenAIModel {
         yield bufferedUsage;
       }
     } catch (error) {
-      const err = error as Error & { status?: number; code?: string };
-      if (
-        err.status === 429 ||
-        err.code === "rate_limit_exceeded" ||
-        RATE_LIMIT_PATTERNS.some((p) => err.message?.toLowerCase().includes(p))
-      ) {
-        const message =
-          err.message ?? "Request was throttled by the model provider";
-        throw new ModelThrottledError(message, { cause: err });
-      }
-      if (
-        CONTEXT_OVERFLOW_PATTERNS.some((p) =>
-          err.message?.toLowerCase().includes(p),
-        )
-      ) {
-        throw new ContextWindowOverflowError(err.message);
-      }
-      throw error;
+      throw rewrap.call(this, error);
     }
   }
 }
