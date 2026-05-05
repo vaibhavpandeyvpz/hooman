@@ -61,6 +61,7 @@ type SearchProvider = ConfigData["search"]["provider"];
 
 const SEARCH_PROVIDER_LABELS: Record<SearchProvider, string> = {
   brave: "Brave",
+  exa: "Exa",
   serper: "Serper",
   tavily: "Tavily",
 };
@@ -940,7 +941,7 @@ export function ConfigureApp({
 
   const renderSearchProviderMenu = () => {
     const items: MenuItem[] = [
-      ...(["brave", "serper", "tavily"] as const).map((provider) => ({
+      ...(["brave", "exa", "serper", "tavily"] as const).map((provider) => ({
         label:
           provider === configData.search.provider
             ? `${SEARCH_PROVIDER_LABELS[provider]} • current`

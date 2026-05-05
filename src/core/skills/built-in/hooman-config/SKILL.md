@@ -47,6 +47,9 @@ This is the default shape Hooman writes when `~/.hooman/config.json` is missing:
     "brave": {
       "apiKey": "..."
     },
+    "exa": {
+      "apiKey": "..."
+    },
     "serper": {
       "apiKey": "..."
     },
@@ -288,7 +291,7 @@ When editing `llms`, preserve unrelated entries and API keys unless the user ask
 
 ## Search
 
-`search.provider` must be `"brave"`, `"serper"`, or `"tavily"`.
+`search.provider` must be `"brave"`, `"exa"`, `"serper"`, or `"tavily"`.
 
 ```json
 {
@@ -296,6 +299,9 @@ When editing `llms`, preserve unrelated entries and API keys unless the user ask
     "enabled": true,
     "provider": "brave",
     "brave": {
+      "apiKey": "..."
+    },
+    "exa": {
       "apiKey": "..."
     },
     "serper": {
@@ -307,6 +313,8 @@ When editing `llms`, preserve unrelated entries and API keys unless the user ask
   }
 }
 ```
+
+Exa uses `POST https://api.exa.ai/search` with the API key in the `x-api-key` header ([Exa search API](https://exa.ai/docs/reference/search-api-guide-for-coding-agents)).
 
 Defaults: `enabled: false`, `provider: "brave"`, all provider API keys unset.
 

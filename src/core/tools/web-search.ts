@@ -5,6 +5,7 @@ import { z } from "zod";
 import type { Config } from "../config.js";
 
 const BRAVE_ENDPOINT = "https://api.search.brave.com/res/v1/web/search";
+const EXA_ENDPOINT = "https://api.exa.ai/search";
 const SERPER_ENDPOINT = "https://google.serper.dev/search";
 const DEFAULT_TIMEOUT_SECONDS = 20;
 const DEFAULT_RESULT_COUNT = 5;
@@ -63,7 +64,7 @@ type NormalizedResult = {
 };
 
 type NormalizedOutput = {
-  provider: "brave" | "serper" | "tavily";
+  provider: "brave" | "exa" | "serper" | "tavily";
   query: string;
   results: NormalizedResult[];
   metadata: {
@@ -122,6 +123,48 @@ function toSerperTbs(input: WebSearchInput): string | undefined {
 function formatSerperDate(date: string): string {
   const [year, month, day] = date.split("-");
   return `${month}/${day}/${year}`;
+}
+
+function toIsoDateUtc(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+
+/** Maps freshness or explicit YYYY-MM-DD range to Exa `startPublishedDate` / `endPublishedDate` (date-only ISO). */
+function exaPublishedRange(input: WebSearchInput): {
+  startPublishedDate?: string;
+  endPublishedDate?: string;
+} {
+  if (input.start_date && input.end_date) {
+    return {
+      startPublishedDate: input.start_date,
+      endPublishedDate: input.end_date,
+    };
+  }
+  if (!input.freshness) {
+    return {};
+  }
+  const end = new Date();
+  const start = new Date(end);
+  switch (input.freshness) {
+    case "day":
+      start.setUTCDate(start.getUTCDate() - 1);
+      break;
+    case "week":
+      start.setUTCDate(start.getUTCDate() - 7);
+      break;
+    case "month":
+      start.setUTCMonth(start.getUTCMonth() - 1);
+      break;
+    case "year":
+      start.setUTCFullYear(start.getUTCFullYear() - 1);
+      break;
+    default:
+      break;
+  }
+  return {
+    startPublishedDate: toIsoDateUtc(start),
+    endPublishedDate: toIsoDateUtc(end),
+  };
 }
 
 function tavilyCountryCode(code: string | undefined): string | undefined {
@@ -190,8 +233,38 @@ function normalizeSerperResults(payload: unknown): NormalizedResult[] {
     .filter((item) => item.url.length > 0);
 }
 
+function snippetFromExaHighlights(item: Record<string, unknown>): string {
+  const highlights = item.highlights;
+  if (Array.isArray(highlights) && highlights.length > 0) {
+    return highlights
+      .map((h) => cleanString(h))
+      .filter((s) => s.length > 0)
+      .join(" ");
+  }
+  return "";
+}
+
+function normalizeExaResults(payload: unknown): NormalizedResult[] {
+  const root = payload as { results?: Array<Record<string, unknown>> };
+  if (!Array.isArray(root.results)) {
+    return [];
+  }
+  return root.results
+    .map((item) => {
+      const fromHighlights = snippetFromExaHighlights(item);
+      const snippet =
+        fromHighlights || cleanString(item.summary) || cleanString(item.text);
+      return {
+        title: cleanString(item.title),
+        url: cleanString(item.url),
+        snippet,
+      };
+    })
+    .filter((item) => item.url.length > 0);
+}
+
 function normalizedOutput(
-  provider: "brave" | "serper" | "tavily",
+  provider: "brave" | "exa" | "serper" | "tavily",
   input: WebSearchInput,
   results: NormalizedResult[],
 ): NormalizedOutput {
@@ -246,6 +319,59 @@ async function searchBrave(
   }
   const parsed = JSON.parse(body) as unknown;
   return normalizedOutput("brave", input, normalizeBraveResults(parsed));
+}
+
+async function searchExa(
+  input: WebSearchInput,
+  apiKey: string,
+  signal: AbortSignal,
+): Promise<NormalizedOutput> {
+  const body: Record<string, unknown> = {
+    query: input.query,
+    numResults: input.count,
+    type: "auto",
+    contents: { highlights: true },
+  };
+  if (input.country) {
+    body.userLocation = input.country.toUpperCase();
+  }
+  const published = exaPublishedRange(input);
+  if (published.startPublishedDate) {
+    body.startPublishedDate = published.startPublishedDate;
+  }
+  if (published.endPublishedDate) {
+    body.endPublishedDate = published.endPublishedDate;
+  }
+  if (input.safe_search === true) {
+    body.moderation = true;
+  }
+
+  const response = await fetch(EXA_ENDPOINT, {
+    method: "POST",
+    signal,
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": apiKey,
+    },
+    body: JSON.stringify(body),
+  });
+  const responseText = await response.text();
+  if (!response.ok) {
+    let detail = responseText;
+    try {
+      const errJson = JSON.parse(responseText) as { error?: string };
+      if (typeof errJson.error === "string" && errJson.error.length > 0) {
+        detail = errJson.error;
+      }
+    } catch {
+      /* keep raw body */
+    }
+    throw new Error(
+      `Exa search failed (${response.status} ${response.statusText}): ${detail}`,
+    );
+  }
+  const parsed = JSON.parse(responseText) as unknown;
+  return normalizedOutput("exa", input, normalizeExaResults(parsed));
 }
 
 async function searchSerper(
@@ -343,6 +469,15 @@ export function createWebSearchTools(config: Config) {
             );
           }
           return toJsonValue(await searchBrave(input, apiKey, signal));
+        }
+        if (provider === "exa") {
+          const apiKey = config.search.exa.apiKey;
+          if (!apiKey) {
+            throw new Error(
+              "Search provider is exa but search.exa.apiKey is missing.",
+            );
+          }
+          return toJsonValue(await searchExa(input, apiKey, signal));
         }
         if (provider === "serper") {
           const apiKey = config.search.serper.apiKey;
