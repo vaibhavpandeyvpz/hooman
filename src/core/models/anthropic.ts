@@ -3,7 +3,10 @@ import { AnthropicModel } from "@strands-agents/sdk/models/anthropic";
 import type { AnthropicModelOptions } from "@strands-agents/sdk/models/anthropic";
 
 /** Config JSON / provider params (`modelId` is set by {@link create}; no injected `client`). */
-export type AnthropicModelParams = Omit<AnthropicModelOptions, "modelId" | "client">;
+export type AnthropicModelParams = Omit<
+  AnthropicModelOptions,
+  "modelId" | "client"
+>;
 
 const RESERVED = new Set([
   "apiKey",

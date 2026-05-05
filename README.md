@@ -30,7 +30,7 @@ It gives you a practical toolkit to build and run agent workflows:
 
 ## Features
 
-- Multiple LLM providers: `ollama`, `openai`, `anthropic`, `google`, `bedrock`, `groq`, `moonshot`, `xai`
+- Multiple LLM providers: `ollama`, `openai`, `tensorzero`, `anthropic`, `google`, `bedrock`, `groq`, `moonshot`, `xai`
 - Local configuration under `~/.hooman`
 - Optional web search tool with provider selection (`brave`, `serper`, or `tavily`)
 - MCP server support via `stdio`, `streamable-http`, and `sse`
@@ -293,7 +293,7 @@ Important files and folders:
 
 ## Example `config.json`
 
-This is the config shape loaded by Hooman:
+The canonical on-disk shape uses a **`llms`** array (non-empty): each item has `name`, `options` (`provider`, `model`, `params`), and `default`. The bundled **hooman-config** skill documents the full schema. The JSON below uses a single **`llm`** object only as a shorthand for the active profile’s `options` fields.
 
 ```json
 {
@@ -364,10 +364,11 @@ This is the config shape loaded by Hooman:
 
 Tool approvals are session-scoped and are not persisted in `config.json`.
 
-Supported `llm.provider` values:
+Supported `llm.provider` values (in `config.json` these live under each `llms[].options.provider` entry):
 
 - `ollama`
 - `openai`
+- `tensorzero`
 - `anthropic`
 - `google`
 - `bedrock`
@@ -397,6 +398,8 @@ Good default for local usage. Example:
 
 ### OpenAI
 
+Uses Strands **OpenAIModel** (Chat Completions). `apiKey` is optional if `OPENAI_API_KEY` is set. Use `clientConfig` for a custom base URL or other OpenAI client options (OpenAI-compatible proxies and gateways).
+
 Example:
 
 ```json
@@ -409,9 +412,30 @@ Example:
 }
 ```
 
+OpenAI-compatible gateways that put token `usage` on the last streamed chunk together with `choices` are handled via a small stream shim so usage still surfaces in the UI.
+
+### TensorZero
+
+Use for a [TensorZero](https://tensorzero.com) gateway’s **OpenAI-compatible** HTTP API (for example `/openai/v1`). Same general `params` shape as **OpenAI** (`apiKey`, `clientConfig.baseURL`, etc.), but implemented with **StrandsTensorZeroModel** so gateway-specific streaming works end-to-end: reasoning carried in `tensorzero_extra_content` shows as thinking in the chat UI, and usage metadata is normalized.
+
+```json
+{
+  "provider": "tensorzero",
+  "model": "tensorzero::function_name::chat",
+  "params": {
+    "apiKey": "your-tensorzero-or-gateway-key",
+    "clientConfig": {
+      "baseURL": "http://localhost:3000/openai/v1"
+    }
+  }
+}
+```
+
+Use `tensorzero` when the backend is TensorZero; use `openai` for the official OpenAI API or generic Chat Completions proxies that do not need TensorZero’s extra stream fields.
+
 ### Anthropic
 
-Provider-specific settings such as `apiKey`, `authToken`, `baseURL`, and `headers` are supported. Other values are forwarded into the model config.
+Uses Strands **AnthropicModel** (Anthropic Messages API). `apiKey` or `authToken`, optional `baseURL` and `headers` (merged into `clientConfig`), optional `clientConfig`, and model fields such as `temperature` and `maxTokens`. A prebuilt `client` is not configurable from JSON.
 
 ```json
 {

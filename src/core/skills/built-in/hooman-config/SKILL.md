@@ -136,6 +136,7 @@ Runtime APIs may still expose a single active profile as `llm` (derived from the
   "groq",
   "moonshot",
   "openai",
+  "tensorzero",
   "ollama",
   "bedrock",
   "xai"
@@ -166,12 +167,13 @@ Common shape (single default model):
 
 Provider notes (these refer to fields inside `options.params` unless noted):
 
-- `anthropic`: `params.apiKey`, `authToken`, `baseURL`, and `headers` configure the provider. Other keys are forwarded as Vercel model config, such as `temperature` and `maxTokens`.
+- `anthropic`: Strands **AnthropicModel** (Anthropic Messages API via `@anthropic-ai/sdk`). `params.apiKey` or `params.authToken`, optional `baseURL` and `headers` (merged into `clientConfig`), optional `clientConfig`, plus model fields such as `temperature`, `maxTokens`, `topP`, `stopSequences`, and `params`. A custom `client` instance is not supported from config. If no key is set, `ANTHROPIC_API_KEY` is used.
 - `google`: `params.apiKey`, `client`, `clientConfig`, and `builtInTools` are top-level Google model options. Other keys become Gemini generation params, such as `temperature`, `maxOutputTokens`, `topP`, and `topK`.
 - `groq`: `params.apiKey`, `baseURL`, and `headers` configure the provider. Other keys are forwarded as Vercel model config.
 - `moonshot`: `params.apiKey`, `baseURL`, `headers`, and `fetch` configure the provider. Other keys are forwarded as Vercel model config.
 - `xai`: `params.apiKey`, `baseURL`, and `headers` configure the provider. Other keys are forwarded as Vercel model config.
-- `openai`: `params.apiKey` is passed to the OpenAI model wrapper; `model` becomes `modelId`.
+- `openai`: Strands **OpenAIModel** (Chat Completions). `params.apiKey` (or env `OPENAI_API_KEY`), optional `clientConfig` (e.g. `baseURL` for an OpenAI-compatible HTTP API). `model` becomes `modelId`. Streaming usage from some gateways is normalized automatically. For a **TensorZero** gateway, prefer **`tensorzero`** if you want reasoning/thinking streamed into the UI and consistent usage metadata.
+- `tensorzero`: Same Chat Completions shape as `openai`, but **`StrandsTensorZeroModel`** — use for a [TensorZero](https://tensorzero.com) gateway’s OpenAI-compatible route (e.g. `clientConfig.baseURL` like `http://localhost:3000/openai/v1`). Maps gateway `tensorzero_extra_content` thoughts to Strands reasoning deltas and normalizes final-chunk usage. `model` is typically `tensorzero::function_name::<name>` (or other TensorZero model id strings the gateway accepts).
 - `ollama`: `params.host`, `keepAlive`, `options`, and `think` configure the Ollama wrapper. `think` may be `true`, `false`, `"high"`, `"medium"`, or `"low"`.
 - `bedrock`: `params.region`, `clientConfig`, and optional `apiKey` configure Bedrock access. Put AWS credentials under `params.clientConfig.credentials` with `accessKeyId`, `secretAccessKey`, and optional `sessionToken`; put an AWS CLI/shared-config profile name in `params.clientConfig.profile`. If credentials and profile are omitted, Bedrock uses the AWS SDK default credential chain, including environment variables and AWS CLI/shared credentials. Other keys are forwarded as Bedrock model options, such as `temperature`, `maxTokens`, `stream`, and `cacheConfig`.
 
