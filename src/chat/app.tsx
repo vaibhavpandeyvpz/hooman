@@ -15,7 +15,12 @@ import {
   type AgentStreamEvent,
   type ContentBlock,
   type MessageData,
+  type Usage,
 } from "@strands-agents/sdk";
+import {
+  accumulateUsage,
+  createEmptyUsage,
+} from "../lib/strands-usage-accumulate.js";
 import { bootstrap } from "../core/index.js";
 import type { Config } from "../core/config.js";
 import type { Manager as McpManager } from "../core/mcp/index.js";
@@ -47,6 +52,13 @@ import { applySessionMode } from "../core/agent/sync-tool-registry-mode.js";
 import { attachmentPathsToPromptBlocks } from "../core/utils/attachments.js";
 import { isMouseInput } from "./mouse.js";
 import type { PromptSubmission } from "./components/prompt-input/hooks/usePromptInputController.js";
+
+/** Status bar: Strands `Usage` for the current user turn + summed latency across model cycles. */
+type TurnUsageStatus = Usage & { latencyMs: number };
+
+function emptyTurnUsage(): TurnUsageStatus {
+  return { ...createEmptyUsage(), latencyMs: 0 };
+}
 
 type ChatAppProps = {
   agent: Agent;
@@ -263,12 +275,7 @@ export function ChatApp({
   const [skillsFound, setSkillsFound] = useState(0);
   const [turnStartedAt, setTurnStartedAt] = useState<number | null>(null);
   const [turnElapsedMs, setTurnElapsedMs] = useState(0);
-  const [usage, setUsage] = useState({
-    inputTokens: 0,
-    outputTokens: 0,
-    totalTokens: 0,
-    latencyMs: 0,
-  });
+  const [usage, setUsage] = useState<TurnUsageStatus>(emptyTurnUsage);
   const [pendingApproval, setPendingApproval] =
     useState<ApprovalRequest | null>(null);
   const [picker, setPicker] = useState<null | "model" | "yolo" | "mode">(null);
@@ -747,19 +754,38 @@ export function ChatApp({
                 }
               }
               if (modelEvent?.type === "modelMetadataEvent") {
-                const usageData = (modelEvent.usage ?? {}) as {
-                  inputTokens?: number;
-                  outputTokens?: number;
-                  totalTokens?: number;
+                const u = (modelEvent.usage ?? {}) as Partial<Usage>;
+                const delta: Usage = {
+                  inputTokens: u.inputTokens ?? 0,
+                  outputTokens: u.outputTokens ?? 0,
+                  totalTokens: u.totalTokens ?? 0,
+                  ...(u.cacheReadInputTokens !== undefined && {
+                    cacheReadInputTokens: u.cacheReadInputTokens,
+                  }),
+                  ...(u.cacheWriteInputTokens !== undefined && {
+                    cacheWriteInputTokens: u.cacheWriteInputTokens,
+                  }),
                 };
                 const metricsData = (modelEvent.metrics ?? {}) as {
                   latencyMs?: number;
                 };
-                setUsage({
-                  inputTokens: usageData.inputTokens ?? 0,
-                  outputTokens: usageData.outputTokens ?? 0,
-                  totalTokens: usageData.totalTokens ?? 0,
-                  latencyMs: metricsData.latencyMs ?? 0,
+                const lat = metricsData.latencyMs ?? 0;
+                // Sum every `modelMetadataEvent` for this chat session (Strands meter semantics). Never reset on
+                // new prompts so the footer stays monotonic; note input totals sum per-request prompt sizes.
+                setUsage((prev) => {
+                  const tokens: Usage = {
+                    inputTokens: prev.inputTokens,
+                    outputTokens: prev.outputTokens,
+                    totalTokens: prev.totalTokens,
+                    ...(prev.cacheReadInputTokens !== undefined && {
+                      cacheReadInputTokens: prev.cacheReadInputTokens,
+                    }),
+                    ...(prev.cacheWriteInputTokens !== undefined && {
+                      cacheWriteInputTokens: prev.cacheWriteInputTokens,
+                    }),
+                  };
+                  accumulateUsage(tokens, delta);
+                  return { ...tokens, latencyMs: prev.latencyMs + lat };
                 });
               }
               break;

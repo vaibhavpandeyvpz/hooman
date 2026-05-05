@@ -40,7 +40,9 @@ export function stripAssistantReasoningBlocks(messages: Message[]): Message[] {
  * That row is dropped on the wire after stripping reasoning; pending text is merged into the
  * next wire assistant’s replay slot.
  */
-export function collectReasoningTextPerWireAssistant(messages: Message[]): string[] {
+export function collectReasoningTextPerWireAssistant(
+  messages: Message[],
+): string[] {
   const out: string[] = [];
   const pendingReasoning: string[] = [];
 
@@ -124,8 +126,7 @@ export function applyKimiReasoningReplayToChatRequest(
     assistantOrdinal += 1;
 
     const hasReplay = raw.trim().length > 0;
-    const hasTools =
-      !!extended.tool_calls && extended.tool_calls.length > 0;
+    const hasTools = !!extended.tool_calls && extended.tool_calls.length > 0;
 
     let thoughtText: string | null = null;
     if (hasReplay) {
