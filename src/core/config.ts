@@ -10,6 +10,7 @@ export enum LlmProvider {
   OpenAI = "openai",
   Ollama = "ollama",
   Bedrock = "bedrock",
+  TensorZero = "tensorzero",
   Xai = "xai",
 }
 

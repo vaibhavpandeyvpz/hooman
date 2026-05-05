@@ -122,12 +122,20 @@ export { create as createGoogleModelProvider } from "./core/models/google.js";
 export { create as createGroqModelProvider } from "./core/models/groq.js";
 export { create as createMoonshotModelProvider } from "./core/models/moonshot.js";
 export { create as createOllamaModelProvider } from "./core/models/ollama/index.js";
-export { create as createOpenAIModelProvider } from "./core/models/openai.js";
+export {
+  create as createOpenAIModelProvider,
+  type OpenAIModelParams,
+} from "./core/models/openai/index.js";
+export { create as createTensorZeroModelProvider } from "./core/models/tensorzero/index.js";
 export { create as createXaiModelProvider } from "./core/models/xai.js";
 export {
   StrandsOllamaModel,
   type OllamaModelConfig,
 } from "./core/models/ollama/strands-ollama.js";
+export {
+  StrandsTensorZeroModel,
+  type TensorZeroModelConfig,
+} from "./core/models/tensorzero/index.js";
 
 export {
   LongTermMemoryStore,

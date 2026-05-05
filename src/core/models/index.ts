@@ -14,6 +14,7 @@ export const modelProviders: Record<string, () => Promise<ModelProvider>> = {
   groq: () => import("./groq.js"),
   moonshot: () => import("./moonshot.js"),
   ollama: () => import("./ollama/index.js"),
-  openai: () => import("./openai.js"),
+  openai: () => import("./openai/index.js"),
+  tensorzero: () => import("./tensorzero/index.js"),
   xai: () => import("./xai.js"),
 };
