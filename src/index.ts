@@ -129,7 +129,7 @@ export {
   create as createOpenAIModelProvider,
   type OpenAIModelParams,
 } from "./core/models/openai/index.js";
-export { create as createBitfrostModelProvider } from "./core/models/bitfrost/index.js";
+export { create as createBifrostModelProvider } from "./core/models/bifrost/index.js";
 export { create as createTensorZeroModelProvider } from "./core/models/tensorzero/index.js";
 export { create as createXaiModelProvider } from "./core/models/xai.js";
 export {
@@ -137,9 +137,9 @@ export {
   type OllamaModelConfig,
 } from "./core/models/ollama/strands-ollama.js";
 export {
-  StrandsBitfrostModel,
-  type BitfrostModelConfig,
-} from "./core/models/bitfrost/index.js";
+  StrandsBifrostModel,
+  type BifrostModelConfig,
+} from "./core/models/bifrost/index.js";
 export {
   StrandsTensorZeroModel,
   type TensorZeroModelConfig,

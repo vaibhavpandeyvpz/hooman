@@ -1,9 +1,9 @@
 /**
- * Bitfrost serves the OpenAI-compatible API under `/openai/v1/...`. The OpenAI client expects
+ * Bifrost serves the OpenAI-compatible API under `/openai/v1/...`. The OpenAI client expects
  * `baseURL` to include the `/v1` prefix. Users may set only the gateway origin (e.g.
  * `http://localhost:8080`); we append `/openai/v1` in that case.
  */
-export function normalizeBitfrostClientBaseURL(raw: string): string {
+export function normalizeBifrostClientBaseURL(raw: string): string {
   const trimmed = raw.trim().replace(/\/+$/, "");
   let url: URL;
   try {

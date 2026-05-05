@@ -46,13 +46,13 @@ function loadOpenAiChatAdapter() {
   return chatAdapterPromise;
 }
 
-type BitfrostStreamState = {
+type BifrostStreamState = {
   messageStarted: boolean;
   textContentBlockStarted: boolean;
   reasoningContentBlockStarted: boolean;
 };
 
-/** Bitfrost/Moonshot streams may omit `delta.role`; Strands requires it for a valid turn. */
+/** Bifrost/Moonshot streams may omit `delta.role`; Strands requires it for a valid turn. */
 function ensureAssistantRoleOnFirstDelta(
   chunk: OpenAI.Chat.Completions.ChatCompletionChunk,
   injected: { value: boolean },
@@ -93,7 +93,7 @@ function ensureAssistantRoleOnFirstDelta(
 
 function closeOpenReasoningBeforeWireEvents(
   delta: Record<string, unknown> | undefined,
-  streamState: BitfrostStreamState,
+  streamState: BifrostStreamState,
 ): ModelStreamEvent[] {
   if (!delta || !streamState.reasoningContentBlockStarted) {
     return [];
@@ -113,7 +113,7 @@ function closeOpenReasoningBeforeWireEvents(
 
 function openReasoningDeltaEvents(
   delta: Record<string, unknown> | undefined,
-  streamState: BitfrostStreamState,
+  streamState: BifrostStreamState,
 ): ModelStreamEvent[] {
   const out: ModelStreamEvent[] = [];
   if (!delta) {
@@ -136,7 +136,7 @@ function openReasoningDeltaEvents(
 
 function injectReasoningStopBeforeMessageStop(
   events: ModelStreamEvent[],
-  streamState: BitfrostStreamState,
+  streamState: BifrostStreamState,
 ): ModelStreamEvent[] {
   const out: ModelStreamEvent[] = [];
   for (const e of events) {
@@ -153,15 +153,15 @@ function injectReasoningStopBeforeMessageStop(
 }
 
 /**
- * {@link OpenAIModel} tuned for Bitfrost (and similar gateways) fronting Moonshot/Kimi OpenAI
+ * {@link OpenAIModel} tuned for Bifrost (and similar gateways) fronting Moonshot/Kimi OpenAI
  * routes: `delta.reasoning`, missing initial `delta.role`, `reasoning_content` replay for tool
  * turns, and usage on the final streamed chunk.
  */
-export class StrandsBitfrostModel extends OpenAIModel {
+export class StrandsBifrostModel extends OpenAIModel {
   constructor(options: OpenAIModelOptions) {
     if (options.api !== "chat") {
       throw new Error(
-        `Bitfrost provider requires api: 'chat' (got '${String(options.api)}')`,
+        `Bifrost provider requires api: 'chat' (got '${String(options.api)}')`,
       );
     }
     super(options);
@@ -200,7 +200,7 @@ export class StrandsBitfrostModel extends OpenAIModel {
         raw as AsyncIterable<OpenAI.Chat.Completions.ChatCompletionChunk>,
       );
 
-      const streamState: BitfrostStreamState = {
+      const streamState: BifrostStreamState = {
         messageStarted: false,
         textContentBlockStarted: false,
         reasoningContentBlockStarted: false,

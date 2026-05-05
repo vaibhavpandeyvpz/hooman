@@ -132,7 +132,7 @@ Runtime APIs may still expose a single active profile as `llm` (derived from the
 ```json
 [
   "anthropic",
-  "bitfrost",
+  "bifrost",
   "google",
   "groq",
   "moonshot",
@@ -174,7 +174,7 @@ Provider notes (these refer to fields inside `options.params` unless noted):
 - `moonshot`: `params.apiKey`, `baseURL`, `headers`, and `fetch` configure the provider. Other keys are forwarded as Vercel model config.
 - `xai`: `params.apiKey`, `baseURL`, and `headers` configure the provider. Other keys are forwarded as Vercel model config.
 - `openai`: Strands **OpenAIModel** (Chat Completions). `params.apiKey` (or env `OPENAI_API_KEY`), optional `clientConfig` (e.g. `baseURL` for an OpenAI-compatible HTTP API). `model` becomes `modelId`. A small client patch splits final-chunk `usage` when it arrives with non-empty `choices` so Strands can record token usage.
-- `bitfrost`: Same Chat Completions `params` shape as `openai`, but **`StrandsBitfrostModel`** — use for a Bitfrost gateway fronting Moonshot/Kimi. Set `clientConfig.baseURL` to the gateway origin (e.g. `http://localhost:8080`); `/openai/v1` is appended automatically. Handles `delta.reasoning`, missing initial `delta.role`, Moonshot `reasoning_content` on tool turns, and final-chunk usage.
+- `bifrost`: Same Chat Completions `params` shape as `openai`, but **`StrandsBifrostModel`** — use for a Bifrost gateway fronting Moonshot/Kimi. Set `clientConfig.baseURL` to the gateway origin (e.g. `http://localhost:8080`); `/openai/v1` is appended automatically. Handles `delta.reasoning`, missing initial `delta.role`, Moonshot `reasoning_content` on tool turns, and final-chunk usage.
 - `tensorzero`: Same Chat Completions shape as `openai`, but **`StrandsTensorZeroModel`** — use for a [TensorZero](https://tensorzero.com) gateway’s OpenAI-compatible route (e.g. `clientConfig.baseURL` like `http://localhost:3000/openai/v1`). Maps gateway `tensorzero_extra_content` thoughts to Strands reasoning deltas and normalizes final-chunk usage. `model` is typically `tensorzero::function_name::<name>` (or other TensorZero model id strings the gateway accepts). For gateway tag-based rate limits, set `params.params["tensorzero::tags"]` (e.g. `user_id`) in the model entry in config.
 - `ollama`: `params.host`, `keepAlive`, `options`, and `think` configure the Ollama wrapper. `think` may be `true`, `false`, `"high"`, `"medium"`, or `"low"`.
 - `bedrock`: `params.region`, `clientConfig`, and optional `apiKey` configure Bedrock access. Put AWS credentials under `params.clientConfig.credentials` with `accessKeyId`, `secretAccessKey`, and optional `sessionToken`; put an AWS CLI/shared-config profile name in `params.clientConfig.profile`. If credentials and profile are omitted, Bedrock uses the AWS SDK default credential chain, including environment variables and AWS CLI/shared credentials. Other keys are forwarded as Bedrock model options, such as `temperature`, `maxTokens`, `stream`, and `cacheConfig`.

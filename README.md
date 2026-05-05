@@ -414,13 +414,13 @@ Example:
 
 OpenAI-compatible gateways that put token `usage` on the last streamed chunk together with `choices` are handled via a small stream shim so usage still surfaces in the UI.
 
-### Bitfrost
+### Bifrost
 
-Use **`bitfrost`** (not `openai`) when routing through a Bitfrost OpenAI-compatible gateway to **Moonshot / Kimi**. Set `clientConfig.baseURL` to the gateway **origin only** (e.g. `http://localhost:8080`); `/openai/v1` is appended automatically. Same `params` shape as **OpenAI**, implemented with **StrandsBitfrostModel**: `delta.reasoning` streaming, synthetic `delta.role` when missing, `reasoning_content` replay for tool turns, and final-chunk usage handling.
+Use **`bifrost`** (not `openai`) when routing through a Bifrost OpenAI-compatible gateway to **Moonshot / Kimi**. Set `clientConfig.baseURL` to the gateway **origin only** (e.g. `http://localhost:8080`); `/openai/v1` is appended automatically. Same `params` shape as **OpenAI**, implemented with **StrandsBifrostModel**: `delta.reasoning` streaming, synthetic `delta.role` when missing, `reasoning_content` replay for tool turns, and final-chunk usage handling.
 
 ```json
 {
-  "provider": "bitfrost",
+  "provider": "bifrost",
   "model": "Moonshot/kimi-k2.6",
   "params": {
     "apiKey": "dummy-key",
@@ -455,7 +455,7 @@ Gateway features such as **tag-scoped rate limits** use TensorZero tags on each 
 }
 ```
 
-Use `tensorzero` when the backend is TensorZero; use `bitfrost` for Bitfrost → Kimi; use `openai` for the official OpenAI API or generic Chat Completions proxies that do not need those gateway-specific stream shapes.
+Use `tensorzero` when the backend is TensorZero; use `bifrost` for Bifrost → Kimi; use `openai` for the official OpenAI API or generic Chat Completions proxies that do not need those gateway-specific stream shapes.
 
 ### Anthropic
 

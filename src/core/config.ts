@@ -4,7 +4,7 @@ import { z } from "zod";
 /** LLM backend; extend as you add providers. */
 export enum LlmProvider {
   Anthropic = "anthropic",
-  Bitfrost = "bitfrost",
+  Bifrost = "bifrost",
   Google = "google",
   Groq = "groq",
   Moonshot = "moonshot",

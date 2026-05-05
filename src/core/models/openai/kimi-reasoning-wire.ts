@@ -92,7 +92,7 @@ export type KimiReasoningWireApplyOptions = {
 };
 
 /**
- * Direct Moonshot / Kimi OpenAI API (e.g. via Bitfrost): when thinking is on, assistant rows
+ * Direct Moonshot / Kimi OpenAI API (e.g. via Bifrost): when thinking is on, assistant rows
  * with `tool_calls` must include non-empty `reasoning_content`. Strands stores thinking in
  * `reasoningBlock`; strip those before `formatChatRequest`, collect via
  * {@link collectReasoningTextPerWireAssistant}, then call this.
