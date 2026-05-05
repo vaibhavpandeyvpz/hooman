@@ -1,12 +1,5 @@
-import type { Message } from "@strands-agents/sdk";
 import type OpenAI from "openai";
-
-/**
- * Kimi + tool calls with thinking on still needs a non-empty thought when we have no session
- * replay text; TensorZero carries that as {@link TensorZeroExtraThoughtBlock}, not Moonshot’s
- * raw `reasoning_content` field.
- */
-const MOONSHOT_REASONING_PLACEHOLDER = " ";
+import { MOONSHOT_REASONING_PLACEHOLDER } from "../openai/kimi-reasoning-wire.js";
 
 /**
  * TensorZero’s OpenAI-compat assistant struct has `content`, `tool_calls`, and
@@ -14,76 +7,13 @@ const MOONSHOT_REASONING_PLACEHOLDER = " ";
  * never reaches Moonshot. Replay chain-of-thought as `tensorzero_extra_content` entries with
  * `type: "thought"` (see TensorZero `openai_messages_to_input` / `ExtraContentBlock::Thought`).
  *
- * Strands’ adapter merges `reasoningBlock` into `content`; we strip those blocks before
- * `formatChatRequest`, collect their text per wire assistant row, then attach thoughts here.
+ * Shared Strands → wire helpers: `openai/kimi-reasoning-wire.ts`.
  */
 
-/** Shallow copy: assistant `content` without `reasoningBlock` (other roles unchanged). */
-export function stripAssistantReasoningBlocks(messages: Message[]): Message[] {
-  return messages.map((msg) => {
-    if (msg.role !== "assistant") {
-      return msg;
-    }
-    return {
-      ...msg,
-      content: msg.content.filter((b) => b.type !== "reasoningBlock"),
-    } as Message;
-  });
-}
-
-/**
- * One entry per Strands assistant turn that survives Strands’ OpenAI formatter (non-empty
- * visible text and/or at least one tool use). Order matches `assistant` rows in
- * `formatChatMessages` output.
- *
- * **Carry-over:** Strands may emit a reasoning-only assistant `Message` (no text, no tools).
- * That row is dropped on the wire after stripping reasoning; pending text is merged into the
- * next wire assistant’s replay slot.
- */
-export function collectReasoningTextPerWireAssistant(
-  messages: Message[],
-): string[] {
-  const out: string[] = [];
-  const pendingReasoning: string[] = [];
-
-  for (const msg of messages) {
-    if (msg.role !== "assistant") {
-      continue;
-    }
-    const reasoningParts: string[] = [];
-    const textParts: string[] = [];
-    let toolUseCount = 0;
-    for (const block of msg.content) {
-      if (block.type === "reasoningBlock") {
-        if (block.text) {
-          reasoningParts.push(block.text);
-        }
-      } else if (block.type === "textBlock") {
-        textParts.push(block.text);
-      } else if (block.type === "toolUseBlock") {
-        toolUseCount += 1;
-      }
-    }
-    const reasoningJoined = reasoningParts.join("\n");
-    const textContent = textParts.join("").trim();
-    const producesWireAssistant = textContent.length > 0 || toolUseCount > 0;
-
-    if (!producesWireAssistant) {
-      if (reasoningJoined.length > 0) {
-        pendingReasoning.push(reasoningJoined);
-      }
-      continue;
-    }
-
-    const combined = [...pendingReasoning, reasoningJoined]
-      .filter((s) => s.length > 0)
-      .join("\n");
-    pendingReasoning.length = 0;
-    out.push(combined);
-  }
-
-  return out;
-}
+export {
+  collectReasoningTextPerWireAssistant,
+  stripAssistantReasoningBlocks,
+} from "../openai/kimi-reasoning-wire.js";
 
 /**
  * TensorZero OpenAI-compat thought block (serde `ExtraContentBlock::Thought` with flattened

@@ -10,6 +10,7 @@ export type ModelProvider = {
 export const modelProviders: Record<string, () => Promise<ModelProvider>> = {
   anthropic: () => import("./anthropic.js"),
   bedrock: () => import("./bedrock.js"),
+  bitfrost: () => import("./bitfrost/index.js"),
   google: () => import("./google.js"),
   groq: () => import("./groq.js"),
   moonshot: () => import("./moonshot.js"),
