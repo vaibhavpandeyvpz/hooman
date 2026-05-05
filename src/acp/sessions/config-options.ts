@@ -89,7 +89,7 @@ export function buildSessionConfigOptions(
       id: HOOMAN_WIKI_CONFIG_ID,
       name: "Wiki",
       description:
-        "When enabled, the agent can read, write, and search wiki pages (local QMD index under wiki/.qmd).",
+        "When enabled, the agent can read, write, and search wiki pages (local QMD index under $HOOMAN_HOME/wiki/.qmd).",
       category: "_hooman",
       currentValue: config.wiki.enabled ? "on" : "off",
       options: [

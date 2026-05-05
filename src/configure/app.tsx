@@ -1173,7 +1173,7 @@ export function ConfigureApp({
     return (
       <MenuScreen
         title="Wiki"
-        description="Local wiki under wiki/ with semantic search via QMD (wiki/.qmd/index.sqlite). Requires QMD/SQLite setup; first embed may download models."
+        description="Local wiki under $HOOMAN_HOME/wiki with semantic search via QMD (.qmd/index.sqlite). Requires QMD/SQLite setup; first embed may download models."
         items={items}
       />
     );

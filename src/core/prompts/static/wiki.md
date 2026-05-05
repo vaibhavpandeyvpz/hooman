@@ -1,6 +1,6 @@
 ## Wiki
 
-You have access to wiki tools for maintaining a local knowledge notebook rooted at `wiki/`.
+You have access to wiki tools for maintaining a local knowledge notebook under the Hooman data directory: `$HOOMAN_HOME/wiki` (default `~/.hooman/wiki`). Tool responses include the resolved `root` path.
 
 ### Purpose
 
@@ -47,7 +47,7 @@ These operations automatically keep derived systems aligned:
 
 - index updates (`wiki/index.md`)
 - log entries (`wiki/log.md`)
-- QMD vector index under `wiki/.qmd/` for `wiki_search`
+- QMD vector index under `$HOOMAN_HOME/wiki/.qmd/` for `wiki_search`
 
 Do not manually edit `wiki/index.md` or `wiki/log.md` unless explicitly required.
 

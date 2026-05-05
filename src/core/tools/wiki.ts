@@ -6,9 +6,8 @@ import { tool } from "@strands-agents/sdk";
 import type { JSONValue } from "@strands-agents/sdk";
 import { z } from "zod";
 import type { Config } from "../config.js";
-import { getCwd } from "../utils/cwd-context.js";
+import { wikiPath } from "../utils/paths.js";
 
-const WIKI_DIR = "wiki";
 const PAGES_DIR = "pages";
 const INDEX_FILE = "index.md";
 const LOG_FILE = "log.md";
@@ -49,10 +48,6 @@ type PageRecord = {
 
 function toJsonValue(value: unknown): JSONValue {
   return JSON.parse(JSON.stringify(value)) as JSONValue;
-}
-
-function wikiRoot(): string {
-  return path.join(getCwd(), WIKI_DIR);
 }
 
 function stripLeadingSlashes(value: string): string {
@@ -336,7 +331,7 @@ async function appendLog(
 }
 
 function qmdDbPath(): string {
-  return path.join(wikiRoot(), QMD_DIR, QMD_DB_FILE);
+  return path.join(wikiPath(), QMD_DIR, QMD_DB_FILE);
 }
 
 function mapVectorChunkToMatch(row: SearchResult, root: string, index: number) {
@@ -364,7 +359,7 @@ function mapVectorChunkToMatch(row: SearchResult, root: string, index: number) {
 }
 
 export function createWikiTools(_config: Config) {
-  const root = wikiRoot();
+  const root = wikiPath();
   let storePromise: Promise<QMDStore> | null = null;
 
   const getStore = async (): Promise<QMDStore> => {
@@ -664,7 +659,7 @@ export function createWikiTools(_config: Config) {
     tool({
       name: "wiki_search",
       description:
-        "Semantic search over stored wiki chunks from indexed files. Returns matching snippets; use wiki_read_file on paths you need in full.",
+        "Semantic search over wiki chunks (QMD index under $HOOMAN_HOME/wiki/.qmd/index.sqlite). Returns matching snippets; use wiki_read_file on paths you need in full.",
       inputSchema: z.object({
         query: z.string().min(1),
         k: z.number().int().min(1).max(MAX_SEARCH_LIMIT).optional(),

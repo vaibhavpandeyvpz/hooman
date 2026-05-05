@@ -242,7 +242,7 @@ Long-term memory uses Chroma:
 
 - `tools.ltm.chroma` (default collection: `memory`)
 
-The wiki tool uses a **local QMD** index only (not Chroma): after page writes, pages under `wiki/pages/` are indexed into `wiki/.qmd/index.sqlite`. See [@tobilu/qmd](https://www.npmjs.com/package/@tobilu/qmd) for SQLite extension requirements (e.g. macOS Homebrew SQLite) and on-first-use embedding model downloads. Remove any legacy `tools.wiki.chroma` block from older configs; wiki is controlled by `tools.wiki.enabled` only.
+The wiki tool uses a **local QMD** index only (not Chroma): after page writes, pages under `$HOOMAN_HOME/wiki/pages` (default `~/.hooman/wiki/pages`) are indexed into `$HOOMAN_HOME/wiki/.qmd/index.sqlite`. See [@tobilu/qmd](https://www.npmjs.com/package/@tobilu/qmd) for SQLite extension requirements (e.g. macOS Homebrew SQLite) and on-first-use embedding model downloads. Remove any legacy `tools.wiki.chroma` block from older configs; wiki is controlled by `tools.wiki.enabled` only.
 
 ### `hooman configure`
 

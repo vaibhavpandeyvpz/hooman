@@ -25,6 +25,7 @@ export {
   mcpJsonPath,
   sessionsPath,
   skillsPath,
+  wikiPath,
 } from "./core/utils/paths.js";
 export {
   attachmentDiagnosticBlock,

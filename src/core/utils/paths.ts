@@ -40,3 +40,7 @@ export const plansPath = () => {
 export const skillsPath = () => {
   return join(basePath(), "skills");
 };
+
+export const wikiPath = () => {
+  return join(basePath(), "wiki");
+};

@@ -383,7 +383,7 @@ Wiki:
 }
 ```
 
-Semantic search uses a local QMD index at `wiki/.qmd/index.sqlite` (not Chroma).
+Semantic search uses a local QMD index at `$HOOMAN_HOME/wiki/.qmd/index.sqlite` (not Chroma).
 
 Agents:
 
@@ -398,7 +398,7 @@ Agents:
 }
 ```
 
-Defaults: `todo`, `fetch`, `filesystem`, `shell`, `sleep`, and `agents` enabled; `ltm` and `wiki` disabled; LTM Chroma URL `http://127.0.0.1:8000`; memory collection `memory`. Wiki search is QMD-only under `wiki/.qmd/` when `tools.wiki.enabled` is true. MCP server definitions and installed skill files are not controlled by config tool toggles; do not inspect or edit them for this skill. A missing config file is created with `agents.concurrency: 2`; if `tools.agents.concurrency` is omitted while merging partial tool config, Hooman uses `3`.
+Defaults: `todo`, `fetch`, `filesystem`, `shell`, `sleep`, and `agents` enabled; `ltm` and `wiki` disabled; LTM Chroma URL `http://127.0.0.1:8000`; memory collection `memory`. Wiki search is QMD-only under `$HOOMAN_HOME/wiki/.qmd/` when `tools.wiki.enabled` is true. MCP server definitions and installed skill files are not controlled by config tool toggles; do not inspect or edit them for this skill. A missing config file is created with `agents.concurrency: 2`; if `tools.agents.concurrency` is omitted while merging partial tool config, Hooman uses `3`.
 
 ## Instructions
 
