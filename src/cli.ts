@@ -134,6 +134,7 @@ program
       } = await bootstrap(
         "default",
         {
+          userId: "default",
           sessionId,
           yolo: Boolean(options.yolo),
           sessionMode: options.mode,
