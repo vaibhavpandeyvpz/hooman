@@ -1,6 +1,6 @@
 {
   "name": "hoomanjs",
-  "version": "1.28.1",
+  "version": "1.28.2",
   "description": "Hackable AI agent toolkit for building local CLI, ACP, MCP, and channel-driven workflows.",
   "author": {
     "name": "Vaibhav Pandey",
