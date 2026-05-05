@@ -418,6 +418,8 @@ OpenAI-compatible gateways that put token `usage` on the last streamed chunk tog
 
 Use for a [TensorZero](https://tensorzero.com) gateway’s **OpenAI-compatible** HTTP API (for example `/openai/v1`). Same general `params` shape as **OpenAI** (`apiKey`, `clientConfig.baseURL`, etc.), but implemented with **StrandsTensorZeroModel** so gateway-specific streaming works end-to-end: reasoning carried in `tensorzero_extra_content` shows as thinking in the chat UI, and usage metadata is normalized.
 
+Gateway features such as **tag-scoped rate limits** use TensorZero tags on each request. Set them in config under the nested `params` object (Strands forwards that object onto the Chat Completions body), for example `tensorzero::tags.user_id`.
+
 ```json
 {
   "provider": "tensorzero",
@@ -426,6 +428,11 @@ Use for a [TensorZero](https://tensorzero.com) gateway’s **OpenAI-compatible**
     "apiKey": "your-tensorzero-or-gateway-key",
     "clientConfig": {
       "baseURL": "http://localhost:3000/openai/v1"
+    },
+    "params": {
+      "tensorzero::tags": {
+        "user_id": "your-stable-user-or-tenant-id"
+      }
     }
   }
 }
