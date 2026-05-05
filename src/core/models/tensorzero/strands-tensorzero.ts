@@ -9,6 +9,11 @@ import type {
   OpenAIModelOptions,
 } from "@strands-agents/sdk/models/openai";
 import OpenAI from "openai";
+import {
+  applyKimiReasoningReplayToChatRequest,
+  collectReasoningTextPerWireAssistant,
+  stripAssistantReasoningBlocks,
+} from "./openai-chat-request-shims.js";
 import { splitUsageOntoEmptyChoicesChunk } from "../openai/openai-stream-shims.js";
 
 /** Strands 1.x moves chat helpers into `chat-adapter.js`, which is not a package export; load it next to the public `models/openai` entry. */
@@ -152,11 +157,15 @@ export class StrandsTensorZeroModel extends OpenAIModel {
     )._rewrapError;
 
     try {
+      const reasoningPerWireAssistant =
+        collectReasoningTextPerWireAssistant(messages);
+      const messagesForRequest = stripAssistantReasoningBlocks(messages);
       const request = formatChatRequest(
         this.getConfig() as OpenAIChatConfig,
-        messages,
+        messagesForRequest,
         options,
       );
+      applyKimiReasoningReplayToChatRequest(request, reasoningPerWireAssistant);
       const raw = await client.chat.completions.create(request);
       const stream = splitUsageOntoEmptyChoicesChunk(
         raw as AsyncIterable<OpenAI.Chat.Completions.ChatCompletionChunk>,
