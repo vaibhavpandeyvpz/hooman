@@ -392,9 +392,7 @@ async function searchExa(
       type: "auto",
       numResults: input.count,
       contents: { highlights: true },
-      ...(input.country
-        ? { userLocation: input.country.toUpperCase() }
-        : {}),
+      ...(input.country ? { userLocation: input.country.toUpperCase() } : {}),
       ...(published.startPublishedDate
         ? { startPublishedDate: published.startPublishedDate }
         : {}),
@@ -422,10 +420,7 @@ async function searchFirecrawl(
     timeout: FIRECRAWL_SEARCH_TIMEOUT_SECONDS * 1000,
     ...(tbs ? { tbs } : {}),
   };
-  const data = await abortable(
-    firecrawl.search(input.query, options),
-    signal,
-  );
+  const data = await abortable(firecrawl.search(input.query, options), signal);
   return normalizedOutput(
     "firecrawl",
     input,
