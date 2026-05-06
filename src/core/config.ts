@@ -44,23 +44,23 @@ const DEFAULT_PROMPTS = {
   guardrails: true,
 } as const;
 
-const DEFAULT_CHROMA = {
-  url: "http://127.0.0.1:8000",
-  collection: { memory: "memory" },
-} as const;
+/**
+ * Default GGUF embedding model for `node-llama-cpp` `resolveModelFile`.
+ * Must be a resolvable URI (e.g. `hf:…`) or an existing filename under the cache dir;
+ * the bare name `embeddinggemma` is not valid here—see QMD `llm.ts` default.
+ */
+export const DEFAULT_LTM_EMBED_MODEL =
+  "hf:ggml-org/embeddinggemma-300M-GGUF/embeddinggemma-300M-Q8_0.gguf";
 
-const LtmChromaPartialSchema = z.object({
-  url: z.string().min(1).optional(),
-  collection: z
-    .object({
-      memory: z.string().min(1).optional(),
-    })
-    .optional(),
-});
+/** Default wiki (QMD) model URIs (passed into `createStore`; change here to retune wiki search). */
+export const DEFAULT_WIKI_EMBED_MODEL = DEFAULT_LTM_EMBED_MODEL;
+export const DEFAULT_WIKI_RERANK_MODEL =
+  "hf:ggml-org/Qwen3-Reranker-0.6B-Q8_0-GGUF/qwen3-reranker-0.6b-q8_0.gguf";
+export const DEFAULT_WIKI_GENERATE_MODEL =
+  "hf:tobil/qmd-query-expansion-0.6B-gguf/qmd-query-expansion-0.6B-q4_k_m.gguf";
 
 const LtmPartialSchema = z.object({
   enabled: z.boolean().optional(),
-  chroma: LtmChromaPartialSchema.optional(),
 });
 
 const ToolTogglePartialSchema = z.object({
@@ -190,14 +190,6 @@ const ConfigSchema = z
         },
         ltm: {
           enabled: ltm?.enabled ?? false,
-          chroma: {
-            url: ltm?.chroma?.url ?? DEFAULT_CHROMA.url,
-            collection: {
-              memory:
-                ltm?.chroma?.collection?.memory ??
-                DEFAULT_CHROMA.collection.memory,
-            },
-          },
         },
         wiki: {
           enabled: wiki?.enabled ?? false,
@@ -262,10 +254,6 @@ const defaultConfigData = (): ConfigData => ({
     },
     ltm: {
       enabled: false,
-      chroma: {
-        url: "http://127.0.0.1:8000",
-        collection: { memory: "memory" },
-      },
     },
     wiki: {
       enabled: false,
@@ -326,13 +314,7 @@ export class Config {
       filesystem: { ...this.data.tools.filesystem },
       shell: { ...this.data.tools.shell },
       sleep: { ...this.data.tools.sleep },
-      ltm: {
-        ...this.data.tools.ltm,
-        chroma: {
-          ...this.data.tools.ltm.chroma,
-          collection: { ...this.data.tools.ltm.chroma.collection },
-        },
-      },
+      ltm: { ...this.data.tools.ltm },
       wiki: { ...this.data.tools.wiki },
       agents: { ...this.data.tools.agents },
     };

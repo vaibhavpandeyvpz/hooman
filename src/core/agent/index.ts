@@ -1,6 +1,6 @@
 import { Agent, BeforeInvocationEvent } from "@strands-agents/sdk";
 import type { Tool } from "@strands-agents/sdk";
-import type { Config } from "../config.js";
+import { DEFAULT_LTM_EMBED_MODEL, type Config } from "../config.js";
 import { modelProviders } from "../models/index.js";
 import type { Manager as McpManager } from "../mcp/index.js";
 import type { System as SystemPrompt } from "../prompts/index.js";
@@ -9,6 +9,7 @@ import {
   createShortTermMemory,
   createLongTermMemoryStore,
   createLongTermMemoryTools,
+  createWikiStore,
 } from "../memory/index.js";
 import type { Registry } from "../skills/index.js";
 import {
@@ -67,6 +68,21 @@ export async function create(
   const ltm = config.tools.ltm.enabled
     ? createLongTermMemoryStore(config)
     : null;
+  if (ltm) {
+    process.stderr.write(
+      `[hooman] Loading LTM embedding model (${DEFAULT_LTM_EMBED_MODEL})…\n`,
+    );
+    await ltm.warmup();
+    process.stderr.write(`[hooman] LTM embedding model ready.\n`);
+  }
+  const wiki = config.tools.wiki.enabled ? createWikiStore(config) : null;
+  if (wiki) {
+    process.stderr.write(
+      "[hooman] Preloading wiki (QMD) models (embed/rerank/generate)…\n",
+    );
+    await wiki.warmup();
+    process.stderr.write("[hooman] Wiki (QMD) models ready.\n");
+  }
   const prefixed = await mcp.manager.listPrefixedTools();
 
   async function buildBaseSystemPrompt(): Promise<string> {
@@ -92,7 +108,7 @@ export async function create(
     ...(config.tools.filesystem.enabled ? createFilesystemTools() : []),
     ...(config.tools.shell.enabled ? createShellTools() : []),
     ...(config.search.enabled ? createWebSearchTools(config) : []),
-    ...(config.tools.wiki.enabled ? createWikiTools(config) : []),
+    ...(wiki ? createWikiTools(wiki) : []),
     ...createThinkingTools(),
     ...createPlanTools(),
     ...prefixed,

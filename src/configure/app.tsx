@@ -633,7 +633,7 @@ export function ConfigureApp({
         },
       },
       {
-        label: `Long-term memory • ${configData.tools.ltm.enabled ? "Enabled" : "Disabled"} • ${configData.tools.ltm.chroma.collection.memory}`,
+        label: `Long-term memory • ${configData.tools.ltm.enabled ? "Enabled" : "Disabled"}`,
         value: () => setScreen({ kind: "config-ltm" }),
       },
       {
@@ -1068,68 +1068,6 @@ export function ConfigureApp({
         },
       },
       {
-        label: `Chroma URL • ${configData.tools.ltm.chroma.url}`,
-        value: () =>
-          promptValue({
-            title: "Update LTM Chroma URL",
-            label: "URL",
-            initialValue: configData.tools.ltm.chroma.url,
-            onSubmit: async (value) => {
-              const url = value.trim();
-              if (!url) {
-                throw new Error("URL is required.");
-              }
-              updateConfig(
-                {
-                  tools: {
-                    ...config.tools,
-                    ltm: {
-                      ...config.tools.ltm,
-                      chroma: {
-                        ...config.tools.ltm.chroma,
-                        url,
-                      },
-                    },
-                  },
-                },
-                "Updated LTM Chroma URL.",
-              );
-              setPrompt(null);
-            },
-          }),
-      },
-      {
-        label: `Chroma collection • ${configData.tools.ltm.chroma.collection.memory}`,
-        value: () =>
-          promptValue({
-            title: "Update LTM Chroma collection",
-            label: "Collection name",
-            initialValue: configData.tools.ltm.chroma.collection.memory,
-            onSubmit: async (value) => {
-              const memory = value.trim();
-              if (!memory) {
-                throw new Error("Collection name is required.");
-              }
-              updateConfig(
-                {
-                  tools: {
-                    ...config.tools,
-                    ltm: {
-                      ...config.tools.ltm,
-                      chroma: {
-                        ...config.tools.ltm.chroma,
-                        collection: { memory },
-                      },
-                    },
-                  },
-                },
-                "Updated LTM Chroma collection.",
-              );
-              setPrompt(null);
-            },
-          }),
-      },
-      {
         label: "Back",
         value: () => setScreen({ kind: "config-tools" }),
       },
@@ -1138,7 +1076,7 @@ export function ConfigureApp({
     return (
       <MenuScreen
         title="Long-term Memory"
-        description="Configure LTM memory storage and Chroma settings."
+        description="Long-term memory uses ~/.hooman/ltm.sqlite, sqlite-vec, and a fixed GGUF embed model (DEFAULT_LTM_EMBED_MODEL in Hooman)."
         items={items}
       />
     );

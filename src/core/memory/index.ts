@@ -4,6 +4,7 @@ export {
   createLongTermMemoryTools,
   LongTermMemoryStore,
 } from "./ltm/index.js";
+export { WikiStore, createWikiStore } from "./wiki/index.js";
 export type {
   ArchiveMemoryInput,
   LongTermMemoryOptions,

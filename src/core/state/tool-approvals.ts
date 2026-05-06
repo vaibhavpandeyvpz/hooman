@@ -56,10 +56,10 @@ export const INTERNAL_ALWAYS_ALLOWED = new Set([
   "wiki_stats",
   "wiki_write_file",
   // Long-term memory
-  "archive_memory",
-  "search_memory",
-  "store_memory",
-  "update_memory",
+  "memory_archive",
+  "memory_search",
+  "memory_store",
+  "memory_update",
   // Filesystem (list / search / metadata)
   "directory_tree",
   "get_file_info",
@@ -104,7 +104,7 @@ export const PLAN_MODE_VISIBLE = new Set([
   "wiki_stats",
   "wiki_write_file",
   // Long-term memory
-  "search_memory",
+  "memory_search",
   // Filesystem (list / search / metadata)
   "directory_tree",
   "get_file_info",

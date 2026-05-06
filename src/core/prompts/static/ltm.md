@@ -12,7 +12,7 @@ Use it to improve continuity, not as a replacement for the current conversation 
 - Track long-running goals and durable context across sessions
 - Remember facts that reduce repetitive clarification
 
-### When To Load (search_memory)
+### When To Load (memory_search)
 
 - Search memory when:
   - the user references prior work ("continue", "as before", "last time")
@@ -21,7 +21,7 @@ Use it to improve continuity, not as a replacement for the current conversation 
 - Do not search memory for simple self-contained requests where current context is enough
 - Prefer targeted queries over broad fishing searches
 
-### When To Save (store_memory)
+### When To Save (memory_store)
 
 - Store only information that is:
   - durable (likely useful in future sessions)
@@ -38,8 +38,8 @@ Use it to improve continuity, not as a replacement for the current conversation 
 
 ### How To Maintain Memory
 
-- If new info refines/corrects existing memory, use `update_memory` instead of creating duplicates
-- If memory becomes obsolete/incorrect, use `archive_memory` rather than hard deletion
+- If new info refines/corrects existing memory, use `memory_update` instead of creating duplicates
+- If memory becomes obsolete/incorrect, use `memory_archive` rather than hard deletion
 - Keep memory entries concise and normalized for retrieval quality
 - Avoid near-duplicates; prefer one high-quality memory over many weak ones
 

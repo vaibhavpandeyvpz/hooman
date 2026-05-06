@@ -234,15 +234,15 @@ Runtime tool and prompt switches are controlled from `config.json`:
 - `tools.shell.enabled`
 - `tools.sleep.enabled`
 - `tools.ltm.enabled`
+- LTM embed model is fixed in Hooman as `DEFAULT_LTM_EMBED_MODEL` (not configurable in `config.json`).
+- LTM embed GPU: defaults to **CPU** so `memory_search` does not stall on flaky GPU init; set `HOOMAN_LTM_LLAMA_GPU=auto` (or `metal` / `vulkan` / `cuda`) to match QMD-style acceleration. On startup, Hooman preloads the embed model once (see stderr: `Loading LTM embedding model…`).
 - `tools.wiki.enabled`
 - `tools.agents.enabled` (enables built-in `run_agents` tool)
 - `tools.agents.concurrency`
 
-Long-term memory uses Chroma:
+Long-term memory uses **SQLite + sqlite-vec** at `$HOOMAN_HOME/ltm.sqlite` and **local GGUF embeddings** via `node-llama-cpp` (model cache under `$HOOMAN_HOME/ltm-models`). See [@tobilu/qmd](https://www.npmjs.com/package/@tobilu/qmd)-style requirements for native SQLite extensions where applicable.
 
-- `tools.ltm.chroma` (default collection: `memory`)
-
-The wiki tool uses a **local QMD** index only (not Chroma): after page writes, pages under `$HOOMAN_HOME/wiki/pages` (default `~/.hooman/wiki/pages`) are indexed into `$HOOMAN_HOME/wiki/.qmd/index.sqlite`. See [@tobilu/qmd](https://www.npmjs.com/package/@tobilu/qmd) for SQLite extension requirements (e.g. macOS Homebrew SQLite) and on-first-use embedding model downloads. Remove any legacy `tools.wiki.chroma` block from older configs; wiki is controlled by `tools.wiki.enabled` only.
+The wiki tool uses a **local QMD** index: after page writes, pages under `$HOOMAN_HOME/wiki/pages` (default `~/.hooman/wiki/pages`) are indexed into `$HOOMAN_HOME/wiki/.qmd/index.sqlite`. See [@tobilu/qmd](https://www.npmjs.com/package/@tobilu/qmd) for SQLite extension requirements (e.g. macOS Homebrew SQLite) and on-first-use embedding model downloads.
 
 ### `hooman configure`
 
@@ -288,6 +288,8 @@ Hooman stores its data in:
 Important files and folders:
 
 - `config.json` - app name, LLM provider/model, tool flags, LTM/wiki settings, compaction
+- `ltm.sqlite` - long-term memory vectors + rows (created when LTM is used)
+- `ltm-models/` - downloaded GGUF embedding weights for LTM
 - `instructions.md` - system instructions used to build the agent prompt
 - `mcp.json` - MCP server definitions
 - `skills/` - installed skills
@@ -339,11 +341,8 @@ The canonical on-disk shape uses a **`llms`** array (non-empty): each item has `
     },
     "ltm": {
       "enabled": false,
-      "chroma": {
-        "url": "http://127.0.0.1:8000",
-        "collection": {
-          "memory": "memory"
-        }
+      "embed": {
+        "model": "hf:ggml-org/embeddinggemma-300M-GGUF/embeddinggemma-300M-Q8_0.gguf"
       }
     },
     "wiki": {

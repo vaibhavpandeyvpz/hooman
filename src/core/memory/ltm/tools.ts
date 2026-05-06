@@ -35,7 +35,7 @@ function resolveScope(context?: ToolContext): LongTermMemoryScope {
 export function create(ltm: LongTermMemoryStore) {
   return [
     tool({
-      name: "store_memory",
+      name: "memory_store",
       description:
         "Store important long-term memory. Only use for reusable facts, preferences, or tasks.",
       inputSchema: z.object({
@@ -67,7 +67,7 @@ export function create(ltm: LongTermMemoryStore) {
       },
     }),
     tool({
-      name: "search_memory",
+      name: "memory_search",
       description:
         "Search relevant past memory for context. Use only if additional context is needed.",
       inputSchema: z.object({
@@ -98,7 +98,7 @@ export function create(ltm: LongTermMemoryStore) {
       },
     }),
     tool({
-      name: "update_memory",
+      name: "memory_update",
       description:
         "Update or correct an existing memory. Prefer this over deleting.",
       inputSchema: z.object({
@@ -122,7 +122,7 @@ export function create(ltm: LongTermMemoryStore) {
       },
     }),
     tool({
-      name: "archive_memory",
+      name: "memory_archive",
       description: "Mark memory as no longer relevant without deleting it.",
       inputSchema: z.object({
         id: z.string().min(1),

@@ -4,7 +4,14 @@
 export { bootstrap } from "./core/index.js";
 export type { AcpMeta, BootstrapMeta, BootstrapMode } from "./core/index.js";
 
-export { Config as HoomanConfig, LlmProvider } from "./core/config.js";
+export {
+  Config as HoomanConfig,
+  DEFAULT_LTM_EMBED_MODEL,
+  DEFAULT_WIKI_EMBED_MODEL,
+  DEFAULT_WIKI_GENERATE_MODEL,
+  DEFAULT_WIKI_RERANK_MODEL,
+  LlmProvider,
+} from "./core/config.js";
 export type {
   CompactionConfig,
   ConfigData,
@@ -22,6 +29,8 @@ export {
   basePath,
   configJsonPath,
   instructionsMdPath,
+  ltmDbPath,
+  modelsCachePath,
   mcpJsonPath,
   sessionsPath,
   skillsPath,
@@ -166,7 +175,6 @@ export type {
 export { LazySessionManager } from "./core/memory/stm/lazy-session-manager.js";
 export type { LazySessionManagerConfig } from "./core/memory/stm/lazy-session-manager.js";
 export { FlatFileStorage } from "./core/memory/stm/flat-file-storage.js";
-export { HFEmbedding } from "./core/memory/ltm/embed.js";
 export type {
   Memory,
   MemoryStatus,
@@ -176,16 +184,15 @@ export {
   DEFAULT_DEDUPE_THRESHOLD,
   DEFAULT_HALF_LIFE_MS,
   DEFAULT_REINFORCEMENT_STEP,
-  buildWhere,
-  chromaClientArgsFromUrl,
+  buildMemorySqlFilter,
   clampSearchLimit,
   clampUnitInterval,
   getEffectiveStrength,
   similarity,
-  toChromaMetadata,
+  toLtmMemoryRow,
   toMemory,
 } from "./core/memory/ltm/utils.js";
-export type { ChromaMemoryMetadata } from "./core/memory/ltm/utils.js";
+export type { LtmMemoryRow } from "./core/memory/ltm/utils.js";
 
 export {
   BUILTIN_AGENT_CONFIGS,

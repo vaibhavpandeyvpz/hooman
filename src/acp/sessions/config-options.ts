@@ -76,7 +76,7 @@ export function buildSessionConfigOptions(
       id: HOOMAN_LTM_CONFIG_ID,
       name: "Long-term memory",
       description:
-        "When enabled, the agent can store and search memories (requires Chroma at the configured URL).",
+        "When enabled, the agent can store and search long-term memories (local SQLite + sqlite-vec).",
       category: "_hooman",
       currentValue: config.ltm.enabled ? "on" : "off",
       options: [

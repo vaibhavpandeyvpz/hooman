@@ -23,7 +23,7 @@ function printSessionResumeHint(program: string, sessionId: string): void {
   const exe = program.trim() || "hooman";
   console.log("");
   console.log(styleText(["dim", "gray"], " Resume this session next time:"));
-  console.log(`   ${exe} chat -s ${sessionId}`);
+  console.log(` ${exe} chat -s ${sessionId}`);
 }
 
 export async function chat(options: LaunchChatOptions): Promise<boolean> {

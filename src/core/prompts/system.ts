@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import handlebars from "handlebars";
@@ -48,6 +48,8 @@ export class System {
   private readonly config: Config;
   private readonly mode: SystemMode;
   private data = "";
+  private sourceFingerprint = "";
+  private compiledTemplate: ReturnType<typeof compile> | null = null;
 
   public constructor(
     path: string,
@@ -132,6 +134,34 @@ export class System {
     return readFileSync(path, "utf8").trim();
   }
 
+  /** Stats prompt sources so we only re-read disk + recompile Handlebars when files change. */
+  private computeSourceFingerprint(): string {
+    const parts: string[] = [];
+    const pushPath = (label: string, filePath: string) => {
+      if (!existsSync(filePath)) {
+        parts.push(`${label}:missing`);
+        return;
+      }
+      const st = statSync(filePath);
+      parts.push(`${label}:${st.mtimeMs}:${st.size}`);
+    };
+
+    pushPath("instructions", this.path);
+    const staticDir = join(dirname(fileURLToPath(import.meta.url)), "static");
+    for (const file of this.staticPromptFiles()) {
+      pushPath(`static:${file}`, join(staticDir, file));
+    }
+    const harnessDir = join(dirname(fileURLToPath(import.meta.url)), "harness");
+    for (const { key, file } of HARNESS_PROMPT_FILES) {
+      if (!this.config.prompts[key]) {
+        continue;
+      }
+      pushPath(`harness:${file}`, join(harnessDir, file));
+    }
+    pushPath("agents-md", join(process.cwd(), EXTRA_CWD_INSTRUCTIONS));
+    return parts.join("|");
+  }
+
   private readRawText(): string {
     const instructions = existsSync(this.path)
       ? readFileSync(this.path, "utf8").trim()
@@ -177,8 +207,12 @@ export class System {
   }
 
   public async reload(): Promise<void> {
-    const raw = this.readRawText();
-    const template = compile(raw);
-    this.data = template(this.context()).trim();
+    const fp = this.computeSourceFingerprint();
+    if (fp !== this.sourceFingerprint || this.compiledTemplate === null) {
+      const raw = this.readRawText();
+      this.compiledTemplate = compile(raw);
+      this.sourceFingerprint = fp;
+    }
+    this.data = this.compiledTemplate(this.context()).trim();
   }
 }

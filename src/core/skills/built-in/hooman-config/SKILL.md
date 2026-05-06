@@ -20,7 +20,7 @@ Use this skill when the user asks you to inspect, explain, or change Hooman's ow
 2. Make the smallest JSON edit that satisfies the request. Do not rewrite unrelated sections or normalize formatting beyond valid pretty JSON.
 3. `name` and `llms` are required. `llms` must be a **non-empty array** of entries (see below). `search`, `prompts`, `tools`, and `compaction` are optional in input, but Hooman expands them with defaults when loading.
 4. Unknown keys are unsupported and may be dropped when Hooman parses and persists the config.
-5. If changing `tools.ltm`, preserve the existing `chroma` object unless the user asked to change it. `tools.wiki` has only `enabled`; remove any legacy `chroma` block under `wiki` if present.
+5. `tools.ltm` has only `enabled` (embed model is fixed in Hooman). `tools.wiki` has only `enabled`.
 6. Any change to `config.json` or `instructions.md` requires restarting the running Hooman agent/session before it takes effect.
 
 ## Full Config Shape
@@ -83,13 +83,7 @@ This is the default shape Hooman writes when `~/.hooman/config.json` is missing:
       "enabled": true
     },
     "ltm": {
-      "enabled": false,
-      "chroma": {
-        "url": "http://127.0.0.1:8000",
-        "collection": {
-          "memory": "memory"
-        }
-      }
+      "enabled": false
     },
     "wiki": {
       "enabled": false
@@ -359,13 +353,7 @@ Long-term memory:
 {
   "tools": {
     "ltm": {
-      "enabled": true,
-      "chroma": {
-        "url": "http://127.0.0.1:8000",
-        "collection": {
-          "memory": "memory"
-        }
-      }
+      "enabled": true
     }
   }
 }
@@ -383,7 +371,7 @@ Wiki:
 }
 ```
 
-Semantic search uses a local QMD index at `$HOOMAN_HOME/wiki/.qmd/index.sqlite` (not Chroma).
+Semantic search uses a local QMD index at `$HOOMAN_HOME/wiki/.qmd/index.sqlite`.
 
 Agents:
 
@@ -398,7 +386,7 @@ Agents:
 }
 ```
 
-Defaults: `todo`, `fetch`, `filesystem`, `shell`, `sleep`, and `agents` enabled; `ltm` and `wiki` disabled; LTM Chroma URL `http://127.0.0.1:8000`; memory collection `memory`. Wiki search is QMD-only under `$HOOMAN_HOME/wiki/.qmd/` when `tools.wiki.enabled` is true. MCP server definitions and installed skill files are not controlled by config tool toggles; do not inspect or edit them for this skill. A missing config file is created with `agents.concurrency: 2`; if `tools.agents.concurrency` is omitted while merging partial tool config, Hooman uses `3`.
+Defaults: `todo`, `fetch`, `filesystem`, `shell`, `sleep`, and `agents` enabled; `ltm` and `wiki` disabled; LTM embed model is fixed in Hooman as **embeddinggemma** (`hf:ggml-org/embeddinggemma-300M-GGUF/embeddinggemma-300M-Q8_0.gguf`); vectors live in `$HOOMAN_HOME/ltm.sqlite`. Wiki search is QMD-only under `$HOOMAN_HOME/wiki/.qmd/` when `tools.wiki.enabled` is true. MCP server definitions and installed skill files are not controlled by config tool toggles; do not inspect or edit them for this skill. A missing config file is created with `agents.concurrency: 2`; if `tools.agents.concurrency` is omitted while merging partial tool config, Hooman uses `3`.
 
 ## Instructions
 

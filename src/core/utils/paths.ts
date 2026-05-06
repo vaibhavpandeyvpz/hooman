@@ -44,3 +44,12 @@ export const skillsPath = () => {
 export const wikiPath = () => {
   return join(basePath(), "wiki");
 };
+
+/** Fixed wiki search index SQLite DB under the wiki directory (not configurable). */
+export const wikiDbPath = () => join(wikiPath(), ".qmd", "index.sqlite");
+
+/** Fixed path for long-term memory SQLite DB (not configurable). */
+export const ltmDbPath = () => join(basePath(), "ltm.sqlite");
+
+/** Shared GGUF model cache for LTM and QMD (wiki). */
+export const modelsCachePath = () => join(basePath(), ".models");

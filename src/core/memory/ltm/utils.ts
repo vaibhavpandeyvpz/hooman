@@ -1,4 +1,3 @@
-import type { Where } from "chromadb";
 import type {
   LongTermMemoryScope,
   Memory,
@@ -13,7 +12,8 @@ export const DEFAULT_DEDUPE_THRESHOLD = 0.92;
 const DEFAULT_SEARCH_LIMIT = 5;
 const MAX_SEARCH_LIMIT = 20;
 
-export type ChromaMemoryMetadata = {
+/** Serializable metadata shape for the LTM SQLite store. */
+export type LtmMemoryRow = {
   userId: string;
   type: MemoryType;
   status: MemoryStatus;
@@ -26,7 +26,6 @@ export type ChromaMemoryMetadata = {
   lastAccessedAt: number | null;
   version: number;
   source: MemorySource;
-  /** Omitted when empty: Chroma rejects `[]` for list metadata values. */
   tags?: string[];
   entities?: string[];
   relatedTo?: string[];
@@ -105,14 +104,14 @@ export function getEffectiveStrength(
   return metadata.strength * Math.exp(-age / halfLifeMs);
 }
 
-export function toChromaMetadata(memory: Memory): ChromaMemoryMetadata {
+export function toLtmMemoryRow(memory: Memory): LtmMemoryRow {
   const tags = (memory.metadata.tags ?? []).filter((t) => t.length > 0);
   const entities = (memory.metadata.entities ?? []).filter((t) => t.length > 0);
   const relatedTo = (memory.metadata.relatedTo ?? []).filter(
     (t) => t.length > 0,
   );
 
-  const meta: ChromaMemoryMetadata = {
+  const meta: LtmMemoryRow = {
     userId: memory.userId,
     type: memory.type,
     status: memory.status,
@@ -144,7 +143,7 @@ export function toChromaMetadata(memory: Memory): ChromaMemoryMetadata {
 export function toMemory(
   id: string,
   content: string,
-  metadata: ChromaMemoryMetadata | null | undefined,
+  metadata: LtmMemoryRow | null | undefined,
 ): Memory {
   const createdAt = Number(metadata?.createdAt ?? Date.now());
   return {
@@ -174,45 +173,40 @@ export function toMemory(
   };
 }
 
-export function buildWhere(
+export function buildMemorySqlFilter(
   scope: LongTermMemoryScope,
   options?: {
     status?: MemoryStatus;
     includeArchived?: boolean;
     types?: MemoryType[];
+    idIn?: string[];
   },
-): Where {
-  // Chroma v3: top-level `where` must have exactly one key (field predicate or $and/$or).
-  const parts: Where[] = [{ userId: scope.userId } as Where];
+): { sql: string; params: unknown[] } {
+  const params: unknown[] = [];
+  const parts: string[] = ["user_id = ?"];
+  params.push(scope.userId);
 
   const statusFilter = options?.includeArchived
     ? options.status
     : (options?.status ?? "active");
 
   if (statusFilter !== undefined) {
-    parts.push({ status: statusFilter } as Where);
+    parts.push("status = ?");
+    params.push(statusFilter);
   }
 
   if (options?.types?.length) {
-    parts.push({ type: { $in: options.types } } as Where);
+    parts.push(`type IN (${options.types.map(() => "?").join(",")})`);
+    params.push(...options.types);
   }
 
-  if (parts.length === 1) {
-    return parts[0]!;
+  if (options?.idIn?.length) {
+    parts.push(`id IN (${options.idIn.map(() => "?").join(",")})`);
+    params.push(...options.idIn);
   }
 
-  return { $and: parts } as Where;
-}
-
-export function chromaClientArgsFromUrl(urlString: string): {
-  host: string;
-  port?: number;
-  ssl: boolean;
-} {
-  const url = new URL(urlString);
   return {
-    host: url.hostname,
-    port: url.port ? Number(url.port) : undefined,
-    ssl: url.protocol === "https:",
+    sql: parts.length ? ` AND ${parts.join(" AND ")}` : "",
+    params,
   };
 }

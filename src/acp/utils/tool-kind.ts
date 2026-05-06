@@ -29,10 +29,10 @@ const KNOWN_TOOL_KINDS = new Map<string, ToolKind>([
   ["update_todos", "other"],
   ["get_current_time", "other"],
   ["convert_time", "other"],
-  ["store_memory", "edit"],
-  ["search_memory", "search"],
-  ["update_memory", "edit"],
-  ["archive_memory", "edit"],
+  ["memory_store", "edit"],
+  ["memory_search", "search"],
+  ["memory_update", "edit"],
+  ["memory_archive", "edit"],
 ]);
 
 export { INTERNAL_ALWAYS_ALLOWED };
