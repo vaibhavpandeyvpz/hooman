@@ -50,12 +50,12 @@ const DEFAULT_PROMPTS = {
  * the bare name `embeddinggemma` is not valid here—see QMD `llm.ts` default.
  */
 export const DEFAULT_LTM_EMBED_MODEL =
-  "hf:ggml-org/embeddinggemma-300M-GGUF/embeddinggemma-300M-Q8_0.gguf";
+  "hf:unsloth/embeddinggemma-300m-GGUF/embeddinggemma-300m-Q4_0.gguf";
 
 /** Default wiki (QMD) model URIs (passed into `createStore`; change here to retune wiki search). */
 export const DEFAULT_WIKI_EMBED_MODEL = DEFAULT_LTM_EMBED_MODEL;
 export const DEFAULT_WIKI_RERANK_MODEL =
-  "hf:ggml-org/Qwen3-Reranker-0.6B-Q8_0-GGUF/qwen3-reranker-0.6b-q8_0.gguf";
+  "hf:felipe-cmsa/Qwen3-Reranker-0.6B-Q4_K_M-GGUF/qwen3-reranker-0.6b-q4_k_m.gguf";
 export const DEFAULT_WIKI_GENERATE_MODEL =
   "hf:tobil/qmd-query-expansion-0.6B-gguf/qmd-query-expansion-0.6B-q4_k_m.gguf";
 
