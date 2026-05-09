@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import path from "node:path";
 import { Box, Text, useApp, useInput } from "ink";
 import {
   LlmProvider,
@@ -16,6 +17,8 @@ import type {
   SkillListEntry,
   SkillSearchResult,
 } from "../core/skills/registry.js";
+import { Storage } from "../core/wiki/storage.js";
+import type { WikiListResult } from "../core/wiki/storage.js";
 import {
   basePath,
   configJsonPath,
@@ -67,6 +70,17 @@ const SEARCH_PROVIDER_LABELS: Record<SearchProvider, string> = {
   tavily: "Tavily",
 };
 
+/** On/off display for tool rows (`Tool • Yes` / `Tool • No`). */
+const yesNo = (on: boolean): string => (on ? "Yes" : "No");
+
+const WIKI_DOCS_PAGE_SIZE = 15;
+
+type WikiDocsListState =
+  | { status: "idle" }
+  | { status: "loading"; page: number }
+  | { status: "ready"; page: number; result: WikiListResult }
+  | { status: "error"; page: number; message: string };
+
 export function ConfigureApp({
   config,
   mcpConfig,
@@ -81,6 +95,14 @@ export function ConfigureApp({
   const [revision, setRevision] = useState(0);
   const [installedSkills, setInstalledSkills] = useState<SkillListEntry[]>([]);
   const [searchResults, setSearchResults] = useState<SkillSearchResult[]>([]);
+  const [wikiDocsList, setWikiDocsList] = useState<WikiDocsListState>({
+    status: "idle",
+  });
+  const [wikiDocsNonce, setWikiDocsNonce] = useState(0);
+
+  const bumpWikiDocs = useCallback(() => {
+    setWikiDocsNonce((n) => n + 1);
+  }, []);
 
   const refresh = useCallback(() => {
     setRevision((value) => value + 1);
@@ -117,6 +139,39 @@ export function ConfigureApp({
     void refreshSkills();
   }, [refreshSkills]);
 
+  const wikiDocsPage = screen.kind === "config-wiki-docs" ? screen.page : null;
+
+  useEffect(() => {
+    if (wikiDocsPage == null) {
+      setWikiDocsList({ status: "idle" });
+      return;
+    }
+    let cancelled = false;
+    setWikiDocsList({ status: "loading", page: wikiDocsPage });
+    void (async () => {
+      try {
+        const storage = Storage.create();
+        await storage.warmup();
+        const result = await storage.list(wikiDocsPage, WIKI_DOCS_PAGE_SIZE);
+        await storage.close();
+        if (!cancelled) {
+          setWikiDocsList({ status: "ready", page: wikiDocsPage, result });
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setWikiDocsList({
+            status: "error",
+            page: wikiDocsPage,
+            message: error instanceof Error ? error.message : String(error),
+          });
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [wikiDocsPage, wikiDocsNonce]);
+
   useInput(
     (input, key) => {
       if (key.ctrl && input.toLowerCase() === "c") {
@@ -142,6 +197,18 @@ export function ConfigureApp({
       }
       if (screen.kind === "config-llm-delete-confirm") {
         setScreen({ kind: "config-llm-edit", name: screen.name });
+        return;
+      }
+      if (screen.kind === "config-wiki-delete-confirm") {
+        setScreen({ kind: "config-wiki-docs", page: screen.page });
+        return;
+      }
+      if (screen.kind === "config-wiki-docs") {
+        setScreen({ kind: "config-wiki" });
+        return;
+      }
+      if (screen.kind === "config-wiki") {
+        setScreen({ kind: "config-tools" });
         return;
       }
       if (screen.kind !== "home") {
@@ -544,11 +611,11 @@ export function ConfigureApp({
   const renderToolsConfigMenu = () => {
     const items: MenuItem[] = [
       {
-        label: `Search tool • ${configData.search.enabled ? "Enabled" : "Disabled"} • ${SEARCH_PROVIDER_LABELS[configData.search.provider]}`,
+        label: `Search tool • ${yesNo(configData.search.enabled)} • ${SEARCH_PROVIDER_LABELS[configData.search.provider]}`,
         value: () => setScreen({ kind: "config-search" }),
       },
       {
-        label: `Todo tool • ${configData.tools.todo.enabled ? "Enabled" : "Disabled"}`,
+        label: `Todo tool • ${yesNo(configData.tools.todo.enabled)}`,
         value: () => {
           updateConfig(
             {
@@ -565,7 +632,7 @@ export function ConfigureApp({
         },
       },
       {
-        label: `Fetch tool • ${configData.tools.fetch.enabled ? "Enabled" : "Disabled"}`,
+        label: `Fetch tool • ${yesNo(configData.tools.fetch.enabled)}`,
         value: () => {
           updateConfig(
             {
@@ -582,7 +649,7 @@ export function ConfigureApp({
         },
       },
       {
-        label: `Filesystem tool • ${configData.tools.filesystem.enabled ? "Enabled" : "Disabled"}`,
+        label: `Filesystem tool • ${yesNo(configData.tools.filesystem.enabled)}`,
         value: () => {
           updateConfig(
             {
@@ -599,7 +666,7 @@ export function ConfigureApp({
         },
       },
       {
-        label: `Shell tool • ${configData.tools.shell.enabled ? "Enabled" : "Disabled"}`,
+        label: `Shell tool • ${yesNo(configData.tools.shell.enabled)}`,
         value: () => {
           updateConfig(
             {
@@ -616,7 +683,7 @@ export function ConfigureApp({
         },
       },
       {
-        label: `Sleep tool • ${configData.tools.sleep.enabled ? "Enabled" : "Disabled"}`,
+        label: `Sleep tool • ${yesNo(configData.tools.sleep.enabled)}`,
         value: () => {
           updateConfig(
             {
@@ -633,11 +700,11 @@ export function ConfigureApp({
         },
       },
       {
-        label: `Long-term memory • ${configData.tools.memory.enabled ? "Enabled" : "Disabled"}`,
+        label: `Memory tool • ${yesNo(configData.tools.memory.enabled)}`,
         value: () => setScreen({ kind: "config-ltm" }),
       },
       {
-        label: `Wiki tool • ${configData.tools.wiki.enabled ? "Enabled" : "Disabled"}`,
+        label: `Wiki tool • ${yesNo(configData.tools.wiki.enabled)}`,
         value: () => setScreen({ kind: "config-wiki" }),
       },
       {
@@ -910,7 +977,7 @@ export function ConfigureApp({
         const enabled = configData.prompts[key];
         const label = PROMPT_LABELS[key];
         return {
-          label: `${label} • ${enabled ? "Enabled" : "Disabled"}`,
+          label: `${label} • ${yesNo(enabled)}`,
           value: () => {
             updateConfig(
               {
@@ -986,7 +1053,7 @@ export function ConfigureApp({
     );
     const items: MenuItem[] = [
       {
-        label: `Enabled • ${configData.search.enabled ? "On" : "Off"}`,
+        label: `Enabled • ${yesNo(configData.search.enabled)}`,
         value: () => {
           updateConfig(
             {
@@ -1050,7 +1117,7 @@ export function ConfigureApp({
   const renderLtmConfigMenu = () => {
     const items: MenuItem[] = [
       {
-        label: `Enabled • ${configData.tools.memory.enabled ? "On" : "Off"}`,
+        label: `Enabled • ${yesNo(configData.tools.memory.enabled)}`,
         value: () => {
           updateConfig(
             {
@@ -1062,7 +1129,7 @@ export function ConfigureApp({
                 },
               },
             },
-            `Long-term memory ${configData.tools.memory.enabled ? "disabled" : "enabled"}.`,
+            `Memory tool ${configData.tools.memory.enabled ? "disabled" : "enabled"}.`,
           );
           setScreen({ kind: "config-ltm" });
         },
@@ -1075,8 +1142,8 @@ export function ConfigureApp({
 
     return (
       <MenuScreen
-        title="Long-term Memory"
-        description="Long-term memory uses ~/.hooman/memory.sqlite, sqlite-vec, and a fixed GGUF embed model (DEFAULT_EMBED_MODEL in Hooman)."
+        title="Memory tool"
+        description="Vectors live in ~/.hooman/memory.sqlite (sqlite-vec). Embedding model is fixed in code (DEFAULT_EMBED_MODEL)."
         items={items}
       />
     );
@@ -1085,7 +1152,7 @@ export function ConfigureApp({
   const renderWikiConfigMenu = () => {
     const items: MenuItem[] = [
       {
-        label: `Enabled • ${configData.tools.wiki.enabled ? "On" : "Off"}`,
+        label: `Tool • ${yesNo(configData.tools.wiki.enabled)}`,
         value: () => {
           updateConfig(
             {
@@ -1103,6 +1170,10 @@ export function ConfigureApp({
         },
       },
       {
+        label: "Manage documents",
+        value: () => setScreen({ kind: "config-wiki-docs", page: 1 }),
+      },
+      {
         label: "Back",
         value: () => setScreen({ kind: "config-tools" }),
       },
@@ -1110,8 +1181,187 @@ export function ConfigureApp({
 
     return (
       <MenuScreen
-        title="Wiki"
-        description="When enabled, the agent gets wiki_search over ~/.hooman/wiki (vectors in wiki/content.sqlite via sqlite-vec). Requires sqlite-vec; first embed may download models."
+        title="Tool"
+        description="Turn wiki_search on or off for the agent, then open Manage documents to add or remove PDF/DOCX files under ~/.hooman/wiki. Embedding may download the model on first use."
+        items={items}
+      />
+    );
+  };
+
+  const renderWikiDocsMenu = () => {
+    if (screen.kind !== "config-wiki-docs") {
+      return null;
+    }
+    const { page } = screen;
+
+    if (wikiDocsList.status === "loading" || wikiDocsList.status === "idle") {
+      return <BusyScreen message="Loading documents…" />;
+    }
+    if (wikiDocsList.status === "error") {
+      return (
+        <MenuScreen
+          title="Manage documents"
+          description={`Could not load index: ${wikiDocsList.message}`}
+          items={[
+            {
+              label: "Retry",
+              value: () => bumpWikiDocs(),
+            },
+            {
+              label: "Back",
+              value: () => setScreen({ kind: "config-wiki" }),
+            },
+          ]}
+        />
+      );
+    }
+    if (wikiDocsList.page !== page) {
+      return <BusyScreen message="Loading documents…" />;
+    }
+
+    const { result } = wikiDocsList;
+    const hasPrev = page > 1;
+    const hasNext = result.items.length === WIKI_DOCS_PAGE_SIZE;
+
+    const formatUpdated = (ms: number) => {
+      try {
+        return new Date(ms).toLocaleString(undefined, {
+          dateStyle: "short",
+          timeStyle: "short",
+        });
+      } catch {
+        return String(ms);
+      }
+    };
+
+    const docItems: MenuItem[] = result.items.map((doc) => {
+      const summary = truncate(
+        `${doc.file_name} • ${formatUpdated(doc.updated_at_ms)} • ${doc.original_mime_type}`,
+        96,
+      );
+      return {
+        key: `wiki-remove:${doc.doc_id}`,
+        label: `Remove • ${summary}`,
+        boldSubstring: doc.file_name,
+        value: () =>
+          setScreen({
+            kind: "config-wiki-delete-confirm",
+            docId: doc.doc_id,
+            displayName: doc.file_name,
+            page,
+          }),
+      };
+    });
+
+    const items: MenuItem[] = [
+      {
+        label: "Add document (file path)",
+        value: () =>
+          promptValue({
+            title: "Index a file into the wiki",
+            label: "Absolute path",
+            placeholder: "/path/to/document.pdf",
+            note: "Only PDF and DOCX are supported (PDF needs Java 11+ for OpenDataLoader).",
+            onSubmit: async (value) => {
+              const raw = value.trim();
+              if (!raw) {
+                throw new Error("Path is required.");
+              }
+              const abs = path.resolve(raw);
+              if (!existsSync(abs)) {
+                throw new Error(`File not found: ${abs}`);
+              }
+              setPrompt(null);
+              await runTask(`Indexing "${path.basename(abs)}"…`, async () => {
+                const storage = Storage.create();
+                try {
+                  await storage.warmup();
+                  await storage.add({ filePath: abs });
+                } finally {
+                  await storage.close();
+                }
+                bumpWikiDocs();
+                setSuccess(`Indexed "${path.basename(abs)}".`);
+              });
+              setScreen({ kind: "config-wiki-docs", page: 1 });
+            },
+          }),
+      },
+      ...docItems,
+      ...(hasPrev
+        ? [
+            {
+              label: "Previous page",
+              value: () =>
+                setScreen({ kind: "config-wiki-docs", page: page - 1 }),
+            } satisfies MenuItem,
+          ]
+        : []),
+      ...(hasNext
+        ? [
+            {
+              label: "Next page",
+              value: () =>
+                setScreen({ kind: "config-wiki-docs", page: page + 1 }),
+            } satisfies MenuItem,
+          ]
+        : []),
+      {
+        label: "Back",
+        value: () => setScreen({ kind: "config-wiki" }),
+      },
+    ];
+
+    return (
+      <MenuScreen
+        title={`Manage documents · page ${page}`}
+        description={
+          result.items.length === 0
+            ? "No documents yet. Add a PDF or DOCX path below (PDF needs Java 11+ on PATH)."
+            : `${result.items.length} document(s) on this page.`
+        }
+        items={items}
+      />
+    );
+  };
+
+  const renderWikiDeleteConfirm = () => {
+    if (screen.kind !== "config-wiki-delete-confirm") {
+      return null;
+    }
+    const { docId, displayName, page } = screen;
+    const items: MenuItem[] = [
+      {
+        key: `wiki-del-cancel:${docId}`,
+        label: "No — keep document",
+        value: () => setScreen({ kind: "config-wiki-docs", page }),
+      },
+      {
+        key: `wiki-del-confirm:${docId}`,
+        label: "Yes — remove from index",
+        value: () =>
+          void runTask(`Removing "${displayName}"…`, async () => {
+            const storage = Storage.create();
+            try {
+              await storage.warmup();
+              const ok = await storage.remove(docId);
+              if (!ok) {
+                throw new Error("Document was already removed.");
+              }
+            } finally {
+              await storage.close();
+            }
+            bumpWikiDocs();
+            setSuccess(`Removed "${displayName}" from the wiki index.`);
+            setScreen({ kind: "config-wiki-docs", page });
+          }),
+      },
+    ];
+
+    return (
+      <MenuScreen
+        title="Remove wiki document?"
+        description={`Drop "${displayName}" from the index and delete its stored copies under ~/.hooman/wiki? This cannot be undone.`}
         items={items}
       />
     );
@@ -1401,6 +1651,10 @@ export function ConfigureApp({
         return renderLtmConfigMenu();
       case "config-wiki":
         return renderWikiConfigMenu();
+      case "config-wiki-docs":
+        return renderWikiDocsMenu();
+      case "config-wiki-delete-confirm":
+        return renderWikiDeleteConfirm();
       case "mcp":
         return renderMcpMenu();
       case "mcp-delete-confirm":

@@ -1,19 +1,10 @@
 import path from "node:path";
-import fs from "node:fs/promises";
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
-import { fileTypeFromFile } from "file-type";
-
-const execFileAsync = promisify(execFile);
+import { convert } from "@opendataloader/pdf";
+import mammoth from "mammoth";
 
 export type SupportedWikiMimeType =
   | "application/pdf"
-  | "application/msword"
-  | "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-  | "application/vnd.ms-excel"
-  | "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-  | "text/markdown"
-  | "text/plain";
+  | "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 
 export type ConvertFileOptions = {
   filePath: string;
@@ -29,23 +20,18 @@ export type ConvertedMarkdown = {
 
 const EXTENSION_MIME: Record<string, SupportedWikiMimeType> = {
   ".pdf": "application/pdf",
-  ".doc": "application/msword",
   ".docx":
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  ".xls": "application/vnd.ms-excel",
-  ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-  ".md": "text/markdown",
-  ".txt": "text/plain",
 };
 
 function normalizeText(text: string): string {
   return text.replace(/\r\n/g, "\n").trim();
 }
 
-async function detectMimeType(
+function detectMimeType(
   filePath: string,
   provided?: string,
-): Promise<SupportedWikiMimeType> {
+): SupportedWikiMimeType {
   if (
     provided &&
     Object.values(EXTENSION_MIME).includes(provided as SupportedWikiMimeType)
@@ -53,38 +39,60 @@ async function detectMimeType(
     return provided as SupportedWikiMimeType;
   }
 
-  const detected = await fileTypeFromFile(filePath).catch(() => undefined);
-  if (
-    detected?.mime &&
-    Object.values(EXTENSION_MIME).includes(
-      detected.mime as SupportedWikiMimeType,
-    )
-  ) {
-    return detected.mime as SupportedWikiMimeType;
-  }
-
   const ext = path.extname(filePath).toLowerCase();
   const fallback = EXTENSION_MIME[ext];
   if (fallback) {
     return fallback;
   }
-  throw new Error(`Unsupported file type: ${filePath}`);
+  throw new Error(
+    `Unsupported file type: ${filePath}. Wiki indexing accepts only .pdf and .docx.`,
+  );
 }
 
-async function convertViaPandoc(filePath: string): Promise<string> {
+type MammothMarkdownResult = {
+  value: string;
+  messages: Array<{ type: string; message: string }>;
+};
+
+async function convertDocxToMarkdown(
+  filePath: string,
+  fileName: string,
+): Promise<string> {
   try {
-    const { stdout } = await execFileAsync("pandoc", [
-      "--from=auto",
-      "--to=gfm",
-      "--output=-",
-      filePath,
-    ]);
-    return stdout;
+    const { value, messages } = await (
+      mammoth as unknown as {
+        convertToMarkdown: (input: {
+          path: string;
+        }) => Promise<MammothMarkdownResult>;
+      }
+    ).convertToMarkdown({ path: filePath });
+    const errors = messages.filter((m) => m.type === "error");
+    if (errors.length > 0) {
+      throw new Error(errors.map((e) => e.message).join("; "));
+    }
+    return value;
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    throw new Error(`DOCX conversion failed for ${fileName}: ${msg}`);
+  }
+}
+
+async function convertPdfToMarkdown(
+  filePath: string,
+  fileName: string,
+): Promise<string> {
+  try {
+    const markdown = await convert(filePath, {
+      format: "markdown",
+      toStdout: true,
+      quiet: true,
+    });
+    return markdown;
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
     throw new Error(
-      `Pandoc conversion failed for ${path.basename(filePath)}: ${msg}. ` +
-        "Ensure pandoc is installed and supports this format.",
+      `PDF conversion failed for ${fileName}: ${msg}. ` +
+        "OpenDataLoader PDF needs Java 11+ on your PATH (`java -version`).",
     );
   }
 }
@@ -93,23 +101,13 @@ export async function convertFileToMarkdown(
   options: ConvertFileOptions,
 ): Promise<ConvertedMarkdown> {
   const fileName = path.basename(options.filePath);
-  const mimeType = await detectMimeType(options.filePath, options.mimeType);
-  let markdown = "";
+  const mimeType = detectMimeType(options.filePath, options.mimeType);
+  let markdown: string;
 
-  if (mimeType === "text/markdown" || mimeType === "text/plain") {
-    markdown = await fs.readFile(options.filePath, "utf8");
-  } else if (
-    mimeType === "application/pdf" ||
-    mimeType === "application/msword" ||
-    mimeType ===
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
-    mimeType === "application/vnd.ms-excel" ||
-    mimeType ===
-      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-  ) {
-    markdown = await convertViaPandoc(options.filePath);
+  if (mimeType === "application/pdf") {
+    markdown = await convertPdfToMarkdown(options.filePath, fileName);
   } else {
-    throw new Error(`Unsupported mime type: ${mimeType}`);
+    markdown = await convertDocxToMarkdown(options.filePath, fileName);
   }
 
   const finalMarkdown = normalizeText(markdown);

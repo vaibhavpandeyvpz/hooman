@@ -242,7 +242,7 @@ Runtime tool and prompt switches are controlled from `config.json`:
 
 Long-term memory uses **SQLite + sqlite-vec** at `$HOOMAN_HOME/memory.sqlite` and **local GGUF embeddings** via `node-llama-cpp` (model cache under `$HOOMAN_HOME/.models`). The same **sqlite-vec** native extension requirements apply (see the `sqlite-vec` package and your platform notes).
 
-With **`tools.wiki.enabled`**, the agent gets **`wiki_search`** only: semantic retrieval over the indexed knowledge base. Data lives under `$HOOMAN_HOME/wiki/` with chunks and vectors in **`$HOOMAN_HOME/wiki/content.sqlite`**. The first embed may download the configured GGUF model into `$HOOMAN_HOME/.models`.
+With **`tools.wiki.enabled`**, the agent gets **`wiki_search`** only: semantic retrieval over the indexed knowledge base. Data lives under `$HOOMAN_HOME/wiki/` with chunks and vectors in **`$HOOMAN_HOME/wiki/content.sqlite`**. The first embed may download the configured GGUF model into `$HOOMAN_HOME/.models`. Documents are ingested as **PDF** (via **OpenDataLoader PDF**, which needs **Java 11+** on `PATH`) or **DOCX** (via **mammoth**).
 
 ### `hooman configure`
 
