@@ -22,6 +22,8 @@ const VEC_K_MULTIPLIER = 5;
 export type WikiListResult = {
   page: number;
   pageSize: number;
+  /** Total documents in the wiki (all pages). */
+  total: number;
   items: WikiDocRecord[];
 };
 
@@ -148,6 +150,7 @@ export class Storage {
     return {
       page: p,
       pageSize: ps,
+      total: this.db.countDocs(),
       items: this.db.listDocs(p, ps),
     };
   }

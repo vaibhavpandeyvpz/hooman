@@ -1220,8 +1220,12 @@ export function ConfigureApp({
     }
 
     const { result } = wikiDocsList;
+    const totalPages = Math.max(
+      1,
+      Math.ceil(result.total / WIKI_DOCS_PAGE_SIZE),
+    );
     const hasPrev = page > 1;
-    const hasNext = result.items.length === WIKI_DOCS_PAGE_SIZE;
+    const hasNext = page < totalPages;
 
     const formatUpdated = (ms: number) => {
       try {
@@ -1314,11 +1318,11 @@ export function ConfigureApp({
 
     return (
       <MenuScreen
-        title={`Manage documents · page ${page}`}
+        title={`Manage documents · page ${page} of ${totalPages}`}
         description={
           result.items.length === 0
             ? "No documents yet. Add a PDF or DOCX path below (PDF needs Java 11+ on PATH)."
-            : `${result.items.length} document(s) on this page.`
+            : `${result.total} document(s) total · ${result.items.length} on this page.`
         }
         items={items}
       />

@@ -152,7 +152,10 @@ export {
   open as openMemoryDb,
   prepare as prepareMemoryDb,
 } from "./core/memory/index.js";
-export { createWikiTools } from "./core/wiki/index.js";
+export { Storage as WikiStorage } from "./core/wiki/storage.js";
+export type { WikiDocRecord } from "./core/wiki/database.js";
+export type { WikiListResult } from "./core/wiki/storage.js";
+export { createWikiTools } from "./core/wiki/tools.js";
 export type {
   Memory as LongTermMemory,
   MemoryType,

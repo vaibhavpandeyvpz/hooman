@@ -148,6 +148,13 @@ export class Database {
     setStoreMeta(this.db, META_DIMS, String(dimensions));
   }
 
+  public countDocs(): number {
+    const row = this.db
+      .prepare(`SELECT COUNT(*) AS c FROM wiki_docs`)
+      .get() as { c: number } | undefined;
+    return typeof row?.c === "number" && Number.isFinite(row.c) ? row.c : 0;
+  }
+
   public listDocs(page: number, pageSize: number): WikiDocRecord[] {
     const offset = Math.max(0, (Math.max(1, page) - 1) * Math.max(1, pageSize));
     const limit = Math.max(1, pageSize);
