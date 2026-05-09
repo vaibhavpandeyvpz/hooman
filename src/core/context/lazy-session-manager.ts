@@ -13,7 +13,7 @@ import {
   type SnapshotStorage,
 } from "@strands-agents/sdk";
 import type { JSONValue } from "@strands-agents/sdk";
-import { EXIT_REQUESTED_STATE_KEY } from "../../state/exit-request.js";
+import { EXIT_REQUESTED_STATE_KEY } from "../state/exit-request.js";
 
 const DEFAULT_SESSION_ID = "default-session";
 const DEFAULT_APP_STATE_KEY = "sessionId";

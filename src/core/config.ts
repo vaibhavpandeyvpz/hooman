@@ -44,22 +44,10 @@ const DEFAULT_PROMPTS = {
   guardrails: true,
 } as const;
 
-/**
- * Default GGUF embedding model for `node-llama-cpp` `resolveModelFile`.
- * Must be a resolvable URI (e.g. `hf:…`) or an existing filename under the cache dir;
- * the bare name `embeddinggemma` is not valid here—see QMD `llm.ts` default.
- */
-export const DEFAULT_LTM_EMBED_MODEL =
+export const DEFAULT_EMBED_MODEL =
   "hf:unsloth/embeddinggemma-300m-GGUF/embeddinggemma-300m-Q4_0.gguf";
 
-/** Default wiki (QMD) model URIs (passed into `createStore`; change here to retune wiki search). */
-export const DEFAULT_WIKI_EMBED_MODEL = DEFAULT_LTM_EMBED_MODEL;
-export const DEFAULT_WIKI_RERANK_MODEL =
-  "hf:felipe-cmsa/Qwen3-Reranker-0.6B-Q4_K_M-GGUF/qwen3-reranker-0.6b-q4_k_m.gguf";
-export const DEFAULT_WIKI_GENERATE_MODEL =
-  "hf:tobil/qmd-query-expansion-0.6B-gguf/qmd-query-expansion-0.6B-q4_k_m.gguf";
-
-const LtmPartialSchema = z.object({
+const MemoryPartialSchema = z.object({
   enabled: z.boolean().optional(),
 });
 
@@ -123,7 +111,7 @@ const ToolsPartialSchema = z.object({
   filesystem: ToolTogglePartialSchema.optional(),
   shell: ToolTogglePartialSchema.optional(),
   sleep: ToolTogglePartialSchema.optional(),
-  ltm: LtmPartialSchema.optional(),
+  memory: MemoryPartialSchema.optional(),
   wiki: ToolTogglePartialSchema.optional(),
   agents: AgentsPartialSchema.optional(),
 });
@@ -141,7 +129,7 @@ const ConfigSchema = z
     })),
   })
   .transform((input) => {
-    const ltm = input.tools?.ltm;
+    const memory = input.tools?.memory;
     const wiki = input.tools?.wiki;
     return {
       name: input.name,
@@ -188,8 +176,8 @@ const ConfigSchema = z
         sleep: {
           enabled: input.tools?.sleep?.enabled ?? true,
         },
-        ltm: {
-          enabled: ltm?.enabled ?? false,
+        memory: {
+          enabled: memory?.enabled ?? false,
         },
         wiki: {
           enabled: wiki?.enabled ?? false,
@@ -208,7 +196,7 @@ export type LlmConfig = z.infer<typeof LlmSchema>;
 export type NamedLlmConfig = z.infer<typeof NamedLlmSchema>;
 export type CompactionConfig = ConfigData["compaction"];
 export type PromptsConfig = ConfigData["prompts"];
-export type LtmConfig = ConfigData["tools"]["ltm"];
+export type MemoryConfig = ConfigData["tools"]["memory"];
 export type WikiConfig = ConfigData["tools"]["wiki"];
 export type SearchConfig = ConfigData["search"];
 export type ToolsConfig = ConfigData["tools"];
@@ -252,7 +240,7 @@ const defaultConfigData = (): ConfigData => ({
     sleep: {
       enabled: true,
     },
-    ltm: {
+    memory: {
       enabled: false,
     },
     wiki: {
@@ -314,7 +302,7 @@ export class Config {
       filesystem: { ...this.data.tools.filesystem },
       shell: { ...this.data.tools.shell },
       sleep: { ...this.data.tools.sleep },
-      ltm: { ...this.data.tools.ltm },
+      memory: { ...this.data.tools.memory },
       wiki: { ...this.data.tools.wiki },
       agents: { ...this.data.tools.agents },
     };
@@ -322,14 +310,6 @@ export class Config {
 
   get compaction(): CompactionConfig {
     return this.data.compaction;
-  }
-
-  get ltm(): LtmConfig {
-    return this.tools.ltm;
-  }
-
-  get wiki(): WikiConfig {
-    return this.tools.wiki;
   }
 
   private readJson(): unknown {

@@ -2,7 +2,7 @@ import {
   SessionManager,
   SummarizingConversationManager,
 } from "@strands-agents/sdk";
-import { sessionsPath } from "../../utils/paths.js";
+import { sessionsPath } from "../utils/paths.js";
 import { FlatFileStorage } from "./flat-file-storage.js";
 import { LazySessionManager } from "./lazy-session-manager.js";
 

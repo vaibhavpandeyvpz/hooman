@@ -633,7 +633,7 @@ export function ConfigureApp({
         },
       },
       {
-        label: `Long-term memory • ${configData.tools.ltm.enabled ? "Enabled" : "Disabled"}`,
+        label: `Long-term memory • ${configData.tools.memory.enabled ? "Enabled" : "Disabled"}`,
         value: () => setScreen({ kind: "config-ltm" }),
       },
       {
@@ -1050,19 +1050,19 @@ export function ConfigureApp({
   const renderLtmConfigMenu = () => {
     const items: MenuItem[] = [
       {
-        label: `Enabled • ${configData.tools.ltm.enabled ? "On" : "Off"}`,
+        label: `Enabled • ${configData.tools.memory.enabled ? "On" : "Off"}`,
         value: () => {
           updateConfig(
             {
               tools: {
                 ...config.tools,
-                ltm: {
-                  ...config.tools.ltm,
-                  enabled: !configData.tools.ltm.enabled,
+                memory: {
+                  ...config.tools.memory,
+                  enabled: !configData.tools.memory.enabled,
                 },
               },
             },
-            `Long-term memory ${configData.tools.ltm.enabled ? "disabled" : "enabled"}.`,
+            `Long-term memory ${configData.tools.memory.enabled ? "disabled" : "enabled"}.`,
           );
           setScreen({ kind: "config-ltm" });
         },
@@ -1076,7 +1076,7 @@ export function ConfigureApp({
     return (
       <MenuScreen
         title="Long-term Memory"
-        description="Long-term memory uses ~/.hooman/ltm.sqlite, sqlite-vec, and a fixed GGUF embed model (DEFAULT_LTM_EMBED_MODEL in Hooman)."
+        description="Long-term memory uses ~/.hooman/memory.sqlite, sqlite-vec, and a fixed GGUF embed model (DEFAULT_EMBED_MODEL in Hooman)."
         items={items}
       />
     );
@@ -1111,7 +1111,7 @@ export function ConfigureApp({
     return (
       <MenuScreen
         title="Wiki"
-        description="Local wiki under $HOOMAN_HOME/wiki with semantic search via QMD (.qmd/index.sqlite). Requires QMD/SQLite setup; first embed may download models."
+        description="When enabled, the agent gets wiki_search over ~/.hooman/wiki (vectors in wiki/content.sqlite via sqlite-vec). Requires sqlite-vec; first embed may download models."
         items={items}
       />
     );

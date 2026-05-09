@@ -20,7 +20,7 @@ import {
 import {
   accumulateUsage,
   createEmptyUsage,
-} from "../lib/strands-usage-accumulate.js";
+} from "../core/utils/strands-usage-accumulate.js";
 import { bootstrap } from "../core/index.js";
 import type { Config } from "../core/config.js";
 import type { Manager as McpManager } from "../core/mcp/index.js";

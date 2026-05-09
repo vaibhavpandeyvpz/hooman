@@ -17,11 +17,6 @@ const KNOWN_TOOL_KINDS = new Map<string, ToolKind>([
   ["sleep", "other"],
   ["bye", "other"],
   ["fetch", "fetch"],
-  ["wiki_list_files", "read"],
-  ["wiki_read_file", "read"],
-  ["wiki_write_file", "edit"],
-  ["wiki_knowledge_graph", "read"],
-  ["wiki_stats", "read"],
   ["wiki_search", "search"],
   ["web_search", "search"],
   ["think", "think"],
@@ -29,9 +24,8 @@ const KNOWN_TOOL_KINDS = new Map<string, ToolKind>([
   ["update_todos", "other"],
   ["get_current_time", "other"],
   ["convert_time", "other"],
-  ["memory_store", "edit"],
+  ["memory_add", "edit"],
   ["memory_search", "search"],
-  ["memory_update", "edit"],
   ["memory_archive", "edit"],
 ]);
 

@@ -64,7 +64,7 @@ function context(config: Config): Record<string, unknown> {
     name: config.name,
     llm: config.llm,
     environment: getEnvironmentPromptContext(),
-    ltm: config.tools.ltm,
+    memory: config.tools.memory,
     wiki: config.tools.wiki,
     compaction: config.compaction,
   };

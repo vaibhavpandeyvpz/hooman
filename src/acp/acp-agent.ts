@@ -35,7 +35,7 @@ import {
   buildSessionConfigOptions,
   HOOMAN_SESSION_MODE_CONFIG_ID,
   HOOMAN_YOLO_CONFIG_ID,
-} from "./sessions/config-options.js";
+} from "./sessions/options.js";
 import { applySessionMode } from "../core/agent/sync-tool-registry-mode.js";
 import { copyAgentAppState } from "../core/state/agent-app-state.js";
 import {

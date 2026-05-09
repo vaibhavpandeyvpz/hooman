@@ -19,8 +19,6 @@ import {
 } from "../../core/state/yolo.js";
 
 export const HOOMAN_SESSION_MODE_CONFIG_ID = "hooman.sessionMode" as const;
-export const HOOMAN_LTM_CONFIG_ID = "hooman.longTermMemory" as const;
-export const HOOMAN_WIKI_CONFIG_ID = "hooman.wiki" as const;
 export const HOOMAN_MODEL_CONFIG_ID = "hooman.model" as const;
 /** Same key as agent {@link YOLO_STATE_KEY}. */
 export const HOOMAN_YOLO_CONFIG_ID = YOLO_STATE_KEY;
@@ -55,7 +53,7 @@ export function buildSessionConfigOptions(
           value: "ask",
           name: "Ask",
           description:
-            "Like plan mode’s read only tools for Q&A and exploration, without plan-mode tools.",
+            "Like plan mode's read only tools for Q&A and exploration, without plan-mode tools.",
         },
       ],
     },
@@ -70,32 +68,6 @@ export function buildSessionConfigOptions(
         name: m.name,
         description: `${m.options.provider}/${m.options.model}`,
       })),
-    },
-    {
-      type: "select",
-      id: HOOMAN_LTM_CONFIG_ID,
-      name: "Long-term memory",
-      description:
-        "When enabled, the agent can store and search long-term memories (local SQLite + sqlite-vec).",
-      category: "_hooman",
-      currentValue: config.ltm.enabled ? "on" : "off",
-      options: [
-        { value: "on", name: "On" },
-        { value: "off", name: "Off" },
-      ],
-    },
-    {
-      type: "select",
-      id: HOOMAN_WIKI_CONFIG_ID,
-      name: "Wiki",
-      description:
-        "When enabled, the agent can read, write, and search wiki pages (local QMD index under $HOOMAN_HOME/wiki/.qmd).",
-      category: "_hooman",
-      currentValue: config.wiki.enabled ? "on" : "off",
-      options: [
-        { value: "on", name: "On" },
-        { value: "off", name: "Off" },
-      ],
     },
     {
       type: "select",
@@ -125,8 +97,6 @@ export function applySessionConfigOption(
   }
   if (
     params.configId !== HOOMAN_SESSION_MODE_CONFIG_ID &&
-    params.configId !== HOOMAN_LTM_CONFIG_ID &&
-    params.configId !== HOOMAN_WIKI_CONFIG_ID &&
     params.configId !== HOOMAN_MODEL_CONFIG_ID &&
     params.configId !== HOOMAN_YOLO_CONFIG_ID
   ) {
@@ -157,31 +127,9 @@ export function applySessionConfigOption(
   if (value !== "on" && value !== "off") {
     throw RequestError.invalidParams({ value });
   }
-  const tools = config.tools;
-  if (params.configId === HOOMAN_LTM_CONFIG_ID) {
-    config.update({
-      tools: {
-        ...tools,
-        ltm: {
-          ...tools.ltm,
-          enabled: value === "on",
-        },
-      },
-    });
-    return;
-  }
   if (params.configId === HOOMAN_YOLO_CONFIG_ID) {
     setYoloEnabled(agent, value === "on");
     return;
   }
-
-  config.update({
-    tools: {
-      ...tools,
-      wiki: {
-        ...tools.wiki,
-        enabled: value === "on",
-      },
-    },
-  });
+  throw RequestError.invalidParams({ configId: params.configId });
 }

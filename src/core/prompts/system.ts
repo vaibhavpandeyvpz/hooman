@@ -11,7 +11,7 @@ const { compile } = handlebars;
 const STATIC_PROMPT_FILES = [
   "identity.md",
   "environment.md",
-  "ltm.md",
+  "memory.md",
   "todo.md",
   "thinking.md",
   "filesystem.md",
@@ -64,8 +64,8 @@ export class System {
   private staticPromptFiles(): readonly (typeof STATIC_PROMPT_FILES)[number][] {
     return STATIC_PROMPT_FILES.filter((file) => {
       switch (file) {
-        case "ltm.md":
-          return this.config.tools.ltm.enabled;
+        case "memory.md":
+          return this.config.tools.memory.enabled;
         case "fetch.md":
           return this.config.tools.fetch.enabled;
         case "web-search.md":
@@ -84,7 +84,6 @@ export class System {
           return this.config.tools.agents.enabled;
         case "daemon.md":
           return this.mode === "daemon";
-        case "thinking.md":
         default:
           return true;
       }
@@ -199,7 +198,7 @@ export class System {
       name: this.config.name,
       llm: this.config.llm,
       environment: getEnvironmentPromptContext(),
-      ltm: this.config.tools.ltm,
+      memory: this.config.tools.memory,
       wiki: this.config.tools.wiki,
       compaction: this.config.compaction,
       mode: this.mode,

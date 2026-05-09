@@ -13,43 +13,24 @@ export const basePath = () => {
   return join(homedir(), APP_FOLDER);
 };
 
-export const configJsonPath = () => {
-  return join(basePath(), "config.json");
-};
+export const configJsonPath = () => join(basePath(), "config.json");
 
-export const instructionsMdPath = () => {
-  return join(basePath(), "instructions.md");
-};
+export const instructionsMdPath = () => join(basePath(), "instructions.md");
 
-export const mcpJsonPath = () => {
-  return join(basePath(), "mcp.json");
-};
+export const mcpJsonPath = () => join(basePath(), "mcp.json");
 
-export const sessionsPath = () => {
-  return join(basePath(), "sessions");
-};
+export const sessionsPath = () => join(basePath(), "sessions");
 
-export const attachmentsPath = () => {
-  return join(basePath(), "attachments");
-};
+export const attachmentsPath = () => join(basePath(), "attachments");
 
-export const plansPath = () => {
-  return join(basePath(), "plans");
-};
+export const plansPath = () => join(basePath(), "plans");
 
-export const skillsPath = () => {
-  return join(basePath(), "skills");
-};
+export const skillsPath = () => join(basePath(), "skills");
 
-export const wikiPath = () => {
-  return join(basePath(), "wiki");
-};
+export const wikiPath = () => join(basePath(), "wiki");
 
-/** Fixed wiki search index SQLite DB under the wiki directory (not configurable). */
-export const wikiDbPath = () => join(wikiPath(), ".qmd", "index.sqlite");
+export const wikiDbPath = () => join(wikiPath(), "content.sqlite");
 
-/** Fixed path for long-term memory SQLite DB (not configurable). */
-export const ltmDbPath = () => join(basePath(), "ltm.sqlite");
+export const memoryDbPath = () => join(basePath(), "memory.sqlite");
 
-/** Shared GGUF model cache for LTM and QMD (wiki). */
 export const modelsCachePath = () => join(basePath(), ".models");

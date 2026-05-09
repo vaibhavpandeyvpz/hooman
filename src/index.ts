@@ -6,17 +6,14 @@ export type { AcpMeta, BootstrapMeta, BootstrapMode } from "./core/index.js";
 
 export {
   Config as HoomanConfig,
-  DEFAULT_LTM_EMBED_MODEL,
-  DEFAULT_WIKI_EMBED_MODEL,
-  DEFAULT_WIKI_GENERATE_MODEL,
-  DEFAULT_WIKI_RERANK_MODEL,
+  DEFAULT_EMBED_MODEL,
   LlmProvider,
 } from "./core/config.js";
 export type {
   CompactionConfig,
   ConfigData,
   LlmConfig,
-  LtmConfig,
+  MemoryConfig,
   NamedLlmConfig,
   PromptsConfig,
   SearchConfig,
@@ -29,11 +26,11 @@ export {
   basePath,
   configJsonPath,
   instructionsMdPath,
-  ltmDbPath,
   modelsCachePath,
   mcpJsonPath,
   sessionsPath,
   skillsPath,
+  wikiDbPath,
   wikiPath,
 } from "./core/utils/paths.js";
 export {
@@ -100,7 +97,6 @@ export {
   createTimeTools,
   createTodoTools,
   createWebSearchTools,
-  createWikiTools,
 } from "./core/tools/index.js";
 export { UPDATE_TODOS_TOOL_NAME } from "./core/tools/todo.js";
 
@@ -138,61 +134,30 @@ export { create as createOllamaModelProvider } from "./core/models/ollama/index.
 export {
   create as createOpenAIModelProvider,
   type OpenAIModelParams,
-} from "./core/models/openai/index.js";
-export { create as createBifrostModelProvider } from "./core/models/bifrost/index.js";
-export { create as createTensorZeroModelProvider } from "./core/models/tensorzero/index.js";
+} from "./core/models/openai.js";
 export { create as createXaiModelProvider } from "./core/models/xai.js";
 export {
   StrandsOllamaModel,
   type OllamaModelConfig,
 } from "./core/models/ollama/strands-ollama.js";
 export {
-  StrandsBifrostModel,
-  type BifrostModelConfig,
-} from "./core/models/bifrost/index.js";
+  create as createContext,
+  LazySessionManager,
+} from "./core/context/index.js";
+export type { LazySessionManagerConfig } from "./core/context/index.js";
+export { FlatFileStorage } from "./core/context/flat-file-storage.js";
 export {
-  StrandsTensorZeroModel,
-  type TensorZeroModelConfig,
-} from "./core/models/tensorzero/index.js";
-
-export {
-  LongTermMemoryStore,
-  createLongTermMemoryStore,
-  createLongTermMemoryTools,
-  createShortTermMemory,
+  Brain as MemoryBrain,
+  createMemoryTools,
+  open as openMemoryDb,
+  prepare as prepareMemoryDb,
 } from "./core/memory/index.js";
+export { createWikiTools } from "./core/wiki/index.js";
 export type {
-  ArchiveMemoryInput,
-  LongTermMemoryOptions,
-  LongTermMemoryScope,
-  MemorySource,
-  SearchMemoryInput,
-  SearchMemoryResult,
-  StoreMemoryInput,
-  StoreMemoryResult,
-  UpdateMemoryInput,
-} from "./core/memory/index.js";
-export { LazySessionManager } from "./core/memory/stm/lazy-session-manager.js";
-export type { LazySessionManagerConfig } from "./core/memory/stm/lazy-session-manager.js";
-export { FlatFileStorage } from "./core/memory/stm/flat-file-storage.js";
-export type {
-  Memory,
-  MemoryStatus,
+  Memory as LongTermMemory,
   MemoryType,
-} from "./core/memory/ltm/types.js";
-export {
-  DEFAULT_DEDUPE_THRESHOLD,
-  DEFAULT_HALF_LIFE_MS,
-  DEFAULT_REINFORCEMENT_STEP,
-  buildMemorySqlFilter,
-  clampSearchLimit,
-  clampUnitInterval,
-  getEffectiveStrength,
-  similarity,
-  toLtmMemoryRow,
-  toMemory,
-} from "./core/memory/ltm/utils.js";
-export type { LtmMemoryRow } from "./core/memory/ltm/utils.js";
+  Sqlite as MemorySqlite,
+} from "./core/memory/index.js";
 
 export {
   BUILTIN_AGENT_CONFIGS,

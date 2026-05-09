@@ -49,17 +49,11 @@ export const INTERNAL_ALWAYS_ALLOWED = new Set([
   "convert_time",
   "get_current_time",
   // Wiki
-  "wiki_knowledge_graph",
-  "wiki_list_files",
-  "wiki_read_file",
   "wiki_search",
-  "wiki_stats",
-  "wiki_write_file",
   // Long-term memory
+  "memory_add",
   "memory_archive",
   "memory_search",
-  "memory_store",
-  "memory_update",
   // Filesystem (list / search / metadata)
   "directory_tree",
   "get_file_info",
@@ -97,12 +91,7 @@ export const PLAN_MODE_VISIBLE = new Set([
   "convert_time",
   "get_current_time",
   // Wiki
-  "wiki_knowledge_graph",
-  "wiki_list_files",
-  "wiki_read_file",
   "wiki_search",
-  "wiki_stats",
-  "wiki_write_file",
   // Long-term memory
   "memory_search",
   // Filesystem (list / search / metadata)

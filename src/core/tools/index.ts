@@ -8,4 +8,3 @@ export { createThinkingTools } from "./thinking.js";
 export { createTimeTools } from "./time.js";
 export { createTodoTools } from "./todo.js";
 export { createWebSearchTools } from "./web-search.js";
-export { createWikiTools } from "../memory/wiki/index.js";

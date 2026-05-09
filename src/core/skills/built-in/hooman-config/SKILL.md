@@ -1,6 +1,6 @@
 ---
 name: hooman-config
-description: Read and update Hooman's own config.json and instructions.md safely. Use when the user asks about Hooman config, custom instructions, model providers, LLM params, tool toggles, prompts, search, long-term memory, wiki, agents, compaction, or ~/.hooman config settings.
+description: Read and update Hooman's own config.json and instructions.md safely. Use when the user asks about Hooman config, custom instructions, model providers, LLM params, tool toggles, prompts, search, memory, wiki (knowledge search), agents, compaction, or ~/.hooman config settings.
 ---
 
 # Hooman Config
@@ -20,7 +20,7 @@ Use this skill when the user asks you to inspect, explain, or change Hooman's ow
 2. Make the smallest JSON edit that satisfies the request. Do not rewrite unrelated sections or normalize formatting beyond valid pretty JSON.
 3. `name` and `llms` are required. `llms` must be a **non-empty array** of entries (see below). `search`, `prompts`, `tools`, and `compaction` are optional in input, but Hooman expands them with defaults when loading.
 4. Unknown keys are unsupported and may be dropped when Hooman parses and persists the config.
-5. `tools.ltm` has only `enabled` (embed model is fixed in Hooman). `tools.wiki` has only `enabled`.
+5. `tools.memory` has only `enabled` (embedding model is fixed in code; vectors live in the app data directory). `tools.wiki` has only `enabled` (when on, the agent gets `wiki_search` over the indexed knowledge base; ingestion is not configured here).
 6. Any change to `config.json` or `instructions.md` requires restarting the running Hooman agent/session before it takes effect.
 
 ## Full Config Shape
@@ -82,7 +82,7 @@ This is the default shape Hooman writes when `~/.hooman/config.json` is missing:
     "sleep": {
       "enabled": true
     },
-    "ltm": {
+    "memory": {
       "enabled": false
     },
     "wiki": {
@@ -121,19 +121,17 @@ Runtime APIs may still expose a single active profile as `llm` (derived from the
 
 ### LLM Providers
 
-`options.provider` must be one of:
+`options.provider` must be one of the values Hooman registers at runtime (the config schema may list additional legacy enum values; stick to this set):
 
 ```json
 [
   "anthropic",
-  "bifrost",
+  "bedrock",
   "google",
   "groq",
   "moonshot",
-  "openai",
-  "tensorzero",
   "ollama",
-  "bedrock",
+  "openai",
   "xai"
 ]
 ```
@@ -168,8 +166,6 @@ Provider notes (these refer to fields inside `options.params` unless noted):
 - `moonshot`: `params.apiKey`, `baseURL`, `headers`, and `fetch` configure the provider. Other keys are forwarded as Vercel model config.
 - `xai`: `params.apiKey`, `baseURL`, and `headers` configure the provider. Other keys are forwarded as Vercel model config.
 - `openai`: Strands **OpenAIModel** (Chat Completions). `params.apiKey` (or env `OPENAI_API_KEY`), optional `clientConfig` (e.g. `baseURL` for an OpenAI-compatible HTTP API). `model` becomes `modelId`. A small client patch splits final-chunk `usage` when it arrives with non-empty `choices` so Strands can record token usage.
-- `bifrost`: Same Chat Completions `params` shape as `openai`, but **`StrandsBifrostModel`** — use for a Bifrost gateway fronting Moonshot/Kimi. Set `clientConfig.baseURL` to the gateway origin (e.g. `http://localhost:8080`); `/openai/v1` is appended automatically. Handles `delta.reasoning`, missing initial `delta.role`, Moonshot `reasoning_content` on tool turns, and final-chunk usage.
-- `tensorzero`: Same Chat Completions shape as `openai`, but **`StrandsTensorZeroModel`** — use for a [TensorZero](https://tensorzero.com) gateway’s OpenAI-compatible route (e.g. `clientConfig.baseURL` like `http://localhost:3000/openai/v1`). Maps gateway `tensorzero_extra_content` thoughts to Strands reasoning deltas and normalizes final-chunk usage. `model` is typically `tensorzero::function_name::<name>` (or other TensorZero model id strings the gateway accepts). For gateway tag-based rate limits, set `params.params["tensorzero::tags"]` (e.g. `user_id`) in the model entry in config.
 - `ollama`: `params.host`, `keepAlive`, `options`, and `think` configure the Ollama wrapper. `think` may be `true`, `false`, `"high"`, `"medium"`, or `"low"`.
 - `bedrock`: `params.region`, `clientConfig`, and optional `apiKey` configure Bedrock access. Put AWS credentials under `params.clientConfig.credentials` with `accessKeyId`, `secretAccessKey`, and optional `sessionToken`; put an AWS CLI/shared-config profile name in `params.clientConfig.profile`. If credentials and profile are omitted, Bedrock uses the AWS SDK default credential chain, including environment variables and AWS CLI/shared credentials. Other keys are forwarded as Bedrock model options, such as `temperature`, `maxTokens`, `stream`, and `cacheConfig`.
 
@@ -342,36 +338,14 @@ Simple toggles:
     "fetch": { "enabled": true },
     "filesystem": { "enabled": true },
     "shell": { "enabled": true },
-    "sleep": { "enabled": true }
+    "sleep": { "enabled": true },
+    "memory": { "enabled": true },
+    "wiki": { "enabled": true }
   }
 }
 ```
 
-Long-term memory:
-
-```json
-{
-  "tools": {
-    "ltm": {
-      "enabled": true
-    }
-  }
-}
-```
-
-Wiki:
-
-```json
-{
-  "tools": {
-    "wiki": {
-      "enabled": true
-    }
-  }
-}
-```
-
-Semantic search uses a local QMD index at `$HOOMAN_HOME/wiki/.qmd/index.sqlite`.
+With `wiki` enabled, the model only receives **`wiki_search`**: semantic retrieval over the knowledge index. There are no wiki write or list tools in config.
 
 Agents:
 
@@ -386,7 +360,9 @@ Agents:
 }
 ```
 
-Defaults: `todo`, `fetch`, `filesystem`, `shell`, `sleep`, and `agents` enabled; `ltm` and `wiki` disabled; LTM embed model is fixed in Hooman as **embeddinggemma** (`hf:ggml-org/embeddinggemma-300M-GGUF/embeddinggemma-300M-Q8_0.gguf`); vectors live in `$HOOMAN_HOME/ltm.sqlite`. Wiki search is QMD-only under `$HOOMAN_HOME/wiki/.qmd/` when `tools.wiki.enabled` is true. MCP server definitions and installed skill files are not controlled by config tool toggles; do not inspect or edit them for this skill. A missing config file is created with `agents.concurrency: 2`; if `tools.agents.concurrency` is omitted while merging partial tool config, Hooman uses `3`.
+Defaults: `todo`, `fetch`, `filesystem`, `shell`, `sleep`, and `agents` enabled; `memory` and `wiki` disabled. Memory uses a local SQLite index and the built-in embedding model URI in code (`DEFAULT_EMBED_MODEL` in `core/config.ts`). MCP servers and installed skills are not controlled by these toggles; do not inspect or edit them for this skill.
+
+`agents`: the default file Hooman writes when `config.json` was missing includes `tools.agents.concurrency: 2`. On load, if `concurrency` is absent (for example `tools` or `tools.agents` is omitted), the merged config uses `3` until you set it explicitly.
 
 ## Instructions
 

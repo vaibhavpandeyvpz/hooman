@@ -30,7 +30,7 @@ It gives you a practical toolkit to build and run agent workflows:
 
 ## Features
 
-- Multiple LLM providers: `ollama`, `openai`, `tensorzero`, `anthropic`, `google`, `bedrock`, `groq`, `moonshot`, `xai`
+- Multiple LLM providers: `anthropic`, `bedrock`, `google`, `groq`, `moonshot`, `ollama`, `openai`, `xai`
 - Local configuration under `~/.hooman`
 - Optional web search tool with provider selection (`brave`, `exa`, `firecrawl`, `serper`, or `tavily`)
 - MCP server support via `stdio`, `streamable-http`, and `sse`
@@ -233,16 +233,16 @@ Runtime tool and prompt switches are controlled from `config.json`:
 - `tools.filesystem.enabled`
 - `tools.shell.enabled`
 - `tools.sleep.enabled`
-- `tools.ltm.enabled`
-- LTM embed model is fixed in Hooman as `DEFAULT_LTM_EMBED_MODEL` (not configurable in `config.json`).
-- LTM embed GPU: defaults to **CPU** so `memory_search` does not stall on flaky GPU init; set `HOOMAN_LTM_LLAMA_GPU=auto` (or `metal` / `vulkan` / `cuda`) to match QMD-style acceleration. On startup, Hooman preloads the embed model once (see stderr: `Loading LTM embedding model…`).
+- `tools.memory.enabled`
+- Memory and wiki embedding model URI is fixed in code as `DEFAULT_EMBED_MODEL` in `src/core/config.ts` (not configurable in `config.json`).
+- Local embed GPU selection uses **`HOOMAN_LLAMA_GPU`**: unset defaults to **`auto`** (CI forces CPU off); use `false`, `off`, `none`, `disable`, `disabled`, or `0` for CPU-only; or `metal`, `vulkan`, or `cuda` for an explicit backend. Optional **`HOOMAN_EMBED_CONTEXT_SIZE`** caps embedding context length (tokens).
 - `tools.wiki.enabled`
 - `tools.agents.enabled` (enables built-in `run_agents` tool)
-- `tools.agents.concurrency`
+- `tools.agents.concurrency` (defaults to `3` when omitted on load; a freshly generated default `config.json` uses `2`)
 
-Long-term memory uses **SQLite + sqlite-vec** at `$HOOMAN_HOME/ltm.sqlite` and **local GGUF embeddings** via `node-llama-cpp` (model cache under `$HOOMAN_HOME/ltm-models`). See [@tobilu/qmd](https://www.npmjs.com/package/@tobilu/qmd)-style requirements for native SQLite extensions where applicable.
+Long-term memory uses **SQLite + sqlite-vec** at `$HOOMAN_HOME/memory.sqlite` and **local GGUF embeddings** via `node-llama-cpp` (model cache under `$HOOMAN_HOME/.models`). The same **sqlite-vec** native extension requirements apply (see the `sqlite-vec` package and your platform notes).
 
-The wiki tool uses a **local QMD** index: after page writes, pages under `$HOOMAN_HOME/wiki/pages` (default `~/.hooman/wiki/pages`) are indexed into `$HOOMAN_HOME/wiki/.qmd/index.sqlite`. See [@tobilu/qmd](https://www.npmjs.com/package/@tobilu/qmd) for SQLite extension requirements (e.g. macOS Homebrew SQLite) and on-first-use embedding model downloads.
+With **`tools.wiki.enabled`**, the agent gets **`wiki_search`** only: semantic retrieval over the indexed knowledge base. Data lives under `$HOOMAN_HOME/wiki/` with chunks and vectors in **`$HOOMAN_HOME/wiki/content.sqlite`**. The first embed may download the configured GGUF model into `$HOOMAN_HOME/.models`.
 
 ### `hooman configure`
 
@@ -287,9 +287,10 @@ Hooman stores its data in:
 
 Important files and folders:
 
-- `config.json` - app name, LLM provider/model, tool flags, LTM/wiki settings, compaction
-- `ltm.sqlite` - long-term memory vectors + rows (created when LTM is used)
-- `ltm-models/` - downloaded GGUF embedding weights for LTM
+- `config.json` - app name, LLM provider/model, tool flags, memory/wiki settings, compaction
+- `memory.sqlite` - long-term memory vectors + rows (created when memory tools are used)
+- `.models/` - downloaded GGUF embedding weights (memory + wiki embedders)
+- `wiki/content.sqlite` - wiki document store and semantic chunk index (when wiki is used)
 - `instructions.md` - system instructions used to build the agent prompt
 - `mcp.json` - MCP server definitions
 - `skills/` - installed skills
@@ -298,16 +299,22 @@ Important files and folders:
 
 ## Example `config.json`
 
-The canonical on-disk shape uses a **`llms`** array (non-empty): each item has `name`, `options` (`provider`, `model`, `params`), and `default`. The bundled **hooman-config** skill documents the full schema. The JSON below uses a single **`llm`** object only as a shorthand for the active profile’s `options` fields.
+The on-disk shape uses a non-empty **`llms`** array: each item has `name`, `options` (`provider`, `model`, `params`), and `default`. The bundled **hooman-config** skill documents the full schema.
 
 ```json
 {
   "name": "Hooman",
-  "llm": {
-    "provider": "ollama",
-    "model": "gemma4:e4b",
-    "params": {}
-  },
+  "llms": [
+    {
+      "name": "Default",
+      "options": {
+        "provider": "ollama",
+        "model": "gemma4:e4b",
+        "params": {}
+      },
+      "default": true
+    }
+  ],
   "search": {
     "enabled": false,
     "provider": "brave",
@@ -339,18 +346,15 @@ The canonical on-disk shape uses a **`llms`** array (non-empty): each item has `
     "sleep": {
       "enabled": true
     },
-    "ltm": {
-      "enabled": false,
-      "embed": {
-        "model": "hf:ggml-org/embeddinggemma-300M-GGUF/embeddinggemma-300M-Q8_0.gguf"
-      }
+    "memory": {
+      "enabled": false
     },
     "wiki": {
       "enabled": false
     },
     "agents": {
       "enabled": true,
-      "concurrency": 3
+      "concurrency": 2
     }
   },
   "compaction": {
@@ -362,17 +366,18 @@ The canonical on-disk shape uses a **`llms`** array (non-empty): each item has `
 
 Tool approvals are session-scoped and are not persisted in `config.json`.
 
-Supported `llm.provider` values (in `config.json` these live under each `llms[].options.provider` entry):
+Supported `llms[].options.provider` values registered in this release (see `src/core/models/index.ts`):
 
-- `ollama`
-- `openai`
-- `tensorzero`
 - `anthropic`
-- `google`
 - `bedrock`
+- `google`
 - `groq`
 - `moonshot`
+- `ollama`
+- `openai`
 - `xai`
+
+The `LlmProvider` enum in `src/core/config.ts` may list additional strings for forwards compatibility; unknown providers are not loaded at runtime.
 
 Supported `search.provider` values:
 
@@ -413,49 +418,6 @@ Example:
 ```
 
 OpenAI-compatible gateways that put token `usage` on the last streamed chunk together with `choices` are handled via a small stream shim so usage still surfaces in the UI.
-
-### Bifrost
-
-Use **`bifrost`** (not `openai`) when routing through a Bifrost OpenAI-compatible gateway to **Moonshot / Kimi**. Set `clientConfig.baseURL` to the gateway **origin only** (e.g. `http://localhost:8080`); `/openai/v1` is appended automatically. Same `params` shape as **OpenAI**, implemented with **StrandsBifrostModel**: `delta.reasoning` streaming, synthetic `delta.role` when missing, `reasoning_content` replay for tool turns, and final-chunk usage handling.
-
-```json
-{
-  "provider": "bifrost",
-  "model": "moonshot/kimi-k2.6",
-  "params": {
-    "apiKey": "dummy-key",
-    "clientConfig": {
-      "baseURL": "http://localhost:8080"
-    }
-  }
-}
-```
-
-### TensorZero
-
-Use for a [TensorZero](https://tensorzero.com) gateway’s **OpenAI-compatible** HTTP API (for example `/openai/v1`). Same general `params` shape as **OpenAI** (`apiKey`, `clientConfig.baseURL`, etc.), but implemented with **StrandsTensorZeroModel** so gateway-specific streaming works end-to-end: reasoning carried in `tensorzero_extra_content` shows as thinking in the chat UI, and usage metadata is normalized.
-
-Gateway features such as **tag-scoped rate limits** use TensorZero tags on each request. Set them in config under the nested `params` object (Strands forwards that object onto the Chat Completions body), for example `tensorzero::tags.user_id`.
-
-```json
-{
-  "provider": "tensorzero",
-  "model": "tensorzero::function_name::chat",
-  "params": {
-    "apiKey": "your-tensorzero-or-gateway-key",
-    "clientConfig": {
-      "baseURL": "http://localhost:3000/openai/v1"
-    },
-    "params": {
-      "tensorzero::tags": {
-        "user_id": "your-stable-user-or-tenant-id"
-      }
-    }
-  }
-}
-```
-
-Use `tensorzero` when the backend is TensorZero; use `bifrost` for Bifrost → Kimi; use `openai` for the official OpenAI API or generic Chat Completions proxies that do not need those gateway-specific stream shapes.
 
 ### Anthropic
 
