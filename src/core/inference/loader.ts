@@ -16,6 +16,14 @@ import {
   type LlamaModel,
 } from "node-llama-cpp";
 
+export type RankingContext = Awaited<
+  ReturnType<LlamaModel["createRankingContext"]>
+>;
+
+const DEFAULT_EMBED_CONTEXT_SIZE = 2048;
+const DEFAULT_RERANK_CONTEXT_SIZE = 4096;
+export const RERANK_TEMPLATE_OVERHEAD = 512;
+
 const GGUF_MAGIC = Buffer.from("GGUF");
 
 export type LlamaGpuMode = "auto" | "metal" | "vulkan" | "cuda" | false;
@@ -44,13 +52,20 @@ function gpu(): LlamaGpuMode {
   return "auto";
 }
 
-function maxTokens(): number {
+function maxTokensForEmbed(): number {
   const raw = process.env.HOOMAN_EMBED_CONTEXT_SIZE?.trim() ?? "";
   const v = Number.parseInt(raw, 10);
   if (Number.isFinite(v) && v > 0) {
     return v;
   }
-  return 2048;
+  return DEFAULT_EMBED_CONTEXT_SIZE;
+}
+
+function maxTokensForRerank(): number {
+  const raw = process.env.HOOMAN_RERANK_CONTEXT_SIZE?.trim() ?? "";
+  const v = Number.parseInt(raw, 10);
+  if (Number.isFinite(v) && v > 0) return v;
+  return DEFAULT_RERANK_CONTEXT_SIZE;
 }
 
 function validate(file: string, uri: string): void {
@@ -76,7 +91,7 @@ function validate(file: string, uri: string): void {
   }
 }
 
-export async function load(
+export async function loadEmbedder(
   dir: string,
   uri: string,
 ): Promise<{
@@ -111,11 +126,55 @@ export async function load(
   }
   const model = await llama.loadModel({ modelPath: file });
   const trained = model.trainContextSize;
-  const tokens = maxTokens();
+  const tokens = maxTokensForEmbed();
   const contextSize =
     typeof trained === "number" && Number.isFinite(trained) && trained > 0
       ? Math.max(1, Math.min(tokens, trained))
       : tokens;
   const context = await model.createEmbeddingContext({ contextSize });
   return { llama, model, context, contextSize };
+}
+
+export async function loadReranker(
+  dir: string,
+  uri: string,
+): Promise<{
+  llama: Llama;
+  model: LlamaModel;
+  context: RankingContext;
+  contextSize: number;
+}> {
+  if (!existsSync(dir)) {
+    mkdirSync(dir, { recursive: true });
+  }
+  const file = await resolveModelFile(uri, dir);
+  validate(file, uri);
+
+  const mode = gpu();
+  const loadLlama = async (gpuMode: LlamaGpuMode) =>
+    getLlama({ build: "never", logLevel: LlamaLogLevel.error, gpu: gpuMode });
+
+  let llama: Llama;
+  if (mode === false) {
+    llama = await loadLlama(false);
+  } else {
+    try {
+      llama = await loadLlama(mode);
+    } catch {
+      llama = await loadLlama(false);
+    }
+  }
+
+  const model = await llama.loadModel({ modelPath: file });
+  const ctxSize = maxTokensForRerank();
+  let context: RankingContext;
+  try {
+    context = await model.createRankingContext({
+      contextSize: ctxSize,
+      flashAttention: true,
+    } as Parameters<LlamaModel["createRankingContext"]>[0]);
+  } catch {
+    context = await model.createRankingContext({ contextSize: ctxSize });
+  }
+  return { llama, model, context, contextSize: ctxSize };
 }

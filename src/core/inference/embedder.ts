@@ -3,7 +3,7 @@ import {
   type LlamaEmbeddingContext,
   type LlamaModel,
 } from "node-llama-cpp";
-import { load } from "./loader.js";
+import { loadEmbedder } from "./loader.js";
 
 export function isQwen3EmbeddingModel(modelUri: string): boolean {
   return /qwen.*embed/i.test(modelUri) || /embed.*qwen/i.test(modelUri);
@@ -58,7 +58,7 @@ export class GgufEmbedder {
   }
 
   public async warmup(): Promise<void> {
-    const { llama, model, context, contextSize } = await load(
+    const { llama, model, context, contextSize } = await loadEmbedder(
       this.cacheDir,
       this.modelUri,
     );

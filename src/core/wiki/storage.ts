@@ -1,8 +1,8 @@
 import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { DEFAULT_EMBED_MODEL } from "../config.js";
-import { embed, GgufEmbedder, rerank } from "../inference/index.js";
+import { DEFAULT_EMBED_MODEL, DEFAULT_RERANK_MODEL } from "../config.js";
+import { embed, GgufEmbedder, GgufReranker } from "../inference/index.js";
 import { modelsCachePath, wikiDbPath, wikiPath } from "../utils/paths.js";
 import {
   convertFileToMarkdown,
@@ -122,20 +122,27 @@ export class Storage {
     private readonly root: string,
     private readonly db: Database,
     private readonly embedder: GgufEmbedder,
+    private readonly reranker: GgufReranker,
   ) {}
 
   public static create(): Storage {
     const root = wikiPath();
     const db = new Database(wikiDbPath());
+    const cacheDir = modelsCachePath();
     const embedder = new GgufEmbedder({
       modelUri: DEFAULT_EMBED_MODEL,
-      cacheDir: modelsCachePath(),
+      cacheDir,
     });
-    return new Storage(root, db, embedder);
+    const reranker = new GgufReranker({
+      modelUri: DEFAULT_RERANK_MODEL,
+      cacheDir,
+    });
+    return new Storage(root, db, embedder, reranker);
   }
 
   public async warmup(): Promise<void> {
     await this.embedder.warmup();
+    await this.reranker.warmup();
     await fs.mkdir(path.join(this.root, RAW_DIR), { recursive: true });
     await fs.mkdir(path.join(this.root, PAGES_DIR), { recursive: true });
   }
@@ -246,7 +253,7 @@ export class Storage {
     const distanceById = new Map(vecHits.map((h) => [h.chunk_id, h.distance]));
     const rows = this.db.getSearchRowsByChunkIds(orderedIds);
     const rowById = new Map(rows.map((r) => [r.chunk_id, r]));
-    const ordered = orderedIds
+    const candidates = orderedIds
       .map((id) => {
         const row = rowById.get(id);
         if (!row) {
@@ -255,12 +262,17 @@ export class Storage {
         return toSearchMatch(row, distanceById.get(id));
       })
       .filter((x): x is WikiSearchMatch => x != null);
-    const ranked = rerank(query, ordered);
+    const ranked = await this.reranker.rerank(
+      query,
+      candidates,
+      (m) => m.content,
+    );
     return ranked.slice(0, limit);
   }
 
   public async close(): Promise<void> {
     await this.embedder.dispose();
+    await this.reranker.dispose();
     this.db.close();
   }
 }

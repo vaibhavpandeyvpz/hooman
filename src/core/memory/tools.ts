@@ -4,8 +4,8 @@ import { z } from "zod";
 import type { MemoryType } from "./types.js";
 import { Brain } from "./brain.js";
 import { memoryDbPath, modelsCachePath } from "../utils/paths.js";
-import { DEFAULT_EMBED_MODEL } from "../config.js";
-import { GgufEmbedder } from "../inference/index.js";
+import { DEFAULT_EMBED_MODEL, DEFAULT_RERANK_MODEL } from "../config.js";
+import { GgufEmbedder, GgufReranker } from "../inference/index.js";
 import { md5 } from "../utils/hashing.js";
 
 const MemoryScopes: ["user", "project"] = ["user", "project"];
@@ -38,11 +38,16 @@ function toMemoryScope(
 }
 
 export async function create() {
+  const cacheDir = modelsCachePath();
   const embedder = new GgufEmbedder({
     modelUri: DEFAULT_EMBED_MODEL,
-    cacheDir: modelsCachePath(),
+    cacheDir,
   });
-  const brain = new Brain(memoryDbPath(), embedder);
+  const reranker = new GgufReranker({
+    modelUri: DEFAULT_RERANK_MODEL,
+    cacheDir,
+  });
+  const brain = new Brain(memoryDbPath(), embedder, reranker);
   await brain.warmup();
 
   return [

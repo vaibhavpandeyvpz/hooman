@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { embed, GgufEmbedder, rerank } from "../inference/index.js";
+import { embed, GgufEmbedder, GgufReranker } from "../inference/index.js";
 import type { Memory, MemoryType } from "./types.js";
 import type { Sqlite } from "./database.js";
 import { open, prepare } from "./database.js";
@@ -46,12 +46,14 @@ export class Brain {
   public constructor(
     path: string,
     private readonly embedder: GgufEmbedder,
+    private readonly reranker: GgufReranker,
   ) {
     this.db = open(path);
   }
 
   public async warmup(): Promise<void> {
     await this.embedder.warmup();
+    await this.reranker.warmup();
     const row = this.db
       .prepare(`SELECT 1 AS ok FROM memories LIMIT 1`)
       .get() as { ok: number } | undefined;
@@ -180,7 +182,7 @@ export class Brain {
     const candidates = rows.map((row) =>
       toMemory(row, byId.get(row.id) ?? null),
     );
-    const ranked = rerank(q, candidates);
+    const ranked = await this.reranker.rerank(q, candidates, (m) => m.content);
     const filtered = typeSet
       ? ranked.filter((m) => typeSet.has(m.type))
       : ranked;
@@ -219,6 +221,7 @@ export class Brain {
 
   public async close(): Promise<void> {
     await this.embedder.dispose();
+    await this.reranker.dispose();
     this.db.close();
   }
 }

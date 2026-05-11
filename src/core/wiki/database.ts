@@ -149,9 +149,9 @@ export class Database {
   }
 
   public countDocs(): number {
-    const row = this.db
-      .prepare(`SELECT COUNT(*) AS c FROM wiki_docs`)
-      .get() as { c: number } | undefined;
+    const row = this.db.prepare(`SELECT COUNT(*) AS c FROM wiki_docs`).get() as
+      | { c: number }
+      | undefined;
     return typeof row?.c === "number" && Number.isFinite(row.c) ? row.c : 0;
   }
 

@@ -46,6 +46,8 @@ const DEFAULT_PROMPTS = {
 
 export const DEFAULT_EMBED_MODEL =
   "hf:unsloth/embeddinggemma-300m-GGUF/embeddinggemma-300m-Q4_0.gguf";
+export const DEFAULT_RERANK_MODEL =
+  "hf:ggml-org/Qwen3-Reranker-0.6B-Q8_0-GGUF/qwen3-reranker-0.6b-q8_0.gguf";
 
 const MemoryPartialSchema = z.object({
   enabled: z.boolean().optional(),
