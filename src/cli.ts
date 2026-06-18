@@ -11,6 +11,10 @@ import { configure } from "./configure/index.js";
 import { runAcpStdio } from "./acp/acp-agent.js";
 import { main as daemon } from "./daemon/index.js";
 import { createDaemonApprovalHandler } from "./daemon/approvals.js";
+import {
+  flushAgentMemory,
+  runWithAgentMemoryScope,
+} from "./core/memory/index.js";
 import { createSessionConfig } from "./core/session-config.js";
 import { mcpJsonPath } from "./core/utils/paths.js";
 import {
@@ -107,9 +111,12 @@ program
     agent.addHook(BeforeToolCallEvent, createToolApprovalHandler());
     let exitRequested = false;
     try {
-      await agent.invoke(prompt);
+      await runWithAgentMemoryScope(agent, () => agent.invoke(prompt));
       exitRequested = consumeExitRequest(agent);
     } finally {
+      try {
+        await flushAgentMemory(agent);
+      } catch {}
       try {
         await manager.disconnect();
       } catch {}
@@ -158,6 +165,9 @@ program
           program: packageMeta.name,
         });
       } finally {
+        try {
+          await flushAgentMemory(agent);
+        } catch {}
         try {
           await manager.disconnect();
         } catch {}
@@ -208,6 +218,9 @@ program
         debug: Boolean(options.debug),
       });
     } finally {
+      try {
+        await flushAgentMemory(agent);
+      } catch {}
       try {
         await manager.disconnect();
       } catch {}

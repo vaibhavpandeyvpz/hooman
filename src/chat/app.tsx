@@ -53,6 +53,10 @@ import { attachmentPathsToPromptBlocks } from "../core/utils/attachments.js";
 import { isMouseInput } from "./mouse.js";
 import type { PromptSubmission } from "./components/prompt-input/hooks/usePromptInputController.js";
 import { readBundledPrompt } from "../core/prompts/bundled.js";
+import {
+  flushAgentMemory,
+  runWithAgentMemoryScope,
+} from "../core/memory/index.js";
 
 /** Status bar: Strands `Usage` for the current user turn + summed latency across model cycles. */
 type TurnUsageStatus = Usage & { latencyMs: number };
@@ -469,6 +473,7 @@ export function ChatApp({
     applySessionMode(nextAgent);
     setCurrentAgent(nextAgent);
     setCurrentManager(nextManager);
+    await flushAgentMemory(currentAgent).catch(() => {});
     await currentManager.disconnect();
   }, [config, currentAgent, currentManager, sessionId]);
 
@@ -660,151 +665,153 @@ export function ChatApp({
                 }),
               ]
             : trimmed;
-        for await (const event of currentAgent.stream(streamInput)) {
-          const e = event as AgentStreamEvent;
-          switch (e.type) {
-            case "contentBlockEvent": {
-              const block = e.contentBlock as {
-                type?: string;
-                text?: string;
-                name?: string;
-                input?: unknown;
-              };
-              if (block.type === "textBlock") {
-                appendAssistantText(block.text ?? "");
-              } else if (block.type === "toolUseBlock") {
-                const toolId = nowId();
-                const toolUseId = getToolUseId(block);
-                if (toolUseId) {
-                  toolLineIdsRef.current.set(toolUseId, toolId);
-                } else {
-                  pendingToolLineIdsRef.current.push(toolId);
-                }
-                appendLine({
-                  id: toolId,
-                  role: "tool",
-                  title: "tool",
-                  toolName: block.name ?? "unknown",
-                  content: stringifyUnknown(block.input ?? {}),
-                  phase: "running",
-                  done: false,
-                });
-                if (assistantLineIdRef.current) {
-                  moveLineToEnd(assistantLineIdRef.current);
-                }
-              }
-              break;
-            }
-            case "toolResultEvent": {
-              const resultContent = toToolResultText(e.result);
-              const toolUseId = getToolUseId(e.result);
-              const fileToolDisplay = takeFileToolDisplay(
-                currentAgent.appState,
-                toolUseId,
-              );
-              let toolLineId = toolUseId
-                ? toolLineIdsRef.current.get(toolUseId)
-                : undefined;
-              if (toolLineId && toolUseId) {
-                toolLineIdsRef.current.delete(toolUseId);
-              }
-              toolLineId ??= pendingToolLineIdsRef.current.shift();
-              if (!toolLineId) {
-                const firstTrackedTool = toolLineIdsRef.current
-                  .entries()
-                  .next();
-                if (!firstTrackedTool.done) {
-                  const [trackedToolUseId, trackedToolLineId] =
-                    firstTrackedTool.value;
-                  toolLineIdsRef.current.delete(trackedToolUseId);
-                  toolLineId = trackedToolLineId;
-                }
-              }
-              if (toolLineId) {
-                updateLine(toolLineId, {
-                  phase: "done",
-                  done: true,
-                  resultContent,
-                  fileToolDisplay,
-                });
-              } else {
-                appendLine({
-                  id: nowId(),
-                  role: "tool",
-                  title: "tool",
-                  toolName: "unknown",
-                  content: "",
-                  resultContent,
-                  fileToolDisplay,
-                  phase: "done",
-                  done: true,
-                });
-              }
-              break;
-            }
-            case "toolStreamUpdateEvent":
-              setStatus("running tool");
-              break;
-            case "modelStreamUpdateEvent": {
-              const modelEvent = (
-                e as {
-                  event?: { type?: string; usage?: unknown; metrics?: unknown };
-                }
-              ).event;
-              if (modelEvent?.type === "modelContentBlockDeltaEvent") {
-                const delta = (
-                  modelEvent as {
-                    delta?: { type?: string; text?: string };
+        await runWithAgentMemoryScope(currentAgent, async () => {
+          for await (const event of currentAgent.stream(streamInput)) {
+            const e = event as AgentStreamEvent;
+            switch (e.type) {
+              case "contentBlockEvent": {
+                const block = e.contentBlock as {
+                  type?: string;
+                  text?: string;
+                  name?: string;
+                  input?: unknown;
+                };
+                if (block.type === "textBlock") {
+                  appendAssistantText(block.text ?? "");
+                } else if (block.type === "toolUseBlock") {
+                  const toolId = nowId();
+                  const toolUseId = getToolUseId(block);
+                  if (toolUseId) {
+                    toolLineIdsRef.current.set(toolUseId, toolId);
+                  } else {
+                    pendingToolLineIdsRef.current.push(toolId);
                   }
-                ).delta;
-                if (delta?.type === "reasoningContentDelta" && delta.text) {
-                  setStatus("thinking");
-                  setLiveReasoning((prev) => `${prev}${delta.text}`);
-                } else if (delta?.type === "textDelta") {
-                  setStatus("streaming");
+                  appendLine({
+                    id: toolId,
+                    role: "tool",
+                    title: "tool",
+                    toolName: block.name ?? "unknown",
+                    content: stringifyUnknown(block.input ?? {}),
+                    phase: "running",
+                    done: false,
+                  });
+                  if (assistantLineIdRef.current) {
+                    moveLineToEnd(assistantLineIdRef.current);
+                  }
                 }
+                break;
               }
-              if (modelEvent?.type === "modelMetadataEvent") {
-                const u = (modelEvent.usage ?? {}) as Partial<Usage>;
-                const delta: Usage = {
-                  inputTokens: u.inputTokens ?? 0,
-                  outputTokens: u.outputTokens ?? 0,
-                  totalTokens: u.totalTokens ?? 0,
-                  ...(u.cacheReadInputTokens !== undefined && {
-                    cacheReadInputTokens: u.cacheReadInputTokens,
-                  }),
-                  ...(u.cacheWriteInputTokens !== undefined && {
-                    cacheWriteInputTokens: u.cacheWriteInputTokens,
-                  }),
-                };
-                const metricsData = (modelEvent.metrics ?? {}) as {
-                  latencyMs?: number;
-                };
-                const lat = metricsData.latencyMs ?? 0;
-                // Sum every `modelMetadataEvent` for this chat session (Strands meter semantics). Never reset on
-                // new prompts so the footer stays monotonic; note input totals sum per-request prompt sizes.
-                setUsage((prev) => {
-                  const tokens: Usage = {
-                    inputTokens: prev.inputTokens,
-                    outputTokens: prev.outputTokens,
-                    totalTokens: prev.totalTokens,
-                    ...(prev.cacheReadInputTokens !== undefined && {
-                      cacheReadInputTokens: prev.cacheReadInputTokens,
+              case "toolResultEvent": {
+                const resultContent = toToolResultText(e.result);
+                const toolUseId = getToolUseId(e.result);
+                const fileToolDisplay = takeFileToolDisplay(
+                  currentAgent.appState,
+                  toolUseId,
+                );
+                let toolLineId = toolUseId
+                  ? toolLineIdsRef.current.get(toolUseId)
+                  : undefined;
+                if (toolLineId && toolUseId) {
+                  toolLineIdsRef.current.delete(toolUseId);
+                }
+                toolLineId ??= pendingToolLineIdsRef.current.shift();
+                if (!toolLineId) {
+                  const firstTrackedTool = toolLineIdsRef.current
+                    .entries()
+                    .next();
+                  if (!firstTrackedTool.done) {
+                    const [trackedToolUseId, trackedToolLineId] =
+                      firstTrackedTool.value;
+                    toolLineIdsRef.current.delete(trackedToolUseId);
+                    toolLineId = trackedToolLineId;
+                  }
+                }
+                if (toolLineId) {
+                  updateLine(toolLineId, {
+                    phase: "done",
+                    done: true,
+                    resultContent,
+                    fileToolDisplay,
+                  });
+                } else {
+                  appendLine({
+                    id: nowId(),
+                    role: "tool",
+                    title: "tool",
+                    toolName: "unknown",
+                    content: "",
+                    resultContent,
+                    fileToolDisplay,
+                    phase: "done",
+                    done: true,
+                  });
+                }
+                break;
+              }
+              case "toolStreamUpdateEvent":
+                setStatus("running tool");
+                break;
+              case "modelStreamUpdateEvent": {
+                const modelEvent = (
+                  e as {
+                    event?: { type?: string; usage?: unknown; metrics?: unknown };
+                  }
+                ).event;
+                if (modelEvent?.type === "modelContentBlockDeltaEvent") {
+                  const delta = (
+                    modelEvent as {
+                      delta?: { type?: string; text?: string };
+                    }
+                  ).delta;
+                  if (delta?.type === "reasoningContentDelta" && delta.text) {
+                    setStatus("thinking");
+                    setLiveReasoning((prev) => `${prev}${delta.text}`);
+                  } else if (delta?.type === "textDelta") {
+                    setStatus("streaming");
+                  }
+                }
+                if (modelEvent?.type === "modelMetadataEvent") {
+                  const u = (modelEvent.usage ?? {}) as Partial<Usage>;
+                  const delta: Usage = {
+                    inputTokens: u.inputTokens ?? 0,
+                    outputTokens: u.outputTokens ?? 0,
+                    totalTokens: u.totalTokens ?? 0,
+                    ...(u.cacheReadInputTokens !== undefined && {
+                      cacheReadInputTokens: u.cacheReadInputTokens,
                     }),
-                    ...(prev.cacheWriteInputTokens !== undefined && {
-                      cacheWriteInputTokens: prev.cacheWriteInputTokens,
+                    ...(u.cacheWriteInputTokens !== undefined && {
+                      cacheWriteInputTokens: u.cacheWriteInputTokens,
                     }),
                   };
-                  accumulateUsage(tokens, delta);
-                  return { ...tokens, latencyMs: prev.latencyMs + lat };
-                });
+                  const metricsData = (modelEvent.metrics ?? {}) as {
+                    latencyMs?: number;
+                  };
+                  const lat = metricsData.latencyMs ?? 0;
+                  // Sum every `modelMetadataEvent` for this chat session (Strands meter semantics). Never reset on
+                  // new prompts so the footer stays monotonic; note input totals sum per-request prompt sizes.
+                  setUsage((prev) => {
+                    const tokens: Usage = {
+                      inputTokens: prev.inputTokens,
+                      outputTokens: prev.outputTokens,
+                      totalTokens: prev.totalTokens,
+                      ...(prev.cacheReadInputTokens !== undefined && {
+                        cacheReadInputTokens: prev.cacheReadInputTokens,
+                      }),
+                      ...(prev.cacheWriteInputTokens !== undefined && {
+                        cacheWriteInputTokens: prev.cacheWriteInputTokens,
+                      }),
+                    };
+                    accumulateUsage(tokens, delta);
+                    return { ...tokens, latencyMs: prev.latencyMs + lat };
+                  });
+                }
+                break;
               }
-              break;
+              default:
+                break;
             }
-            default:
-              break;
           }
-        }
+        });
       } catch (error) {
         appendLine({
           id: nowId(),

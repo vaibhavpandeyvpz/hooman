@@ -23,6 +23,8 @@ export const mcpOauthJsonPath = () => join(basePath(), "mcp-oauth.json");
 
 export const sessionsPath = () => join(basePath(), "sessions");
 
+export const memoryPath = () => join(basePath(), "memory");
+
 export const attachmentsPath = () => join(basePath(), "attachments");
 
 export const plansPath = () => join(basePath(), "plans");

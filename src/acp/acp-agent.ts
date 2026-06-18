@@ -61,6 +61,10 @@ import {
   EXIT_REQUESTED_CODE,
 } from "../core/state/exit-request.js";
 import {
+  flushAgentMemory,
+  runWithAgentMemoryScope,
+} from "../core/memory/index.js";
+import {
   listStoredSessionIds,
   loadSessionMessages,
   patchSessionMeta,
@@ -626,6 +630,7 @@ export class AcpAgent implements AgentContract {
       ),
     );
 
+    const oldAgent = rec.agent;
     const oldHookOff = rec.hookOff;
     const oldMcpDisconnect = rec.mcpDisconnect;
 
@@ -646,6 +651,7 @@ export class AcpAgent implements AgentContract {
     } catch {
       /* ignore */
     }
+    await flushAgentMemory(oldAgent).catch(() => {});
     await oldMcpDisconnect();
   }
 
@@ -714,51 +720,53 @@ export class AcpAgent implements AgentContract {
       ]);
 
       try {
-        await runWithCwd(rec.cwd, async () => {
-          const stream = rec.agent.stream(invokeArgs, { cancelSignal });
-          let iter = await stream.next();
-          while (!iter.done) {
-            const ev = iter.value;
+        await runWithAgentMemoryScope(rec.agent, async () => {
+          await runWithCwd(rec.cwd, async () => {
+            const stream = rec.agent.stream(invokeArgs, { cancelSignal });
+            let iter = await stream.next();
+            while (!iter.done) {
+              const ev = iter.value;
 
-            if (ev.type === "modelStreamUpdateEvent") {
-              await this.#dispatchModelStreamUpdate(params.sessionId, ev, rec);
-            } else if (ev.type === "afterToolCallEvent") {
-              await this.#connection.sessionUpdate({
-                sessionId: params.sessionId,
-                update: {
-                  sessionUpdate: "tool_call_update",
-                  toolCallId: ev.toolUse.toolUseId,
-                  status:
-                    ev.result.status === "success" ? "completed" : "failed",
-                  rawOutput: ev.result.toJSON() as unknown,
-                  content: toolResultToAcpContent(ev.result),
-                },
-              });
-              if (
-                ev.result.status === "success" &&
-                (ev.toolUse.name === ENTER_PLAN_MODE_TOOL ||
-                  ev.toolUse.name === EXIT_PLAN_MODE_TOOL)
-              ) {
-                await patchSessionMeta(this.#acpRoot, params.sessionId, {
-                  sessionMode: getModeState(rec.agent).mode,
-                });
+              if (ev.type === "modelStreamUpdateEvent") {
+                await this.#dispatchModelStreamUpdate(params.sessionId, ev, rec);
+              } else if (ev.type === "afterToolCallEvent") {
                 await this.#connection.sessionUpdate({
                   sessionId: params.sessionId,
                   update: {
-                    sessionUpdate: "config_option_update",
-                    configOptions: buildSessionConfigOptions(
-                      rec.config,
-                      rec.agent,
-                    ),
+                    sessionUpdate: "tool_call_update",
+                    toolCallId: ev.toolUse.toolUseId,
+                    status:
+                      ev.result.status === "success" ? "completed" : "failed",
+                    rawOutput: ev.result.toJSON() as unknown,
+                    content: toolResultToAcpContent(ev.result),
                   },
                 });
+                if (
+                  ev.result.status === "success" &&
+                  (ev.toolUse.name === ENTER_PLAN_MODE_TOOL ||
+                    ev.toolUse.name === EXIT_PLAN_MODE_TOOL)
+                ) {
+                  await patchSessionMeta(this.#acpRoot, params.sessionId, {
+                    sessionMode: getModeState(rec.agent).mode,
+                  });
+                  await this.#connection.sessionUpdate({
+                    sessionId: params.sessionId,
+                    update: {
+                      sessionUpdate: "config_option_update",
+                      configOptions: buildSessionConfigOptions(
+                        rec.config,
+                        rec.agent,
+                      ),
+                    },
+                  });
+                }
+              } else if (ev.type === "agentResultEvent") {
+                stopReason = toAcpStopReason(ev.result.stopReason);
               }
-            } else if (ev.type === "agentResultEvent") {
-              stopReason = toAcpStopReason(ev.result.stopReason);
-            }
 
-            iter = await stream.next();
-          }
+              iter = await stream.next();
+            }
+          });
         });
       } catch (err) {
         const cancelSignals = [
@@ -944,6 +952,7 @@ export class AcpAgent implements AgentContract {
       /* ignore */
     }
     rec.hookOff();
+    await flushAgentMemory(rec.agent).catch(() => {});
     await rec.mcpDisconnect();
     this.#sessions.delete(sessionId);
   }

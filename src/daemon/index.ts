@@ -12,6 +12,7 @@ import type {
   Manager as McpManager,
 } from "../core/mcp/index.js";
 import { consumeExitRequest } from "../core/state/exit-request.js";
+import { runWithAgentMemoryScope } from "../core/memory/index.js";
 import { attachmentPathsToPromptBlocks } from "../core/utils/attachments.js";
 import { createQueue } from "./queue.js";
 
@@ -116,11 +117,15 @@ export async function main(options: RunDaemonOptions): Promise<boolean> {
         debug(`invoking agent → ${tag} session=${session} user=${user}`);
         const invokeInput = await toInvokeInput(message);
         if (typeof invokeInput === "string") {
-          await options.agent.invoke(invokeInput);
+          await runWithAgentMemoryScope(options.agent, () =>
+            options.agent.invoke(invokeInput),
+          );
         } else {
-          for await (const event of options.agent.stream(invokeInput)) {
-            void event;
-          }
+          await runWithAgentMemoryScope(options.agent, async () => {
+            for await (const event of options.agent.stream(invokeInput)) {
+              void event;
+            }
+          });
         }
         debug(`completed → ${tag} session=${session} user=${user}`);
       } catch (error) {
