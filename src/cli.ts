@@ -10,6 +10,10 @@ import {
   ChatApprovalController,
   createChatApprovalIntervention,
 } from "./chat/approvals.js";
+import {
+  ChatTurnSteeringController,
+  createChatTurnSteeringIntervention,
+} from "./chat/steering.js";
 import { configure } from "./configure/index.js";
 import { runAcpStdio } from "./acp/acp-agent.js";
 import { main as daemon } from "./daemon/index.js";
@@ -141,6 +145,7 @@ program
       const sessionId = options.session?.trim() || crypto.randomUUID();
       const config = createSessionConfig();
       const approvals = new ChatApprovalController();
+      const steering = new ChatTurnSteeringController();
       const {
         agent,
         mcp: { manager },
@@ -152,7 +157,10 @@ program
           sessionId,
           yolo: Boolean(options.yolo),
           sessionMode: options.mode,
-          interventions: [createChatApprovalIntervention(approvals)],
+          interventions: [
+            createChatApprovalIntervention(approvals),
+            createChatTurnSteeringIntervention(steering),
+          ],
         },
         false,
         config,
@@ -168,6 +176,7 @@ program
           sessionId,
           prompt: prompt?.trim() || undefined,
           approvals,
+          steering,
           program: packageMeta.name,
         });
       } finally {

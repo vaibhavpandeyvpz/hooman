@@ -7,6 +7,7 @@ import type { Manager as McpManager } from "../core/mcp/index.js";
 import type { Registry } from "../core/skills/index.js";
 import { consumeExitRequest } from "../core/state/exit-request.js";
 import type { ChatApprovalController } from "./approvals.js";
+import type { ChatTurnSteeringController } from "./steering.js";
 import { ChatApp } from "./app.js";
 
 type LaunchChatOptions = {
@@ -17,6 +18,7 @@ type LaunchChatOptions = {
   sessionId: string;
   prompt?: string;
   approvals: ChatApprovalController;
+  steering: ChatTurnSteeringController;
   /** CLI binary name for resume hint (from package.json `bin`). */
   program?: string;
 };
@@ -66,6 +68,7 @@ export async function chat(options: LaunchChatOptions): Promise<boolean> {
       sessionId={options.sessionId}
       prompt={options.prompt}
       approvals={options.approvals}
+      steering={options.steering}
       onExit={() => {
         done = true;
       }}

@@ -37,7 +37,9 @@ function inputPreview(input: unknown): string {
   }
 }
 
-function readOrigin(rawAgent: { appState: { get(key: string): unknown } }): ChannelOrigin | null {
+function readOrigin(rawAgent: {
+  appState: { get(key: string): unknown };
+}): ChannelOrigin | null {
   const raw = rawAgent.appState.get("origin");
   if (!raw || typeof raw !== "object") {
     return null;
@@ -59,9 +61,7 @@ function readOrigin(rawAgent: { appState: { get(key: string): unknown } }): Chan
   };
 }
 
-export function createDaemonApprovalIntervention(
-  manager: McpManager,
-) {
+export function createDaemonApprovalIntervention(manager: McpManager) {
   return new HoomanToolApprovalIntervention({
     ask: async (request, event) => {
       const origin = readOrigin(event.agent);

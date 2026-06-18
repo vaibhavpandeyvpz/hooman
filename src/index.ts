@@ -138,7 +138,10 @@ export type {
   SkillSearchResult,
 } from "./core/skills/registry.js";
 
-export { System as SystemPrompt, system as createSystemPrompt } from "./core/prompts/index.js";
+export {
+  System as SystemPrompt,
+  system as createSystemPrompt,
+} from "./core/prompts/index.js";
 export type { SystemMode } from "./core/prompts/system.js";
 
 export { modelProviders } from "./core/models/index.js";

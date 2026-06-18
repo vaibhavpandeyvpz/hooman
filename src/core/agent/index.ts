@@ -30,9 +30,7 @@ import {
   refreshAgentSystemPromptForSessionMode,
   registerAgentSystemPromptBaseBuilder,
 } from "../prompts/session-mode-appendix.js";
-import {
-  createAgentSkillsPlugin,
-} from "../skills/index.js";
+import { createAgentSkillsPlugin } from "../skills/index.js";
 import { ModeAwareToolRegistry } from "./mode-aware-tool-registry.js";
 import { applySessionMode } from "./sync-tool-registry-mode.js";
 import { clearTodoState } from "../state/todos.js";

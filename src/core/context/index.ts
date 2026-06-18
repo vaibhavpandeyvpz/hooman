@@ -63,9 +63,7 @@ function createOffloadingPlugins() {
       renderContent: async () => `<now>${new Date().toISOString()}</now>`,
     }),
     new ContextOffloader({
-      storage: new FileStorage(
-        join(sessionsPath(), OFFLOADED_CONTENT_DIR),
-      ),
+      storage: new FileStorage(join(sessionsPath(), OFFLOADED_CONTENT_DIR)),
       maxResultTokens: OFFLOADING_MAX_RESULT_TOKENS,
       previewTokens: OFFLOADING_PREVIEW_TOKENS,
       includeRetrievalTool: true,

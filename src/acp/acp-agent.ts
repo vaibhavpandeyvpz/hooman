@@ -712,7 +712,11 @@ export class AcpAgent implements AgentContract {
               const ev = iter.value;
 
               if (ev.type === "modelStreamUpdateEvent") {
-                await this.#dispatchModelStreamUpdate(params.sessionId, ev, rec);
+                await this.#dispatchModelStreamUpdate(
+                  params.sessionId,
+                  ev,
+                  rec,
+                );
               } else if (ev.type === "afterToolCallEvent") {
                 await this.#connection.sessionUpdate({
                   sessionId: params.sessionId,

@@ -36,9 +36,7 @@ export function createAgentSkillsPlugin(): AgentSkills {
   });
 }
 
-export function clearAgentSkillsPromptInjectionState(
-  agent: LocalAgent,
-): void {
+export function clearAgentSkillsPromptInjectionState(agent: LocalAgent): void {
   const value = agent.appState.get(AGENT_SKILLS_STATE_KEY);
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     return;

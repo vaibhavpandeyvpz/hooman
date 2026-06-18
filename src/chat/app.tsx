@@ -27,7 +27,12 @@ import type { Registry } from "../core/skills/index.js";
 import { takeFileToolDisplay } from "../core/state/file-tool-display.js";
 import {
   ChatApprovalController,
+  createChatApprovalIntervention,
 } from "./approvals.js";
+import {
+  ChatTurnSteeringController,
+  createChatTurnSteeringIntervention,
+} from "./steering.js";
 import { ApprovalPrompt } from "./components/ApprovalPrompt.js";
 import { Composer } from "./components/Composer.js";
 import { SelectPicker } from "./components/SelectPicker.js";
@@ -70,6 +75,7 @@ type ChatAppProps = {
   manager: McpManager;
   registry: Registry;
   approvals: ChatApprovalController;
+  steering: ChatTurnSteeringController;
   prompt?: string;
   onExit: () => void;
 };
@@ -95,6 +101,8 @@ function normalizePromptSubmission(
 
 const INPUT_HINT =
   "shift/meta+enter or \\+enter: newline | esc/ctrl+c: cancel or exit";
+const INPUT_HINT_WITH_STEERING =
+  "enter on empty input: steer active turn with queued prompts | shift/meta+enter or \\+enter: newline | esc/ctrl+c: cancel or exit";
 
 const INIT_AGENTS_PROMPT = readBundledPrompt("static", "init.md");
 
@@ -275,6 +283,7 @@ export function ChatApp({
   manager,
   registry,
   approvals,
+  steering,
   prompt,
   onExit,
 }: ChatAppProps): React.JSX.Element {
@@ -312,6 +321,12 @@ export function ChatApp({
   const toolLineIdsRef = useRef(new Map<string, string>());
   const pendingToolLineIdsRef = useRef<string[]>([]);
   const initialRanRef = useRef(false);
+  const queuedPromptsRef = useRef<QueuedPrompt[]>([]);
+  const skippedQueueIdsRef = useRef(new Set<string>());
+
+  useEffect(() => {
+    queuedPromptsRef.current = queuedPrompts;
+  }, [queuedPrompts]);
 
   useEffect(() => {
     let cancelled = false;
@@ -454,7 +469,14 @@ export function ChatApp({
       mcp: { manager: nextManager },
     } = await bootstrap(
       "default",
-      { sessionId, yolo: isYoloEnabled(currentAgent) },
+      {
+        sessionId,
+        yolo: isYoloEnabled(currentAgent),
+        interventions: [
+          createChatApprovalIntervention(approvals),
+          createChatTurnSteeringIntervention(steering),
+        ],
+      },
       false,
       config,
     );
@@ -468,7 +490,7 @@ export function ChatApp({
     setCurrentManager(nextManager);
     await flushAgentMemory(currentAgent).catch(() => {});
     await currentManager.disconnect();
-  }, [config, currentAgent, currentManager, sessionId]);
+  }, [approvals, config, currentAgent, currentManager, sessionId, steering]);
 
   const handleModelCommand = useCallback(
     async (args: string) => {
@@ -747,7 +769,11 @@ export function ChatApp({
               case "modelStreamUpdateEvent": {
                 const modelEvent = (
                   e as {
-                    event?: { type?: string; usage?: unknown; metrics?: unknown };
+                    event?: {
+                      type?: string;
+                      usage?: unknown;
+                      metrics?: unknown;
+                    };
                   }
                 ).event;
                 if (modelEvent?.type === "modelContentBlockDeltaEvent") {
@@ -856,6 +882,9 @@ export function ChatApp({
   );
   if (!queueRef.current) {
     queueRef.current = fastq.promise(async (item: QueuedPrompt) => {
+      if (skippedQueueIdsRef.current.delete(item.id)) {
+        return;
+      }
       if (mountedRef.current) {
         setQueuedPrompts((prev) =>
           prev.filter((entry) => entry.id !== item.id),
@@ -916,6 +945,34 @@ export function ChatApp({
       if (pendingApproval) {
         return;
       }
+      const trimmed = value.text.trim();
+      if (
+        runningRef.current &&
+        !trimmed &&
+        value.attachments.length === 0 &&
+        queuedPromptsRef.current.length > 0
+      ) {
+        const queued = queuedPromptsRef.current;
+        queuedPromptsRef.current = [];
+        for (const item of queued) {
+          skippedQueueIdsRef.current.add(item.id);
+        }
+        setQueuedPrompts([]);
+        if (steering.queue(queued.map((item) => item.prompt))) {
+          appendLine({
+            id: nowId(),
+            role: "system",
+            title: "steering",
+            content: `Steered the active turn with ${queued.length} queued prompt${
+              queued.length === 1 ? "" : "s"
+            }.`,
+            done: true,
+          });
+          setFollowRequest((value) => value + 1);
+        }
+        setInput("");
+        return;
+      }
       const command = parseChatCommand(value.text);
       if (command && value.attachments.length === 0) {
         if (command.name === "init") {
@@ -947,11 +1004,13 @@ export function ChatApp({
       }
     },
     [
+      appendLine,
       handleModelCommand,
       handleModeCommand,
       handleYoloCommand,
       pendingApproval,
       pushPrompt,
+      steering,
     ],
   );
 
@@ -1008,6 +1067,8 @@ export function ChatApp({
     running && activeTodo
       ? activeTodo.activeForm.trim() || activeTodo.content
       : status;
+  const inputHint =
+    running && queuedPrompts.length > 0 ? INPUT_HINT_WITH_STEERING : INPUT_HINT;
 
   return (
     <Box flexDirection="column" width="100%" height={rows} paddingX={1}>
@@ -1111,7 +1172,7 @@ export function ChatApp({
             input={input}
             running={running}
             disabled={Boolean(pendingApproval)}
-            hint={INPUT_HINT}
+            hint={inputHint}
             onChange={setInput}
             onSubmit={onSubmit}
             slashMenu={slashMenu}

@@ -9,21 +9,21 @@ Hooman is a hackable, local-first AI agent toolkit written in TypeScript. It shi
 
 ## Repository layout
 
-| Path | Purpose |
-|------|---------|
-| `src/cli.ts` | CLI entrypoint (Commander + Ink). Compiles to `dist/cli.js`, exposed as the `hooman` bin. |
-| `src/index.ts` | Public library API exported by the npm package. |
-| `src/core/` | Agent engine, configuration, prompts, tools, MCP management, skills registry, and state. |
-| `src/chat/` | Interactive `chat` TUI (Ink/React components). |
-| `src/configure/` | Ink-based configuration workflow. |
-| `src/exec/` | One-shot `exec` command approval handling. |
-| `src/daemon/` | MCP channel-driven `daemon` command. |
-| `src/acp/` | Agent Client Protocol (ACP) stdio server. |
-| `src/core/prompts/` | Static Markdown prompts, harness prompts, session-mode prompts, agent prompts. |
-| `src/core/skills/built-in/` | Built-in skills shipped with the package (e.g. `hooman-coding`, `hooman-config`, `hooman-mcp`, `hooman-channels`, `hooman-skills`). |
-| `scripts/copy-bundled-assets.mjs` | Post-build step that copies Markdown skill/prompt assets into `dist/`. |
-| `reference/` | Vendored reference code from other agent projects. **Not source code** — do not edit as part of feature work. |
-| `.github/workflows/publish-npm.yml` | CI that installs, builds, and publishes to npm on version tags. |
+| Path                                | Purpose                                                                                                                             |
+| ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `src/cli.ts`                        | CLI entrypoint (Commander + Ink). Compiles to `dist/cli.js`, exposed as the `hooman` bin.                                           |
+| `src/index.ts`                      | Public library API exported by the npm package.                                                                                     |
+| `src/core/`                         | Agent engine, configuration, prompts, tools, MCP management, skills registry, and state.                                            |
+| `src/chat/`                         | Interactive `chat` TUI (Ink/React components).                                                                                      |
+| `src/configure/`                    | Ink-based configuration workflow.                                                                                                   |
+| `src/exec/`                         | One-shot `exec` command approval handling.                                                                                          |
+| `src/daemon/`                       | MCP channel-driven `daemon` command.                                                                                                |
+| `src/acp/`                          | Agent Client Protocol (ACP) stdio server.                                                                                           |
+| `src/core/prompts/`                 | Static Markdown prompts, harness prompts, session-mode prompts, agent prompts.                                                      |
+| `src/core/skills/built-in/`         | Built-in skills shipped with the package (e.g. `hooman-coding`, `hooman-config`, `hooman-mcp`, `hooman-channels`, `hooman-skills`). |
+| `scripts/copy-bundled-assets.mjs`   | Post-build step that copies Markdown skill/prompt assets into `dist/`.                                                              |
+| `reference/`                        | Vendored reference code from other agent projects. **Not source code** — do not edit as part of feature work.                       |
+| `.github/workflows/publish-npm.yml` | CI that installs, builds, and publishes to npm on version tags.                                                                     |
 
 ## Build and run commands
 

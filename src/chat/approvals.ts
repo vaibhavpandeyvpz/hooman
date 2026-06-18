@@ -54,7 +54,7 @@ export class ChatApprovalController {
 
 export function createChatApprovalIntervention(
   controller: ChatApprovalController,
-){
+) {
   return new HoomanToolApprovalIntervention({
     ask: async (request) => controller.request(request),
   });

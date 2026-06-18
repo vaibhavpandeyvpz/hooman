@@ -27,7 +27,8 @@ export async function flushAgentMemory(agent: Agent): Promise<void> {
 }
 
 function deriveAgentMemoryScope(agent: Agent): string {
-  const candidate = readString(agent, "userId") ?? readString(agent, "sessionId");
+  const candidate =
+    readString(agent, "userId") ?? readString(agent, "sessionId");
   return sanitizeScope(candidate);
 }
 
@@ -46,6 +47,9 @@ function sanitizeScope(value?: string): string {
     return DEFAULT_MEMORY_SCOPE;
   }
 
-  const normalized = value.trim().toLowerCase().replace(UNSAFE_SCOPE_CHARS, "_");
+  const normalized = value
+    .trim()
+    .toLowerCase()
+    .replace(UNSAFE_SCOPE_CHARS, "_");
   return normalized.length > 0 ? normalized : DEFAULT_MEMORY_SCOPE;
 }

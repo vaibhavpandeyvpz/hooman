@@ -9,16 +9,24 @@ export function createAcpToolApprovalIntervention(
   /** Tool calls already announced via model stream (`tool_call` pending). */
   streamPrimedToolCallIds?: () => ReadonlySet<string>,
 ) {
-  async function sendPending(request: {
-    toolName: string;
-    input: unknown;
-    description?: string;
-  }, toolUseId: string) {
+  async function sendPending(
+    request: {
+      toolName: string;
+      input: unknown;
+      description?: string;
+    },
+    toolUseId: string,
+  ) {
     const desc = request.description?.trim();
     const title =
-      desc && desc.length <= 120 ? `${request.toolName}: ${desc}` : request.toolName;
+      desc && desc.length <= 120
+        ? `${request.toolName}: ${desc}`
+        : request.toolName;
     const kind = inferToolKind(request.toolName);
-    const locations = toolCallLocationsFromInput(request.toolName, request.input);
+    const locations = toolCallLocationsFromInput(
+      request.toolName,
+      request.input,
+    );
     const primed = streamPrimedToolCallIds?.().has(toolUseId) ?? false;
 
     await connection.sessionUpdate({

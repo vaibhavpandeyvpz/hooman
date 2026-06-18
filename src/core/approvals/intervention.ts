@@ -148,7 +148,9 @@ export class HoomanToolApprovalIntervention extends InterventionHandler {
   }
 }
 
-export function normalizeApprovalResponse(response: JSONValue): ToolApprovalResult {
+export function normalizeApprovalResponse(
+  response: JSONValue,
+): ToolApprovalResult {
   if (response === true) {
     return "allow";
   }
