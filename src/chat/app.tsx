@@ -8,7 +8,6 @@ import React, {
 import fastq from "fastq";
 import { Box, useApp, useInput, useWindowSize } from "ink";
 import {
-  BeforeToolCallEvent,
   Message,
   TextBlock,
   type Agent,
@@ -28,7 +27,6 @@ import type { Registry } from "../core/skills/index.js";
 import { takeFileToolDisplay } from "../core/state/file-tool-display.js";
 import {
   ChatApprovalController,
-  createChatApprovalHandler,
 } from "./approvals.js";
 import { ApprovalPrompt } from "./components/ApprovalPrompt.js";
 import { Composer } from "./components/Composer.js";
@@ -71,6 +69,7 @@ type ChatAppProps = {
   sessionId: string;
   manager: McpManager;
   registry: Registry;
+  approvals: ChatApprovalController;
   prompt?: string;
   onExit: () => void;
 };
@@ -275,6 +274,7 @@ export function ChatApp({
   sessionId,
   manager,
   registry,
+  approvals,
   prompt,
   onExit,
 }: ChatAppProps): React.JSX.Element {
@@ -306,7 +306,6 @@ export function ChatApp({
   const [todoState, setTodoState] = useState<TodoViewState>(() =>
     getTodoViewState(agent),
   );
-  const controllerRef = useRef(new ChatApprovalController());
   const mountedRef = useRef(true);
   const runningRef = useRef(false);
   const assistantLineIdRef = useRef<string | null>(null);
@@ -348,19 +347,13 @@ export function ChatApp({
   }, [running, turnStartedAt]);
 
   useEffect(() => {
-    const controller = controllerRef.current;
-    const cleanupListener = controller.subscribe(() => {
-      setPendingApproval(controller.pending);
+    const cleanupListener = approvals.subscribe(() => {
+      setPendingApproval(approvals.pending);
     });
-    const cleanupHook = currentAgent.addHook(
-      BeforeToolCallEvent,
-      createChatApprovalHandler(controller),
-    );
     return () => {
       cleanupListener();
-      cleanupHook();
     };
-  }, [currentAgent]);
+  }, [approvals]);
 
   useEffect(() => {
     let active = true;
@@ -1032,7 +1025,7 @@ export function ChatApp({
 
         {pendingApproval ? (
           <ApprovalPrompt
-            onDecision={(decision) => controllerRef.current.decide(decision)}
+            onDecision={(decision) => approvals.decide(decision)}
           />
         ) : null}
 

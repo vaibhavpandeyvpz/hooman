@@ -16,7 +16,6 @@ import {
 } from "@agentclientprotocol/sdk";
 import type { Agent as StrandsAgent } from "@strands-agents/sdk";
 import {
-  BeforeToolCallEvent,
   isModelStreamEvent,
   Message,
   type MessageData,
@@ -28,7 +27,7 @@ import { runWithCwd } from "../core/utils/cwd-context.js";
 import { acpSessionsRootPath } from "./utils/paths.js";
 import { inferToolKind } from "./utils/tool-kind.js";
 import { toolResultToAcpContent } from "./utils/tool-result-content.js";
-import { createAcpToolApprovalHook } from "./approvals.js";
+import { createAcpToolApprovalIntervention } from "./approvals.js";
 import { replayConversationHistory } from "./sessions/replay.js";
 import {
   applySessionConfigOption,
@@ -88,7 +87,6 @@ type SessionRecord = {
   currentModeId: string;
   readonly availableModeIds: ReadonlySet<string>;
   mcpDisconnect: () => Promise<void>;
-  hookOff: () => void;
   /** Set when an ACP-driven config change requires the agent to be rebuilt before the next turn. */
   agentStale: boolean;
   turnAbort: AbortController | null;
@@ -377,6 +375,15 @@ export class AcpAgent implements AgentContract {
       {
         userId: bootstrapUserId,
         sessionId,
+        createInterventions: () => [
+          createAcpToolApprovalIntervention(
+            this.#connection,
+            sessionId,
+            () =>
+              this.#sessions.get(sessionId)?.streamedToolCallIds ??
+              EMPTY_STREAMED_TOOL_CALL_IDS,
+          ),
+        ],
         acp: {
           mcpServers,
           ...(clientSystemPrompt ? { systemPrompt: clientSystemPrompt } : {}),
@@ -389,24 +396,12 @@ export class AcpAgent implements AgentContract {
 
     const availableModeIds = new Set<string>([DEFAULT_MODE_ID]);
 
-    const hookOff = agent.addHook(
-      BeforeToolCallEvent,
-      createAcpToolApprovalHook(
-        this.#connection,
-        sessionId,
-        () =>
-          this.#sessions.get(sessionId)?.streamedToolCallIds ??
-          EMPTY_STREAMED_TOOL_CALL_IDS,
-      ),
-    );
-
     this.#sessions.set(sessionId, {
       cwd: params.cwd,
       agent,
       config,
       currentModeId: DEFAULT_MODE_ID,
       availableModeIds,
-      hookOff,
       mcpDisconnect: async () => {
         try {
           await manager.disconnect();
@@ -481,6 +476,15 @@ export class AcpAgent implements AgentContract {
         sessionId: params.sessionId,
         yolo: existing.yolo === true,
         sessionMode: normalizeSessionMode(existing.sessionMode),
+        createInterventions: () => [
+          createAcpToolApprovalIntervention(
+            this.#connection,
+            params.sessionId,
+            () =>
+              this.#sessions.get(params.sessionId)?.streamedToolCallIds ??
+              EMPTY_STREAMED_TOOL_CALL_IDS,
+          ),
+        ],
         acp: {
           mcpServers,
           ...(clientSystemPrompt ? { systemPrompt: clientSystemPrompt } : {}),
@@ -504,16 +508,6 @@ export class AcpAgent implements AgentContract {
     );
 
     const availableModeIds = new Set<string>([DEFAULT_MODE_ID]);
-    const hookOff = agent.addHook(
-      BeforeToolCallEvent,
-      createAcpToolApprovalHook(
-        this.#connection,
-        params.sessionId,
-        () =>
-          this.#sessions.get(params.sessionId)?.streamedToolCallIds ??
-          EMPTY_STREAMED_TOOL_CALL_IDS,
-      ),
-    );
 
     this.#sessions.set(params.sessionId, {
       cwd: params.cwd,
@@ -521,7 +515,6 @@ export class AcpAgent implements AgentContract {
       config,
       currentModeId: DEFAULT_MODE_ID,
       availableModeIds,
-      hookOff,
       mcpDisconnect: async () => {
         try {
           await manager.disconnect();
@@ -601,6 +594,15 @@ export class AcpAgent implements AgentContract {
         sessionId,
         yolo: isYoloEnabled(rec.agent),
         sessionMode: getModeState(rec.agent).mode,
+        createInterventions: () => [
+          createAcpToolApprovalIntervention(
+            this.#connection,
+            sessionId,
+            () =>
+              this.#sessions.get(sessionId)?.streamedToolCallIds ??
+              EMPTY_STREAMED_TOOL_CALL_IDS,
+          ),
+        ],
         acp: {
           mcpServers,
           ...(meta.systemPrompt ? { systemPrompt: meta.systemPrompt } : {}),
@@ -619,24 +621,11 @@ export class AcpAgent implements AgentContract {
     copyAgentAppState(rec.agent, agent);
     applySessionMode(agent);
 
-    const hookOff = agent.addHook(
-      BeforeToolCallEvent,
-      createAcpToolApprovalHook(
-        this.#connection,
-        sessionId,
-        () =>
-          this.#sessions.get(sessionId)?.streamedToolCallIds ??
-          EMPTY_STREAMED_TOOL_CALL_IDS,
-      ),
-    );
-
     const oldAgent = rec.agent;
-    const oldHookOff = rec.hookOff;
     const oldMcpDisconnect = rec.mcpDisconnect;
 
     rec.agent = agent;
     rec.config = config;
-    rec.hookOff = hookOff;
     rec.mcpDisconnect = async () => {
       try {
         await manager.disconnect();
@@ -646,11 +635,6 @@ export class AcpAgent implements AgentContract {
     };
     rec.agentStale = false;
 
-    try {
-      oldHookOff();
-    } catch {
-      /* ignore */
-    }
     await flushAgentMemory(oldAgent).catch(() => {});
     await oldMcpDisconnect();
   }
@@ -951,7 +935,6 @@ export class AcpAgent implements AgentContract {
     } catch {
       /* ignore */
     }
-    rec.hookOff();
     await flushAgentMemory(rec.agent).catch(() => {});
     await rec.mcpDisconnect();
     this.#sessions.delete(sessionId);

@@ -1,12 +1,5 @@
-import type { Agent, BeforeToolCallEvent } from "@strands-agents/sdk";
+import { HoomanToolApprovalIntervention } from "../core/approvals/intervention.js";
 import type { Manager as McpManager } from "../core/mcp/index.js";
-import {
-  INTERNAL_ALWAYS_ALLOWED,
-  allowToolForSession,
-  isToolSessionAllowed,
-  planModeWriteEditRejectionMessage,
-} from "../core/state/tool-approvals.js";
-import { isYoloEnabled } from "../core/state/yolo.js";
 
 const TOOL_DESCRIPTION_PREVIEW_LIMIT = 50;
 const TOOL_ARGS_PREVIEW_LIMIT = 50;
@@ -44,8 +37,8 @@ function inputPreview(input: unknown): string {
   }
 }
 
-function readOrigin(agent: Agent): ChannelOrigin | null {
-  const raw = agent.appState.get("origin");
+function readOrigin(rawAgent: { appState: { get(key: string): unknown } }): ChannelOrigin | null {
+  const raw = rawAgent.appState.get("origin");
   if (!raw || typeof raw !== "object") {
     return null;
   }
@@ -66,72 +59,59 @@ function readOrigin(agent: Agent): ChannelOrigin | null {
   };
 }
 
-export function createDaemonApprovalHandler(
+export function createDaemonApprovalIntervention(
   manager: McpManager,
-  agent: Agent,
-): (event: BeforeToolCallEvent) => Promise<void> {
-  return async (event: BeforeToolCallEvent) => {
-    const name = event.toolUse.name;
-    const planReject = planModeWriteEditRejectionMessage(
-      event.agent,
-      name,
-      event.toolUse.input,
-    );
-    if (planReject) {
-      event.cancel = planReject;
-      return;
-    }
-    if (isYoloEnabled(event.agent)) {
-      return;
-    }
-    if (
-      INTERNAL_ALWAYS_ALLOWED.has(name) ||
-      isToolSessionAllowed(event.agent, name, event.toolUse.input)
-    ) {
-      return;
-    }
+) {
+  return new HoomanToolApprovalIntervention({
+    ask: async (request, event) => {
+      const origin = readOrigin(event.agent);
+      if (!origin?.server) {
+        return {
+          decision: "reject",
+          reason: `Tool "${request.toolName}" was denied: missing daemon origin context.`,
+        };
+      }
 
-    const origin = readOrigin(agent);
-    if (!origin?.server) {
-      event.cancel = `Tool "${name}" was denied: missing daemon origin context.`;
-      return;
-    }
+      const supported = await manager.supportsChannelPermission(origin.server);
+      if (!supported) {
+        return {
+          decision: "reject",
+          reason: `Tool "${request.toolName}" was denied: MCP server "${origin.server}" does not support hooman/channel/permission.`,
+        };
+      }
 
-    const supported = await manager.supportsChannelPermission(origin.server);
-    if (!supported) {
-      event.cancel = `Tool "${name}" was denied: MCP server "${origin.server}" does not support hooman/channel/permission.`;
-      return;
-    }
+      try {
+        const behavior = await manager.requestChannelPermission(origin.server, {
+          requestId: randomRequestId(),
+          tool: request.toolName,
+          description: truncateWithEllipsis(
+            request.description?.trim() ??
+              `Run tool "${request.toolName}" in daemon mode.`,
+            TOOL_DESCRIPTION_PREVIEW_LIMIT,
+          ),
+          preview: inputPreview(request.input),
+          source: origin.source,
+          user: origin.user,
+          session: origin.session,
+          thread: origin.thread,
+        });
 
-    let behavior: "allow_once" | "allow_always" | "deny";
-    try {
-      behavior = await manager.requestChannelPermission(origin.server, {
-        requestId: randomRequestId(),
-        tool: name,
-        description: truncateWithEllipsis(
-          event.tool?.description?.trim() ??
-            `Run tool "${name}" in daemon mode.`,
-          TOOL_DESCRIPTION_PREVIEW_LIMIT,
-        ),
-        preview: inputPreview(event.toolUse.input),
-        source: origin.source,
-        user: origin.user,
-        session: origin.session,
-        thread: origin.thread,
-      });
-    } catch (error) {
-      event.cancel = `Tool "${name}" was denied: failed to request permission (${error instanceof Error ? error.message : String(error)}).`;
-      return;
-    }
-
-    if (behavior === "allow_once") {
-      return;
-    }
-    if (behavior === "allow_always") {
-      allowToolForSession(event.agent, name);
-      return;
-    }
-
-    event.cancel = `Tool "${name}" was rejected by remote approval.`;
-  };
+        if (behavior === "allow_once") {
+          return "allow";
+        }
+        if (behavior === "allow_always") {
+          return "always";
+        }
+        return {
+          decision: "reject",
+          reason: `Tool "${request.toolName}" was rejected by remote approval.`,
+        };
+      } catch (error) {
+        return {
+          decision: "reject",
+          reason: `Tool "${request.toolName}" was denied: failed to request permission (${error instanceof Error ? error.message : String(error)}).`,
+        };
+      }
+    },
+  });
 }

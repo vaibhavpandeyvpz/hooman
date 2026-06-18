@@ -2,15 +2,18 @@
 
 import { readFile } from "node:fs/promises";
 import { Command, Option } from "commander";
-import { BeforeToolCallEvent } from "@strands-agents/sdk";
 import { bootstrap } from "./core/index.js";
 import { createMcpConfig, createMcpManager } from "./core/mcp/index.js";
-import { createToolApprovalHandler } from "./exec/approvals.js";
+import { createToolApprovalIntervention } from "./exec/approvals.js";
 import { chat } from "./chat/index.js";
+import {
+  ChatApprovalController,
+  createChatApprovalIntervention,
+} from "./chat/approvals.js";
 import { configure } from "./configure/index.js";
 import { runAcpStdio } from "./acp/acp-agent.js";
 import { main as daemon } from "./daemon/index.js";
-import { createDaemonApprovalHandler } from "./daemon/approvals.js";
+import { createDaemonApprovalIntervention } from "./daemon/approvals.js";
 import {
   flushAgentMemory,
   runWithAgentMemoryScope,
@@ -105,10 +108,10 @@ program
         sessionId,
         yolo: Boolean(options.yolo),
         sessionMode: options.mode,
+        interventions: [createToolApprovalIntervention()],
       },
       true,
     );
-    agent.addHook(BeforeToolCallEvent, createToolApprovalHandler());
     let exitRequested = false;
     try {
       await runWithAgentMemoryScope(agent, () => agent.invoke(prompt));
@@ -137,6 +140,7 @@ program
     async (prompt: string | undefined, options: CliAgentBootstrapFlags) => {
       const sessionId = options.session?.trim() || crypto.randomUUID();
       const config = createSessionConfig();
+      const approvals = new ChatApprovalController();
       const {
         agent,
         mcp: { manager },
@@ -148,6 +152,7 @@ program
           sessionId,
           yolo: Boolean(options.yolo),
           sessionMode: options.mode,
+          interventions: [createChatApprovalIntervention(approvals)],
         },
         false,
         config,
@@ -162,6 +167,7 @@ program
           registry,
           sessionId,
           prompt: prompt?.trim() || undefined,
+          approvals,
           program: packageMeta.name,
         });
       } finally {
@@ -202,12 +208,11 @@ program
         sessionId: session,
         yolo: Boolean(options.yolo),
         sessionMode: options.mode,
+        createInterventions: ({ manager }) => [
+          createDaemonApprovalIntervention(manager),
+        ],
       },
       true,
-    );
-    agent.addHook(
-      BeforeToolCallEvent,
-      createDaemonApprovalHandler(manager, agent),
     );
     let exitRequested = false;
     try {

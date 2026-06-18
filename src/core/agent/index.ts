@@ -1,4 +1,8 @@
-import { Agent, BeforeInvocationEvent } from "@strands-agents/sdk";
+import {
+  Agent,
+  BeforeInvocationEvent,
+  type InterventionHandler,
+} from "@strands-agents/sdk";
 import type { Tool } from "@strands-agents/sdk";
 import { type Config } from "../config.js";
 import { create as createContext } from "../context/index.js";
@@ -53,6 +57,7 @@ export async function create(
     /** Auto-approve tools (CLI `--yolo`, ACP toggle); stored on {@link Agent.appState}. */
     yolo?: boolean;
     sessionMode?: SessionMode;
+    interventions?: InterventionHandler[];
   },
 ): Promise<Agent> {
   const sessionId = meta.sessionId;
@@ -114,6 +119,7 @@ export async function create(
       ...(meta.sessionMode ? { [MODE_STATE_KEY]: meta.sessionMode } : {}),
     },
     plugins: [skillsPlugin, ...contextPlugins],
+    interventions: meta.interventions ?? [],
     tools,
     printer: print,
     ...agentContext,

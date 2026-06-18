@@ -1,45 +1,25 @@
 import { createInterface } from "node:readline/promises";
 import { stdin, stdout } from "node:process";
-import { BeforeToolCallEvent } from "@strands-agents/sdk";
-import {
-  INTERNAL_ALWAYS_ALLOWED,
-  allowToolForSession,
-  isToolSessionAllowed,
-  planModeWriteEditRejectionMessage,
-} from "../core/state/tool-approvals.js";
-import { isYoloEnabled } from "../core/state/yolo.js";
-const INPUT_PREVIEW_LIMIT = 1_024;
-
-type ApprovalDecision = "allow" | "reject" | "always";
-
-function inputPreview(input: unknown): string {
-  try {
-    const text = JSON.stringify(input, null, 2) ?? "null";
-    return text.length > INPUT_PREVIEW_LIMIT
-      ? `${text.slice(0, INPUT_PREVIEW_LIMIT)}\n... (truncated)`
-      : text;
-  } catch {
-    return String(input);
-  }
-}
+import { HoomanToolApprovalIntervention } from "../core/approvals/intervention.js";
+import type { ToolApprovalResult } from "../core/approvals/intervention.js";
 
 function canPromptForApproval(): boolean {
   return Boolean(stdin.isTTY && stdout.isTTY);
 }
 
 async function promptForApproval(
-  event: BeforeToolCallEvent,
-): Promise<ApprovalDecision> {
+  toolName: string,
+  description: string | undefined,
+  inputPreview: string,
+): Promise<ToolApprovalResult> {
   const rl = createInterface({ input: stdin, output: stdout });
-  const description = event.tool?.description?.trim();
-  const preview = inputPreview(event.toolUse.input);
   try {
     stdout.write(`\nTool approval required\n`);
-    stdout.write(`Tool: ${event.toolUse.name}\n`);
+    stdout.write(`Tool: ${toolName}\n`);
     if (description) {
       stdout.write(`Description: ${description}\n`);
     }
-    stdout.write(`Input:\n${preview}\n`);
+    stdout.write(`Input:\n${inputPreview}\n`);
     stdout.write(`Options: [a]llow once, [r]eject, [A]lways allow\n`);
     while (true) {
       const answer = (await rl.question("> ")).trim();
@@ -59,41 +39,20 @@ async function promptForApproval(
   }
 }
 
-type BeforeToolCallEventHandler = (event: BeforeToolCallEvent) => Promise<void>;
-
-export function createToolApprovalHandler(): BeforeToolCallEventHandler {
-  return async function onBeforeToolCallEvent(event: BeforeToolCallEvent) {
-    const name = event.toolUse.name;
-    const planReject = planModeWriteEditRejectionMessage(
-      event.agent,
-      name,
-      event.toolUse.input,
-    );
-    if (planReject) {
-      event.cancel = planReject;
-      return;
-    }
-    if (isYoloEnabled(event.agent)) {
-      return;
-    }
-    if (
-      INTERNAL_ALWAYS_ALLOWED.has(name) ||
-      isToolSessionAllowed(event.agent, name, event.toolUse.input)
-    ) {
-      return;
-    }
-    if (!canPromptForApproval()) {
-      event.cancel = `Tool "${name}" requires approval, but no interactive terminal is available.`;
-      return;
-    }
-    const decision = await promptForApproval(event);
-    if (decision === "allow") {
-      return;
-    }
-    if (decision === "always") {
-      allowToolForSession(event.agent, name);
-      return;
-    }
-    event.cancel = `Tool "${name}" was rejected by the user.`;
-  };
+export function createToolApprovalIntervention() {
+  return new HoomanToolApprovalIntervention({
+    ask: async (request) => {
+      if (!canPromptForApproval()) {
+        return {
+          decision: "reject",
+          reason: `Tool "${request.toolName}" requires approval, but no interactive terminal is available.`,
+        };
+      }
+      return promptForApproval(
+        request.toolName,
+        request.description,
+        request.inputPreview,
+      );
+    },
+  });
 }

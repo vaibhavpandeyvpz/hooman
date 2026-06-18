@@ -1,4 +1,4 @@
-import type { Agent } from "@strands-agents/sdk";
+import type { Agent, InterventionHandler } from "@strands-agents/sdk";
 import { Config } from "./config.js";
 import { create as createAgent } from "./agent/index.js";
 import type { SessionMode } from "./state/session-mode.js";
@@ -26,6 +26,10 @@ export type BootstrapMeta = {
   yolo?: boolean;
   /** Seeds session mode on agent appState (`default`, `plan`, or `ask`). */
   sessionMode?: SessionMode;
+  interventions?: InterventionHandler[];
+  createInterventions?: (deps: {
+    manager: McpConnectionManager;
+  }) => InterventionHandler[];
   acp?: AcpMeta;
 };
 
@@ -56,12 +60,17 @@ export async function bootstrap(
   const mcp = { config: mcpConfig, manager: mcpManager };
   const registry = createSkillsRegistry(basePath());
   const system = await createSystemPrompt(instructionsMdPath(), config, mode);
+  const interventions = [
+    ...(meta.interventions ?? []),
+    ...(meta.createInterventions?.({ manager: mcpManager }) ?? []),
+  ];
   const agent = await createAgent(config, system, mcp, print, {
     userId: meta?.userId ?? meta?.sessionId,
     sessionId: meta?.sessionId,
     systemPrompt: meta?.acp?.systemPrompt,
     yolo: meta?.yolo,
     sessionMode: meta?.sessionMode,
+    interventions,
   });
   return { config, agent, mcp, registry };
 }
