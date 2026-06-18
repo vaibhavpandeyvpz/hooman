@@ -231,8 +231,9 @@ program
     await runAcpStdio();
   });
 
-if (process.argv.slice(2).length === 0) {
-  program.help();
-}
+const argv =
+  process.argv.slice(2).length === 0
+    ? [...process.argv, "chat"]
+    : process.argv;
 
-await program.parseAsync(process.argv);
+await program.parseAsync(argv);

@@ -54,7 +54,7 @@ Fastest way to get started without cloning the repo:
 
 ```bash
 npx hoomanjs configure
-npx hoomanjs chat
+npx hoomanjs
 
 # or install globally
 npm i -g hoomanjs
@@ -64,13 +64,13 @@ Or with Bun:
 
 ```bash
 bunx hoomanjs configure
-bunx hoomanjs chat
+bunx hoomanjs
 ```
 
 Recommended first run:
 
 1. Run `hooman configure` to choose your LLM provider and model.
-2. Start chatting with `hooman chat`.
+2. Start chatting with `hooman` (same as `hooman chat`).
 3. Use `hooman exec "your prompt"` for one-off tasks.
 
 ## Must have
@@ -147,6 +147,12 @@ hooman exec "Map the architecture" --mode ask
 ### `hooman chat`
 
 Start an interactive stateful chat session.
+
+```bash
+hooman
+```
+
+Equivalent explicit form:
 
 ```bash
 hooman chat
