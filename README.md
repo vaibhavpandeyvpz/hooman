@@ -364,6 +364,8 @@ The on-disk shape uses a reusable **`providers`** array plus a non-empty **`llms
 
 Tool approvals are session-scoped and are not persisted in `config.json`.
 
+Hooman enables Strands `ContextOffloader` by default with file-backed storage under `~/.hooman/sessions/offloaded-content`, so large tool results can be previewed in-context and retrieved later without bloating the active conversation window.
+
 Supported `providers[].options.provider` values registered in this release (see `src/core/models/index.ts`):
 
 - `anthropic`

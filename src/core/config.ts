@@ -52,7 +52,6 @@ const CompactionPartialSchema = z.object({
 });
 
 const DEFAULT_COMPACTION = { ratio: 0.75, keep: 5 } as const;
-
 const DEFAULT_PROMPTS = {
   behaviour: true,
   communication: true,

@@ -2,9 +2,18 @@ import {
   SessionManager,
   SummarizingConversationManager,
 } from "@strands-agents/sdk";
+import {
+  ContextOffloader,
+  FileStorage,
+} from "@strands-agents/sdk/vended-plugins/context-offloader";
+import { join } from "node:path";
 import { sessionsPath } from "../utils/paths.js";
 import { FlatFileStorage } from "./flat-file-storage.js";
 import { LazySessionManager } from "./lazy-session-manager.js";
+
+const OFFLOADED_CONTENT_DIR = "offloaded-content";
+const OFFLOADING_MAX_RESULT_TOKENS = 5_000;
+const OFFLOADING_PREVIEW_TOKENS = 2_000;
 
 export function create(sessionId?: string) {
   const conversationManager = new SummarizingConversationManager({
@@ -12,10 +21,11 @@ export function create(sessionId?: string) {
     preserveRecentMessages: 5,
   });
   const storage = new FlatFileStorage(sessionsPath());
+  const offloadingPlugins = createOffloadingPlugins();
 
   if (!sessionId) {
     return {
-      plugins: [new LazySessionManager({ storage })],
+      plugins: [...offloadingPlugins, new LazySessionManager({ storage })],
       conversationManager,
     };
   }
@@ -25,7 +35,24 @@ export function create(sessionId?: string) {
     storage: { snapshot: storage },
   });
 
-  return { sessionManager, conversationManager };
+  return {
+    plugins: offloadingPlugins,
+    sessionManager,
+    conversationManager,
+  };
+}
+
+function createOffloadingPlugins() {
+  return [
+    new ContextOffloader({
+      storage: new FileStorage(
+        join(sessionsPath(), OFFLOADED_CONTENT_DIR),
+      ),
+      maxResultTokens: OFFLOADING_MAX_RESULT_TOKENS,
+      previewTokens: OFFLOADING_PREVIEW_TOKENS,
+      includeRetrievalTool: true,
+    }),
+  ];
 }
 
 export { LazySessionManager } from "./lazy-session-manager.js";
