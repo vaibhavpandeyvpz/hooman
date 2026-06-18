@@ -1,10 +1,12 @@
 import type { Config as AppConfig } from "../core/config.js";
 import type { Config as McpConfig } from "../core/mcp/config.js";
+import type { Manager as McpManager } from "../core/mcp/index.js";
 import type { Registry as SkillsRegistry } from "../core/skills/registry.js";
 
 export type ConfigureAppProps = {
   config: AppConfig;
   mcpConfig: McpConfig;
+  mcpManager: McpManager;
   skills: SkillsRegistry;
   onExit: () => void;
 };
@@ -52,5 +54,6 @@ export type MenuItem = {
   label: string;
   /** First occurrence in `label` is rendered bold (MCP server name, skill title, etc.). */
   boldSubstring?: string;
+  oauthStatus?: "authenticated" | "expired" | "unauthenticated";
   value: MenuAction;
 };

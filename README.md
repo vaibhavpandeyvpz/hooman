@@ -612,6 +612,8 @@ Uses the Vercel AI SDK xAI provider (`@ai-sdk/xai`) on top of Strands `VercelMod
 
 ## MCP Configuration
 
+Detailed design notes for planned OAuth-enabled remote MCP support live in [docs/mcp-oauth-design.md](docs/mcp-oauth-design.md).
+
 `mcp.json` is stored as:
 
 ```json
@@ -654,6 +656,25 @@ Uses the Vercel AI SDK xAI provider (`@ai-sdk/xai`) on top of Strands `VercelMod
 }
 ```
 
+### Example OAuth-capable remote server
+
+```json
+{
+  "mcpServers": {
+    "linear": {
+      "type": "streamable-http",
+      "url": "https://example.com/mcp",
+      "oauth": {
+        "enabled": true,
+        "clientId": "optional-pre-registered-client",
+        "scopes": ["read", "write"],
+        "callbackPort": 19876
+      }
+    }
+  }
+}
+```
+
 ### Example SSE server
 
 ```json
@@ -674,6 +695,10 @@ Uses the Vercel AI SDK xAI provider (`@ai-sdk/xai`) on top of Strands `VercelMod
 
 - MCP server `instructions` from the protocol `initialize` response are appended to Hooman's system prompt, after local `instructions.md` and session-specific prompt overrides.
 - Hooman reads these instructions automatically from connected MCP servers when building the agent.
+- Remote MCP OAuth helpers are available via:
+  - `hooman mcp auth <server>`
+  - `hooman mcp logout <server>`
+  - `hooman mcp auth-status`
 - `hooman daemon` subscribes to MCP servers that advertise the experimental `hooman/channel` capability (always on; there is no opt-out flag).
 - Hooman also reads `hooman/user`, `hooman/session`, and `hooman/thread` capability paths so daemon turns preserve origin metadata from the source channel.
 - When a matching notification is received, Hooman uses `params.content` as the prompt if it is a string; otherwise it JSON-stringifies the notification params and sends that to the agent.

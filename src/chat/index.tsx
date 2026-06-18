@@ -26,7 +26,34 @@ function printSessionResumeHint(program: string, sessionId: string): void {
   console.log(` ${exe} chat -s ${sessionId}`);
 }
 
+async function printMcpAuthHint(
+  manager: McpManager,
+  program: string,
+): Promise<void> {
+  const exe = program.trim() || "hooman";
+  const rows = await manager.listAuthStatuses().catch(() => []);
+  const pending = rows.filter(
+    (row) => row.status === "unauthenticated" || row.status === "expired",
+  );
+  if (pending.length === 0) {
+    return;
+  }
+
+  console.log("");
+  console.log(
+    styleText(
+      ["yellow"],
+      " Some MCP servers need OAuth before their tools can be used:",
+    ),
+  );
+  for (const row of pending) {
+    const suffix = row.status === "expired" ? " (expired)" : "";
+    console.log(` - ${row.name}${suffix}: ${exe} mcp auth ${row.name}`);
+  }
+}
+
 export async function chat(options: LaunchChatOptions): Promise<boolean> {
+  await printMcpAuthHint(options.manager, options.program ?? "hooman");
   let done = false;
   const { waitUntilExit, unmount } = render(
     <ChatApp

@@ -9,6 +9,10 @@ import {
   type NamedProviderConfig,
 } from "../core/config.js";
 import {
+  type McpOAuthConfig,
+  McpOAuthConfigSchema,
+} from "../core/mcp/oauth/types.js";
+import {
   McpTransportSchema,
   type Sse,
   type Stdio,
@@ -43,6 +47,7 @@ import {
   folderNameForSkill,
   normalizeOptional,
   noticeColor,
+  parseOptionalBoolean,
   parseNumber,
   parseObjectRecord,
   maskSensitiveParamsForDisplay,
@@ -70,6 +75,12 @@ const SEARCH_PROVIDER_LABELS: Record<SearchProvider, string> = {
   serper: "Serper",
   tavily: "Tavily",
 };
+
+type McpAuthStatus =
+  | "unsupported"
+  | "authenticated"
+  | "expired"
+  | "unauthenticated";
 
 const SUPPORTED_PROVIDER_TYPES = [
   LlmProvider.Anthropic,
@@ -111,6 +122,7 @@ const yesNo = (on: boolean): string => (on ? "Yes" : "No");
 export function ConfigureApp({
   config,
   mcpConfig,
+  mcpManager,
   skills,
   onExit,
 }: ConfigureAppProps): React.JSX.Element {
@@ -122,6 +134,9 @@ export function ConfigureApp({
   const [revision, setRevision] = useState(0);
   const [installedSkills, setInstalledSkills] = useState<SkillListEntry[]>([]);
   const [searchResults, setSearchResults] = useState<SkillSearchResult[]>([]);
+  const [mcpAuthStatuses, setMcpAuthStatuses] = useState<
+    Record<string, McpAuthStatus>
+  >({});
 
   const refresh = useCallback(() => {
     setRevision((value) => value + 1);
@@ -157,6 +172,45 @@ export function ConfigureApp({
   useEffect(() => {
     void refreshSkills();
   }, [refreshSkills]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadStatuses = async () => {
+      try {
+        const rows = await mcpManager.listAuthStatuses();
+        if (cancelled) {
+          return;
+        }
+        setMcpAuthStatuses(
+          Object.fromEntries(rows.map((row) => [row.name, row.status])),
+        );
+      } catch {
+        if (!cancelled) {
+          setMcpAuthStatuses({});
+        }
+      }
+    };
+    void loadStatuses();
+    return () => {
+      cancelled = true;
+    };
+  }, [mcpManager, revision]);
+
+  const configData = useMemo(
+    () =>
+      ({
+        name: config.name,
+        providers: config.providers,
+        llms: config.llms,
+        search: config.search,
+        prompts: config.prompts,
+        tools: config.tools,
+        compaction: config.compaction,
+      }) satisfies ConfigData,
+    [config, revision],
+  );
+
+  const mcpServers = useMemo(() => mcpConfig.list(), [mcpConfig, revision]);
 
   useInput(
     (input, key) => {
@@ -196,25 +250,31 @@ export function ConfigureApp({
     { isActive: true },
   );
 
-  const configData = useMemo(
-    () =>
-      ({
-        name: config.name,
-        providers: config.providers,
-        llms: config.llms,
-        search: config.search,
-        prompts: config.prompts,
-        tools: config.tools,
-        compaction: config.compaction,
-      }) satisfies ConfigData,
-    [config, revision],
-  );
-
-  const mcpServers = useMemo(() => mcpConfig.list(), [mcpConfig, revision]);
-
   const setSuccess = useCallback((text: string) => {
     setNotice({ kind: "success", text });
   }, []);
+
+  const authenticateMcpServer = useCallback(
+    async (name: string) => {
+      await runTask(`Authenticating MCP server "${name}"...`, async () => {
+        await mcpManager.authenticate(name);
+        refresh();
+        setSuccess(`Authenticated MCP server "${name}".`);
+      });
+    },
+    [mcpManager, refresh, runTask, setSuccess],
+  );
+
+  const logoutMcpServer = useCallback(
+    async (name: string) => {
+      await runTask(`Logging out MCP server "${name}"...`, async () => {
+        await mcpManager.logout(name);
+        refresh();
+        setSuccess(`Cleared OAuth credentials for "${name}".`);
+      });
+    },
+    [mcpManager, refresh, runTask, setSuccess],
+  );
 
   const updateConfig = useCallback(
     (partial: Partial<ConfigData>, message: string) => {
@@ -320,7 +380,8 @@ export function ConfigureApp({
   );
 
   const removeProvider = useCallback(
-    (name: string) => config.providers.filter((provider) => provider.name !== name),
+    (name: string) =>
+      config.providers.filter((provider) => provider.name !== name),
     [config],
   );
 
@@ -420,6 +481,280 @@ export function ConfigureApp({
       initial?: StreamableHttp | Sse,
     ) => {
       const mode = initial ? "Edit" : "Add";
+      const persistRemote = (
+        url: string,
+        headers: Record<string, string> | undefined,
+        oauth: McpOAuthConfig | undefined,
+      ) => {
+        const transport = McpTransportSchema.parse({
+          type,
+          url,
+          ...(headers && Object.keys(headers).length > 0 ? { headers } : {}),
+          ...(oauth ? { oauth } : {}),
+        }) as StreamableHttp | Sse;
+        if (initial) {
+          mcpConfig.update(name, transport);
+          setSuccess(`Updated MCP server "${name}".`);
+        } else {
+          mcpConfig.add(name, transport);
+          setSuccess(`Added MCP server "${name}".`);
+        }
+        setPrompt(null);
+        setScreen({ kind: "mcp" });
+        refresh();
+      };
+      const promptForOAuthDetails = (
+        url: string,
+        headers: Record<string, string> | undefined,
+        oauthEnabled: boolean,
+      ) => {
+        if (!oauthEnabled) {
+          persistRemote(url, headers, undefined);
+          return;
+        }
+        promptValue({
+          title: `${mode} ${type} server`,
+          label: "OAuth client ID (optional)",
+          initialValue: initial?.oauth?.clientId ?? "",
+          placeholder: "client-id",
+          onSubmit: async (clientIdValue) => {
+            promptValue({
+              title: `${mode} ${type} server`,
+              label: "OAuth client secret (optional)",
+              initialValue: initial?.oauth?.clientSecret ?? "",
+              placeholder: "secret",
+              note: "Stored in mcp.json only if you enter a value.",
+              onSubmit: async (clientSecretValue) => {
+                promptValue({
+                  title: `${mode} ${type} server`,
+                  label: "OAuth scopes (optional)",
+                  initialValue: initial?.oauth?.scopes
+                    ? compactJson(initial.oauth.scopes)
+                    : "",
+                  placeholder: '["read","write"]',
+                  onSubmit: async (scopesValue) => {
+                    promptValue({
+                      title: `${mode} ${type} server`,
+                      label: "OAuth audiences (optional)",
+                      initialValue: initial?.oauth?.audiences
+                        ? compactJson(initial.oauth.audiences)
+                        : "",
+                      placeholder: '["https://api.example.com"]',
+                      onSubmit: async (audiencesValue) => {
+                        promptValue({
+                          title: `${mode} ${type} server`,
+                          label: "OAuth callback port (optional)",
+                          initialValue:
+                            initial?.oauth?.callbackPort !== undefined
+                              ? String(initial.oauth.callbackPort)
+                              : "",
+                          placeholder: "19876",
+                          onSubmit: async (callbackPortValue) => {
+                            promptValue({
+                              title: `${mode} ${type} server`,
+                              label: "OAuth redirect URI (optional)",
+                              initialValue: initial?.oauth?.redirectUri ?? "",
+                              placeholder:
+                                "http://127.0.0.1:19876/mcp/oauth/callback",
+                              onSubmit: async (redirectUriValue) => {
+                                promptValue({
+                                  title: `${mode} ${type} server`,
+                                  label: "OAuth issuer (optional)",
+                                  initialValue: initial?.oauth?.issuer ?? "",
+                                  placeholder: "https://auth.example.com",
+                                  onSubmit: async (issuerValue) => {
+                                    promptValue({
+                                      title: `${mode} ${type} server`,
+                                      label:
+                                        "OAuth authorization URL override (optional)",
+                                      initialValue:
+                                        initial?.oauth?.authorizationUrl ?? "",
+                                      placeholder:
+                                        "https://auth.example.com/authorize",
+                                      onSubmit: async (
+                                        authorizationUrlValue,
+                                      ) => {
+                                        promptValue({
+                                          title: `${mode} ${type} server`,
+                                          label:
+                                            "OAuth token URL override (optional)",
+                                          initialValue:
+                                            initial?.oauth?.tokenUrl ?? "",
+                                          placeholder:
+                                            "https://auth.example.com/token",
+                                          onSubmit: async (tokenUrlValue) => {
+                                            promptValue({
+                                              title: `${mode} ${type} server`,
+                                              label:
+                                                "OAuth registration URL override (optional)",
+                                              initialValue:
+                                                initial?.oauth
+                                                  ?.registrationUrl ?? "",
+                                              placeholder:
+                                                "https://auth.example.com/register",
+                                              onSubmit: async (
+                                                registrationUrlValue,
+                                              ) => {
+                                                promptValue({
+                                                  title: `${mode} ${type} server`,
+                                                  label:
+                                                    "OAuth token param name (optional)",
+                                                  initialValue:
+                                                    initial?.oauth
+                                                      ?.tokenParamName ?? "",
+                                                  placeholder: "access_token",
+                                                  onSubmit: async (
+                                                    tokenParamNameValue,
+                                                  ) => {
+                                                    const scopes =
+                                                      parseStringArray(
+                                                        scopesValue,
+                                                        "OAuth scopes",
+                                                      );
+                                                    const audiences =
+                                                      parseStringArray(
+                                                        audiencesValue,
+                                                        "OAuth audiences",
+                                                      );
+                                                    const callbackPort =
+                                                      normalizeOptional(
+                                                        callbackPortValue,
+                                                      ) !== undefined
+                                                        ? parseNumber(
+                                                            callbackPortValue,
+                                                            "OAuth callback port",
+                                                            {
+                                                              integer: true,
+                                                              min: 1,
+                                                              max: 65535,
+                                                            },
+                                                          )
+                                                        : undefined;
+                                                    const oauth =
+                                                      McpOAuthConfigSchema.parse(
+                                                        {
+                                                          enabled: true,
+                                                          ...(normalizeOptional(
+                                                            clientIdValue,
+                                                          )
+                                                            ? {
+                                                                clientId:
+                                                                  normalizeOptional(
+                                                                    clientIdValue,
+                                                                  ),
+                                                              }
+                                                            : {}),
+                                                          ...(normalizeOptional(
+                                                            clientSecretValue,
+                                                          )
+                                                            ? {
+                                                                clientSecret:
+                                                                  normalizeOptional(
+                                                                    clientSecretValue,
+                                                                  ),
+                                                              }
+                                                            : {}),
+                                                          ...(scopes.length > 0
+                                                            ? { scopes }
+                                                            : {}),
+                                                          ...(audiences.length >
+                                                          0
+                                                            ? { audiences }
+                                                            : {}),
+                                                          ...(callbackPort !==
+                                                          undefined
+                                                            ? { callbackPort }
+                                                            : {}),
+                                                          ...(normalizeOptional(
+                                                            redirectUriValue,
+                                                          )
+                                                            ? {
+                                                                redirectUri:
+                                                                  normalizeOptional(
+                                                                    redirectUriValue,
+                                                                  ),
+                                                              }
+                                                            : {}),
+                                                          ...(normalizeOptional(
+                                                            issuerValue,
+                                                          )
+                                                            ? {
+                                                                issuer:
+                                                                  normalizeOptional(
+                                                                    issuerValue,
+                                                                  ),
+                                                              }
+                                                            : {}),
+                                                          ...(normalizeOptional(
+                                                            authorizationUrlValue,
+                                                          )
+                                                            ? {
+                                                                authorizationUrl:
+                                                                  normalizeOptional(
+                                                                    authorizationUrlValue,
+                                                                  ),
+                                                              }
+                                                            : {}),
+                                                          ...(normalizeOptional(
+                                                            tokenUrlValue,
+                                                          )
+                                                            ? {
+                                                                tokenUrl:
+                                                                  normalizeOptional(
+                                                                    tokenUrlValue,
+                                                                  ),
+                                                              }
+                                                            : {}),
+                                                          ...(normalizeOptional(
+                                                            registrationUrlValue,
+                                                          )
+                                                            ? {
+                                                                registrationUrl:
+                                                                  normalizeOptional(
+                                                                    registrationUrlValue,
+                                                                  ),
+                                                              }
+                                                            : {}),
+                                                          ...(normalizeOptional(
+                                                            tokenParamNameValue,
+                                                          )
+                                                            ? {
+                                                                tokenParamName:
+                                                                  normalizeOptional(
+                                                                    tokenParamNameValue,
+                                                                  ),
+                                                              }
+                                                            : {}),
+                                                        },
+                                                      );
+                                                    persistRemote(
+                                                      url,
+                                                      headers,
+                                                      oauth,
+                                                    );
+                                                  },
+                                                });
+                                              },
+                                            });
+                                          },
+                                        });
+                                      },
+                                    });
+                                  },
+                                });
+                              },
+                            });
+                          },
+                        });
+                      },
+                    });
+                  },
+                });
+              },
+            });
+          },
+        });
+      };
       promptValue({
         title: `${mode} ${type} server`,
         label: "URL",
@@ -437,23 +772,20 @@ export function ConfigureApp({
             placeholder: '{"Authorization":"Bearer ..."}',
             onSubmit: async (headersValue) => {
               const headers = parseStringRecord(headersValue, "Headers");
-              const transport = McpTransportSchema.parse({
-                type,
-                url,
-                ...(headers && Object.keys(headers).length > 0
-                  ? { headers }
-                  : {}),
-              }) as StreamableHttp | Sse;
-              if (initial) {
-                mcpConfig.update(name, transport);
-                setSuccess(`Updated MCP server "${name}".`);
-              } else {
-                mcpConfig.add(name, transport);
-                setSuccess(`Added MCP server "${name}".`);
-              }
-              setPrompt(null);
-              setScreen({ kind: "mcp" });
-              refresh();
+              promptValue({
+                title: `${mode} ${type} server`,
+                label: "Enable OAuth? (yes/no)",
+                initialValue: initial?.oauth ? "yes" : "no",
+                placeholder: "no",
+                note: "Choose yes for servers that use OAuth 2.0/2.1 or dynamic client registration.",
+                onSubmit: async (oauthEnabledValue) => {
+                  const oauthEnabled = parseOptionalBoolean(
+                    oauthEnabledValue,
+                    "Enable OAuth",
+                  );
+                  promptForOAuthDetails(url, headers, oauthEnabled);
+                },
+              });
             },
           });
         },
@@ -801,7 +1133,8 @@ export function ConfigureApp({
       key: `provider:${provider.name}`,
       label: `${provider.name} • ${provider.options.provider} • ${providerUsageCount(provider.name)} model(s)`,
       boldSubstring: provider.name,
-      value: () => setScreen({ kind: "config-provider-edit", name: provider.name }),
+      value: () =>
+        setScreen({ kind: "config-provider-edit", name: provider.name }),
     }));
 
     const items: MenuItem[] = [
@@ -1417,10 +1750,21 @@ export function ConfigureApp({
   };
 
   const renderMcpMenu = () => {
-    const serverItems: MenuItem[] = mcpServers.flatMap((server) => [
-      {
-        label: `Edit ${server.name} • ${transportSummary(server.transport)}`,
+    const serverItems: MenuItem[] = mcpServers.map((server) => {
+      const oauthStatus = mcpAuthStatuses[server.name];
+      return {
+        key: `mcp-server:${server.name}`,
+        label: `Edit ${server.name} • ${formatMcpServerLabel(
+          server.transport,
+          oauthStatus,
+        )}`,
         boldSubstring: server.name,
+        oauthStatus:
+          oauthStatus === "authenticated" ||
+          oauthStatus === "expired" ||
+          oauthStatus === "unauthenticated"
+            ? oauthStatus
+            : undefined,
         value: () => {
           if (server.transport.type === "stdio") {
             promptForStdio(server.name, server.transport);
@@ -1432,14 +1776,8 @@ export function ConfigureApp({
             );
           }
         },
-      },
-      {
-        label: `Delete ${server.name}`,
-        boldSubstring: server.name,
-        value: () =>
-          setScreen({ kind: "mcp-delete-confirm", name: server.name }),
-      },
-    ]);
+      };
+    });
 
     const items: MenuItem[] = [
       {
@@ -1474,6 +1812,36 @@ export function ConfigureApp({
         title="MCP Servers"
         description="Add, edit, or remove named MCP transports from ~/.hooman/mcp.json."
         items={items}
+        footerHint={(item) =>
+          formatMcpFooterHint(item, mcpServers, mcpAuthStatuses)
+        }
+        onShortcut={async (input, item) => {
+          const server = findMcpServerFromMenuItem(item, mcpServers);
+          if (!server) {
+            return;
+          }
+          const status = mcpAuthStatuses[server.name];
+          const key = input.toLowerCase();
+          if (key === "d") {
+            setScreen({ kind: "mcp-delete-confirm", name: server.name });
+            return;
+          }
+          if (
+            key === "r" &&
+            server.transport.type !== "stdio" &&
+            status !== "unsupported"
+          ) {
+            await authenticateMcpServer(server.name);
+            return;
+          }
+          if (
+            key === "l" &&
+            server.transport.type !== "stdio" &&
+            (status === "authenticated" || status === "expired")
+          ) {
+            await logoutMcpServer(server.name);
+          }
+        }}
       />
     );
   };
@@ -1738,4 +2106,50 @@ export function ConfigureApp({
       {body}
     </Box>
   );
+}
+
+function formatMcpServerLabel(
+  transport: Stdio | StreamableHttp | Sse,
+  status: McpAuthStatus | undefined,
+): string {
+  const summary = transportSummary(transport);
+  if (
+    (status === "expired" || status === "unauthenticated") &&
+    summary.endsWith(" • oauth")
+  ) {
+    return `${summary.slice(0, -" • oauth".length)} • oauth needed`;
+  }
+  return summary;
+}
+
+function findMcpServerFromMenuItem(
+  item: MenuItem | undefined,
+  servers: Array<{ name: string; transport: Stdio | StreamableHttp | Sse }>,
+): { name: string; transport: Stdio | StreamableHttp | Sse } | null {
+  if (!item?.key?.startsWith("mcp-server:")) {
+    return null;
+  }
+  const serverName = item.key.slice("mcp-server:".length);
+  return servers.find((server) => server.name === serverName) ?? null;
+}
+
+function formatMcpFooterHint(
+  item: MenuItem | undefined,
+  servers: Array<{ name: string; transport: Stdio | StreamableHttp | Sse }>,
+  statuses: Record<string, McpAuthStatus>,
+): string {
+  const server = findMcpServerFromMenuItem(item, servers);
+  const status = server ? statuses[server.name] : undefined;
+  const parts = ["enter: edit"];
+  if (server && server.transport.type !== "stdio" && status !== "unsupported") {
+    parts.push(status === "authenticated" ? "r: re-auth" : "r: authenticate");
+    if (status === "authenticated" || status === "expired") {
+      parts.push("l: logout");
+    }
+  }
+  if (server) {
+    parts.push("d: delete");
+  }
+  parts.push("esc: back", "ctrl+c: exit");
+  return parts.join(" | ");
 }

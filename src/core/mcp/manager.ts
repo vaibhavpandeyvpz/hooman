@@ -3,11 +3,13 @@ import { PrefixedMcpTool } from "./prefixed-mcp-tool.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
+import { UnauthorizedError } from "@modelcontextprotocol/sdk/client/auth.js";
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import lodash from "lodash";
 import { z } from "zod";
 import { Config, type NamedMcpTransport } from "./config.js";
-import type { McpTransport } from "./types.js";
+import { type McpOAuthService, createMcpOAuthService } from "./oauth/index.js";
+import type { McpTransport, Sse, StreamableHttp } from "./types.js";
 import { normalizeAttachmentPaths } from "../utils/attachments.js";
 
 const { get } = lodash;
@@ -53,7 +55,23 @@ type ChannelPermissionRequest = {
   thread?: string;
 };
 
-function transportFor(spec: McpTransport): Transport {
+export type ServerAuthStatus = {
+  name: string;
+  transportType: McpTransport["type"];
+  status: "unsupported" | "authenticated" | "expired" | "unauthenticated";
+};
+
+function isOAuthRemoteTransport(
+  transport: McpTransport,
+): transport is StreamableHttp | Sse {
+  return transport.type === "streamable-http" || transport.type === "sse";
+}
+
+function transportFor(
+  name: string,
+  spec: McpTransport,
+  oauth: McpOAuthService,
+): Transport {
   switch (spec.type) {
     case "stdio":
       return new StdioClientTransport({
@@ -66,12 +84,14 @@ function transportFor(spec: McpTransport): Transport {
     case "streamable-http": {
       const headers = spec.headers;
       return new StreamableHTTPClientTransport(new URL(spec.url), {
+        authProvider: oauth.getProvider(name, spec),
         requestInit: headers ? { headers } : undefined,
       });
     }
     case "sse": {
       const headers = spec.headers;
       return new SSEClientTransport(new URL(spec.url), {
+        authProvider: oauth.getProvider(name, spec),
         requestInit: headers ? { headers } : undefined,
       });
     }
@@ -128,6 +148,7 @@ function readAttachmentsFromParams(params: unknown): string[] {
  */
 export class Manager {
   private instances: Map<string, McpClient> | null = null;
+  private readonly oauth: McpOAuthService;
   private readonly permissions = new Map<
     string,
     {
@@ -141,7 +162,10 @@ export class Manager {
     private readonly config: Config,
     private readonly acp = false,
     private readonly servers: readonly NamedMcpTransport[] = [],
-  ) {}
+    oauth: McpOAuthService = createMcpOAuthService(),
+  ) {
+    this.oauth = oauth;
+  }
 
   /** Lazily builds clients from the current in-memory config (reloads file first). */
   get clients(): ReadonlyMap<string, McpClient> {
@@ -170,7 +194,7 @@ export class Manager {
       next.set(
         name,
         new McpClient({
-          transport: transportFor(transport),
+          transport: transportFor(name, transport, this.oauth),
         }),
       );
     }
@@ -198,6 +222,76 @@ export class Manager {
     );
   }
 
+  public listServers(): NamedMcpTransport[] {
+    if (!this.acp) {
+      this.config.reload();
+    }
+    const combined = new Map<string, McpTransport>();
+    const configured = this.acp ? [] : this.config.list();
+    for (const { name, transport } of configured) {
+      combined.set(name, transport);
+    }
+    for (const { name, transport } of this.servers) {
+      combined.set(name, transport);
+    }
+    return [...combined.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([name, transport]) => ({ name, transport }));
+  }
+
+  public getServer(name: string): NamedMcpTransport | undefined {
+    return this.listServers().find((entry) => entry.name === name);
+  }
+
+  public async authenticate(name: string): Promise<void> {
+    const server = this.getServer(name);
+    if (!server) {
+      throw new Error(`MCP server "${name}" does not exist.`);
+    }
+    if (!isOAuthRemoteTransport(server.transport)) {
+      throw new Error(`MCP server "${name}" is not a remote HTTP/SSE server.`);
+    }
+    await this.oauth.authenticate(name, server.transport);
+    this.reload();
+  }
+
+  public async logout(
+    name: string,
+    scope: "all" | "client" | "tokens" | "discovery" = "all",
+  ): Promise<void> {
+    const server = this.getServer(name);
+    if (!server) {
+      throw new Error(`MCP server "${name}" does not exist.`);
+    }
+    if (!isOAuthRemoteTransport(server.transport)) {
+      throw new Error(`MCP server "${name}" is not a remote HTTP/SSE server.`);
+    }
+    await this.oauth.logout(name, server.transport, scope);
+    this.reload();
+  }
+
+  public async listAuthStatuses(): Promise<ServerAuthStatus[]> {
+    const servers = this.listServers();
+    const rows = await Promise.all(
+      servers.map(async ({ name, transport }) => {
+        if (!isOAuthRemoteTransport(transport)) {
+          return {
+            name,
+            transportType: transport.type,
+            status: "unsupported" as const,
+          };
+        }
+        const status = await this.oauth.status(name, transport);
+        return {
+          name,
+          transportType: transport.type,
+          status,
+        };
+      }),
+    );
+    return rows;
+  }
+
   /**
    * Lists tools from every configured MCP client with names prefixed by a
    * slugified server config key (see {@link PrefixedMcpTool}).
@@ -223,7 +317,10 @@ export class Manager {
             (t) =>
               new PrefixedMcpTool(server, t, readOnly.get(t.name) === true),
           );
-        } catch {
+        } catch (error) {
+          if (error instanceof UnauthorizedError) {
+            return [];
+          }
           return [];
         }
       }),

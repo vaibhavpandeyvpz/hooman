@@ -4,6 +4,7 @@ import { readFile } from "node:fs/promises";
 import { Command, Option } from "commander";
 import { BeforeToolCallEvent } from "@strands-agents/sdk";
 import { bootstrap } from "./core/index.js";
+import { createMcpConfig, createMcpManager } from "./core/mcp/index.js";
 import { createToolApprovalHandler } from "./exec/approvals.js";
 import { chat } from "./chat/index.js";
 import { configure } from "./configure/index.js";
@@ -11,6 +12,7 @@ import { runAcpStdio } from "./acp/acp-agent.js";
 import { main as daemon } from "./daemon/index.js";
 import { createDaemonApprovalHandler } from "./daemon/approvals.js";
 import { createSessionConfig } from "./core/session-config.js";
+import { mcpJsonPath } from "./core/utils/paths.js";
 import {
   consumeExitRequest,
   EXIT_REQUESTED_CODE,
@@ -222,6 +224,74 @@ program
     await configure();
   });
 
+const mcp = program
+  .command("mcp")
+  .description("Manage MCP server authentication and status.");
+
+mcp
+  .command("auth")
+  .description("Authenticate a remote MCP server with OAuth.")
+  .argument("<server>", "Configured MCP server name.")
+  .action(async (serverName: string) => {
+    const manager = createMcpManager(createMcpConfig(mcpJsonPath()));
+    try {
+      await manager.authenticate(serverName.trim());
+      console.log(`Authenticated MCP server "${serverName.trim()}".`);
+    } finally {
+      await manager.disconnect().catch(() => undefined);
+    }
+  });
+
+mcp
+  .command("logout")
+  .description("Remove stored OAuth credentials for a remote MCP server.")
+  .argument("<server>", "Configured MCP server name.")
+  .addOption(
+    new Option(
+      "--scope <scope>",
+      "Credentials to clear: all, client, tokens, or discovery.",
+    )
+      .choices(["all", "client", "tokens", "discovery"])
+      .default("all"),
+  )
+  .action(
+    async (
+      serverName: string,
+      options: { scope: "all" | "client" | "tokens" | "discovery" },
+    ) => {
+      const manager = createMcpManager(createMcpConfig(mcpJsonPath()));
+      try {
+        await manager.logout(serverName.trim(), options.scope);
+        console.log(
+          `Cleared ${options.scope} OAuth credentials for MCP server "${serverName.trim()}".`,
+        );
+      } finally {
+        await manager.disconnect().catch(() => undefined);
+      }
+    },
+  );
+
+mcp
+  .command("auth-status")
+  .description("Show OAuth status for configured MCP servers.")
+  .action(async () => {
+    const manager = createMcpManager(createMcpConfig(mcpJsonPath()));
+    try {
+      const statuses = await manager.listAuthStatuses();
+      if (statuses.length === 0) {
+        console.log("No MCP servers configured.");
+        return;
+      }
+      for (const status of statuses) {
+        console.log(
+          `${status.name}\t${status.transportType}\t${status.status}`,
+        );
+      }
+    } finally {
+      await manager.disconnect().catch(() => undefined);
+    }
+  });
+
 program
   .command("acp")
   .description(
@@ -232,8 +302,6 @@ program
   });
 
 const argv =
-  process.argv.slice(2).length === 0
-    ? [...process.argv, "chat"]
-    : process.argv;
+  process.argv.slice(2).length === 0 ? [...process.argv, "chat"] : process.argv;
 
 await program.parseAsync(argv);

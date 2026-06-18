@@ -19,6 +19,8 @@ export const instructionsMdPath = () => join(basePath(), "instructions.md");
 
 export const mcpJsonPath = () => join(basePath(), "mcp.json");
 
+export const mcpOauthJsonPath = () => join(basePath(), "mcp-oauth.json");
+
 export const sessionsPath = () => join(basePath(), "sessions");
 
 export const attachmentsPath = () => join(basePath(), "attachments");

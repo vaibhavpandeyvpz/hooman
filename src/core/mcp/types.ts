@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { McpOAuthConfigSchema } from "./oauth/types.js";
 
 const headersOrEnvVarsSchema = z.record(z.string(), z.string()).optional();
 
@@ -16,6 +17,7 @@ export const StreamableHttpSchema = z.object({
   type: z.literal("streamable-http"),
   url: z.url(),
   headers: headersOrEnvVarsSchema,
+  oauth: McpOAuthConfigSchema.optional(),
 });
 
 /** MCP remote server over SSE + POST messages (legacy transport). */
@@ -23,6 +25,7 @@ export const SseSchema = z.object({
   type: z.literal("sse"),
   url: z.url(),
   headers: headersOrEnvVarsSchema,
+  oauth: McpOAuthConfigSchema.optional(),
 });
 
 export const McpTransportSchema = z.discriminatedUnion("type", [

@@ -1,5 +1,6 @@
 import { basename, dirname } from "node:path";
 import { z } from "zod";
+import type { McpOAuthConfig } from "../core/mcp/oauth/types.js";
 import type { McpTransport } from "../core/mcp/types.js";
 import type { SkillListEntry } from "../core/skills/registry.js";
 import type { Notice } from "./types.js";
@@ -109,16 +110,34 @@ export function normalizeOptional(input: string): string | undefined {
   return trimmed ? trimmed : undefined;
 }
 
+export function parseOptionalBoolean(input: string, label: string): boolean {
+  const trimmed = input.trim().toLowerCase();
+  if (!trimmed) {
+    return false;
+  }
+  if (["y", "yes", "true", "1", "on"].includes(trimmed)) {
+    return true;
+  }
+  if (["n", "no", "false", "0", "off"].includes(trimmed)) {
+    return false;
+  }
+  throw new Error(`${label} must be yes or no.`);
+}
+
 export function transportSummary(transport: McpTransport): string {
   switch (transport.type) {
     case "stdio":
-      return `${transport.type} • ${transport.command}`;
+      return `${transport.type} • ${truncate(transport.command, 36)}`;
     case "streamable-http":
     case "sse":
-      return `${transport.type} • ${transport.url}`;
+      return `${transport.type} • ${truncate(transport.url, 56)}${formatOAuthSummary(transport.oauth)}`;
     default:
       return String(transport);
   }
+}
+
+function formatOAuthSummary(oauth: McpOAuthConfig | undefined): string {
+  return oauth ? " • oauth" : "";
 }
 
 export function noticeColor(kind: Notice["kind"]): string {

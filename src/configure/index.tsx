@@ -3,7 +3,7 @@ import { mkdir } from "node:fs/promises";
 import { render } from "ink";
 import { ConfigureApp } from "./app.js";
 import { Config as AppConfig } from "../core/config.js";
-import { Config as McpConfig } from "../core/mcp/config.js";
+import { Config as McpConfig, createMcpManager } from "../core/mcp/index.js";
 import { createSkillsRegistry } from "../core/skills/index.js";
 import {
   basePath,
@@ -18,6 +18,7 @@ export async function configure(): Promise<void> {
 
   const config = new AppConfig(configJsonPath());
   const mcpConfig = new McpConfig(mcpJsonPath());
+  const mcpManager = createMcpManager(mcpConfig);
   const skills = createSkillsRegistry(basePath());
 
   let done = false;
@@ -25,6 +26,7 @@ export async function configure(): Promise<void> {
     <ConfigureApp
       config={config}
       mcpConfig={mcpConfig}
+      mcpManager={mcpManager}
       skills={skills}
       onExit={() => {
         done = true;
@@ -36,6 +38,7 @@ export async function configure(): Promise<void> {
   try {
     await waitUntilExit();
   } finally {
+    await mcpManager.disconnect().catch(() => undefined);
     if (!done) {
       unmount();
     }

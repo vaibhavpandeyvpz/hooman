@@ -4,10 +4,7 @@
 export { bootstrap } from "./core/index.js";
 export type { AcpMeta, BootstrapMeta, BootstrapMode } from "./core/index.js";
 
-export {
-  Config as HoomanConfig,
-  LlmProvider,
-} from "./core/config.js";
+export { Config as HoomanConfig, LlmProvider } from "./core/config.js";
 export type {
   CompactionConfig,
   ConfigData,
@@ -27,9 +24,11 @@ export {
   configJsonPath,
   instructionsMdPath,
   mcpJsonPath,
+  mcpOauthJsonPath,
   sessionsPath,
   skillsPath,
 } from "./core/utils/paths.js";
+export { openBrowser } from "./core/utils/browser.js";
 export {
   attachmentDiagnosticBlock,
   attachmentPathsToPromptBlocks,
@@ -61,6 +60,8 @@ export {
   Manager as McpManager,
   createMcpConfig,
   createMcpManager,
+  createMcpOAuthService,
+  createMcpOAuthStore,
 } from "./core/mcp/index.js";
 export type {
   ChannelMessage,
@@ -68,8 +69,34 @@ export type {
   ChannelSubscription,
   ChannelSubscriptionHandle,
   NamedMcpTransport,
+  ServerAuthStatus,
 } from "./core/mcp/index.js";
 export { Config as McpConfig, type McpServersFile } from "./core/mcp/config.js";
+export {
+  HoomanMcpOAuthProvider,
+  McpOAuthConfigSchema,
+  McpOAuthService,
+  McpOAuthStore,
+  StoredMcpOAuthClientSchema,
+  StoredMcpOAuthDiscoverySchema,
+  StoredMcpOAuthEntrySchema,
+  StoredMcpOAuthFileSchema,
+  StoredMcpOAuthTokensSchema,
+  canonicalizeRemoteServerUrl,
+  createRemoteTransportFingerprint,
+  createRemoteTransportIdentity,
+  startCallbackServer,
+} from "./core/mcp/oauth/index.js";
+export type {
+  BeginAuthorizationResult as McpBeginAuthorizationResult,
+  McpOAuthConfig,
+  OAuthRemoteTransport,
+  StoredMcpOAuthClient,
+  StoredMcpOAuthDiscovery,
+  StoredMcpOAuthEntry,
+  StoredMcpOAuthFile,
+  StoredMcpOAuthTokens,
+} from "./core/mcp/oauth/index.js";
 export {
   McpTransportSchema,
   SseSchema,
