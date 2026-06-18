@@ -52,6 +52,7 @@ import { applySessionMode } from "../core/agent/sync-tool-registry-mode.js";
 import { attachmentPathsToPromptBlocks } from "../core/utils/attachments.js";
 import { isMouseInput } from "./mouse.js";
 import type { PromptSubmission } from "./components/prompt-input/hooks/usePromptInputController.js";
+import { readBundledPrompt } from "../core/prompts/bundled.js";
 
 /** Status bar: Strands `Usage` for the current user turn + summed latency across model cycles. */
 type TurnUsageStatus = Usage & { latencyMs: number };
@@ -91,6 +92,8 @@ function normalizePromptSubmission(
 
 const INPUT_HINT =
   "shift/meta+enter or \\+enter: newline | esc/ctrl+c: cancel or exit";
+
+const INIT_AGENTS_PROMPT = readBundledPrompt("static", "init.md");
 
 function nowId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -227,6 +230,10 @@ function listModelsText(config: Config): string {
 }
 
 const SLASH_COMMANDS = [
+  {
+    name: "init",
+    description: "Generate or refresh AGENTS.md for this project.",
+  },
   {
     name: "mode",
     description: "Session mode: default, plan, or ask.",
@@ -911,6 +918,13 @@ export function ChatApp({
       }
       const command = parseChatCommand(value.text);
       if (command && value.attachments.length === 0) {
+        if (command.name === "init") {
+          if (pushPrompt(INIT_AGENTS_PROMPT)) {
+            setFollowRequest((value) => value + 1);
+            setInput("");
+          }
+          return;
+        }
         if (command.name === "model") {
           void handleModelCommand(command.args);
           setInput("");

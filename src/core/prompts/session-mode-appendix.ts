@@ -1,8 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
 import handlebars from "handlebars";
 import type { LocalAgent } from "@strands-agents/sdk";
+import { hasBundledPrompt, readBundledPrompt } from "./bundled.js";
 import {
   PLAN_ENTERED_AT_STATE_KEY,
   PLAN_ENTER_REASON_STATE_KEY,
@@ -55,12 +54,10 @@ export async function refreshAgentFullSystemPrompt(
 }
 
 function readBundledModeFile(file: "plan.md" | "ask.md"): string {
-  const dir = join(dirname(fileURLToPath(import.meta.url)), "modes");
-  const full = join(dir, file);
-  if (!existsSync(full)) {
+  if (!hasBundledPrompt("modes", file)) {
     return "";
   }
-  return readFileSync(full, "utf8").trim();
+  return readBundledPrompt("modes", file);
 }
 
 /** Plain snapshot of selected `appState` entries for mode prompts (Handlebars `state`). */

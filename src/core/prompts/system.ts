@@ -1,8 +1,12 @@
 import { existsSync, readFileSync, statSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 import handlebars from "handlebars";
 import type { Config } from "../config.js";
+import {
+  bundledPromptPath,
+  hasBundledPrompt,
+  readBundledPrompt,
+} from "./bundled.js";
 import { getEnvironmentPromptContext } from "./environment.js";
 
 const { compile } = handlebars;
@@ -85,14 +89,12 @@ export class System {
   }
 
   private readBundledStaticPrompts(): string {
-    const dir = join(dirname(fileURLToPath(import.meta.url)), "static");
     const parts: string[] = [];
     for (const file of this.staticPromptFiles()) {
-      const full = join(dir, file);
-      if (!existsSync(full)) {
+      if (!hasBundledPrompt("static", file)) {
         continue;
       }
-      const text = readFileSync(full, "utf8").trim();
+      const text = readBundledPrompt("static", file);
       if (text.length > 0) {
         parts.push(text);
       }
@@ -101,17 +103,15 @@ export class System {
   }
 
   private readBundledHarnessPrompts(): string {
-    const dir = join(dirname(fileURLToPath(import.meta.url)), "harness");
     const parts: string[] = [];
     for (const { key, file } of HARNESS_PROMPT_FILES) {
       if (!this.config.prompts[key]) {
         continue;
       }
-      const full = join(dir, file);
-      if (!existsSync(full)) {
+      if (!hasBundledPrompt("harness", file)) {
         continue;
       }
-      const text = readFileSync(full, "utf8").trim();
+      const text = readBundledPrompt("harness", file);
       if (text.length > 0) {
         parts.push(text);
       }
@@ -140,16 +140,14 @@ export class System {
     };
 
     pushPath("instructions", this.path);
-    const staticDir = join(dirname(fileURLToPath(import.meta.url)), "static");
     for (const file of this.staticPromptFiles()) {
-      pushPath(`static:${file}`, join(staticDir, file));
+      pushPath(`static:${file}`, bundledPromptPath("static", file));
     }
-    const harnessDir = join(dirname(fileURLToPath(import.meta.url)), "harness");
     for (const { key, file } of HARNESS_PROMPT_FILES) {
       if (!this.config.prompts[key]) {
         continue;
       }
-      pushPath(`harness:${file}`, join(harnessDir, file));
+      pushPath(`harness:${file}`, bundledPromptPath("harness", file));
     }
     pushPath("agents-md", join(process.cwd(), EXTRA_CWD_INSTRUCTIONS));
     return parts.join("|");
