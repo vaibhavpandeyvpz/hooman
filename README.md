@@ -279,7 +279,7 @@ Hooman stores its data in:
 
 Important files and folders:
 
-- `config.json` - app name, LLM provider/model, tool flags, and compaction
+- `config.json` - app name, reusable provider configs, model configs, tool flags, and compaction
 - `instructions.md` - system instructions used to build the agent prompt
 - `mcp.json` - MCP server definitions
 - `skills/` - installed skills
@@ -288,16 +288,25 @@ Important files and folders:
 
 ## Example `config.json`
 
-The on-disk shape uses a non-empty **`llms`** array: each item has `name`, `options` (`provider`, `model`, `params`), and `default`. The bundled **hooman-config** skill documents the full schema.
+The on-disk shape uses a reusable **`providers`** array plus a non-empty **`llms`** array. Each provider stores the shared runtime type and params once; each LLM references a provider by name, sets its `model`, optional model-specific `params`, and `default`. The bundled **hooman-config** skill documents the full schema.
 
 ```json
 {
   "name": "Hooman",
+  "providers": [
+    {
+      "name": "ollama-local",
+      "options": {
+        "provider": "ollama",
+        "params": {}
+      }
+    }
+  ],
   "llms": [
     {
       "name": "Default",
       "options": {
-        "provider": "ollama",
+        "provider": "ollama-local",
         "model": "gemma4:e4b",
         "params": {}
       },
@@ -349,7 +358,7 @@ The on-disk shape uses a non-empty **`llms`** array: each item has `name`, `opti
 
 Tool approvals are session-scoped and are not persisted in `config.json`.
 
-Supported `llms[].options.provider` values registered in this release (see `src/core/models/index.ts`):
+Supported `providers[].options.provider` values registered in this release (see `src/core/models/index.ts`):
 
 - `anthropic`
 - `bedrock`
@@ -378,9 +387,26 @@ Good default for local usage. Example:
 
 ```json
 {
-  "provider": "ollama",
-  "model": "gemma4:e4b",
-  "params": {}
+  "providers": [
+    {
+      "name": "ollama-local",
+      "options": {
+        "provider": "ollama",
+        "params": {}
+      }
+    }
+  ],
+  "llms": [
+    {
+      "name": "Default",
+      "options": {
+        "provider": "ollama-local",
+        "model": "gemma4:e4b",
+        "params": {}
+      },
+      "default": true
+    }
+  ]
 }
 ```
 
@@ -392,11 +418,28 @@ Example:
 
 ```json
 {
-  "provider": "openai",
-  "model": "gpt-5",
-  "params": {
-    "apiKey": "..."
-  }
+  "providers": [
+    {
+      "name": "openai",
+      "options": {
+        "provider": "openai",
+        "params": {
+          "apiKey": "..."
+        }
+      }
+    }
+  ],
+  "llms": [
+    {
+      "name": "GPT-5",
+      "options": {
+        "provider": "openai",
+        "model": "gpt-5",
+        "params": {}
+      },
+      "default": true
+    }
+  ]
 }
 ```
 
@@ -408,12 +451,30 @@ Uses Strands **AnthropicModel** (Anthropic Messages API). `apiKey` or `authToken
 
 ```json
 {
-  "provider": "anthropic",
-  "model": "claude-sonnet-4-20250514",
-  "params": {
-    "apiKey": "...",
-    "temperature": 0.7
-  }
+  "providers": [
+    {
+      "name": "anthropic",
+      "options": {
+        "provider": "anthropic",
+        "params": {
+          "apiKey": "..."
+        }
+      }
+    }
+  ],
+  "llms": [
+    {
+      "name": "Claude Sonnet",
+      "options": {
+        "provider": "anthropic",
+        "model": "claude-sonnet-4-20250514",
+        "params": {
+          "temperature": 0.7
+        }
+      },
+      "default": true
+    }
+  ]
 }
 ```
 
@@ -423,15 +484,33 @@ Uses Strands `GoogleModel` on top of `@google/genai`. Top-level options like `ap
 
 ```json
 {
-  "provider": "google",
-  "model": "gemini-2.5-flash",
-  "params": {
-    "apiKey": "...",
-    "temperature": 0.7,
-    "maxOutputTokens": 2048,
-    "topP": 0.9,
-    "topK": 40
-  }
+  "providers": [
+    {
+      "name": "google",
+      "options": {
+        "provider": "google",
+        "params": {
+          "apiKey": "..."
+        }
+      }
+    }
+  ],
+  "llms": [
+    {
+      "name": "Gemini Flash",
+      "options": {
+        "provider": "google",
+        "model": "gemini-2.5-flash",
+        "params": {
+          "temperature": 0.7,
+          "maxOutputTokens": 2048,
+          "topP": 0.9,
+          "topK": 40
+        }
+      },
+      "default": true
+    }
+  ]
 }
 ```
 
@@ -441,22 +520,40 @@ Supports `region`, `clientConfig`, and optional `apiKey`, with all other values 
 
 ```json
 {
-  "provider": "bedrock",
-  "model": "anthropic.claude-sonnet-4-20250514-v1:0",
-  "params": {
-    "region": "us-east-1",
-    "clientConfig": {
-      "profile": "dev",
-      "maxAttempts": 3,
-      "credentials": {
-        "accessKeyId": "AKIA...",
-        "secretAccessKey": "...",
-        "sessionToken": "..."
+  "providers": [
+    {
+      "name": "bedrock-dev",
+      "options": {
+        "provider": "bedrock",
+        "params": {
+          "region": "us-east-1",
+          "clientConfig": {
+            "profile": "dev",
+            "maxAttempts": 3,
+            "credentials": {
+              "accessKeyId": "AKIA...",
+              "secretAccessKey": "...",
+              "sessionToken": "..."
+            }
+          }
+        }
       }
-    },
-    "temperature": 0.7,
-    "maxTokens": 1024
-  }
+    }
+  ],
+  "llms": [
+    {
+      "name": "Claude Sonnet",
+      "options": {
+        "provider": "bedrock-dev",
+        "model": "anthropic.claude-sonnet-4-20250514-v1:0",
+        "params": {
+          "temperature": 0.7,
+          "maxTokens": 1024
+        }
+      },
+      "default": true
+    }
+  ]
 }
 ```
 

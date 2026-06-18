@@ -212,7 +212,11 @@ function listModelsText(config: Config): string {
   const current = currentModelName(config);
   const options = config.llms.map((entry) => {
     const marker = entry.name === current ? "*" : "-";
-    return `${marker} ${entry.name} (${entry.options.provider}/${entry.options.model})`;
+    const resolved = config.resolveLlm(entry.name);
+    if (!resolved) {
+      return `${marker} ${entry.name} (${entry.options.provider}/${entry.options.model})`;
+    }
+    return `${marker} ${entry.name} (${entry.options.provider} -> ${resolved.options.provider}/${resolved.options.model})`;
   });
   return [
     `Current model: ${current}`,

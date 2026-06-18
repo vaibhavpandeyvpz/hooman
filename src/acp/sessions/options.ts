@@ -66,7 +66,12 @@ export function buildSessionConfigOptions(
       options: config.llms.map((m) => ({
         value: m.name,
         name: m.name,
-        description: `${m.options.provider}/${m.options.model}`,
+        description: (() => {
+          const resolved = config.resolveLlm(m.name);
+          return resolved
+            ? `${m.options.provider} -> ${resolved.options.provider}/${resolved.options.model}`
+            : `${m.options.provider}/${m.options.model}`;
+        })(),
       })),
     },
     {

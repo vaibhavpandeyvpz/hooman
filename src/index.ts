@@ -13,7 +13,10 @@ export type {
   ConfigData,
   LlmConfig,
   NamedLlmConfig,
+  NamedProviderConfig,
   PromptsConfig,
+  ProviderConfig,
+  ResolvedNamedLlmConfig,
   SearchConfig,
   ToolsConfig,
 } from "./core/config.js";

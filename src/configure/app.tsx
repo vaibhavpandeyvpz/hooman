@@ -5,7 +5,8 @@ import { Box, Text, useApp, useInput } from "ink";
 import {
   LlmProvider,
   type ConfigData,
-  type LlmConfig,
+  type NamedLlmConfig,
+  type NamedProviderConfig,
 } from "../core/config.js";
 import {
   McpTransportSchema,
@@ -59,6 +60,8 @@ const PROMPT_LABELS: Record<keyof ConfigData["prompts"], string> = {
 };
 
 type SearchProvider = ConfigData["search"]["provider"];
+type LlmEntry = NamedLlmConfig;
+type ProviderEntry = NamedProviderConfig;
 
 const SEARCH_PROVIDER_LABELS: Record<SearchProvider, string> = {
   brave: "Brave",
@@ -148,6 +151,10 @@ export function ConfigureApp({
         setScreen({ kind: "config-llm-edit", name: screen.name });
         return;
       }
+      if (screen.kind === "config-provider-delete-confirm") {
+        setScreen({ kind: "config-provider-edit", name: screen.name });
+        return;
+      }
       if (screen.kind !== "home") {
         setScreen({ kind: "home" });
       }
@@ -159,6 +166,7 @@ export function ConfigureApp({
     () =>
       ({
         name: config.name,
+        providers: config.providers,
         llms: config.llms,
         search: config.search,
         prompts: config.prompts,
@@ -184,7 +192,7 @@ export function ConfigureApp({
   );
 
   const patchLlm = useCallback(
-    (name: string, patch: Partial<LlmConfig>) =>
+    (name: string, patch: Partial<LlmEntry["options"]>) =>
       config.llms.map((m) =>
         m.name === name ? { ...m, options: { ...m.options, ...patch } } : m,
       ),
@@ -211,7 +219,7 @@ export function ConfigureApp({
       {
         name,
         options: {
-          provider: LlmProvider.Ollama,
+          provider: config.providers[0]?.name ?? LlmProvider.Ollama,
           model: "gemma4:e4b",
           params: {} as Record<string, unknown>,
         },
@@ -223,6 +231,62 @@ export function ConfigureApp({
 
   const removeLlm = useCallback(
     (name: string) => config.llms.filter((m) => m.name !== name),
+    [config],
+  );
+
+  const patchProvider = useCallback(
+    (name: string, patch: Partial<ProviderEntry["options"]>) =>
+      config.providers.map((provider) =>
+        provider.name === name
+          ? {
+              ...provider,
+              options: {
+                ...provider.options,
+                ...patch,
+                params: patch.params ?? provider.options.params,
+              },
+            }
+          : provider,
+      ),
+    [config],
+  );
+
+  const renameProvider = useCallback(
+    (oldName: string, newName: string) => ({
+      providers: config.providers.map((provider) =>
+        provider.name === oldName ? { ...provider, name: newName } : provider,
+      ),
+      llms: config.llms.map((llm) =>
+        llm.options.provider === oldName
+          ? {
+              ...llm,
+              options: {
+                ...llm.options,
+                provider: newName,
+              },
+            }
+          : llm,
+      ),
+    }),
+    [config],
+  );
+
+  const addProvider = useCallback(
+    (name: string) => [
+      ...config.providers,
+      {
+        name,
+        options: {
+          provider: LlmProvider.Ollama,
+          params: {} as Record<string, unknown>,
+        },
+      },
+    ],
+    [config],
+  );
+
+  const removeProvider = useCallback(
+    (name: string) => config.providers.filter((provider) => provider.name !== name),
     [config],
   );
 
@@ -386,10 +450,35 @@ export function ConfigureApp({
     [promptForRemote, promptForStdio, promptValue],
   );
 
+  const llmSummary = useCallback(
+    (entry: LlmEntry): string => {
+      const compactModelId = (model: string): string => {
+        if (model.length <= 23) {
+          return model;
+        }
+        return `${model.slice(0, 10)}...${model.slice(-10)}`;
+      };
+      const resolved = config.resolveLlm(entry.name);
+      if (!resolved) {
+        return `${entry.options.provider}/${compactModelId(entry.options.model)}`;
+      }
+      return `${entry.options.provider} -> ${resolved.options.provider}/${compactModelId(resolved.options.model)}`;
+    },
+    [config],
+  );
+
+  const providerUsageCount = useCallback(
+    (name: string): number =>
+      config.llms.filter((llm) => llm.options.provider === name).length,
+    [config],
+  );
+
   const renderHome = () => {
     const items: MenuItem[] = [
       {
-        label: `Configuration • ${config.llm.provider}/${config.llm.model}`,
+        label: `Inference • ${llmSummary(
+          config.llms.find((m) => m.default) ?? config.llms[0]!,
+        )}`,
         value: () => setScreen({ kind: "config" }),
       },
       {
@@ -471,6 +560,10 @@ export function ConfigureApp({
           return `LLMs • ${config.llms.length} configured (default: ${def.name})`;
         })(),
         value: () => setScreen({ kind: "config-llms" }),
+      },
+      {
+        label: `Providers • ${config.providers.length} configured`,
+        value: () => setScreen({ kind: "config-providers" }),
       },
       {
         label: `Prompts • ${enabledPrompts}/${totalPrompts} enabled`,
@@ -669,10 +762,228 @@ export function ConfigureApp({
     );
   };
 
+  const renderProvidersMenu = () => {
+    const providerItems: MenuItem[] = config.providers.map((provider) => ({
+      key: `provider:${provider.name}`,
+      label: `${provider.name} • ${provider.options.provider} • ${providerUsageCount(provider.name)} model(s)`,
+      boldSubstring: provider.name,
+      value: () => setScreen({ kind: "config-provider-edit", name: provider.name }),
+    }));
+
+    const items: MenuItem[] = [
+      {
+        label: "Add provider",
+        value: () =>
+          promptValue({
+            title: "Add a new provider",
+            label: "Name",
+            placeholder: "openai-prod",
+            onSubmit: async (value) => {
+              const name = value.trim();
+              if (!name) {
+                throw new Error("Name is required.");
+              }
+              if (config.providers.some((provider) => provider.name === name)) {
+                throw new Error(`A provider named "${name}" already exists.`);
+              }
+              updateConfig(
+                { providers: addProvider(name) },
+                `Added provider "${name}".`,
+              );
+              setPrompt(null);
+              setScreen({ kind: "config-provider-edit", name });
+            },
+          }),
+      },
+      ...providerItems,
+      {
+        label: "Back",
+        value: () => setScreen({ kind: "config" }),
+      },
+    ];
+
+    return (
+      <MenuScreen
+        title="Providers"
+        description="Configure reusable provider credentials and shared params."
+        items={items}
+      />
+    );
+  };
+
+  const renderProviderEditMenu = () => {
+    if (screen.kind !== "config-provider-edit") {
+      return null;
+    }
+    const { name } = screen;
+    const entry = config.providers.find((provider) => provider.name === name);
+    if (!entry) {
+      return null;
+    }
+    const usageCount = providerUsageCount(entry.name);
+
+    const items: MenuItem[] = [
+      {
+        label: `Name • ${entry.name}`,
+        value: () =>
+          promptValue({
+            title: "Rename provider",
+            label: "Name",
+            initialValue: entry.name,
+            onSubmit: async (value) => {
+              const next = value.trim();
+              if (!next) {
+                throw new Error("Name is required.");
+              }
+              if (next === entry.name) {
+                setPrompt(null);
+                return;
+              }
+              if (config.providers.some((provider) => provider.name === next)) {
+                throw new Error(`A provider named "${next}" already exists.`);
+              }
+              updateConfig(
+                renameProvider(entry.name, next),
+                `Renamed provider "${entry.name}" to "${next}".`,
+              );
+              setPrompt(null);
+              setScreen({ kind: "config-provider-edit", name: next });
+            },
+          }),
+      },
+      {
+        label: `Type • ${entry.options.provider}`,
+        value: () =>
+          setScreen({ kind: "config-provider-type", name: entry.name }),
+      },
+      {
+        label: `Params • ${truncate(
+          compactJson(maskSensitiveParamsForDisplay(entry.options.params)),
+        )}`,
+        value: () =>
+          promptValue({
+            title: "Update provider params",
+            label: "Parameters",
+            initialValue: compactJson(entry.options.params),
+            placeholder: '{"apiKey":"..."}',
+            onSubmit: async (value) => {
+              const params = parseObjectRecord(value, "Provider params");
+              updateConfig(
+                { providers: patchProvider(entry.name, { params }) },
+                "Updated provider params.",
+              );
+              setPrompt(null);
+            },
+          }),
+      },
+      ...(usageCount > 0
+        ? []
+        : [
+            {
+              label: `Delete "${entry.name}"`,
+              boldSubstring: entry.name,
+              value: () =>
+                setScreen({
+                  kind: "config-provider-delete-confirm",
+                  name: entry.name,
+                }),
+            } satisfies MenuItem,
+          ]),
+      {
+        label: "Back",
+        value: () => setScreen({ kind: "config-providers" }),
+      },
+    ];
+
+    return (
+      <MenuScreen
+        title={`Edit Provider • ${entry.name}`}
+        description={
+          usageCount > 0
+            ? `Used by ${usageCount} model(s). Rename updates references automatically; delete is disabled while in use.`
+            : "Edit shared provider settings or delete this provider."
+        }
+        items={items}
+      />
+    );
+  };
+
+  const renderProviderTypeMenu = () => {
+    if (screen.kind !== "config-provider-type") {
+      return null;
+    }
+    const { name } = screen;
+    const entry = config.providers.find((provider) => provider.name === name);
+    if (!entry) {
+      return null;
+    }
+    const items: MenuItem[] = [
+      ...Object.values(LlmProvider).map((provider) => ({
+        label:
+          provider === entry.options.provider
+            ? `${provider} • current`
+            : provider,
+        value: () => {
+          updateConfig(
+            { providers: patchProvider(entry.name, { provider }) },
+            `Updated provider type for "${entry.name}" to "${provider}".`,
+          );
+          setScreen({ kind: "config-provider-edit", name: entry.name });
+        },
+      })),
+      {
+        label: "Back",
+        value: () =>
+          setScreen({ kind: "config-provider-edit", name: entry.name }),
+      },
+    ];
+
+    return (
+      <MenuScreen
+        title={`Choose Provider Type • ${entry.name}`}
+        description="Pick which runtime provider this shared config targets."
+        items={items}
+      />
+    );
+  };
+
+  const renderProviderDeleteConfirm = () => {
+    if (screen.kind !== "config-provider-delete-confirm") {
+      return null;
+    }
+    const { name } = screen;
+    const items: MenuItem[] = [
+      {
+        key: `provider-del-cancel:${name}`,
+        label: "No — keep provider",
+        value: () => setScreen({ kind: "config-provider-edit", name }),
+      },
+      {
+        key: `provider-del-confirm:${name}`,
+        label: "Yes — remove provider",
+        value: () => {
+          updateConfig(
+            { providers: removeProvider(name) },
+            `Deleted provider "${name}".`,
+          );
+          setScreen({ kind: "config-providers" });
+        },
+      },
+    ];
+
+    return (
+      <MenuScreen
+        title="Delete provider?"
+        description={`Remove "${name}" from the configured providers?`}
+        items={items}
+      />
+    );
+  };
+
   const renderLlmsMenu = () => {
     const llmItems: MenuItem[] = config.llms.map((m) => ({
       key: `llm:${m.name}`,
-      label: `${m.name} • ${m.options.provider}/${m.options.model}${m.default ? " • default" : ""}`,
+      label: `${m.name} • ${llmSummary(m)}${m.default ? " • default" : ""}`,
       boldSubstring: m.name,
       value: () => setScreen({ kind: "config-llm-edit", name: m.name }),
     }));
@@ -692,6 +1003,11 @@ export function ConfigureApp({
               }
               if (config.llms.some((m) => m.name === name)) {
                 throw new Error(`An LLM named "${name}" already exists.`);
+              }
+              if (config.providers.length === 0) {
+                throw new Error(
+                  "Add at least one provider first so the model can reference it.",
+                );
               }
               updateConfig({ llms: addLlm(name) }, `Added LLM "${name}".`);
               setPrompt(null);
@@ -857,15 +1173,15 @@ export function ConfigureApp({
       return null;
     }
     const items: MenuItem[] = [
-      ...Object.values(LlmProvider).map((provider) => ({
+      ...config.providers.map((provider) => ({
         label:
-          provider === entry.options.provider
-            ? `${provider} • current`
-            : provider,
+          provider.name === entry.options.provider
+            ? `${provider.name} • current`
+            : `${provider.name} • ${provider.options.provider}`,
         value: () => {
           updateConfig(
-            { llms: patchLlm(entry.name, { provider }) },
-            `Updated provider for "${entry.name}" to "${provider}".`,
+            { llms: patchLlm(entry.name, { provider: provider.name }) },
+            `Updated provider for "${entry.name}" to "${provider.name}".`,
           );
           setScreen({ kind: "config-llm-edit", name: entry.name });
         },
@@ -879,7 +1195,7 @@ export function ConfigureApp({
     return (
       <MenuScreen
         title={`Choose Provider • ${entry.name}`}
-        description="Pick which model provider to use for this LLM."
+        description="Pick which shared provider config this LLM should use."
         items={items}
       />
     );
@@ -1325,6 +1641,14 @@ export function ConfigureApp({
         return renderHome();
       case "config":
         return renderConfigMenu();
+      case "config-providers":
+        return renderProvidersMenu();
+      case "config-provider-edit":
+        return renderProviderEditMenu();
+      case "config-provider-type":
+        return renderProviderTypeMenu();
+      case "config-provider-delete-confirm":
+        return renderProviderDeleteConfirm();
       case "config-llms":
         return renderLlmsMenu();
       case "config-llm-edit":
@@ -1366,7 +1690,9 @@ export function ConfigureApp({
 
       <Box marginTop={1}>
         <Text color="gray">
-          {`config: ${config.llm.provider}/${config.llm.model} • mcp: ${mcpServers.length} • skills: ${installedSkills.length}`}
+          {`inference: ${llmSummary(
+            config.llms.find((m) => m.default) ?? config.llms[0]!,
+          )} • mcp: ${mcpServers.length} • skills: ${installedSkills.length}`}
         </Text>
       </Box>
 

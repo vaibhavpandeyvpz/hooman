@@ -12,6 +12,10 @@ export type ConfigureAppProps = {
 export type Screen =
   | { kind: "home" }
   | { kind: "config" }
+  | { kind: "config-providers" }
+  | { kind: "config-provider-edit"; name: string }
+  | { kind: "config-provider-type"; name: string }
+  | { kind: "config-provider-delete-confirm"; name: string }
   | { kind: "config-tools" }
   | { kind: "config-llms" }
   | { kind: "config-llm-edit"; name: string }

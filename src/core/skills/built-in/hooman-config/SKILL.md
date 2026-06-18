@@ -18,7 +18,7 @@ Use this skill when the user asks you to inspect, explain, or change Hooman's ow
 
 1. Read the existing JSON first. Preserve user values, comments are not supported, and secrets such as API keys may be present.
 2. Make the smallest JSON edit that satisfies the request. Do not rewrite unrelated sections or normalize formatting beyond valid pretty JSON.
-3. `name` and `llms` are required. `llms` must be a **non-empty array** of entries (see below). `search`, `prompts`, `tools`, and `compaction` are optional in input, but Hooman expands them with defaults when loading.
+3. `name`, `providers`, and `llms` are required. `providers` stores shared credentials/config, and `llms` must be a **non-empty array** of entries that reference provider names (see below). `search`, `prompts`, `tools`, and `compaction` are optional in input, but Hooman expands them with defaults when loading.
 4. Unknown keys are unsupported and may be dropped when Hooman parses and persists the config.
 5. `tools` only manages built-in runtime toggles exposed in `config.json`.
 6. Any change to `config.json` or `instructions.md` requires restarting the running Hooman agent/session before it takes effect.
@@ -30,11 +30,20 @@ This is the default shape Hooman writes when `~/.hooman/config.json` is missing:
 ```json
 {
   "name": "Hooman",
+  "providers": [
+    {
+      "name": "ollama-local",
+      "options": {
+        "provider": "ollama",
+        "params": {}
+      }
+    }
+  ],
   "llms": [
     {
       "name": "Default",
       "options": {
-        "provider": "ollama",
+        "provider": "ollama-local",
         "model": "gemma4:e4b",
         "params": {}
       },
@@ -97,6 +106,7 @@ This is the default shape Hooman writes when `~/.hooman/config.json` is missing:
 ## Top-Level Options
 
 - `name`: non-empty display name for the agent.
+- `providers`: required reusable provider definitions. Configure shared credentials or transport params once, then reference the provider from one or more LLM entries.
 - `llms`: required non-empty list of named LLM configs (see **LLMs array**).
 - `search`: optional web search config; defaults to disabled Brave.
 - `prompts`: optional built-in static prompt toggles; omitted fields default to `true`. Custom user instructions live in `~/.hooman/instructions.md`.
@@ -108,14 +118,24 @@ This is the default shape Hooman writes when `~/.hooman/config.json` is missing:
 Each element of `llms` has:
 
 - `name`: non-empty label for this entry (for display and editing).
-- `options`: the provider configuration (`provider`, `model`, `params`) — same semantics as the former single `llm` object.
+- `options.provider`: provider reference name. It must match one of the entries in top-level `providers`.
+- `options.model`: model id passed to the resolved runtime provider.
+- `options.params`: model-specific params. When `options.provider` references a named provider, these params override the provider's shared params on key conflict.
 - `default`: boolean; mark **one** entry `"default": true` for the active model. If several have `true`, the **first** in the array wins; if none have `true`, Hooman uses the **first** entry—so keep a single default when possible.
 
 Runtime APIs may still expose a single active profile as `llm` (derived from the default entry); on disk the source of truth is always `llms`.
 
+## Providers array
+
+Each element of `providers` has:
+
+- `name`: non-empty reference name used by `llms[].options.provider`.
+- `options.provider`: runtime provider id such as `"openai"`, `"bedrock"`, or `"ollama"`.
+- `options.params`: shared provider params such as API keys, host/base URL, region, headers, or client config.
+
 ### LLM Providers
 
-`options.provider` must be one of the values Hooman registers at runtime (the config schema may list additional legacy enum values; stick to this set):
+`providers[].options.provider` must be one of the values Hooman registers at runtime (the config schema may list additional legacy enum values; stick to this set):
 
 ```json
 [
@@ -134,6 +154,17 @@ Common shape (single default model):
 
 ```json
 {
+  "providers": [
+    {
+      "name": "anthropic",
+      "options": {
+        "provider": "anthropic",
+        "params": {
+          "apiKey": "..."
+        }
+      }
+    }
+  ],
   "llms": [
     {
       "name": "Default",
@@ -141,7 +172,6 @@ Common shape (single default model):
         "provider": "anthropic",
         "model": "claude-sonnet-4-20250514",
         "params": {
-          "apiKey": "...",
           "temperature": 0.2,
           "maxTokens": 4096
         }
@@ -152,7 +182,7 @@ Common shape (single default model):
 }
 ```
 
-Provider notes (these refer to fields inside `options.params` unless noted):
+Provider notes (these refer to fields inside `providers[].options.params` unless noted; `llms[].options.params` can override them per model):
 
 - `anthropic`: Strands **AnthropicModel** (Anthropic Messages API via `@anthropic-ai/sdk`). `params.apiKey` or `params.authToken`, optional `baseURL` and `headers` (merged into `clientConfig`), optional `clientConfig`, plus model fields such as `temperature`, `maxTokens`, `topP`, `stopSequences`, and `params`. A custom `client` instance is not supported from config. If no key is set, `ANTHROPIC_API_KEY` is used.
 - `google`: `params.apiKey`, `client`, `clientConfig`, and `builtInTools` are top-level Google model options. Other keys become Gemini generation params, such as `temperature`, `maxOutputTokens`, `topP`, and `topK`.
@@ -167,15 +197,25 @@ Examples:
 
 ```json
 {
+  "providers": [
+    {
+      "name": "ollama-local",
+      "options": {
+        "provider": "ollama",
+        "params": {
+          "host": "http://127.0.0.1:11434",
+          "think": "medium"
+        }
+      }
+    }
+  ],
   "llms": [
     {
       "name": "Local",
       "options": {
-        "provider": "ollama",
+        "provider": "ollama-local",
         "model": "qwen3:8b",
         "params": {
-          "host": "http://127.0.0.1:11434",
-          "think": "medium",
           "options": {
             "num_ctx": 32768,
             "temperature": 0.2
@@ -190,6 +230,17 @@ Examples:
 
 ```json
 {
+  "providers": [
+    {
+      "name": "google",
+      "options": {
+        "provider": "google",
+        "params": {
+          "apiKey": "..."
+        }
+      }
+    }
+  ],
   "llms": [
     {
       "name": "Gemini",
@@ -197,7 +248,6 @@ Examples:
         "provider": "google",
         "model": "gemini-2.5-flash",
         "params": {
-          "apiKey": "...",
           "temperature": 0.2,
           "maxOutputTokens": 8192
         }
@@ -210,12 +260,11 @@ Examples:
 
 ```json
 {
-  "llms": [
+  "providers": [
     {
-      "name": "Bedrock",
+      "name": "bedrock-dev",
       "options": {
         "provider": "bedrock",
-        "model": "anthropic.claude-3-5-sonnet-20241022-v2:0",
         "params": {
           "region": "us-west-2",
           "clientConfig": {
@@ -226,7 +275,18 @@ Examples:
               "secretAccessKey": "...",
               "sessionToken": "..."
             }
-          },
+          }
+        }
+      }
+    }
+  ],
+  "llms": [
+    {
+      "name": "Bedrock",
+      "options": {
+        "provider": "bedrock-dev",
+        "model": "anthropic.claude-3-5-sonnet-20241022-v2:0",
+        "params": {
           "temperature": 0.2,
           "maxTokens": 4096
         }
@@ -245,13 +305,33 @@ You may list several entries and flip which one is default:
 
 ```json
 {
+  "providers": [
+    {
+      "name": "openai",
+      "options": {
+        "provider": "openai",
+        "params": {
+          "apiKey": "..."
+        }
+      }
+    },
+    {
+      "name": "anthropic",
+      "options": {
+        "provider": "anthropic",
+        "params": {
+          "apiKey": "..."
+        }
+      }
+    }
+  ],
   "llms": [
     {
       "name": "Fast",
       "options": {
         "provider": "openai",
         "model": "gpt-4.1-mini",
-        "params": { "apiKey": "..." }
+        "params": {}
       },
       "default": true
     },
@@ -260,7 +340,7 @@ You may list several entries and flip which one is default:
       "options": {
         "provider": "anthropic",
         "model": "claude-opus-4-20250514",
-        "params": { "apiKey": "..." }
+        "params": {}
       },
       "default": false
     }
@@ -268,7 +348,7 @@ You may list several entries and flip which one is default:
 }
 ```
 
-When editing `llms`, preserve unrelated entries and API keys unless the user asks to remove or replace them.
+When editing `providers` or `llms`, preserve unrelated entries and API keys unless the user asks to remove or replace them.
 
 ## Search
 

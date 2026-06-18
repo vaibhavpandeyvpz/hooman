@@ -15,8 +15,24 @@ export enum LlmProvider {
   Xai = "xai",
 }
 
-const LlmSchema = z.object({
+const ResolvedLlmSchema = z.object({
   provider: z.nativeEnum(LlmProvider),
+  model: z.string().min(1),
+  params: z.record(z.string(), z.any()).default({}),
+});
+
+const ProviderSchema = z.object({
+  provider: z.nativeEnum(LlmProvider),
+  params: z.record(z.string(), z.any()).default({}),
+});
+
+const NamedProviderSchema = z.object({
+  name: z.string().min(1),
+  options: ProviderSchema,
+});
+
+const LlmSchema = z.object({
+  provider: z.string().min(1),
   model: z.string().min(1),
   params: z.record(z.string(), z.any()).default({}),
 });
@@ -110,6 +126,7 @@ const ToolsPartialSchema = z.object({
 const ConfigSchema = z
   .object({
     name: z.string().min(1),
+    providers: z.array(NamedProviderSchema).nullish(),
     llms: z.array(NamedLlmSchema).min(1),
     search: SearchPartialSchema.nullish(),
     prompts: PromptsPartialSchema.nullish(),
@@ -119,9 +136,35 @@ const ConfigSchema = z
       keep: c?.keep ?? DEFAULT_COMPACTION.keep,
     })),
   })
+  .superRefine((input, ctx) => {
+    const seenProviders = new Set<string>();
+    for (const provider of input.providers ?? []) {
+      if (seenProviders.has(provider.name)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `Duplicate provider name: "${provider.name}".`,
+          path: ["providers"],
+        });
+        continue;
+      }
+      seenProviders.add(provider.name);
+    }
+
+    for (const llm of input.llms) {
+      const ref = llm.options.provider;
+      if (!seenProviders.has(ref)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `LLM "${llm.name}" references unknown provider "${ref}".`,
+          path: ["llms"],
+        });
+      }
+    }
+  })
   .transform((input) => {
     return {
       name: input.name,
+      providers: input.providers ?? [],
       llms: input.llms,
       search: {
         enabled: input.search?.enabled ?? false,
@@ -175,8 +218,15 @@ const ConfigSchema = z
   });
 
 export type ConfigData = z.infer<typeof ConfigSchema>;
-export type LlmConfig = z.infer<typeof LlmSchema>;
+export type ProviderConfig = z.infer<typeof ProviderSchema>;
+export type NamedProviderConfig = z.infer<typeof NamedProviderSchema>;
+export type LlmConfig = z.infer<typeof ResolvedLlmSchema>;
 export type NamedLlmConfig = z.infer<typeof NamedLlmSchema>;
+export type ResolvedNamedLlmConfig = {
+  name: string;
+  options: LlmConfig;
+  default: boolean;
+};
 export type CompactionConfig = ConfigData["compaction"];
 export type PromptsConfig = ConfigData["prompts"];
 export type SearchConfig = ConfigData["search"];
@@ -184,11 +234,20 @@ export type ToolsConfig = ConfigData["tools"];
 
 const defaultConfigData = (): ConfigData => ({
   name: "Hooman",
+  providers: [
+    {
+      name: "ollama-local",
+      options: {
+        provider: LlmProvider.Ollama,
+        params: {},
+      },
+    },
+  ],
   llms: [
     {
       name: "Default",
       options: {
-        provider: LlmProvider.Ollama,
+        provider: "ollama-local",
         model: "gemma4:e4b",
         params: {},
       },
@@ -245,13 +304,55 @@ export class Config {
     return this.data.name;
   }
 
+  private resolveNamedLlm(entry: NamedLlmConfig): ResolvedNamedLlmConfig {
+    const matched = this.data.providers.find(
+      (p) => p.name === entry.options.provider,
+    );
+    if (!matched) {
+      throw new Error(
+        `LLM "${entry.name}" references unknown provider "${entry.options.provider}".`,
+      );
+    }
+    return {
+      name: entry.name,
+      default: entry.default,
+      options: {
+        provider: matched.options.provider,
+        model: entry.options.model,
+        params: {
+          ...matched.options.params,
+          ...entry.options.params,
+        },
+      },
+    };
+  }
+
+  get providers(): NamedProviderConfig[] {
+    return this.data.providers.map((provider) => ({
+      ...provider,
+      options: {
+        ...provider.options,
+        params: { ...provider.options.params },
+      },
+    }));
+  }
+
   get llm(): LlmConfig {
     const found = this.data.llms.find((m) => m.default) ?? this.data.llms[0]!;
-    return { ...found.options };
+    return { ...this.resolveNamedLlm(found).options };
   }
 
   get llms(): NamedLlmConfig[] {
     return this.data.llms.map((m) => ({ ...m, options: { ...m.options } }));
+  }
+
+  get resolvedLlms(): ResolvedNamedLlmConfig[] {
+    return this.data.llms.map((entry) => this.resolveNamedLlm(entry));
+  }
+
+  public resolveLlm(name: string): ResolvedNamedLlmConfig | undefined {
+    const found = this.data.llms.find((entry) => entry.name === name);
+    return found ? this.resolveNamedLlm(found) : undefined;
   }
 
   get search(): SearchConfig {
