@@ -13,26 +13,19 @@ import {
   type Agent,
   type AgentStreamEvent,
   type ContentBlock,
-  type MessageData,
   type Usage,
 } from "@strands-agents/sdk";
 import {
   accumulateUsage,
   createEmptyUsage,
 } from "../core/utils/strands-usage-accumulate.js";
-import { bootstrap } from "../core/index.js";
 import type { Config } from "../core/config.js";
 import type { Manager as McpManager } from "../core/mcp/index.js";
+import { modelProviders } from "../core/models/index.js";
 import type { Registry } from "../core/skills/index.js";
 import { takeFileToolDisplay } from "../core/state/file-tool-display.js";
-import {
-  ChatApprovalController,
-  createChatApprovalIntervention,
-} from "./approvals.js";
-import {
-  ChatTurnSteeringController,
-  createChatTurnSteeringIntervention,
-} from "./steering.js";
+import { ChatApprovalController } from "./approvals.js";
+import { ChatTurnSteeringController } from "./steering.js";
 import { ApprovalPrompt } from "./components/ApprovalPrompt.js";
 import { Composer } from "./components/Composer.js";
 import { SelectPicker } from "./components/SelectPicker.js";
@@ -44,7 +37,6 @@ import { TranscriptViewport } from "./components/TranscriptViewport.js";
 import type { ApprovalRequest, ChatLine } from "./types.js";
 import { getTodoViewState, type TodoViewState } from "../core/state/todos.js";
 import { isExitRequested } from "../core/state/exit-request.js";
-import { copyAgentAppState } from "../core/state/agent-app-state.js";
 import {
   getModeState,
   setSessionMode,
@@ -56,10 +48,7 @@ import { attachmentPathsToPromptBlocks } from "../core/utils/attachments.js";
 import { isMouseInput } from "./mouse.js";
 import type { PromptSubmission } from "./components/prompt-input/hooks/usePromptInputController.js";
 import { readBundledPrompt } from "../core/prompts/bundled.js";
-import {
-  flushAgentMemory,
-  runWithAgentMemoryScope,
-} from "../core/memory/index.js";
+import { runWithAgentMemoryScope } from "../core/memory/index.js";
 
 /** Status bar: Strands `Usage` for the current user turn + summed latency across model cycles. */
 type TurnUsageStatus = Usage & { latencyMs: number };
@@ -289,8 +278,6 @@ export function ChatApp({
 }: ChatAppProps): React.JSX.Element {
   const { exit } = useApp();
   const { rows } = useWindowSize();
-  const [currentAgent, setCurrentAgent] = useState(agent);
-  const [currentManager, setCurrentManager] = useState(manager);
   const [input, setInput] = useState("");
   const [running, setRunning] = useState(false);
   const [status, setStatus] = useState("ready");
@@ -376,7 +363,7 @@ export function ChatApp({
       if (!active) {
         return;
       }
-      setTodoState(getTodoViewState(currentAgent));
+      setTodoState(getTodoViewState(agent));
     };
     refresh();
     const timer = setInterval(refresh, running ? 200 : 800);
@@ -384,10 +371,10 @@ export function ChatApp({
       active = false;
       clearInterval(timer);
     };
-  }, [currentAgent, running]);
+  }, [agent, running]);
 
   const totalTools =
-    (currentAgent as Agent & { tools?: unknown[] }).tools?.length ?? 0;
+    (agent as Agent & { tools?: unknown[] }).tools?.length ?? 0;
   const slashCommands = useMemo(() => matchingSlashCommands(input), [input]);
 
   useEffect(() => {
@@ -460,38 +447,6 @@ export function ChatApp({
     );
   }, []);
 
-  const rebuildAgent = useCallback(async () => {
-    const messageSnapshot: MessageData[] = currentAgent.messages.map(
-      (message) => message.toJSON(),
-    );
-    const {
-      agent: nextAgent,
-      mcp: { manager: nextManager },
-    } = await bootstrap(
-      "default",
-      {
-        sessionId,
-        yolo: isYoloEnabled(currentAgent),
-        interventions: [
-          createChatApprovalIntervention(approvals),
-          createChatTurnSteeringIntervention(steering),
-        ],
-      },
-      false,
-      config,
-    );
-    nextAgent.messages.length = 0;
-    for (const message of messageSnapshot) {
-      nextAgent.messages.push(Message.fromJSON(message));
-    }
-    copyAgentAppState(currentAgent, nextAgent);
-    applySessionMode(nextAgent);
-    setCurrentAgent(nextAgent);
-    setCurrentManager(nextManager);
-    await flushAgentMemory(currentAgent).catch(() => {});
-    await currentManager.disconnect();
-  }, [approvals, config, currentAgent, currentManager, sessionId, steering]);
-
   const handleModelCommand = useCallback(
     async (args: string) => {
       if (runningRef.current) {
@@ -531,7 +486,8 @@ export function ChatApp({
         })),
       });
       try {
-        await rebuildAgent();
+        const provider = await modelProviders[config.llm.provider]!();
+        agent.model = provider.create(config.llm.model, config.llm.params);
       } catch (error) {
         config.update({
           llms: config.llms.map((entry) => ({
@@ -548,7 +504,7 @@ export function ChatApp({
         });
       }
     },
-    [appendLine, config, rebuildAgent],
+    [agent, appendLine, config],
   );
 
   const handleYoloCommand = useCallback(
@@ -580,14 +536,14 @@ export function ChatApp({
         });
         return;
       }
-      const prev = isYoloEnabled(currentAgent);
+      const prev = isYoloEnabled(agent);
       if (prev === enabled) {
         return;
       }
-      setYoloEnabled(currentAgent, enabled);
+      setYoloEnabled(agent, enabled);
       bumpSessionChrome();
     },
-    [appendLine, bumpSessionChrome, currentAgent],
+    [agent, appendLine, bumpSessionChrome],
   );
 
   const handleModeCommand = useCallback(
@@ -619,15 +575,15 @@ export function ChatApp({
         });
         return;
       }
-      const prev = getModeState(currentAgent).mode;
+      const prev = getModeState(agent).mode;
       if (prev === mode) {
         return;
       }
-      setSessionMode(currentAgent, mode);
-      applySessionMode(currentAgent);
+      setSessionMode(agent, mode);
+      applySessionMode(agent);
       bumpSessionChrome();
     },
-    [appendLine, bumpSessionChrome, currentAgent],
+    [agent, appendLine, bumpSessionChrome],
   );
 
   const runTurn = useCallback(
@@ -680,8 +636,8 @@ export function ChatApp({
                 }),
               ]
             : trimmed;
-        await runWithAgentMemoryScope(currentAgent, async () => {
-          for await (const event of currentAgent.stream(streamInput)) {
+        await runWithAgentMemoryScope(agent, async () => {
+          for await (const event of agent.stream(streamInput)) {
             const e = event as AgentStreamEvent;
             switch (e.type) {
               case "contentBlockEvent": {
@@ -720,7 +676,7 @@ export function ChatApp({
                 const resultContent = toToolResultText(e.result);
                 const toolUseId = getToolUseId(e.result);
                 const fileToolDisplay = takeFileToolDisplay(
-                  currentAgent.appState,
+                  agent.appState,
                   toolUseId,
                 );
                 let toolLineId = toolUseId
@@ -855,7 +811,7 @@ export function ChatApp({
         setTurnStartedAt(null);
         setLiveReasoning("");
         setStatus("ready");
-        if (isExitRequested(currentAgent)) {
+        if (isExitRequested(agent)) {
           onExit();
           exit();
         }
@@ -864,7 +820,7 @@ export function ChatApp({
     [
       appendAssistantText,
       appendLine,
-      currentAgent,
+      agent,
       exit,
       moveLineToEnd,
       onExit,
@@ -1021,7 +977,7 @@ export function ChatApp({
       }
       if (key.ctrl && inputKey.toLowerCase() === "c") {
         if (runningRef.current) {
-          currentAgent.cancel();
+          agent.cancel();
           setStatus("cancel requested");
           return;
         }
@@ -1039,7 +995,7 @@ export function ChatApp({
           return;
         }
         if (runningRef.current) {
-          currentAgent.cancel();
+          agent.cancel();
           setStatus("cancel requested");
           return;
         }
@@ -1110,13 +1066,13 @@ export function ChatApp({
             items={[
               {
                 label: `Off • confirm each tool${
-                  !isYoloEnabled(currentAgent) ? " • current" : ""
+                  !isYoloEnabled(agent) ? " • current" : ""
                 }`,
                 value: "off",
               },
               {
                 label: `On • run tools without prompts${
-                  isYoloEnabled(currentAgent) ? " • current" : ""
+                  isYoloEnabled(agent) ? " • current" : ""
                 }`,
                 value: "on",
               },
@@ -1134,21 +1090,19 @@ export function ChatApp({
             items={[
               {
                 label: `Default • full tool surface${
-                  getModeState(currentAgent).mode === "default"
-                    ? " • current"
-                    : ""
+                  getModeState(agent).mode === "default" ? " • current" : ""
                 }`,
                 value: "default",
               },
               {
                 label: `Plan • read only tools + plan file${
-                  getModeState(currentAgent).mode === "plan" ? " • current" : ""
+                  getModeState(agent).mode === "plan" ? " • current" : ""
                 }`,
                 value: "plan",
               },
               {
                 label: `Ask • read only tools, no plan workflow${
-                  getModeState(currentAgent).mode === "ask" ? " • current" : ""
+                  getModeState(agent).mode === "ask" ? " • current" : ""
                 }`,
                 value: "ask",
               },
@@ -1185,13 +1139,13 @@ export function ChatApp({
           statusLabel={statusLabel}
           sessionId={sessionId}
           currentModel={currentModelLabel(config)}
-          yoloOn={isYoloEnabled(currentAgent)}
-          sessionMode={getModeState(currentAgent).mode}
+          yoloOn={isYoloEnabled(agent)}
+          sessionMode={getModeState(agent).mode}
           elapsedLabel={elapsedLabel}
           turnCount={turnCount}
           totalTools={totalTools}
           skillsFound={skillsFound}
-          manager={currentManager}
+          manager={manager}
           usage={usage}
         />
       </Box>
