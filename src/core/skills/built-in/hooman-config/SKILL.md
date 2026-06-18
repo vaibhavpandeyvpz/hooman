@@ -1,6 +1,6 @@
 ---
 name: hooman-config
-description: Read and update Hooman's own config.json and instructions.md safely. Use when the user asks about Hooman config, custom instructions, model providers, LLM params, tool toggles, prompts, search, memory, wiki (knowledge search), agents, compaction, or ~/.hooman config settings.
+description: Read and update Hooman's own config.json and instructions.md safely. Use when the user asks about Hooman config, custom instructions, model providers, LLM params, tool toggles, prompts, search, agents, compaction, or ~/.hooman config settings.
 ---
 
 # Hooman Config
@@ -20,7 +20,7 @@ Use this skill when the user asks you to inspect, explain, or change Hooman's ow
 2. Make the smallest JSON edit that satisfies the request. Do not rewrite unrelated sections or normalize formatting beyond valid pretty JSON.
 3. `name` and `llms` are required. `llms` must be a **non-empty array** of entries (see below). `search`, `prompts`, `tools`, and `compaction` are optional in input, but Hooman expands them with defaults when loading.
 4. Unknown keys are unsupported and may be dropped when Hooman parses and persists the config.
-5. `tools.memory` has only `enabled` (embedding model is fixed in code; vectors live in the app data directory). `tools.wiki` has only `enabled` (when on, the agent gets `wiki_search` over the indexed knowledge base; ingestion is not configured here).
+5. `tools` only manages built-in runtime toggles exposed in `config.json`.
 6. Any change to `config.json` or `instructions.md` requires restarting the running Hooman agent/session before it takes effect.
 
 ## Full Config Shape
@@ -81,12 +81,6 @@ This is the default shape Hooman writes when `~/.hooman/config.json` is missing:
     },
     "sleep": {
       "enabled": true
-    },
-    "memory": {
-      "enabled": false
-    },
-    "wiki": {
-      "enabled": false
     },
     "agents": {
       "enabled": true,
@@ -339,13 +333,10 @@ Simple toggles:
     "filesystem": { "enabled": true },
     "shell": { "enabled": true },
     "sleep": { "enabled": true },
-    "memory": { "enabled": true },
-    "wiki": { "enabled": true }
+    "agents": { "enabled": true, "concurrency": 3 }
   }
 }
 ```
-
-With `wiki` enabled, the model only receives **`wiki_search`**: semantic retrieval over the knowledge index. There are no wiki write or list tools in config.
 
 Agents:
 
@@ -360,7 +351,7 @@ Agents:
 }
 ```
 
-Defaults: `todo`, `fetch`, `filesystem`, `shell`, `sleep`, and `agents` enabled; `memory` and `wiki` disabled. Memory uses a local SQLite index and the built-in embedding model URI in code (`DEFAULT_EMBED_MODEL` in `core/config.ts`). MCP servers and installed skills are not controlled by these toggles; do not inspect or edit them for this skill.
+Defaults: `todo`, `fetch`, `filesystem`, `shell`, `sleep`, and `agents` enabled. MCP servers and installed skills are not controlled by these toggles; do not inspect or edit them for this skill.
 
 `agents`: the default file Hooman writes when `config.json` was missing includes `tools.agents.concurrency: 2`. On load, if `concurrency` is absent (for example `tools` or `tools.agents` is omitted), the merged config uses `3` until you set it explicitly.
 

@@ -6,19 +6,16 @@ export type { AcpMeta, BootstrapMeta, BootstrapMode } from "./core/index.js";
 
 export {
   Config as HoomanConfig,
-  DEFAULT_EMBED_MODEL,
   LlmProvider,
 } from "./core/config.js";
 export type {
   CompactionConfig,
   ConfigData,
   LlmConfig,
-  MemoryConfig,
   NamedLlmConfig,
   PromptsConfig,
   SearchConfig,
   ToolsConfig,
-  WikiConfig,
 } from "./core/config.js";
 
 export {
@@ -26,12 +23,9 @@ export {
   basePath,
   configJsonPath,
   instructionsMdPath,
-  modelsCachePath,
   mcpJsonPath,
   sessionsPath,
   skillsPath,
-  wikiDbPath,
-  wikiPath,
 } from "./core/utils/paths.js";
 export {
   attachmentDiagnosticBlock,
@@ -146,21 +140,6 @@ export {
 } from "./core/context/index.js";
 export type { LazySessionManagerConfig } from "./core/context/index.js";
 export { FlatFileStorage } from "./core/context/flat-file-storage.js";
-export {
-  Brain as MemoryBrain,
-  createMemoryTools,
-  open as openMemoryDb,
-  prepare as prepareMemoryDb,
-} from "./core/memory/index.js";
-export { Storage as WikiStorage } from "./core/wiki/storage.js";
-export type { WikiDocRecord } from "./core/wiki/database.js";
-export type { WikiListResult } from "./core/wiki/storage.js";
-export { createWikiTools } from "./core/wiki/tools.js";
-export type {
-  Memory as LongTermMemory,
-  MemoryType,
-  Sqlite as MemorySqlite,
-} from "./core/memory/index.js";
 
 export {
   BUILTIN_AGENT_CONFIGS,

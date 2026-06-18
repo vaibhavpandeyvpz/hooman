@@ -48,12 +48,6 @@ export const INTERNAL_ALWAYS_ALLOWED = new Set([
   // Time
   "convert_time",
   "get_current_time",
-  // Wiki
-  "wiki_search",
-  // Long-term memory
-  "memory_add",
-  "memory_archive",
-  "memory_search",
   // Filesystem (list / search / metadata)
   "directory_tree",
   "get_file_info",
@@ -90,10 +84,6 @@ export const PLAN_MODE_VISIBLE = new Set([
   // Time
   "convert_time",
   "get_current_time",
-  // Wiki
-  "wiki_search",
-  // Long-term memory
-  "memory_search",
   // Filesystem (list / search / metadata)
   "directory_tree",
   "get_file_info",

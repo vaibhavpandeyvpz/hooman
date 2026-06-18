@@ -17,8 +17,6 @@ import type {
   SkillListEntry,
   SkillSearchResult,
 } from "../core/skills/registry.js";
-import { Storage } from "../core/wiki/storage.js";
-import type { WikiListResult } from "../core/wiki/storage.js";
 import {
   basePath,
   configJsonPath,
@@ -73,14 +71,6 @@ const SEARCH_PROVIDER_LABELS: Record<SearchProvider, string> = {
 /** On/off display for tool rows (`Tool • Yes` / `Tool • No`). */
 const yesNo = (on: boolean): string => (on ? "Yes" : "No");
 
-const WIKI_DOCS_PAGE_SIZE = 15;
-
-type WikiDocsListState =
-  | { status: "idle" }
-  | { status: "loading"; page: number }
-  | { status: "ready"; page: number; result: WikiListResult }
-  | { status: "error"; page: number; message: string };
-
 export function ConfigureApp({
   config,
   mcpConfig,
@@ -95,14 +85,6 @@ export function ConfigureApp({
   const [revision, setRevision] = useState(0);
   const [installedSkills, setInstalledSkills] = useState<SkillListEntry[]>([]);
   const [searchResults, setSearchResults] = useState<SkillSearchResult[]>([]);
-  const [wikiDocsList, setWikiDocsList] = useState<WikiDocsListState>({
-    status: "idle",
-  });
-  const [wikiDocsNonce, setWikiDocsNonce] = useState(0);
-
-  const bumpWikiDocs = useCallback(() => {
-    setWikiDocsNonce((n) => n + 1);
-  }, []);
 
   const refresh = useCallback(() => {
     setRevision((value) => value + 1);
@@ -139,39 +121,6 @@ export function ConfigureApp({
     void refreshSkills();
   }, [refreshSkills]);
 
-  const wikiDocsPage = screen.kind === "config-wiki-docs" ? screen.page : null;
-
-  useEffect(() => {
-    if (wikiDocsPage == null) {
-      setWikiDocsList({ status: "idle" });
-      return;
-    }
-    let cancelled = false;
-    setWikiDocsList({ status: "loading", page: wikiDocsPage });
-    void (async () => {
-      try {
-        const storage = Storage.create();
-        await storage.warmup();
-        const result = await storage.list(wikiDocsPage, WIKI_DOCS_PAGE_SIZE);
-        await storage.close();
-        if (!cancelled) {
-          setWikiDocsList({ status: "ready", page: wikiDocsPage, result });
-        }
-      } catch (error) {
-        if (!cancelled) {
-          setWikiDocsList({
-            status: "error",
-            page: wikiDocsPage,
-            message: error instanceof Error ? error.message : String(error),
-          });
-        }
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [wikiDocsPage, wikiDocsNonce]);
-
   useInput(
     (input, key) => {
       if (key.ctrl && input.toLowerCase() === "c") {
@@ -197,18 +146,6 @@ export function ConfigureApp({
       }
       if (screen.kind === "config-llm-delete-confirm") {
         setScreen({ kind: "config-llm-edit", name: screen.name });
-        return;
-      }
-      if (screen.kind === "config-wiki-delete-confirm") {
-        setScreen({ kind: "config-wiki-docs", page: screen.page });
-        return;
-      }
-      if (screen.kind === "config-wiki-docs") {
-        setScreen({ kind: "config-wiki" });
-        return;
-      }
-      if (screen.kind === "config-wiki") {
-        setScreen({ kind: "config-tools" });
         return;
       }
       if (screen.kind !== "home") {
@@ -700,12 +637,22 @@ export function ConfigureApp({
         },
       },
       {
-        label: `Memory tool • ${yesNo(configData.tools.memory.enabled)}`,
-        value: () => setScreen({ kind: "config-ltm" }),
-      },
-      {
-        label: `Wiki tool • ${yesNo(configData.tools.wiki.enabled)}`,
-        value: () => setScreen({ kind: "config-wiki" }),
+        label: `Agents tool • ${yesNo(configData.tools.agents.enabled)}`,
+        value: () => {
+          updateConfig(
+            {
+              tools: {
+                ...config.tools,
+                agents: {
+                  ...config.tools.agents,
+                  enabled: !configData.tools.agents.enabled,
+                },
+              },
+            },
+            `Agents tool ${configData.tools.agents.enabled ? "disabled" : "enabled"}.`,
+          );
+          setScreen({ kind: "config-tools" });
+        },
       },
       {
         label: "Back",
@@ -1114,263 +1061,6 @@ export function ConfigureApp({
     );
   };
 
-  const renderLtmConfigMenu = () => {
-    const items: MenuItem[] = [
-      {
-        label: `Enabled • ${yesNo(configData.tools.memory.enabled)}`,
-        value: () => {
-          updateConfig(
-            {
-              tools: {
-                ...config.tools,
-                memory: {
-                  ...config.tools.memory,
-                  enabled: !configData.tools.memory.enabled,
-                },
-              },
-            },
-            `Memory tool ${configData.tools.memory.enabled ? "disabled" : "enabled"}.`,
-          );
-          setScreen({ kind: "config-ltm" });
-        },
-      },
-      {
-        label: "Back",
-        value: () => setScreen({ kind: "config-tools" }),
-      },
-    ];
-
-    return (
-      <MenuScreen
-        title="Memory tool"
-        description="Vectors live in ~/.hooman/memory.sqlite (sqlite-vec). Embedding model is fixed in code (DEFAULT_EMBED_MODEL)."
-        items={items}
-      />
-    );
-  };
-
-  const renderWikiConfigMenu = () => {
-    const items: MenuItem[] = [
-      {
-        label: `Tool • ${yesNo(configData.tools.wiki.enabled)}`,
-        value: () => {
-          updateConfig(
-            {
-              tools: {
-                ...config.tools,
-                wiki: {
-                  ...config.tools.wiki,
-                  enabled: !configData.tools.wiki.enabled,
-                },
-              },
-            },
-            `Wiki tool ${configData.tools.wiki.enabled ? "disabled" : "enabled"}.`,
-          );
-          setScreen({ kind: "config-wiki" });
-        },
-      },
-      {
-        label: "Manage documents",
-        value: () => setScreen({ kind: "config-wiki-docs", page: 1 }),
-      },
-      {
-        label: "Back",
-        value: () => setScreen({ kind: "config-tools" }),
-      },
-    ];
-
-    return (
-      <MenuScreen
-        title="Tool"
-        description="Turn wiki_search on or off for the agent, then open Manage documents to add or remove PDF/DOCX files under ~/.hooman/wiki. Embedding may download the model on first use."
-        items={items}
-      />
-    );
-  };
-
-  const renderWikiDocsMenu = () => {
-    if (screen.kind !== "config-wiki-docs") {
-      return null;
-    }
-    const { page } = screen;
-
-    if (wikiDocsList.status === "loading" || wikiDocsList.status === "idle") {
-      return <BusyScreen message="Loading documents…" />;
-    }
-    if (wikiDocsList.status === "error") {
-      return (
-        <MenuScreen
-          title="Manage documents"
-          description={`Could not load index: ${wikiDocsList.message}`}
-          items={[
-            {
-              label: "Retry",
-              value: () => bumpWikiDocs(),
-            },
-            {
-              label: "Back",
-              value: () => setScreen({ kind: "config-wiki" }),
-            },
-          ]}
-        />
-      );
-    }
-    if (wikiDocsList.page !== page) {
-      return <BusyScreen message="Loading documents…" />;
-    }
-
-    const { result } = wikiDocsList;
-    const totalPages = Math.max(
-      1,
-      Math.ceil(result.total / WIKI_DOCS_PAGE_SIZE),
-    );
-    const hasPrev = page > 1;
-    const hasNext = page < totalPages;
-
-    const formatUpdated = (ms: number) => {
-      try {
-        return new Date(ms).toLocaleString(undefined, {
-          dateStyle: "short",
-          timeStyle: "short",
-        });
-      } catch {
-        return String(ms);
-      }
-    };
-
-    const docItems: MenuItem[] = result.items.map((doc) => {
-      const summary = truncate(
-        `${doc.file_name} • ${formatUpdated(doc.updated_at_ms)} • ${doc.original_mime_type}`,
-        96,
-      );
-      return {
-        key: `wiki-remove:${doc.doc_id}`,
-        label: `Remove • ${summary}`,
-        boldSubstring: doc.file_name,
-        value: () =>
-          setScreen({
-            kind: "config-wiki-delete-confirm",
-            docId: doc.doc_id,
-            displayName: doc.file_name,
-            page,
-          }),
-      };
-    });
-
-    const items: MenuItem[] = [
-      {
-        label: "Add document (file path)",
-        value: () =>
-          promptValue({
-            title: "Index a file into the wiki",
-            label: "Absolute path",
-            placeholder: "/path/to/document.pdf",
-            note: "Only PDF and DOCX are supported (PDF needs Java 11+ for OpenDataLoader).",
-            onSubmit: async (value) => {
-              const raw = value.trim();
-              if (!raw) {
-                throw new Error("Path is required.");
-              }
-              const abs = path.resolve(raw);
-              if (!existsSync(abs)) {
-                throw new Error(`File not found: ${abs}`);
-              }
-              setPrompt(null);
-              await runTask(`Indexing "${path.basename(abs)}"…`, async () => {
-                const storage = Storage.create();
-                try {
-                  await storage.warmup();
-                  await storage.add({ filePath: abs });
-                } finally {
-                  await storage.close();
-                }
-                bumpWikiDocs();
-                setSuccess(`Indexed "${path.basename(abs)}".`);
-              });
-              setScreen({ kind: "config-wiki-docs", page: 1 });
-            },
-          }),
-      },
-      ...docItems,
-      ...(hasPrev
-        ? [
-            {
-              label: "Previous page",
-              value: () =>
-                setScreen({ kind: "config-wiki-docs", page: page - 1 }),
-            } satisfies MenuItem,
-          ]
-        : []),
-      ...(hasNext
-        ? [
-            {
-              label: "Next page",
-              value: () =>
-                setScreen({ kind: "config-wiki-docs", page: page + 1 }),
-            } satisfies MenuItem,
-          ]
-        : []),
-      {
-        label: "Back",
-        value: () => setScreen({ kind: "config-wiki" }),
-      },
-    ];
-
-    return (
-      <MenuScreen
-        title={`Manage documents · page ${page} of ${totalPages}`}
-        description={
-          result.items.length === 0
-            ? "No documents yet. Add a PDF or DOCX path below (PDF needs Java 11+ on PATH)."
-            : `${result.total} document(s) total · ${result.items.length} on this page.`
-        }
-        items={items}
-      />
-    );
-  };
-
-  const renderWikiDeleteConfirm = () => {
-    if (screen.kind !== "config-wiki-delete-confirm") {
-      return null;
-    }
-    const { docId, displayName, page } = screen;
-    const items: MenuItem[] = [
-      {
-        key: `wiki-del-cancel:${docId}`,
-        label: "No — keep document",
-        value: () => setScreen({ kind: "config-wiki-docs", page }),
-      },
-      {
-        key: `wiki-del-confirm:${docId}`,
-        label: "Yes — remove from index",
-        value: () =>
-          void runTask(`Removing "${displayName}"…`, async () => {
-            const storage = Storage.create();
-            try {
-              await storage.warmup();
-              const ok = await storage.remove(docId);
-              if (!ok) {
-                throw new Error("Document was already removed.");
-              }
-            } finally {
-              await storage.close();
-            }
-            bumpWikiDocs();
-            setSuccess(`Removed "${displayName}" from the wiki index.`);
-            setScreen({ kind: "config-wiki-docs", page });
-          }),
-      },
-    ];
-
-    return (
-      <MenuScreen
-        title="Remove wiki document?"
-        description={`Drop "${displayName}" from the index and delete its stored copies under ~/.hooman/wiki? This cannot be undone.`}
-        items={items}
-      />
-    );
-  };
-
   const renderMcpMenu = () => {
     const serverItems: MenuItem[] = mcpServers.flatMap((server) => [
       {
@@ -1455,7 +1145,7 @@ export function ConfigureApp({
           promptValue({
             title: "Search skills catalog",
             label: "Query",
-            placeholder: "memory, github, playwright...",
+            placeholder: "github, playwright, slack...",
             onSubmit: async (value) => {
               const query = value.trim();
               if (query.length < 2) {
@@ -1651,14 +1341,6 @@ export function ConfigureApp({
         return renderSearchConfigMenu();
       case "config-search-provider":
         return renderSearchProviderMenu();
-      case "config-ltm":
-        return renderLtmConfigMenu();
-      case "config-wiki":
-        return renderWikiConfigMenu();
-      case "config-wiki-docs":
-        return renderWikiDocsMenu();
-      case "config-wiki-delete-confirm":
-        return renderWikiDeleteConfirm();
       case "mcp":
         return renderMcpMenu();
       case "mcp-delete-confirm":

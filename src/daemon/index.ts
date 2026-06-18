@@ -46,8 +46,8 @@ function resolveUserId(
   const raw = message.meta.user?.trim();
   if (!raw) return session;
   // Same user id across different servers is not the same human, so scope
-  // user ids by server. Channel is intentionally omitted so long-term memory
-  // can stay consistent for a user across rooms within one server.
+  // user ids by server. Channel is intentionally omitted so user identity
+  // stays consistent across rooms within one server.
   return `${message.meta.subscription.server}:${raw}`;
 }
 

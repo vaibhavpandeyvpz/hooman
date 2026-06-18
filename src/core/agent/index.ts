@@ -4,8 +4,6 @@ import { type Config } from "../config.js";
 import { create as createContext } from "../context/index.js";
 import { modelProviders } from "../models/index.js";
 import type { Manager as McpManager } from "../mcp/index.js";
-import { createMemoryTools } from "../memory/index.js";
-import { createWikiTools } from "../wiki/tools.js";
 import type { System as SystemPrompt } from "../prompts/index.js";
 import { skills as createSkillsPrompt } from "../prompts/index.js";
 import type { Registry } from "../skills/index.js";
@@ -76,8 +74,6 @@ export async function create(
   const mode = normalizeSessionMode(meta.sessionMode);
   const prompt = composeSystemPromptWithSessionMode(base, mode, {});
   const model = llm.create(config.llm.model, config.llm.params);
-  const memory = await createMemoryTools();
-  const wiki = config.tools.wiki.enabled ? await createWikiTools() : [];
 
   const tools: Tool[] = [
     ...createByeTools(),
@@ -88,8 +84,6 @@ export async function create(
     ...(config.tools.filesystem.enabled ? createFilesystemTools() : []),
     ...(config.tools.shell.enabled ? createShellTools() : []),
     ...(config.search.enabled ? createWebSearchTools(config) : []),
-    ...memory,
-    ...wiki,
     ...createThinkingTools(),
     ...createPlanTools(),
     ...prefixed,

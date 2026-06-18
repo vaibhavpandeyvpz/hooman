@@ -20,15 +20,6 @@ export type Screen =
   | { kind: "config-prompts" }
   | { kind: "config-search" }
   | { kind: "config-search-provider" }
-  | { kind: "config-ltm" }
-  | { kind: "config-wiki" }
-  | { kind: "config-wiki-docs"; page: number }
-  | {
-      kind: "config-wiki-delete-confirm";
-      docId: string;
-      displayName: string;
-      page: number;
-    }
   | { kind: "mcp" }
   | { kind: "mcp-delete-confirm"; name: string }
   | { kind: "skills" }

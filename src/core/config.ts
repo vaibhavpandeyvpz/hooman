@@ -44,15 +44,6 @@ const DEFAULT_PROMPTS = {
   guardrails: true,
 } as const;
 
-export const DEFAULT_EMBED_MODEL =
-  "hf:unsloth/embeddinggemma-300m-GGUF/embeddinggemma-300m-Q4_0.gguf";
-export const DEFAULT_RERANK_MODEL =
-  "hf:ggml-org/Qwen3-Reranker-0.6B-Q8_0-GGUF/qwen3-reranker-0.6b-q8_0.gguf";
-
-const MemoryPartialSchema = z.object({
-  enabled: z.boolean().optional(),
-});
-
 const ToolTogglePartialSchema = z.object({
   enabled: z.boolean().optional(),
 });
@@ -113,8 +104,6 @@ const ToolsPartialSchema = z.object({
   filesystem: ToolTogglePartialSchema.optional(),
   shell: ToolTogglePartialSchema.optional(),
   sleep: ToolTogglePartialSchema.optional(),
-  memory: MemoryPartialSchema.optional(),
-  wiki: ToolTogglePartialSchema.optional(),
   agents: AgentsPartialSchema.optional(),
 });
 
@@ -131,8 +120,6 @@ const ConfigSchema = z
     })),
   })
   .transform((input) => {
-    const memory = input.tools?.memory;
-    const wiki = input.tools?.wiki;
     return {
       name: input.name,
       llms: input.llms,
@@ -178,12 +165,6 @@ const ConfigSchema = z
         sleep: {
           enabled: input.tools?.sleep?.enabled ?? true,
         },
-        memory: {
-          enabled: memory?.enabled ?? false,
-        },
-        wiki: {
-          enabled: wiki?.enabled ?? false,
-        },
         agents: {
           enabled: input.tools?.agents?.enabled ?? true,
           concurrency: input.tools?.agents?.concurrency ?? 3,
@@ -198,8 +179,6 @@ export type LlmConfig = z.infer<typeof LlmSchema>;
 export type NamedLlmConfig = z.infer<typeof NamedLlmSchema>;
 export type CompactionConfig = ConfigData["compaction"];
 export type PromptsConfig = ConfigData["prompts"];
-export type MemoryConfig = ConfigData["tools"]["memory"];
-export type WikiConfig = ConfigData["tools"]["wiki"];
 export type SearchConfig = ConfigData["search"];
 export type ToolsConfig = ConfigData["tools"];
 
@@ -241,12 +220,6 @@ const defaultConfigData = (): ConfigData => ({
     },
     sleep: {
       enabled: true,
-    },
-    memory: {
-      enabled: false,
-    },
-    wiki: {
-      enabled: false,
     },
     agents: {
       enabled: true,
@@ -304,8 +277,6 @@ export class Config {
       filesystem: { ...this.data.tools.filesystem },
       shell: { ...this.data.tools.shell },
       sleep: { ...this.data.tools.sleep },
-      memory: { ...this.data.tools.memory },
-      wiki: { ...this.data.tools.wiki },
       agents: { ...this.data.tools.agents },
     };
   }

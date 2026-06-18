@@ -39,7 +39,7 @@ It gives you a practical toolkit to build and run agent workflows:
 - Skill discovery from local `~/.hooman/skills` folders
 - Bundled prompt harness toggles (`behaviour`, `communication`, `execution`, `guardrails`); coding guidance ships as the built-in `hooman-coding` skill
 - Built-in research sub-agent runner (`research`) with configurable concurrency
-- Toolkit-oriented architecture with configurable tools, prompts, memory, and transports
+- Toolkit-oriented architecture with configurable tools, prompts, and transports
 - Interactive terminal UI for chat and configuration
 
 ## Requirements
@@ -233,16 +233,8 @@ Runtime tool and prompt switches are controlled from `config.json`:
 - `tools.filesystem.enabled`
 - `tools.shell.enabled`
 - `tools.sleep.enabled`
-- `tools.memory.enabled`
-- Memory and wiki embedding model URI is fixed in code as `DEFAULT_EMBED_MODEL` in `src/core/config.ts` (not configurable in `config.json`).
-- Local embed GPU selection uses **`HOOMAN_LLAMA_GPU`**: unset defaults to **`auto`** (CI forces CPU off); use `false`, `off`, `none`, `disable`, `disabled`, or `0` for CPU-only; or `metal`, `vulkan`, or `cuda` for an explicit backend. Optional **`HOOMAN_EMBED_CONTEXT_SIZE`** caps embedding context length (tokens).
-- `tools.wiki.enabled`
 - `tools.agents.enabled` (enables built-in `run_agents` tool)
 - `tools.agents.concurrency` (defaults to `3` when omitted on load; a freshly generated default `config.json` uses `2`)
-
-Long-term memory uses **SQLite + sqlite-vec** at `$HOOMAN_HOME/memory.sqlite` and **local GGUF embeddings** via `node-llama-cpp` (model cache under `$HOOMAN_HOME/.models`). The same **sqlite-vec** native extension requirements apply (see the `sqlite-vec` package and your platform notes).
-
-With **`tools.wiki.enabled`**, the agent gets **`wiki_search`** only: semantic retrieval over the indexed knowledge base. Data lives under `$HOOMAN_HOME/wiki/` with chunks and vectors in **`$HOOMAN_HOME/wiki/content.sqlite`**. The first embed may download the configured GGUF model into `$HOOMAN_HOME/.models`. Documents are ingested as **PDF** (via **OpenDataLoader PDF**, which needs **Java 11+** on `PATH`) or **DOCX** (via **mammoth**).
 
 ### `hooman configure`
 
@@ -287,10 +279,7 @@ Hooman stores its data in:
 
 Important files and folders:
 
-- `config.json` - app name, LLM provider/model, tool flags, memory/wiki settings, compaction
-- `memory.sqlite` - long-term memory vectors + rows (created when memory tools are used)
-- `.models/` - downloaded GGUF embedding weights (memory + wiki embedders)
-- `wiki/content.sqlite` - wiki document store and semantic chunk index (when wiki is used)
+- `config.json` - app name, LLM provider/model, tool flags, and compaction
 - `instructions.md` - system instructions used to build the agent prompt
 - `mcp.json` - MCP server definitions
 - `skills/` - installed skills
@@ -345,12 +334,6 @@ The on-disk shape uses a non-empty **`llms`** array: each item has `name`, `opti
     },
     "sleep": {
       "enabled": true
-    },
-    "memory": {
-      "enabled": false
-    },
-    "wiki": {
-      "enabled": false
     },
     "agents": {
       "enabled": true,

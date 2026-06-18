@@ -53,7 +53,6 @@
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
-    "@types/better-sqlite3": "^7.6.13",
     "@types/jsdom": "^28.0.1",
     "@types/lodash": "^4.17.24",
     "@types/luxon": "^3.7.1",
@@ -80,10 +79,8 @@
     "@mendable/firecrawl-js": "^4.21.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@mozilla/readability": "^0.6.0",
-    "@opendataloader/pdf": "^2.4.3",
     "@strands-agents/sdk": "^1.0.0",
     "@tavily/core": "^0.7.2",
-    "better-sqlite3": "^12.8.0",
     "cli-highlight": "^2.1.11",
     "cli-spinners": "^3.4.0",
     "commander": "^14.0.3",
@@ -99,23 +96,13 @@
     "jsdom": "^29.0.2",
     "lodash": "^4.18.1",
     "luxon": "^3.7.2",
-    "mammoth": "^1.12.0",
     "marked": "^18.0.2",
     "millify": "^6.1.0",
-    "node-llama-cpp": "^3.18.1",
     "ollama": "^0.6.3",
     "openai": "^6.34.0",
     "react": "^19.2.5",
     "slugify": "^1.6.9",
-    "sqlite-vec": "^0.1.9",
     "turndown": "^7.2.4",
     "zod": "^4.3.6"
-  },
-  "optionalDependencies": {
-    "sqlite-vec-darwin-arm64": "0.1.9",
-    "sqlite-vec-darwin-x64": "0.1.9",
-    "sqlite-vec-linux-arm64": "0.1.9",
-    "sqlite-vec-linux-x64": "0.1.9",
-    "sqlite-vec-windows-x64": "0.1.9"
   }
 }

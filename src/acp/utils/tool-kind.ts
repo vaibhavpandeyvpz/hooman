@@ -17,16 +17,12 @@ const KNOWN_TOOL_KINDS = new Map<string, ToolKind>([
   ["sleep", "other"],
   ["bye", "other"],
   ["fetch", "fetch"],
-  ["wiki_search", "search"],
   ["web_search", "search"],
   ["think", "think"],
   ["run_agents", "other"],
   ["update_todos", "other"],
   ["get_current_time", "other"],
   ["convert_time", "other"],
-  ["memory_add", "edit"],
-  ["memory_search", "search"],
-  ["memory_archive", "edit"],
 ]);
 
 export { INTERNAL_ALWAYS_ALLOWED };
