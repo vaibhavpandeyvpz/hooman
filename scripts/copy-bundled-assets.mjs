@@ -26,11 +26,6 @@ const assets = [
     dest: join(root, "dist/core/prompts/modes"),
   },
   {
-    label: "agent prompts",
-    src: join(root, "src/core/prompts/agents"),
-    dest: join(root, "dist/core/prompts/agents"),
-  },
-  {
     label: "built-in skills",
     src: join(root, "src/core/skills/built-in"),
     dest: join(root, "dist/core/skills/built-in"),

@@ -1,5 +1,7 @@
 import { RUN_AGENTS_TOOL_NAME } from "../agents/tools.js";
+import { getBuiltInAgentTools } from "../agents/definitions.js";
 import { getModeState } from "./session-mode.js";
+import type { SessionMode } from "./session-mode.js";
 import {
   isResolvedPathInsideDir,
   normalizeUserPath,
@@ -52,56 +54,6 @@ export const INTERNAL_ALWAYS_ALLOWED = new Set([
   ENTER_PLAN_MODE_TOOL,
   EXIT_PLAN_MODE_TOOL,
 ]);
-
-export const PLAN_MODE_ALWAYS_ALLOWED = new Set([
-  "read_file",
-  "read_multiple_files",
-  "fetch",
-  "web_search",
-]);
-
-export const PLAN_MODE_VISIBLE = new Set([
-  // Internet
-  "fetch",
-  "web_search",
-  // Strands / runtime
-  "skills",
-  "retrieve_offloaded_content",
-  "search_memory",
-  "strands_structured_output",
-  // Todos
-  "update_todos",
-  // Thinking
-  "think",
-  // Agent orchestration
-  RUN_AGENTS_TOOL_NAME,
-  // Sleep
-  "sleep",
-  // Process lifecycle
-  "bye",
-  // Time
-  "convert_time",
-  "get_current_time",
-  // Filesystem (list / search / metadata)
-  "directory_tree",
-  "get_file_info",
-  "list_directory",
-  "search_files",
-  "read_file",
-  "read_multiple_files",
-  "write_file",
-  "edit_file",
-  // Planning session (mode / plan file)
-  ENTER_PLAN_MODE_TOOL,
-  EXIT_PLAN_MODE_TOOL,
-]);
-
-/** Same narrowed surface as plan mode but without plan lifecycle tools. */
-export const ASK_MODE_VISIBLE = new Set(
-  [...PLAN_MODE_VISIBLE].filter(
-    (name) => name !== ENTER_PLAN_MODE_TOOL && name !== EXIT_PLAN_MODE_TOOL,
-  ),
-);
 
 function isPlainObjectRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -228,14 +180,7 @@ export function isToolSessionAllowed(
   toolName: string,
   toolInput?: unknown,
 ): boolean {
-  const mode = getModeState(agent).mode;
   if (getSessionAllowedTools(agent).includes(toolName)) {
-    return true;
-  }
-  if (
-    (mode === "plan" || mode === "ask") &&
-    PLAN_MODE_ALWAYS_ALLOWED.has(toolName)
-  ) {
     return true;
   }
   if (
@@ -248,25 +193,20 @@ export function isToolSessionAllowed(
 }
 
 export function isToolVisible(
-  mode: string,
+  mode: SessionMode,
   toolName: string,
   options?: { mcpReadOnlyHint?: boolean },
 ): boolean {
   const readOnlyHinted = options?.mcpReadOnlyHint === true;
-  if (mode === "default") {
+  if (mode === "agent") {
     return true;
   }
-  if (mode === "plan") {
+  const visibleTools = getBuiltInAgentTools(mode);
+  if (visibleTools) {
     if (readOnlyHinted) {
       return true;
     }
-    return PLAN_MODE_VISIBLE.has(toolName);
-  }
-  if (mode === "ask") {
-    if (readOnlyHinted) {
-      return true;
-    }
-    return ASK_MODE_VISIBLE.has(toolName);
+    return visibleTools.includes(toolName);
   }
   return false;
 }

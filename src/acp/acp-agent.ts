@@ -37,10 +37,7 @@ import {
 } from "./sessions/options.js";
 import { applySessionMode } from "../core/agent/sync-tool-registry-mode.js";
 import { copyAgentAppState } from "../core/state/agent-app-state.js";
-import {
-  getModeState,
-  normalizeSessionMode,
-} from "../core/state/session-mode.js";
+import { getModeState } from "../core/state/session-mode.js";
 import {
   ENTER_PLAN_MODE_TOOL,
   EXIT_PLAN_MODE_TOOL,
@@ -74,7 +71,7 @@ import {
   type SessionMetaFile,
 } from "./sessions/store.js";
 
-const DEFAULT_MODE_ID = "default" as const;
+const DEFAULT_MODE_ID = "agent" as const;
 const LIST_PAGE_SIZE = 40;
 
 /** Fallback when a session record is missing (never mutate). */
@@ -475,7 +472,7 @@ export class AcpAgent implements AgentContract {
         userId: bootstrapUserId,
         sessionId: params.sessionId,
         yolo: existing.yolo === true,
-        sessionMode: normalizeSessionMode(existing.sessionMode),
+        sessionMode: existing.sessionMode ?? "agent",
         createInterventions: () => [
           createAcpToolApprovalIntervention(
             this.#connection,

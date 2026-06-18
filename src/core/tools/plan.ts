@@ -5,7 +5,6 @@ import { tool } from "@strands-agents/sdk";
 import type { JSONValue, ToolContext } from "@strands-agents/sdk";
 import { z } from "zod";
 import { applySessionMode } from "../agent/sync-tool-registry-mode.js";
-import { refreshAgentFullSystemPrompt } from "../prompts/session-mode-appendix.js";
 import { clearPlanState, getPlanState, setPlanState } from "../state/plan.js";
 import {
   clearModeToDefault,
@@ -52,14 +51,13 @@ If you are already in that phase, calling again keeps working with the same docu
         }
         const agent = context.agent;
         const { mode } = getModeState(agent);
-        if (mode === "ask") {
+        if (!["agent", "plan"].includes(mode)) {
           throw new Error(
-            "enter_plan_mode is not available in ask session mode. Switch to default or plan mode first.",
+            `enter_plan_mode is not available in ${mode} session mode. Switch to agent or plan mode first.`,
           );
         }
         const plan = getPlanState(agent);
         if (mode === "plan" && plan.planFile) {
-          await refreshAgentFullSystemPrompt(agent);
           return toJsonValue({
             mode: "plan",
             plan_file: plan.planFile,
@@ -88,7 +86,6 @@ If you are already in that phase, calling again keeps working with the same docu
           enterReason: input.reason,
         });
         applySessionMode(agent);
-        await refreshAgentFullSystemPrompt(agent);
 
         return toJsonValue({
           mode: "plan",
@@ -141,7 +138,6 @@ Only call this after you have started planning with enter_plan_mode.`,
         clearModeToDefault(agent);
         clearPlanState(agent);
         applySessionMode(agent);
-        await refreshAgentFullSystemPrompt(agent);
 
         return toJsonValue({
           exited: true,

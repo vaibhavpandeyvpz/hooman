@@ -1,3 +1,5 @@
+## Ask mode
+
 You are in **ask** mode: a narrowed tool surface for exploration, research, and answering questions.
 
 ## Ask mode

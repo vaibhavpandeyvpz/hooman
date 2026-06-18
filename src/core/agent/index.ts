@@ -25,20 +25,12 @@ import {
   createTimeTools,
   createWebSearchTools,
 } from "../tools/index.js";
-import {
-  composeSystemPromptWithSessionMode,
-  refreshAgentSystemPromptForSessionMode,
-  registerAgentSystemPromptBaseBuilder,
-} from "../prompts/session-mode-appendix.js";
+import { createSessionModePromptPlugin } from "../prompts/session-mode-appendix.js";
 import { createAgentSkillsPlugin } from "../skills/index.js";
 import { ModeAwareToolRegistry } from "./mode-aware-tool-registry.js";
 import { applySessionMode } from "./sync-tool-registry-mode.js";
 import { clearTodoState } from "../state/todos.js";
-import {
-  MODE_STATE_KEY,
-  normalizeSessionMode,
-  type SessionMode,
-} from "../state/session-mode.js";
+import { MODE_STATE_KEY, type SessionMode } from "../state/session-mode.js";
 import { YOLO_STATE_KEY } from "../state/yolo.js";
 
 const SECTION_BREAK = "\n\n---\n\n";
@@ -65,6 +57,7 @@ export async function create(
   const { plugins: contextPlugins = [], ...agentContext } = ctx;
   const prefixed = await mcp.manager.listPrefixedTools();
   const skillsPlugin = createAgentSkillsPlugin();
+  const sessionModePlugin = createSessionModePromptPlugin();
 
   async function buildBaseSystemPrompt(): Promise<string> {
     await system.reload();
@@ -75,8 +68,6 @@ export async function create(
   }
 
   const base = await buildBaseSystemPrompt();
-  const mode = normalizeSessionMode(meta.sessionMode);
-  const prompt = composeSystemPromptWithSessionMode(base, mode, {});
   const model = llm.create(config.llm.model, config.llm.params);
 
   const tools: Tool[] = [
@@ -95,20 +86,21 @@ export async function create(
   if (config.tools.agents.enabled) {
     const definitions = loadBuiltInAgentDefinitions(config, {
       knownTools: tools.map((entry) => entry.name),
-    });
+      baseSystemPrompt: base,
+    }).filter((entry) => entry.id === "research");
     tools.push(
       ...createRunAgentsTools({
         parent: config.name,
         definitions,
         tools,
         createModel: () => llm.create(config.llm.model, config.llm.params),
-        defaultConcurrency: config.tools.agents.concurrency,
+        concurrency: config.tools.agents.concurrency,
       }),
     );
   }
   const agent = new Agent({
     name: config.name,
-    systemPrompt: prompt,
+    systemPrompt: base,
     model,
     appState: {
       ...(userId ? { userId } : {}),
@@ -116,7 +108,7 @@ export async function create(
       ...(meta.yolo ? { [YOLO_STATE_KEY]: true } : {}),
       ...(meta.sessionMode ? { [MODE_STATE_KEY]: meta.sessionMode } : {}),
     },
-    plugins: [skillsPlugin, ...contextPlugins],
+    plugins: [skillsPlugin, sessionModePlugin, ...contextPlugins],
     interventions: meta.interventions ?? [],
     tools,
     printer: print,
@@ -124,12 +116,7 @@ export async function create(
   });
   agent.addHook(BeforeInvocationEvent, async (event) => {
     clearTodoState(event.agent);
-    refreshAgentSystemPromptForSessionMode(
-      event.agent,
-      await buildBaseSystemPrompt(),
-    );
   });
-  registerAgentSystemPromptBaseBuilder(agent, buildBaseSystemPrompt);
   (agent as unknown as { _toolRegistry: ModeAwareToolRegistry })._toolRegistry =
     new ModeAwareToolRegistry(agent.toolRegistry.list());
   await agent.initialize();

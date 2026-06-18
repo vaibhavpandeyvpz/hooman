@@ -6,13 +6,13 @@ import {
 } from "@strands-agents/sdk";
 import type { BaseModelConfig, Model } from "@strands-agents/sdk";
 import { z } from "zod";
-import { BUILTIN_AGENT_KINDS, type AgentDefinition } from "./definitions.js";
+import { type AgentDefinition } from "./definitions.js";
 import { runAgentJobs } from "./runner.js";
 
 export const RUN_AGENTS_TOOL_NAME = "run_agents";
 
 const JobSchema = z.object({
-  kind: z.enum(BUILTIN_AGENT_KINDS),
+  kind: z.enum(["research"]),
   description: z.string().trim().min(1),
   prompt: z.string().trim().min(1),
 });
@@ -27,7 +27,7 @@ type RunAgentsToolOptions = {
   definitions: readonly AgentDefinition[];
   tools: readonly Tool[];
   createModel: () => Model<BaseModelConfig>;
-  defaultConcurrency: number;
+  concurrency: number;
 };
 
 function toJsonValue(value: unknown): JSONValue {
@@ -66,7 +66,7 @@ ${kinds.join("\n")}`,
         const concurrency = Math.max(
           1,
           Math.min(
-            input.maxConcurrency ?? options.defaultConcurrency,
+            input.maxConcurrency ?? options.concurrency,
             input.jobs.length,
           ),
         );

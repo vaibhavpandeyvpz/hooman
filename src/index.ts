@@ -174,9 +174,11 @@ export { FlatFileStorage } from "./core/context/flat-file-storage.js";
 
 export {
   BUILTIN_AGENT_CONFIGS,
-  BUILTIN_AGENT_KINDS,
   RUN_AGENTS_TOOL_NAME,
   createRunAgentsTools,
+  getBuiltInAgentConfig,
+  getBuiltInAgentTools,
+  isBuiltInAgentId,
   loadBuiltInAgentDefinitions,
   runAgentJobs,
 } from "./core/agents/index.js";
@@ -185,7 +187,6 @@ export type {
   AgentDefinition,
   AgentJob,
   AgentJobResult,
-  AgentKind,
   RunAgentJobsResult,
 } from "./core/agents/index.js";
 
@@ -211,7 +212,6 @@ export {
 export {
   MODE_STATE_KEY,
   getModeState,
-  normalizeSessionMode,
   setSessionMode,
   type SessionMode,
 } from "./core/state/session-mode.js";

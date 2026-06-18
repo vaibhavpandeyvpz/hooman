@@ -1,9 +1,6 @@
-import { z } from "zod";
-
 export const MODE_STATE_KEY = "mode";
 
-export const SessionModeSchema = z.enum(["default", "plan", "ask"]);
-export type SessionMode = z.infer<typeof SessionModeSchema>;
+export type SessionMode = string;
 
 type AppStateLike = {
   get<T = unknown>(key: string): T;
@@ -18,18 +15,9 @@ export type ModeState = {
   mode: SessionMode;
 };
 
-export function normalizeSessionMode(value: unknown): SessionMode {
-  const parsed = SessionModeSchema.safeParse(value);
-  return parsed.success ? parsed.data : "default";
-}
-
-function normalizeMode(value: unknown): SessionMode {
-  return normalizeSessionMode(value);
-}
-
 export function getModeState(agent: AgentLike): ModeState {
-  const mode = normalizeMode(agent.appState.get(MODE_STATE_KEY));
-  return { mode };
+  const mode = agent.appState.get(MODE_STATE_KEY) ?? "agent";
+  return { mode: mode as string };
 }
 
 export function setSessionMode(agent: AgentLike, mode: SessionMode): void {
@@ -37,5 +25,5 @@ export function setSessionMode(agent: AgentLike, mode: SessionMode): void {
 }
 
 export function clearModeToDefault(agent: AgentLike): void {
-  agent.appState.set(MODE_STATE_KEY, "default");
+  agent.appState.set(MODE_STATE_KEY, "agent");
 }

@@ -4,14 +4,11 @@ import type {
   SetSessionConfigOptionRequest,
 } from "@agentclientprotocol/sdk";
 import type { Agent } from "@strands-agents/sdk";
+import { BUILTIN_AGENT_CONFIGS } from "../../core/agents/index.js";
 import type { Config } from "../../core/config.js";
 import type { SessionConfig } from "../../core/session-config.js";
 import { applySessionMode } from "../../core/agent/sync-tool-registry-mode.js";
-import {
-  getModeState,
-  SessionModeSchema,
-  setSessionMode,
-} from "../../core/state/session-mode.js";
+import { getModeState, setSessionMode } from "../../core/state/session-mode.js";
 import {
   YOLO_STATE_KEY,
   isYoloEnabled,
@@ -34,27 +31,15 @@ export function buildSessionConfigOptions(
       id: HOOMAN_SESSION_MODE_CONFIG_ID,
       name: "Session mode",
       description:
-        "Default: full tools. Plan: read only tools plus plan file workflow. Ask: same read only tools without enter/exit plan.",
+        "Default uses the full tool surface. Built-in agent profiles apply narrower prompt and tool presets.",
       category: "mode",
       currentValue: getModeState(agent).mode,
       options: [
-        {
-          value: "default",
-          name: "Default",
-          description: "Standard behaviour with the full tool surface.",
-        },
-        {
-          value: "plan",
-          name: "Plan",
-          description:
-            "Planning phase with read-only exploration tools and a plan document.",
-        },
-        {
-          value: "ask",
-          name: "Ask",
-          description:
-            "Like plan mode's read only tools for Q&A and exploration, without plan-mode tools.",
-        },
+        ...BUILTIN_AGENT_CONFIGS.map((entry) => ({
+          value: entry.id,
+          name: entry.name,
+          description: entry.description,
+        })),
       ],
     },
     {
@@ -109,11 +94,7 @@ export function applySessionConfigOption(
   }
   const value = params.value;
   if (params.configId === HOOMAN_SESSION_MODE_CONFIG_ID) {
-    const parsed = SessionModeSchema.safeParse(value);
-    if (!parsed.success) {
-      throw RequestError.invalidParams({ value });
-    }
-    setSessionMode(agent, parsed.data);
+    setSessionMode(agent, value as string);
     applySessionMode(agent);
     return;
   }

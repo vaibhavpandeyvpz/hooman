@@ -28,6 +28,7 @@ import {
   consumeExitRequest,
   EXIT_REQUESTED_CODE,
 } from "./core/state/exit-request.js";
+import { BUILTIN_AGENT_CONFIGS } from "./core/agents/definitions.js"
 
 async function readPackageMeta(): Promise<{
   name: string;
@@ -63,10 +64,10 @@ function cliSessionIdOption(): Option {
 function cliSessionModeOption(): Option {
   return new Option(
     "-m, --mode <mode>",
-    "Session tool surface: default (full) or ask (read only tools, no plan lifecycle tools).",
+    "Session tool surface: agent (full) or ask (read only tools, no plan lifecycle tools) / other modes.",
   )
-    .choices(["default", "ask"])
-    .default("default");
+    .choices(BUILTIN_AGENT_CONFIGS.map((x) => x.id))
+    .default("agent");
 }
 
 function cliYoloOption(kind: "interactive" | "daemon"): Option {
@@ -78,7 +79,7 @@ function cliYoloOption(kind: "interactive" | "daemon"): Option {
 }
 
 type CliSessionModeOption = {
-  mode: "default" | "ask";
+  mode: string;
 };
 
 /** Shared flags on commands that bootstrap an agent (exec, chat, daemon). */

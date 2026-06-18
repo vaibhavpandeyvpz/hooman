@@ -1,9 +1,10 @@
 export {
   BUILTIN_AGENT_CONFIGS,
-  BUILTIN_AGENT_KINDS,
   type AgentConfig,
   type AgentDefinition,
-  type AgentKind,
+  getBuiltInAgentConfig,
+  getBuiltInAgentTools,
+  isBuiltInAgentId,
 } from "./definitions.js";
 export { loadBuiltInAgentDefinitions } from "./registry.js";
 export {

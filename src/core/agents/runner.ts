@@ -13,18 +13,18 @@ import type {
   NodeInputOptions,
   NodeResultUpdate,
 } from "@strands-agents/sdk/multiagent";
-import type { AgentDefinition, AgentKind } from "./definitions.js";
+import type { AgentDefinition } from "./definitions.js";
 
 export type AgentJob = {
   id: string;
-  kind: AgentKind;
+  kind: string;
   description: string;
   prompt: string;
 };
 
 export type AgentJobResult = {
   id: string;
-  kind: AgentKind;
+  kind: string;
   description: string;
   status: "completed" | "failed";
   content: string;
@@ -105,7 +105,10 @@ function buildJobPrompt(job: AgentJob): string {
 function selectTools(
   definition: AgentDefinition,
   tools: readonly Tool[],
-): Tool[] {
+): readonly Tool[] {
+  if (definition.tools === "*") {
+    return tools;
+  }
   const byName = new Map<string, Tool>();
   for (const tool of tools) {
     byName.set(tool.name, tool);
@@ -151,9 +154,9 @@ async function runSingleJob(
         ...(options.appState.sessionId
           ? { sessionId: options.appState.sessionId }
           : {}),
-        agentKind: definition.id,
+        string: definition.id,
       },
-      tools: selectTools(definition, options.tools),
+      tools: [...selectTools(definition, options.tools)],
       printer: false,
     });
     const result = await child.invoke(buildJobPrompt(job), {
@@ -231,7 +234,7 @@ export async function runAgentJobs(
       })),
     };
   }
-  const defsByKind = new Map<AgentKind, AgentDefinition>(
+  const defsByKind = new Map<string, AgentDefinition>(
     options.definitions.map((entry) => [entry.id, entry]),
   );
   const ordered = [...options.jobs];

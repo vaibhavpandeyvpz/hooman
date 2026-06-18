@@ -22,7 +22,7 @@ function toolVisibilityOptions(
  */
 export class ModeAwareToolRegistry {
   private readonly _tools = new Map<string, Tool>();
-  private mode: SessionMode = "default";
+  private mode: SessionMode = "agent";
 
   constructor(tools?: Tool[]) {
     if (tools) {

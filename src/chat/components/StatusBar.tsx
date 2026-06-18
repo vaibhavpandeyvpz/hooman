@@ -43,11 +43,15 @@ function shortSessionId(sessionId: string): string {
 }
 
 function sessionModeValueColor(mode: string): string {
-  if (mode === "plan") {
+  const normalized = mode.trim().toLowerCase();
+  if (normalized === "plan") {
     return "#FFA500";
   }
-  if (mode === "ask") {
+  if (normalized === "ask") {
     return "cyan";
+  }
+  if (normalized === "research") {
+    return "blue";
   }
   return "gray";
 }
