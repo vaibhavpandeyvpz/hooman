@@ -2,6 +2,7 @@ import {
   SessionManager,
   SummarizingConversationManager,
 } from "@strands-agents/sdk";
+import { ContextInjector } from "@strands-agents/sdk/vended-plugins/context-injector";
 import {
   ContextOffloader,
   FileStorage,
@@ -44,6 +45,11 @@ export function create(sessionId?: string) {
 
 function createOffloadingPlugins() {
   return [
+    new ContextInjector({
+      name: "clock",
+      trigger: "everyTurn",
+      renderContent: async () => `<now>${new Date().toISOString()}</now>`,
+    }),
     new ContextOffloader({
       storage: new FileStorage(
         join(sessionsPath(), OFFLOADED_CONTENT_DIR),
