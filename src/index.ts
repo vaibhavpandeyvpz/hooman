@@ -125,22 +125,20 @@ export {
 export { UPDATE_TODOS_TOOL_NAME } from "./core/tools/todo.js";
 
 export {
+  AGENT_SKILLS_STATE_KEY,
   Registry as SkillsRegistry,
+  builtInSkillsPath,
+  clearAgentSkillsPromptInjectionState,
+  createAgentSkillsPlugin,
+  createAgentSkillSources,
   createSkillsRegistry,
 } from "./core/skills/index.js";
 export type {
   SkillListEntry,
   SkillSearchResult,
 } from "./core/skills/registry.js";
-export { parseSkillFrontmatter } from "./core/skills/metadata.js";
-export type { SkillMetadata } from "./core/skills/metadata.js";
 
-export {
-  Skills as SkillsPrompt,
-  System as SystemPrompt,
-  skills as createSkillsPrompt,
-  system as createSystemPrompt,
-} from "./core/prompts/index.js";
+export { System as SystemPrompt, system as createSystemPrompt } from "./core/prompts/index.js";
 export type { SystemMode } from "./core/prompts/system.js";
 
 export { modelProviders } from "./core/models/index.js";

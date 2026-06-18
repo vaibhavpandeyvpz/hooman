@@ -5,8 +5,6 @@ import { create as createContext } from "../context/index.js";
 import { modelProviders } from "../models/index.js";
 import type { Manager as McpManager } from "../mcp/index.js";
 import type { System as SystemPrompt } from "../prompts/index.js";
-import { skills as createSkillsPrompt } from "../prompts/index.js";
-import type { Registry } from "../skills/index.js";
 import {
   createRunAgentsTools,
   loadBuiltInAgentDefinitions,
@@ -28,6 +26,9 @@ import {
   refreshAgentSystemPromptForSessionMode,
   registerAgentSystemPromptBaseBuilder,
 } from "../prompts/session-mode-appendix.js";
+import {
+  createAgentSkillsPlugin,
+} from "../skills/index.js";
 import { ModeAwareToolRegistry } from "./mode-aware-tool-registry.js";
 import { applySessionMode } from "./sync-tool-registry-mode.js";
 import { clearTodoState } from "../state/todos.js";
@@ -43,7 +44,6 @@ const SECTION_BREAK = "\n\n---\n\n";
 export async function create(
   config: Config,
   system: SystemPrompt,
-  registry: Registry,
   mcp: { manager: McpManager },
   print: boolean = false,
   meta: {
@@ -59,14 +59,15 @@ export async function create(
   const userId = meta.userId ?? sessionId;
   const llm = await modelProviders[config.llm.provider]!();
   const ctx = createContext(sessionId);
+  const { plugins: contextPlugins = [], ...agentContext } = ctx;
   const prefixed = await mcp.manager.listPrefixedTools();
+  const skillsPlugin = createAgentSkillsPlugin();
 
   async function buildBaseSystemPrompt(): Promise<string> {
     await system.reload();
-    const skillsContent = (await createSkillsPrompt(registry)).content;
     const appendNext = await mcp.manager.listServerInstructions();
-    return [system.content, meta.systemPrompt, ...appendNext, skillsContent]
-      .filter((x) => !!x)
+    return [system.content, meta.systemPrompt, ...appendNext]
+      .filter(Boolean)
       .join(SECTION_BREAK);
   }
 
@@ -112,9 +113,10 @@ export async function create(
       ...(meta.yolo ? { [YOLO_STATE_KEY]: true } : {}),
       ...(meta.sessionMode ? { [MODE_STATE_KEY]: meta.sessionMode } : {}),
     },
+    plugins: [skillsPlugin, ...contextPlugins],
     tools,
     printer: print,
-    ...ctx,
+    ...agentContext,
   });
   agent.addHook(BeforeInvocationEvent, async (event) => {
     clearTodoState(event.agent);

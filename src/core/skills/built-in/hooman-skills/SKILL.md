@@ -34,7 +34,7 @@ Example layout:
 5. Treat files inside a skill directory as user data. Read before overwriting.
 6. Never delete a skill folder unless the user explicitly asks to remove that skill.
 7. For custom local authoring or edits, create/edit files directly under `~/.hooman/skills/<folder>`.
-8. Any skill install, removal, creation, or edit requires restarting the running Hooman agent/session before the available-skills prompt changes.
+8. Any skill install, removal, creation, or edit requires restarting the running Hooman agent/session before the runtime skill inventory changes.
 
 ## Exact CLI Commands
 

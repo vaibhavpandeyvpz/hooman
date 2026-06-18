@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import handlebars from "handlebars";
 import type { LocalAgent } from "@strands-agents/sdk";
 import { hasBundledPrompt, readBundledPrompt } from "./bundled.js";
+import { clearAgentSkillsPromptInjectionState } from "../skills/plugin.js";
 import {
   PLAN_ENTERED_AT_STATE_KEY,
   PLAN_ENTER_REASON_STATE_KEY,
@@ -125,6 +126,7 @@ export function refreshAgentSystemPromptForSessionMode(
   agent: LocalAgent,
   base: string,
 ): void {
+  clearAgentSkillsPromptInjectionState(agent);
   const mode = getModeState(agent).mode;
   const sessionModeState = snapshotAppStateForSessionModePrompt(agent);
   const next = composeSystemPromptWithSessionMode(base, mode, sessionModeState);

@@ -36,7 +36,7 @@ It gives you a practical toolkit to build and run agent workflows:
 - MCP server support via `stdio`, `streamable-http`, and `sse`
 - MCP server `instructions` support: server-provided instructions are appended to the agent system prompt
 - MCP channel notifications: `hooman daemon` subscribes to servers that advertise `hooman/channel`
-- Skill discovery from local `~/.hooman/skills` folders
+- Runtime skills via Strands `AgentSkills`, loading bundled built-in skills plus local `~/.hooman/skills`
 - Bundled prompt harness toggles (`behaviour`, `communication`, `execution`, `guardrails`); coding guidance ships as the built-in `hooman-coding` skill
 - Built-in research sub-agent runner (`research`) with configurable concurrency
 - Toolkit-oriented architecture with configurable tools, prompts, and transports
@@ -714,7 +714,15 @@ Skills are installed under:
 ~/.hooman/skills
 ```
 
-Skills are discovered by scanning direct child directories for `SKILL.md`.
+At runtime, Hooman uses the Strands `AgentSkills` plugin to load:
+
+- bundled built-in skills shipped with Hooman
+- user-installed skills under `~/.hooman/skills`
+
+The local skills folder is treated as a parent directory of skill subdirectories, where each installed skill should live in its own folder containing `SKILL.md`.
+
+When a session starts, the plugin injects available skill metadata into the system prompt and exposes the `skills` tool so the model can activate a skill and load its full instructions on demand.
+
 The configure workflow can:
 
 - search the public skills catalog

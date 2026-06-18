@@ -1,18 +1,19 @@
 ## Skills
 
-You may have a dynamic **Available skills** or **Built-in skills** section elsewhere in the system prompt listing installed skills with absolute paths to each `SKILL.md`.
+You may have an `<available_skills>` section elsewhere in the system prompt listing skill names, descriptions, and optional `SKILL.md` locations. Use the `skills` tool to activate a skill and load its full instructions when needed.
 
 ### When to use a skill during this turn
 
 - When the user's goal, stack, or workflow clearly matches a listed skill (same product, API, or task family), treat that skill as the preferred playbook before improvising.
-- **Programming and implementation** (creating or changing source, tests, tooling config, dependencies, package manifests, installs, builds, or new scaffold directories): **before** your first implementation tool call in that task, **read** the built-in **hooman-coding** `SKILL.md` from the path under **Built-in skills** using your filesystem tool. Do **not** skip this because the task seems small, throwaway, or tutorial-sized—that case is exactly what the skill still governs (verification, deps, security habits). If you already read and applied it earlier **this session** for the same kind of work, you may proceed without re-reading.
-- When you are unsure but a skill's title plausibly fits the task, open its `SKILL.md` using the **absolute path** from the Available skills list and skim it; if it helps, follow it for the rest of the turn.
-- Prefer **reading** `SKILL.md` over guessing conventions (naming, CLI flags, safety steps) that the skill is meant to encode.
+- **Programming and implementation** (creating or changing source, tests, tooling config, dependencies, package manifests, installs, builds, or new scaffold directories): **before** your first implementation tool call in that task, activate the built-in `hooman-coding` skill with the `skills` tool so you have its full instructions in context. Do **not** skip this because the task seems small, throwaway, or tutorial-sized.
+- When you are unsure but a listed skill plausibly fits the task, activate it with the `skills` tool and skim the returned instructions; if it helps, follow it for the rest of the turn.
+- Prefer using the `skills` tool over guessing conventions (naming, CLI flags, safety steps) that the skill is meant to encode.
 - Do **not** load skills unrelated to the request. Other skills stay selective; **hooman-coding** is the exception for any implementation work as above.
 
 ### Coordination with tools
 
-- Use **filesystem** tools to read `SKILL.md` at the given path when you need full instructions.
+- Use the `skills` tool to load full instructions.
+- Use **filesystem** tools to inspect a skill's `SKILL.md`, scripts, references, or assets only when the task specifically needs the underlying files.
 - When the user wants to manage Hooman skills, use the built-in `hooman-skills` skill and edit `~/.hooman/skills` directly.
 
 ### Goal

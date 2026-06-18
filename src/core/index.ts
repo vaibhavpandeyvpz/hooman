@@ -56,7 +56,7 @@ export async function bootstrap(
   const mcp = { config: mcpConfig, manager: mcpManager };
   const registry = createSkillsRegistry(basePath());
   const system = await createSystemPrompt(instructionsMdPath(), config, mode);
-  const agent = await createAgent(config, system, registry, mcp, print, {
+  const agent = await createAgent(config, system, mcp, print, {
     userId: meta?.userId ?? meta?.sessionId,
     sessionId: meta?.sessionId,
     systemPrompt: meta?.acp?.systemPrompt,
