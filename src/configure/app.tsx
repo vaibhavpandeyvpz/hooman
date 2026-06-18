@@ -71,6 +71,40 @@ const SEARCH_PROVIDER_LABELS: Record<SearchProvider, string> = {
   tavily: "Tavily",
 };
 
+const SUPPORTED_PROVIDER_TYPES = [
+  LlmProvider.Anthropic,
+  LlmProvider.Bedrock,
+  LlmProvider.Google,
+  LlmProvider.Groq,
+  LlmProvider.Moonshot,
+  LlmProvider.Ollama,
+  LlmProvider.OpenAI,
+  LlmProvider.Xai,
+] as const;
+
+function providerParamsTemplate(
+  provider: (typeof SUPPORTED_PROVIDER_TYPES)[number],
+): Record<string, unknown> {
+  switch (provider) {
+    case LlmProvider.Anthropic:
+      return { apiKey: "" };
+    case LlmProvider.Bedrock:
+      return { region: "us-west-2" };
+    case LlmProvider.Google:
+      return { apiKey: "" };
+    case LlmProvider.Groq:
+      return { apiKey: "" };
+    case LlmProvider.Moonshot:
+      return { apiKey: "" };
+    case LlmProvider.Ollama:
+      return {};
+    case LlmProvider.OpenAI:
+      return { apiKey: "" };
+    case LlmProvider.Xai:
+      return { apiKey: "" };
+  }
+}
+
 /** On/off display for tool rows (`Tool • Yes` / `Tool • No`). */
 const yesNo = (on: boolean): string => (on ? "Yes" : "No");
 
@@ -278,7 +312,7 @@ export function ConfigureApp({
         name,
         options: {
           provider: LlmProvider.Ollama,
-          params: {} as Record<string, unknown>,
+          params: providerParamsTemplate(LlmProvider.Ollama),
         },
       },
     ],
@@ -788,7 +822,7 @@ export function ConfigureApp({
               }
               updateConfig(
                 { providers: addProvider(name) },
-                `Added provider "${name}".`,
+                `Added provider "${name}" with an Ollama scaffold.`,
               );
               setPrompt(null);
               setScreen({ kind: "config-provider-edit", name });
@@ -918,15 +952,20 @@ export function ConfigureApp({
       return null;
     }
     const items: MenuItem[] = [
-      ...Object.values(LlmProvider).map((provider) => ({
+      ...SUPPORTED_PROVIDER_TYPES.map((provider) => ({
         label:
           provider === entry.options.provider
             ? `${provider} • current`
             : provider,
         value: () => {
           updateConfig(
-            { providers: patchProvider(entry.name, { provider }) },
-            `Updated provider type for "${entry.name}" to "${provider}".`,
+            {
+              providers: patchProvider(entry.name, {
+                provider,
+                params: providerParamsTemplate(provider),
+              }),
+            },
+            `Updated provider type for "${entry.name}" to "${provider}" and scaffolded params.`,
           );
           setScreen({ kind: "config-provider-edit", name: entry.name });
         },
