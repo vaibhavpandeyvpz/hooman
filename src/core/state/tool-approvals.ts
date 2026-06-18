@@ -1,18 +1,10 @@
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { RUN_AGENTS_TOOL_NAME } from "../agents/tools.js";
 import { getModeState } from "./session-mode.js";
 import {
   isResolvedPathInsideDir,
   normalizeUserPath,
 } from "../utils/normalize-user-path.js";
-import { attachmentsPath, plansPath, skillsPath } from "../utils/paths.js";
-
-/** Bundled `SKILL.md` tree (`dist/core/skills/built-in` or `src/...` under tsx). */
-const BUILTIN_SKILLS_ROOT = join(
-  dirname(fileURLToPath(import.meta.url)),
-  "../skills/built-in",
-);
+import { attachmentsPath, plansPath } from "../utils/paths.js";
 
 type AppStateLike = {
   get<T = unknown>(key: string): T;
@@ -34,6 +26,9 @@ export const EXIT_PLAN_MODE_TOOL = "exit_plan_mode";
 
 export const INTERNAL_ALWAYS_ALLOWED = new Set([
   // Strands / runtime
+  "skills",
+  "retrieve_offloaded_content",
+  "search_memory",
   "strands_structured_output",
   // Todos
   "update_todos",
@@ -70,6 +65,9 @@ export const PLAN_MODE_VISIBLE = new Set([
   "fetch",
   "web_search",
   // Strands / runtime
+  "skills",
+  "retrieve_offloaded_content",
+  "search_memory",
   "strands_structured_output",
   // Todos
   "update_todos",
@@ -147,8 +145,7 @@ function isImplicitPathAllowed(
 ): boolean {
   const attachments = attachmentsPath();
   const plans = plansPath();
-  const skills = skillsPath();
-  const readRoots = [attachments, plans, skills, BUILTIN_SKILLS_ROOT];
+  const readRoots = [attachments, plans];
 
   if (toolName === READ_FILE_TOOL) {
     const raw = toolInput.path;
@@ -223,9 +220,8 @@ export function getSessionAllowedTools(agent: AgentLike): string[] {
 
 /**
  * Session-wide tool allowlist ("always allow" in UI), plus implicit allow for
- * read/write/edit when paths resolve under attachments, plans, skills (reads),
- * shipped built-in skill files under `core/skills/built-in` (reads), or plans
- * only (writes/edits).
+ * read/write/edit when paths resolve under attachments or plans (reads), or
+ * plans only (writes/edits).
  */
 export function isToolSessionAllowed(
   agent: AgentLike,
