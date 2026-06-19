@@ -2,6 +2,8 @@ import { createMoonshotAI, moonshotai } from "@ai-sdk/moonshotai";
 import { VercelModel } from "@strands-agents/sdk/models/vercel";
 import type { MoonshotAIProviderSettings } from "@ai-sdk/moonshotai";
 import type { VercelModelConfig } from "@strands-agents/sdk/models/vercel";
+import { Message } from "@strands-agents/sdk";
+import type { ContentBlock, StreamOptions } from "@strands-agents/sdk";
 import lodash from "lodash";
 
 const { omit, pick } = lodash;
@@ -12,6 +14,41 @@ const PROVIDER_SETTINGS_KEYS = [
   "headers",
   "fetch",
 ] as const;
+
+class MoonshotModel extends VercelModel {
+  override stream(messages: Message[], options?: StreamOptions) {
+    return super.stream(normalizeMessages(messages), options);
+  }
+}
+
+function normalizeMessages(messages: Message[]): Message[] {
+  const normalized: Message[] = [];
+  for (const message of messages) {
+    if (message.role !== "user") {
+      normalized.push(message);
+      continue;
+    }
+
+    const toolResults: ContentBlock[] = [];
+    const otherContent: ContentBlock[] = [];
+    for (const block of message.content) {
+      if (block.type === "toolResultBlock") {
+        toolResults.push(block);
+      } else {
+        otherContent.push(block);
+      }
+    }
+
+    if (toolResults.length > 0 && otherContent.length > 0) {
+      normalized.push(new Message({ role: "user", content: toolResults }));
+      normalized.push(new Message({ role: "user", content: otherContent }));
+      continue;
+    }
+
+    normalized.push(message);
+  }
+  return normalized;
+}
 
 function pickProviderSettings(
   params: Record<string, unknown>,
@@ -49,7 +86,7 @@ export function create(
   const provider =
     Object.keys(settings).length > 0 ? createMoonshotAI(settings) : moonshotai;
   const config = pickVercelModelConfig(params);
-  return new VercelModel({
+  return new MoonshotModel({
     provider: provider(model),
     ...config,
   });
