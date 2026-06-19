@@ -23,10 +23,11 @@ import type { Config } from "../core/config.js";
 import type { Manager as McpManager } from "../core/mcp/index.js";
 import { modelProviders } from "../core/models/index.js";
 import {
-  BUILTIN_AGENT_CONFIGS,
-  getBuiltInAgentConfig,
-  isBuiltInAgentId,
-} from "../core/agents/index.js";
+  MODE_DEFINITIONS,
+  formatModeNames,
+  getModeDefinition,
+  isKnownSessionMode,
+} from "../core/modes/index.js";
 import type { Registry } from "../core/skills/index.js";
 import { takeFileToolDisplay } from "../core/state/file-tool-display.js";
 import { ChatApprovalController } from "./approvals.js";
@@ -210,14 +211,14 @@ function parseYoloToggleArg(raw: string): boolean | undefined {
 
 function parseSessionModeArg(raw: string): SessionMode | undefined {
   const t = raw.trim().toLowerCase();
-  if (isBuiltInAgentId(t)) {
+  if (isKnownSessionMode(t)) {
     return t;
   }
   return undefined;
 }
 
 function sessionModeLabel(mode: SessionMode): string {
-  return getBuiltInAgentConfig(mode)?.name ?? mode;
+  return getModeDefinition(mode)?.name ?? mode;
 }
 
 function listModelsText(config: Config): string {
@@ -245,7 +246,7 @@ const SLASH_COMMANDS = [
   },
   {
     name: "mode",
-    description: "Session mode: Default or a built-in agent profile.",
+    description: `Session mode: ${formatModeNames()}.`,
   },
   {
     name: "model",
@@ -579,7 +580,7 @@ export function ChatApp({
           id: nowId(),
           role: "system",
           title: "mode",
-          content: `Unknown mode "${trimmed}". Use default or one of the built-in mode ids, or open the picker with /mode.`,
+          content: `Unknown mode "${trimmed}". Use agent, ask, or plan, or open the picker with /mode.`,
           done: true,
         });
         return;
@@ -1097,7 +1098,7 @@ export function ChatApp({
           <SelectPicker
             title="Session mode"
             items={[
-              ...BUILTIN_AGENT_CONFIGS.map((entry) => ({
+              ...MODE_DEFINITIONS.map((entry) => ({
                 label: `${entry.name} • ${entry.description}${
                   getModeState(agent).mode === entry.id ? " • current" : ""
                 }`,

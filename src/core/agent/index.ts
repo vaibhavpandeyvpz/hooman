@@ -10,9 +10,9 @@ import { modelProviders } from "../models/index.js";
 import type { Manager as McpManager } from "../mcp/index.js";
 import type { System as SystemPrompt } from "../prompts/index.js";
 import {
-  createRunAgentsTools,
-  loadBuiltInAgentDefinitions,
-} from "../agents/index.js";
+  createRunSubagentTools,
+  loadResearchSubagent,
+} from "../subagents/index.js";
 import {
   createByeTools,
   createTodoTools,
@@ -84,14 +84,14 @@ export async function create(
     ...prefixed,
   ];
   if (config.tools.agents.enabled) {
-    const definitions = loadBuiltInAgentDefinitions(config, {
+    const research = loadResearchSubagent(config, {
       knownTools: tools.map((entry) => entry.name),
       baseSystemPrompt: base,
-    }).filter((entry) => entry.id === "research");
+    });
     tools.push(
-      ...createRunAgentsTools({
+      ...createRunSubagentTools({
         parent: config.name,
-        definitions,
+        research,
         tools,
         createModel: () => llm.create(config.llm.model, config.llm.params),
         concurrency: config.tools.agents.concurrency,

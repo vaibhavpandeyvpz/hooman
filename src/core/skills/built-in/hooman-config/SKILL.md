@@ -418,7 +418,7 @@ Simple toggles:
 }
 ```
 
-Agents:
+Subagents:
 
 ```json
 {
@@ -434,6 +434,8 @@ Agents:
 Defaults: `todo`, `fetch`, `filesystem`, `shell`, `sleep`, and `agents` enabled. MCP servers and installed skills are not controlled by these toggles; do not inspect or edit them for this skill.
 
 `agents`: the default file Hooman writes when `config.json` was missing includes `tools.agents.concurrency: 2`. On load, if `concurrency` is absent (for example `tools` or `tools.agents` is omitted), the merged config uses `3` until you set it explicitly.
+
+Compatibility note: the config key remains `tools.agents`, but it controls the built-in `run_subagents` tool.
 
 ## Instructions
 

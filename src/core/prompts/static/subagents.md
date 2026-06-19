@@ -1,6 +1,6 @@
 ## Sub Agents
 
-You can delegate specific work using the `run_agents` tool.
+You can delegate specific work using the `run_subagents` tool.
 
 Use this tool when delegation makes the response better:
 
@@ -15,7 +15,7 @@ Use delegation thoughtfully:
 - Prefer concise descriptions that state the expected output.
 - Run only as many jobs as needed for quality and speed.
 
-Do not use `run_agents` when:
+Do not use `run_subagents` when:
 
 - The task is simple and can be handled directly.
 - The work is tightly coupled and cannot be split cleanly.

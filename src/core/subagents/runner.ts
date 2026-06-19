@@ -2,9 +2,9 @@ import { Agent, TextBlock } from "@strands-agents/sdk";
 import { Graph, Node, Status } from "@strands-agents/sdk/multiagent";
 import type {
   BaseModelConfig,
+  ContentBlock,
   Model,
   Tool,
-  ContentBlock,
 } from "@strands-agents/sdk";
 import type {
   MultiAgentInput,
@@ -13,7 +13,7 @@ import type {
   NodeInputOptions,
   NodeResultUpdate,
 } from "@strands-agents/sdk/multiagent";
-import type { AgentDefinition } from "./definitions.js";
+import type { ResearchSubagentDefinition } from "./research.js";
 
 export type AgentJob = {
   id: string;
@@ -39,7 +39,7 @@ export type RunAgentJobsResult = {
 
 type RunAgentJobsOptions = {
   jobs: readonly AgentJob[];
-  definitions: readonly AgentDefinition[];
+  research: ResearchSubagentDefinition;
   tools: readonly Tool[];
   createModel: () => Model<BaseModelConfig>;
   concurrency: number;
@@ -50,6 +50,8 @@ type RunAgentJobsOptions = {
   };
   cancelSignal?: AbortSignal;
 };
+
+type RunSubagentJobsOptions = RunAgentJobsOptions;
 
 class JobNode extends Node {
   override readonly type = "agentJobNode";
@@ -103,12 +105,9 @@ function buildJobPrompt(job: AgentJob): string {
 }
 
 function selectTools(
-  definition: AgentDefinition,
+  definition: ResearchSubagentDefinition,
   tools: readonly Tool[],
 ): readonly Tool[] {
-  if (definition.tools === "*") {
-    return tools;
-  }
   const byName = new Map<string, Tool>();
   for (const tool of tools) {
     byName.set(tool.name, tool);
@@ -118,7 +117,7 @@ function selectTools(
     const tool = byName.get(name);
     if (!tool) {
       throw new Error(
-        `Agent '${definition.id}' cannot access missing tool '${name}'.`,
+        `Subagent '${definition.id}' cannot access missing tool '${name}'.`,
       );
     }
     selected.push(tool);
@@ -128,8 +127,8 @@ function selectTools(
 
 async function runSingleJob(
   job: AgentJob,
-  definition: AgentDefinition,
-  options: Omit<RunAgentJobsOptions, "jobs" | "definitions" | "concurrency">,
+  definition: ResearchSubagentDefinition,
+  options: Omit<RunAgentJobsOptions, "jobs" | "research" | "concurrency">,
 ): Promise<AgentJobResult> {
   const started = Date.now();
   if (options.cancelSignal?.aborted) {
@@ -147,7 +146,7 @@ async function runSingleJob(
   try {
     const child = new Agent({
       name: `${options.parent}-${definition.id}-${job.id}`,
-      systemPrompt: definition.instructionsText,
+      systemPrompt: definition.instructions,
       model: options.createModel(),
       appState: {
         ...(options.appState.userId ? { userId: options.appState.userId } : {}),
@@ -214,8 +213,8 @@ function cancelledResult(job: AgentJob, message: string): AgentJobResult {
   };
 }
 
-export async function runAgentJobs(
-  options: RunAgentJobsOptions,
+export async function runSubagentJobs(
+  options: RunSubagentJobsOptions,
 ): Promise<RunAgentJobsResult> {
   if (options.jobs.length === 0) {
     return { results: [] };
@@ -234,9 +233,7 @@ export async function runAgentJobs(
       })),
     };
   }
-  const defsByKind = new Map<string, AgentDefinition>(
-    options.definitions.map((entry) => [entry.id, entry]),
-  );
+
   const ordered = [...options.jobs];
   const results: Array<AgentJobResult | null> = ordered.map(() => null);
   const graphNodes: JobNode[] = [];
@@ -245,8 +242,7 @@ export async function runAgentJobs(
   const graphNodeResults = new Map<string, AgentJobResult>();
 
   for (const [index, job] of ordered.entries()) {
-    const definition = defsByKind.get(job.kind);
-    if (!definition) {
+    if (job.kind !== options.research.id) {
       results[index] = {
         id: job.id,
         kind: job.kind,
@@ -266,7 +262,7 @@ export async function runAgentJobs(
       new JobNode(
         nodeId,
         async () => {
-          const jobResult = await runSingleJob(job, definition, {
+          const jobResult = await runSingleJob(job, options.research, {
             tools: options.tools,
             createModel: options.createModel,
             parent: options.parent,
@@ -285,7 +281,7 @@ export async function runAgentJobs(
   if (graphNodes.length > 0) {
     try {
       const graph = new Graph({
-        id: "run_agents_graph",
+        id: "run_subagents_graph",
         nodes: graphNodes,
         edges: [],
         sources: graphSources,

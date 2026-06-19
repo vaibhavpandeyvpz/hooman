@@ -173,22 +173,19 @@ export type { LazySessionManagerConfig } from "./core/context/index.js";
 export { FlatFileStorage } from "./core/context/flat-file-storage.js";
 
 export {
-  BUILTIN_AGENT_CONFIGS,
-  RUN_AGENTS_TOOL_NAME,
-  createRunAgentsTools,
-  getBuiltInAgentConfig,
-  getBuiltInAgentTools,
-  isBuiltInAgentId,
-  loadBuiltInAgentDefinitions,
-  runAgentJobs,
-} from "./core/agents/index.js";
+  RESEARCH_SUBAGENT,
+  RUN_SUBAGENTS_TOOL_NAME,
+  createRunSubagentTools,
+  loadResearchSubagent,
+  runSubagentJobs,
+} from "./core/subagents/index.js";
 export type {
-  AgentConfig,
-  AgentDefinition,
   AgentJob,
   AgentJobResult,
+  ResearchSubagentConfig,
+  ResearchSubagentDefinition,
   RunAgentJobsResult,
-} from "./core/agents/index.js";
+} from "./core/subagents/index.js";
 
 export {
   EXIT_REQUESTED_CODE,

@@ -1,5 +1,6 @@
 import { ToolValidationError } from "@strands-agents/sdk";
 import type { Tool } from "@strands-agents/sdk";
+import { DEFAULT_SESSION_MODE } from "../modes/schema.js";
 import { isToolVisible } from "../state/tool-approvals.js";
 import type { SessionMode } from "../state/session-mode.js";
 
@@ -22,7 +23,7 @@ function toolVisibilityOptions(
  */
 export class ModeAwareToolRegistry {
   private readonly _tools = new Map<string, Tool>();
-  private mode: SessionMode = "agent";
+  private mode: SessionMode = DEFAULT_SESSION_MODE;
 
   constructor(tools?: Tool[]) {
     if (tools) {

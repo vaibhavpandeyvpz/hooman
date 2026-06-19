@@ -1096,7 +1096,7 @@ export function ConfigureApp({
         },
       },
       {
-        label: `Agents tool • ${yesNo(configData.tools.agents.enabled)}`,
+        label: `Subagents tool • ${yesNo(configData.tools.agents.enabled)}`,
         value: () => {
           updateConfig(
             {
@@ -1108,7 +1108,7 @@ export function ConfigureApp({
                 },
               },
             },
-            `Agents tool ${configData.tools.agents.enabled ? "disabled" : "enabled"}.`,
+            `Subagents tool ${configData.tools.agents.enabled ? "disabled" : "enabled"}.`,
           );
           setScreen({ kind: "config-tools" });
         },

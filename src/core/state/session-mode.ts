@@ -1,6 +1,7 @@
-export const MODE_STATE_KEY = "mode";
+import { DEFAULT_SESSION_MODE, type SessionMode } from "../modes/schema.js";
 
-export type SessionMode = string;
+export const MODE_STATE_KEY = "mode";
+export type { SessionMode } from "../modes/schema.js";
 
 type AppStateLike = {
   get<T = unknown>(key: string): T;
@@ -16,7 +17,7 @@ export type ModeState = {
 };
 
 export function getModeState(agent: AgentLike): ModeState {
-  const mode = agent.appState.get(MODE_STATE_KEY) ?? "agent";
+  const mode = agent.appState.get(MODE_STATE_KEY) ?? DEFAULT_SESSION_MODE;
   return { mode: mode as string };
 }
 
@@ -25,5 +26,5 @@ export function setSessionMode(agent: AgentLike, mode: SessionMode): void {
 }
 
 export function clearModeToDefault(agent: AgentLike): void {
-  agent.appState.set(MODE_STATE_KEY, "agent");
+  agent.appState.set(MODE_STATE_KEY, DEFAULT_SESSION_MODE);
 }

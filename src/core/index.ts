@@ -24,7 +24,7 @@ export type BootstrapMeta = {
   sessionId?: string;
   /** When true, seeds `hooman.yolo` on the agent appState (auto-approve tools). */
   yolo?: boolean;
-  /** Seeds session mode on agent appState (`default` or a built-in agent id). */
+  /** Seeds session mode on agent appState (`agent`, `ask`, or `plan`). */
   sessionMode?: SessionMode;
   interventions?: InterventionHandler[];
   createInterventions?: (deps: {

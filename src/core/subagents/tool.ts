@@ -6,10 +6,10 @@ import {
 } from "@strands-agents/sdk";
 import type { BaseModelConfig, Model } from "@strands-agents/sdk";
 import { z } from "zod";
-import { type AgentDefinition } from "./definitions.js";
-import { runAgentJobs } from "./runner.js";
+import type { ResearchSubagentDefinition } from "./research.js";
+import { runSubagentJobs } from "./runner.js";
 
-export const RUN_AGENTS_TOOL_NAME = "run_agents";
+export const RUN_SUBAGENTS_TOOL_NAME = "run_subagents";
 
 const JobSchema = z.object({
   kind: z.enum(["research"]),
@@ -17,14 +17,14 @@ const JobSchema = z.object({
   prompt: z.string().trim().min(1),
 });
 
-const RunAgentsInputSchema = z.object({
+const RunSubagentsInputSchema = z.object({
   jobs: z.array(JobSchema).min(1),
   maxConcurrency: z.coerce.number().int().min(1).optional(),
 });
 
-type RunAgentsToolOptions = {
+type RunSubagentToolsOptions = {
   parent: string;
-  definitions: readonly AgentDefinition[];
+  research: ResearchSubagentDefinition;
   tools: readonly Tool[];
   createModel: () => Model<BaseModelConfig>;
   concurrency: number;
@@ -42,25 +42,22 @@ function readAppStateString(
   return typeof value === "string" && value.trim() ? value : undefined;
 }
 
-export function createRunAgentsTools(options: RunAgentsToolOptions) {
-  const kinds = options.definitions.map(
-    (entry) => `- ${entry.id}: ${entry.description}`,
-  );
+export function createRunSubagentTools(options: RunSubagentToolsOptions) {
   const baseTools = options.tools.filter(
-    (entry) => entry.name !== RUN_AGENTS_TOOL_NAME,
+    (entry) => entry.name !== RUN_SUBAGENTS_TOOL_NAME,
   );
   return [
     tool({
-      name: RUN_AGENTS_TOOL_NAME,
+      name: RUN_SUBAGENTS_TOOL_NAME,
       description: `Run one or more specialized child agents in parallel and return their outputs.
 Use this for deeper investigation of the workspace and sources when work can be split into independent jobs.
 Available agent kinds:
-${kinds.join("\n")}`,
-      inputSchema: RunAgentsInputSchema,
+- ${options.research.id}: ${options.research.description}`,
+      inputSchema: RunSubagentsInputSchema,
       callback: async (input, context?: ToolContext) => {
         if (!context) {
           throw new Error(
-            `${RUN_AGENTS_TOOL_NAME} requires execution context.`,
+            `${RUN_SUBAGENTS_TOOL_NAME} requires execution context.`,
           );
         }
         const concurrency = Math.max(
@@ -76,9 +73,9 @@ ${kinds.join("\n")}`,
           description: job.description,
           prompt: job.prompt,
         }));
-        const result = await runAgentJobs({
+        const result = await runSubagentJobs({
           jobs,
-          definitions: options.definitions,
+          research: options.research,
           tools: baseTools,
           createModel: options.createModel,
           concurrency,

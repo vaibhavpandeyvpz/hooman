@@ -19,7 +19,7 @@ const KNOWN_TOOL_KINDS = new Map<string, ToolKind>([
   ["fetch", "fetch"],
   ["web_search", "search"],
   ["think", "think"],
-  ["run_agents", "other"],
+  ["run_subagents", "other"],
   ["update_todos", "other"],
   ["get_current_time", "other"],
   ["convert_time", "other"],

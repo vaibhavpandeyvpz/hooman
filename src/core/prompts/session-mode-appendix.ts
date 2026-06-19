@@ -2,9 +2,9 @@ import handlebars from "handlebars";
 import { ContextInjector } from "@strands-agents/sdk/vended-plugins/context-injector";
 import { hasBundledPrompt, readBundledPrompt } from "./bundled.js";
 import {
-  getBuiltInAgentConfig,
-  type AgentConfig,
-} from "../agents/definitions.js";
+  getModeDefinition,
+  type ModeDefinition,
+} from "../modes/definitions.js";
 import {
   PLAN_ENTERED_AT_STATE_KEY,
   PLAN_ENTER_REASON_STATE_KEY,
@@ -48,7 +48,7 @@ export function snapshotAppStateForSessionModePrompt(agent: {
 }
 
 function renderModePrompt(
-  config: AgentConfig,
+  config: ModeDefinition,
   state: Record<string, unknown>,
 ): string {
   let compiled = cachedModeTemplates.get(config.id);
@@ -67,7 +67,7 @@ export function renderSessionModePrompt(
   mode: SessionMode,
   sessionModeState: Record<string, unknown> = {},
 ): string {
-  const config = getBuiltInAgentConfig(mode);
+  const config = getModeDefinition(mode);
   if (!config) {
     return "";
   }

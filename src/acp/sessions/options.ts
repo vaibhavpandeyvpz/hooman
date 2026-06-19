@@ -4,8 +4,8 @@ import type {
   SetSessionConfigOptionRequest,
 } from "@agentclientprotocol/sdk";
 import type { Agent } from "@strands-agents/sdk";
-import { BUILTIN_AGENT_CONFIGS } from "../../core/agents/index.js";
 import type { Config } from "../../core/config.js";
+import { getModeOptions } from "../../core/modes/index.js";
 import type { SessionConfig } from "../../core/session-config.js";
 import { applySessionMode } from "../../core/agent/sync-tool-registry-mode.js";
 import { getModeState, setSessionMode } from "../../core/state/session-mode.js";
@@ -31,16 +31,10 @@ export function buildSessionConfigOptions(
       id: HOOMAN_SESSION_MODE_CONFIG_ID,
       name: "Session mode",
       description:
-        "Default uses the full tool surface. Built-in agent profiles apply narrower prompt and tool presets.",
+        "Agent uses the full tool surface. Ask and plan apply narrower prompt and tool presets.",
       category: "mode",
       currentValue: getModeState(agent).mode,
-      options: [
-        ...BUILTIN_AGENT_CONFIGS.map((entry) => ({
-          value: entry.id,
-          name: entry.name,
-          description: entry.description,
-        })),
-      ],
+      options: [...getModeOptions()],
     },
     {
       type: "select",

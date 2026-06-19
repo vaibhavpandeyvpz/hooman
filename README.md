@@ -186,10 +186,11 @@ hooman chat --mode ask
 
 `exec`, `chat`, and `daemon` accept **`-m` / `--mode`** with:
 
-- **`default`** (default): normal tool surface and approvals.
+- **`agent`** (default): normal tool surface and approvals.
+- **`plan`**: planning workflow with a reduced tool surface plus `enter_plan_mode` / `exit_plan_mode`.
 - **`ask`**: read-oriented, narrower surface (similar to interactive **plan** mode) but **without** `enter_plan_mode` / `exit_plan_mode`.
 
-In **`chat`**, `/mode` can also switch to **plan** (includes plan tools and a plan document workflow). **ACP** sessions can set `hooman.sessionMode` to `default`, `plan`, or `ask`.
+In **`chat`**, `/mode` can switch between **agent**, **ask**, and **plan**. **ACP** sessions can set `hooman.sessionMode` to `agent`, `plan`, or `ask`.
 
 ### `hooman daemon`
 
@@ -239,7 +240,7 @@ Runtime tool and prompt switches are controlled from `config.json`:
 - `tools.filesystem.enabled`
 - `tools.shell.enabled`
 - `tools.sleep.enabled`
-- `tools.agents.enabled` (enables built-in `run_agents` tool)
+- `tools.agents.enabled` (enables built-in `run_subagents` tool)
 - `tools.agents.concurrency` (defaults to `3` when omitted on load; a freshly generated default `config.json` uses `2`)
 
 ### `hooman configure`
@@ -273,7 +274,7 @@ ACP notes:
 - ACP loads MCP servers passed on `session/new` and `session/load`, in addition to Hooman's local `mcp.json`
 - ACP `session/new` and `session/load` support `_meta.userId` and `_meta.systemPrompt`
 - when `_meta.systemPrompt` is provided, it is appended to the agent system prompt with a section break
-- session configuration includes `hooman.sessionMode` (`default`, `plan`, or `ask`); see [Session mode](#session-mode)
+- session configuration includes `hooman.sessionMode` (`agent`, `plan`, or `ask`); see [Session mode](#session-mode)
 
 ## Configuration Layout
 

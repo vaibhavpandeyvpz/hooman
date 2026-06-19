@@ -10,7 +10,7 @@ Call **`enter_plan_mode`** when the task is multi-step, ambiguous, or could caus
 
 - You receive a **`plan_file`** path under the app plans directory. Expand it with **`read_file`**, **`write_file`**, and **`edit_file`** as needed (paths must stay within allowed locations).
 - Prefer **`think`** or **`update_todos`** to organize reasoning; avoid shell and other tools not exposed in this phase.
-- **`run_agents`** is available: use it for **read-only** parallel exploration when splitting investigations helps (same discipline as subagents—narrow prompts, synthesize results yourself). Child agents are constrained like other tooling in this phase; you remain responsible for the plan document.
+- **`run_subagents`** is available: use it for **read-only** parallel exploration when splitting investigations helps (same discipline as subagents—narrow prompts, synthesize results yourself). Child agents are constrained like other tooling in this phase; you remain responsible for the plan document.
 
 ### Leaving plan mode
 

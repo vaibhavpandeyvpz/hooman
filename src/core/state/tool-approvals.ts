@@ -1,5 +1,5 @@
-import { RUN_AGENTS_TOOL_NAME } from "../agents/tools.js";
-import { getBuiltInAgentTools } from "../agents/definitions.js";
+import { RUN_SUBAGENTS_TOOL_NAME } from "../subagents/tool.js";
+import { getModeTools } from "../modes/definitions.js";
 import { getModeState } from "./session-mode.js";
 import type { SessionMode } from "./session-mode.js";
 import {
@@ -37,7 +37,7 @@ export const INTERNAL_ALWAYS_ALLOWED = new Set([
   // Thinking
   "think",
   // Agent orchestration
-  RUN_AGENTS_TOOL_NAME,
+  RUN_SUBAGENTS_TOOL_NAME,
   // Sleep
   "sleep",
   // Process lifecycle
@@ -201,7 +201,7 @@ export function isToolVisible(
   if (mode === "agent") {
     return true;
   }
-  const visibleTools = getBuiltInAgentTools(mode);
+  const visibleTools = getModeTools(mode);
   if (visibleTools) {
     if (readOnlyHinted) {
       return true;

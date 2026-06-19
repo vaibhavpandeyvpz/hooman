@@ -28,7 +28,7 @@ import {
   consumeExitRequest,
   EXIT_REQUESTED_CODE,
 } from "./core/state/exit-request.js";
-import { BUILTIN_AGENT_CONFIGS } from "./core/agents/definitions.js"
+import { formatModeNames, getModeIds } from "./core/modes/index.js";
 
 async function readPackageMeta(): Promise<{
   name: string;
@@ -64,9 +64,9 @@ function cliSessionIdOption(): Option {
 function cliSessionModeOption(): Option {
   return new Option(
     "-m, --mode <mode>",
-    "Session tool surface: agent (full) or ask (read only tools, no plan lifecycle tools) / other modes.",
+    `Session mode: ${formatModeNames()}. Agent is the full tool surface; ask is read-oriented; plan is the plan-file workflow.`,
   )
-    .choices(BUILTIN_AGENT_CONFIGS.map((x) => x.id))
+    .choices(getModeIds())
     .default("agent");
 }
 
