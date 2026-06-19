@@ -1,6 +1,5 @@
 import {
   IntervalTrigger,
-  ModelExtractor,
   SessionManager,
   SummarizingConversationManager,
 } from "@strands-agents/sdk";
@@ -11,10 +10,10 @@ import {
 } from "@strands-agents/sdk/vended-plugins/context-offloader";
 import { join } from "node:path";
 import { FileMemoryStore } from "../memory/index.js";
-import { readBundledPrompt } from "../prompts/bundled.js";
 import { memoryPath, sessionsPath } from "../utils/paths.js";
 import { FlatFileStorage } from "./flat-file-storage.js";
 import { LazySessionManager } from "./lazy-session-manager.js";
+import { ToolBasedModelExtractor } from "./model-extractor.js";
 
 const OFFLOADED_CONTENT_DIR = "offloaded-content";
 const OFFLOADING_MAX_RESULT_TOKENS = 5_000;
@@ -23,7 +22,6 @@ const OFFLOADING_PREVIEW_TOKENS = 2_000;
 const MEMORY_STORE_NAME = "long_term";
 const MEMORY_EXTRACTION_TURNS = 5;
 const MEMORY_MAX_SEARCH_RESULTS = 5;
-const MEMORY_EXTRACTION_PROMPT = readBundledPrompt("static", "memory.md");
 
 export function create(sessionId?: string) {
   const conversationManager = new SummarizingConversationManager({
@@ -81,9 +79,7 @@ function createMemoryManager() {
     writable: true,
     extraction: {
       trigger: new IntervalTrigger({ turns: MEMORY_EXTRACTION_TURNS }),
-      extractor: new ModelExtractor({
-        systemPrompt: MEMORY_EXTRACTION_PROMPT,
-      }),
+      extractor: new ToolBasedModelExtractor(),
     },
   });
 
