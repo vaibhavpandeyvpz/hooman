@@ -2,6 +2,7 @@ import type {
   ExtractionResult,
   Extractor,
   ExtractorContext,
+  JSONValue,
   MessageData,
 } from "@strands-agents/sdk";
 import { Agent, tool } from "@strands-agents/sdk";
@@ -45,19 +46,23 @@ export class ToolBasedModelExtractor implements Extractor {
     const remember = tool({
       name: "remember",
       description:
-        "Save one durable fact that should persist across future sessions.",
+        "Save one durable fact that should persist across future sessions using the ExtractionResult shape.",
       inputSchema: z.object({
         content: z
           .string()
           .min(1)
           .describe("A short, standalone durable fact worth remembering."),
+        metadata: z
+          .record(z.string(), z.json())
+          .optional()
+          .describe("Optional JSON metadata for the memory entry."),
       }),
-      callback: ({ content }) => {
-        const normalized = normalizeContent(content);
-        if (!normalized || remembered.size >= MAX_MEMORY_ENTRIES) {
+      callback: ({ content, metadata }) => {
+        const entry = normalizeEntry({ content, metadata });
+        if (!entry || remembered.size >= MAX_MEMORY_ENTRIES) {
           return { saved: false };
         }
-        remembered.set(normalized.toLowerCase(), { content: normalized });
+        remembered.set(createFingerprint(entry), entry);
         return { saved: true };
       },
     });
@@ -100,4 +105,36 @@ function normalizeContent(content: string): string | undefined {
     return undefined;
   }
   return normalized;
+}
+
+function normalizeEntry(entry: ExtractionResult): ExtractionResult | undefined {
+  const content = normalizeContent(entry.content);
+  if (!content) {
+    return undefined;
+  }
+
+  const metadata = normalizeMetadata(entry.metadata);
+  return metadata ? { content, metadata } : { content };
+}
+
+function normalizeMetadata(
+  metadata: Record<string, JSONValue> | undefined,
+): Record<string, JSONValue> | undefined {
+  if (!metadata) {
+    return undefined;
+  }
+  const pairs = Object.entries(metadata).filter(
+    ([, value]) => value !== undefined,
+  );
+  if (pairs.length === 0) {
+    return undefined;
+  }
+  return Object.fromEntries(pairs);
+}
+
+function createFingerprint(entry: ExtractionResult): string {
+  return JSON.stringify({
+    content: entry.content.toLowerCase(),
+    metadata: entry.metadata ?? null,
+  });
 }
