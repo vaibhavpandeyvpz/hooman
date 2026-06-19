@@ -18,6 +18,7 @@ import {
   createTodoTools,
   createFetchTools,
   createFilesystemTools,
+  clearReadTimeAgentInstructionState,
   createPlanTools,
   createSleepTools,
   createShellTools,
@@ -114,12 +115,14 @@ export async function create(
     printer: print,
     ...agentContext,
   });
-  agent.addHook(BeforeInvocationEvent, async (event) => {
-    clearTodoState(event.agent);
-  });
   (agent as unknown as { _toolRegistry: ModeAwareToolRegistry })._toolRegistry =
     new ModeAwareToolRegistry(agent.toolRegistry.list());
   await agent.initialize();
+  agent.addHook(BeforeInvocationEvent, async (event) => {
+    clearTodoState(event.agent);
+    clearReadTimeAgentInstructionState(event.agent);
+    event.agent.systemPrompt = await buildBaseSystemPrompt();
+  });
   applySessionMode(agent);
   return agent;
 }

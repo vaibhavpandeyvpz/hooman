@@ -1,5 +1,4 @@
 import { existsSync, readFileSync, statSync } from "node:fs";
-import { join } from "node:path";
 import handlebars from "handlebars";
 import type { Config } from "../config.js";
 import {
@@ -8,6 +7,10 @@ import {
   readBundledPrompt,
 } from "./bundled.js";
 import { getEnvironmentPromptContext } from "./environment.js";
+import {
+  candidateAgentInstructionPaths,
+  readAgentInstructions,
+} from "./runtime.js";
 
 const { compile } = handlebars;
 
@@ -39,7 +42,6 @@ const HARNESS_PROMPT_FILES = [
 export type SystemMode = "default" | "daemon" | "acp";
 
 const SECTION_BREAK = "\n\n---\n\n";
-const EXTRA_CWD_INSTRUCTIONS = "AGENTS.md";
 
 /**
  * Loads `prompts/static/*.md` from the package, then `instructions.md` from disk,
@@ -120,11 +122,7 @@ export class System {
   }
 
   private readCwdAgentsInstructions(): string {
-    const path = join(process.cwd(), EXTRA_CWD_INSTRUCTIONS);
-    if (!existsSync(path)) {
-      return "";
-    }
-    return readFileSync(path, "utf8").trim();
+    return readAgentInstructions();
   }
 
   /** Stats prompt sources so we only re-read disk + recompile Handlebars when files change. */
@@ -149,7 +147,9 @@ export class System {
       }
       pushPath(`harness:${file}`, bundledPromptPath("harness", file));
     }
-    pushPath("agents-md", join(process.cwd(), EXTRA_CWD_INSTRUCTIONS));
+    for (const path of candidateAgentInstructionPaths()) {
+      pushPath(`agents-md:${path}`, path);
+    }
     return parts.join("|");
   }
 

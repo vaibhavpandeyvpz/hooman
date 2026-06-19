@@ -17,6 +17,8 @@ You have access to filesystem tools for reading, writing, editing, moving, listi
 
 - Use `read_file` for inspecting file contents
 - Use `read_multiple_files` when you need several files at once
+- `read_file` and `read_multiple_files` may include `agents_instructions` loaded from nearby subdirectory `AGENTS.md` files that are more specific to the file being read
+- Treat returned `agents_instructions` as additional file-scoped project instructions and follow them when relevant
 - Use `write_file` to create or overwrite text files
 - Use `edit_file` for targeted replacements instead of rewriting the whole file
 - Use `create_directory` for directory creation

@@ -3,6 +3,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { tool, type JSONValue, type ToolContext } from "@strands-agents/sdk";
 import { normalizeUserPath } from "../utils/normalize-user-path.js";
+import { resolveAgentInstructionsForFile } from "../prompts/runtime.js";
 import {
   setFileToolDisplay,
   type StructuredPatchHunk,
@@ -20,6 +21,12 @@ const DEFAULT_TREE_DEPTH = 4;
 const SNIPPET_RADIUS = 3;
 const FAST_READ_MAX_BYTES = 10 * 1024 * 1024;
 const STREAM_HIGH_WATER_MARK = 512 * 1024;
+const runtimeResolvedAgentInstructionPaths = new WeakMap<object, Set<string>>();
+
+type ReadTimeAgentInstructions = {
+  loaded_paths: string[];
+  content: string;
+};
 
 const EditSchema = z.object({
   oldText: z
@@ -48,6 +55,35 @@ const textReadState = new Map<string, TextReadState>();
 
 function toJsonValue(value: unknown): JSONValue {
   return JSON.parse(JSON.stringify(value)) as JSONValue;
+}
+
+export function clearReadTimeAgentInstructionState(agent: object): void {
+  runtimeResolvedAgentInstructionPaths.delete(agent);
+}
+
+function resolveReadTimeAgentInstructions(
+  filePath: string,
+  context?: ToolContext,
+): ReadTimeAgentInstructions | undefined {
+  if (!context) {
+    return undefined;
+  }
+  const loadedPaths =
+    runtimeResolvedAgentInstructionPaths.get(context.agent) ?? new Set<string>();
+  const resolved = resolveAgentInstructionsForFile(filePath, {
+    excludePaths: [...loadedPaths],
+  });
+  if (resolved.paths.length === 0 || resolved.content.length === 0) {
+    return undefined;
+  }
+  for (const instructionPath of resolved.paths) {
+    loadedPaths.add(instructionPath);
+  }
+  runtimeResolvedAgentInstructionPaths.set(context.agent, loadedPaths);
+  return {
+    loaded_paths: resolved.paths,
+    content: resolved.content,
+  };
 }
 
 function normalizeForGlob(inputPath: string): string {
@@ -792,7 +828,7 @@ export function createFilesystemTools() {
       description:
         "Read a file. Defaults to UTF-8 text with optional line offset/limit. Pass `binary: true` for non-text files: images (jpeg/png/gif/webp), videos (mp4/mov/mkv/webm/etc.), and documents (pdf/docx/csv/etc.) are returned as multimodal content blocks — the active model provider forwards them natively where supported (Bedrock for all; Anthropic for images + docs; Google for images + docs; OpenAI for images; Ollama for images) and logs a warning for unsupported kinds. Any other binary file is returned as base64.",
       inputSchema: schema.readFile,
-      callback: async (input) => {
+      callback: async (input, context?: ToolContext) => {
         const filePath = normalizeUserPath(input.path);
 
         if (input.binary) {
@@ -807,7 +843,16 @@ export function createFilesystemTools() {
           offset: input.offset,
           limit: input.limit,
         });
-        return toJsonValue(result);
+        const agentsInstructions = resolveReadTimeAgentInstructions(
+          filePath,
+          context,
+        );
+        return toJsonValue({
+          ...result,
+          ...(agentsInstructions
+            ? { agents_instructions: agentsInstructions }
+            : {}),
+        });
       },
     }),
     tool({
@@ -815,7 +860,7 @@ export function createFilesystemTools() {
       description:
         "Read multiple text files in one call. Each file is returned independently with success or error details.",
       inputSchema: schema.readMultipleFiles,
-      callback: async (input) => {
+      callback: async (input, context?: ToolContext) => {
         const results = await Promise.all(
           input.paths.map(async (itemPath) => {
             const filePath = normalizeUserPath(itemPath);
@@ -824,10 +869,17 @@ export function createFilesystemTools() {
                 offset: input.offset,
                 limit: input.limit,
               });
+              const agentsInstructions = resolveReadTimeAgentInstructions(
+                filePath,
+                context,
+              );
 
               return {
                 ok: true,
                 ...readResult,
+                ...(agentsInstructions
+                  ? { agents_instructions: agentsInstructions }
+                  : {}),
               };
             } catch (error) {
               return {
