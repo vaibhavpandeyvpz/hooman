@@ -2,15 +2,11 @@ import { Box, Text } from "ink";
 import type { ChatLine } from "../types.js";
 import { lineColor } from "./shared.js";
 import { MarkdownMessage } from "./markdown/MarkdownMessage.js";
-import { ReasoningStrip } from "./ReasoningStrip.js";
 import { ThinkingStatus } from "./ThinkingStatus.js";
 
-type ChatMessageProps = {
-  line: ChatLine;
-  liveReasoning?: string;
-};
+type ChatMessageProps = { line: ChatLine };
 
-export function ChatMessage({ line, liveReasoning = "" }: ChatMessageProps) {
+export function ChatMessage({ line }: ChatMessageProps) {
   const roleName =
     line.role === "user"
       ? "You"
@@ -31,9 +27,6 @@ export function ChatMessage({ line, liveReasoning = "" }: ChatMessageProps) {
         </Text>
         {isPendingAssistant ? <ThinkingStatus /> : null}
       </Box>
-      {isPendingAssistant && liveReasoning ? (
-        <ReasoningStrip text={liveReasoning} maxVisibleLines={2} />
-      ) : null}
       {shouldShowBody ? (
         line.role === "assistant" ? (
           <MarkdownMessage streaming={isPendingAssistant}>

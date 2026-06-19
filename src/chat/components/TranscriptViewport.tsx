@@ -11,7 +11,6 @@ import { Transcript } from "./Transcript.js";
 
 type TranscriptViewportProps = {
   lines: ChatLine[];
-  liveReasoning: string;
   followRequest: number;
 };
 
@@ -27,7 +26,6 @@ function clampScrollOffset(scroll: ScrollViewRef, offset: number): number {
 
 export function TranscriptViewport({
   lines,
-  liveReasoning,
   followRequest,
 }: TranscriptViewportProps): React.JSX.Element {
   const scrollRef = useRef<ScrollViewRef>(null);
@@ -93,7 +91,7 @@ export function TranscriptViewport({
     return () => {
       clearTimeout(timer);
     };
-  }, [followIfSticky, lines, liveReasoning, remeasure]);
+  }, [followIfSticky, lines, remeasure]);
 
   useEffect(() => {
     scrollToBottom();
@@ -163,7 +161,7 @@ export function TranscriptViewport({
         onViewportSizeChange={followIfSticky}
       >
         <Box key="transcript" flexDirection="column" width="100%">
-          <Transcript lines={lines} liveReasoning={liveReasoning} />
+          <Transcript lines={lines} />
         </Box>
       </ScrollView>
     </Box>

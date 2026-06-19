@@ -1,10 +1,11 @@
 import type { FileToolDisplay } from "../core/state/file-tool-display.js";
 
 export type ChatRole = "user" | "assistant" | "tool" | "system";
+export type ChatTimelineRole = ChatRole | "thought";
 
 export interface ChatLine {
   id: string;
-  role: ChatRole;
+  role: ChatTimelineRole;
   title?: string;
   content: string;
   done?: boolean;
@@ -12,6 +13,9 @@ export interface ChatLine {
   phase?: "running" | "done";
   resultContent?: string;
   fileToolDisplay?: FileToolDisplay;
+  startedAt?: number;
+  finishedAt?: number;
+  estimatedTokens?: number;
 }
 
 export type ApprovalDecision = "allow" | "reject" | "always";

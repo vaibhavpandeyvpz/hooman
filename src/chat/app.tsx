@@ -307,7 +307,6 @@ export function ChatApp({
   }, []);
   const [slashHighlightIndex, setSlashHighlightIndex] = useState(0);
   const [queuedPrompts, setQueuedPrompts] = useState<QueuedPrompt[]>([]);
-  const [liveReasoning, setLiveReasoning] = useState("");
   const [followRequest, setFollowRequest] = useState(0);
   const [todoState, setTodoState] = useState<TodoViewState>(() =>
     getTodoViewState(agent),
@@ -315,6 +314,9 @@ export function ChatApp({
   const mountedRef = useRef(true);
   const runningRef = useRef(false);
   const assistantLineIdRef = useRef<string | null>(null);
+  const thoughtLineIdRef = useRef<string | null>(null);
+  const thoughtTextRef = useRef("");
+  const thoughtStartedAtRef = useRef<number | null>(null);
   const toolLineIdsRef = useRef(new Map<string, string>());
   const pendingToolLineIdsRef = useRef<string[]>([]);
   const initialRanRef = useRef(false);
@@ -456,6 +458,91 @@ export function ChatApp({
       ),
     );
   }, []);
+
+  const finalizeAssistantLine = useCallback(() => {
+    const id = assistantLineIdRef.current;
+    if (!id) {
+      return;
+    }
+    updateLine(id, { done: true });
+    assistantLineIdRef.current = null;
+  }, [updateLine]);
+
+  const ensureAssistantLine = useCallback((): string => {
+    const existing = assistantLineIdRef.current;
+    if (existing) {
+      return existing;
+    }
+    const id = nowId();
+    assistantLineIdRef.current = id;
+    appendLine({
+      id,
+      role: "assistant",
+      content: "",
+      done: false,
+    });
+    return id;
+  }, [appendLine]);
+
+  const estimateReasoningTokens = useCallback((text: string): number => {
+    const trimmed = text.trim();
+    if (!trimmed) {
+      return 0;
+    }
+    return Math.max(1, Math.round(trimmed.length / 4));
+  }, []);
+
+  const finalizeThoughtLine = useCallback(() => {
+    const id = thoughtLineIdRef.current;
+    if (!id) {
+      return;
+    }
+    const finishedAt = Date.now();
+    updateLine(id, {
+      done: true,
+      finishedAt,
+      estimatedTokens: estimateReasoningTokens(thoughtTextRef.current),
+    });
+    thoughtLineIdRef.current = null;
+    thoughtTextRef.current = "";
+    thoughtStartedAtRef.current = null;
+  }, [estimateReasoningTokens, updateLine]);
+
+  const ensureThoughtLine = useCallback((): string => {
+    const existing = thoughtLineIdRef.current;
+    if (existing) {
+      return existing;
+    }
+    finalizeAssistantLine();
+    const startedAt = Date.now();
+    const id = nowId();
+    thoughtLineIdRef.current = id;
+    thoughtTextRef.current = "";
+    thoughtStartedAtRef.current = startedAt;
+    appendLine({
+      id,
+      role: "thought",
+      content: "",
+      done: false,
+      startedAt,
+    });
+    return id;
+  }, [appendLine, finalizeAssistantLine]);
+
+  const appendThoughtText = useCallback(
+    (text: string) => {
+      const id = ensureThoughtLine();
+      thoughtTextRef.current = `${thoughtTextRef.current}${text}`;
+      setLines((prev) =>
+        prev.map((line) =>
+          line.id === id
+            ? { ...line, content: `${line.content}${text}` }
+            : line,
+        ),
+      );
+    },
+    [ensureThoughtLine],
+  );
 
   const handleModelCommand = useCallback(
     async (args: string) => {
@@ -610,7 +697,6 @@ export function ChatApp({
       setRunning(true);
       setStatus("thinking");
       setTurnStartedAt(Date.now());
-      setLiveReasoning("");
       setTurnCount((value) => value + 1);
       appendLine({
         id: nowId(),
@@ -623,16 +709,6 @@ export function ChatApp({
             : trimmed,
         done: true,
       });
-
-      const assistantId = nowId();
-      assistantLineIdRef.current = assistantId;
-      appendLine({
-        id: assistantId,
-        role: "assistant",
-        content: "",
-        done: false,
-      });
-
       try {
         const streamInput =
           attachmentBlocks.length > 0
@@ -658,8 +734,21 @@ export function ChatApp({
                   input?: unknown;
                 };
                 if (block.type === "textBlock") {
-                  appendAssistantText(block.text ?? "");
+                  finalizeThoughtLine();
+                  const assistantId = ensureAssistantLine();
+                  setLines((prev) =>
+                    prev.map((line) =>
+                      line.id === assistantId
+                        ? {
+                            ...line,
+                            content: `${line.content}${block.text ?? ""}`,
+                          }
+                        : line,
+                    ),
+                  );
                 } else if (block.type === "toolUseBlock") {
+                  finalizeThoughtLine();
+                  finalizeAssistantLine();
                   const toolId = nowId();
                   const toolUseId = getToolUseId(block);
                   if (toolUseId) {
@@ -676,9 +765,6 @@ export function ChatApp({
                     phase: "running",
                     done: false,
                   });
-                  if (assistantLineIdRef.current) {
-                    moveLineToEnd(assistantLineIdRef.current);
-                  }
                 }
                 break;
               }
@@ -750,8 +836,9 @@ export function ChatApp({
                   ).delta;
                   if (delta?.type === "reasoningContentDelta" && delta.text) {
                     setStatus("thinking");
-                    setLiveReasoning((prev) => `${prev}${delta.text}`);
+                    appendThoughtText(delta.text);
                   } else if (delta?.type === "textDelta") {
+                    finalizeThoughtLine();
                     setStatus("streaming");
                   }
                 }
@@ -806,8 +893,8 @@ export function ChatApp({
           done: true,
         });
       } finally {
-        updateLine(assistantId, { done: true });
-        assistantLineIdRef.current = null;
+        finalizeThoughtLine();
+        finalizeAssistantLine();
         for (const toolLineId of toolLineIdsRef.current.values()) {
           updateLine(toolLineId, { phase: "done", done: true });
         }
@@ -819,7 +906,6 @@ export function ChatApp({
         runningRef.current = false;
         setRunning(false);
         setTurnStartedAt(null);
-        setLiveReasoning("");
         setStatus("ready");
         if (isExitRequested(agent)) {
           onExit();
@@ -829,10 +915,13 @@ export function ChatApp({
     },
     [
       appendAssistantText,
+      appendThoughtText,
       appendLine,
       agent,
       exit,
-      moveLineToEnd,
+      ensureAssistantLine,
+      finalizeAssistantLine,
+      finalizeThoughtLine,
       onExit,
       updateLine,
     ],
@@ -1038,11 +1127,7 @@ export function ChatApp({
 
   return (
     <Box flexDirection="column" width="100%" height={rows} paddingX={1}>
-      <TranscriptViewport
-        lines={lines}
-        liveReasoning={liveReasoning}
-        followRequest={followRequest}
-      />
+      <TranscriptViewport lines={lines} followRequest={followRequest} />
 
       <Box flexDirection="column" flexShrink={0}>
         {running && todoState.visible && todoState.todos.length > 0 ? (

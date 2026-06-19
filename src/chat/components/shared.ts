@@ -6,6 +6,8 @@ export function lineColor(line: ChatLine): string {
       return "cyan";
     case "assistant":
       return "blue";
+    case "thought":
+      return "gray";
     case "tool":
       return "gray";
     case "system":
