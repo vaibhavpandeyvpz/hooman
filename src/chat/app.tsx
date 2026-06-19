@@ -1127,14 +1127,6 @@ export function ChatApp({
     return `${String(min).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
   }, [turnElapsedMs]);
 
-  const activeTodo = useMemo(
-    () => todoState.todos.find((todo) => todo.status === "in_progress"),
-    [todoState.todos],
-  );
-  const statusLabel =
-    running && activeTodo
-      ? activeTodo.activeForm.trim() || activeTodo.content
-      : status;
   const inputHint =
     running && queuedPrompts.length > 0 ? INPUT_HINT_WITH_STEERING : INPUT_HINT;
   const firstLiveLineIndex = useMemo(() => {
@@ -1259,7 +1251,6 @@ export function ChatApp({
         <StatusBar
           running={running}
           status={status}
-          statusLabel={statusLabel}
           sessionId={sessionId}
           currentModel={currentModelLabel(config)}
           yoloOn={isYoloEnabled(agent)}

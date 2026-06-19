@@ -18,7 +18,6 @@ function formatTokenCount(n: number): string {
 type StatusBarProps = {
   running: boolean;
   status: string;
-  statusLabel?: string;
   sessionId: string;
   currentModel: string;
   yoloOn: boolean;
@@ -74,7 +73,6 @@ function statusValueColor(status: string): string {
 export function StatusBar({
   running,
   status,
-  statusLabel,
   sessionId,
   currentModel,
   yoloOn,
@@ -87,7 +85,6 @@ export function StatusBar({
   usage,
 }: StatusBarProps) {
   const sessionShort = shortSessionId(sessionId);
-  const displayStatus = statusLabel ?? status;
 
   return (
     <Box marginTop={1} flexDirection="column">
@@ -95,7 +92,7 @@ export function StatusBar({
         <Text color="gray">session: </Text>
         <Text color="gray">{sessionShort}</Text>
         <Text color="gray"> • status: </Text>
-        <Text color={statusValueColor(status)}>{displayStatus}</Text>
+        <Text color={statusValueColor(status)}>{status}</Text>
         <Text color="gray"> • mode: </Text>
         <Text color={sessionModeValueColor(sessionMode)}>{sessionMode}</Text>
         <Text color="gray"> • yolo: </Text>
