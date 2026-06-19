@@ -17,16 +17,44 @@ const RESERVED = new Set([
   "clientConfig",
 ]);
 
+const TOP_LEVEL_MODEL_KEYS = new Set([
+  "temperature",
+  "topP",
+  "maxTokens",
+  "stopSequences",
+  "params",
+  "betas",
+  "useNativeTokenCount",
+]);
+
 function pickModelOptions(
   params: Record<string, unknown>,
 ): Omit<AnthropicModelParams, "apiKey" | "clientConfig"> {
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(params)) {
-    if (!RESERVED.has(k)) {
+    if (!RESERVED.has(k) && TOP_LEVEL_MODEL_KEYS.has(k)) {
       out[k] = v;
     }
   }
   return out as Omit<AnthropicModelParams, "apiKey" | "clientConfig">;
+}
+
+function pickRequestParams(
+  params: Record<string, unknown>,
+): Record<string, unknown> {
+  const explicit = params.params;
+  const out =
+    explicit && typeof explicit === "object" && !Array.isArray(explicit)
+      ? { ...(explicit as Record<string, unknown>) }
+      : {};
+
+  for (const [k, v] of Object.entries(params)) {
+    if (!RESERVED.has(k) && !TOP_LEVEL_MODEL_KEYS.has(k)) {
+      out[k] = v;
+    }
+  }
+
+  return out;
 }
 
 function resolveApiKey(params: Record<string, unknown>): string | undefined {
@@ -91,6 +119,7 @@ export function create(
   const apiKey = resolveApiKey(params);
   const clientConfig = mergeClientConfig(params);
   const modelOpts = pickModelOptions(params);
+  const requestParams = pickRequestParams(params);
 
   return new AnthropicModel({
     modelId: model,
@@ -99,5 +128,6 @@ export function create(
       ? { clientConfig }
       : {}),
     ...modelOpts,
+    ...(Object.keys(requestParams).length > 0 ? { params: requestParams } : {}),
   });
 }

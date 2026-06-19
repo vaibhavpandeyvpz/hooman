@@ -184,7 +184,7 @@ Common shape (single default model):
 
 Provider notes (these refer to fields inside `providers[].options.params` unless noted; `llms[].options.params` can override them per model):
 
-- `anthropic`: Strands **AnthropicModel** (Anthropic Messages API via `@anthropic-ai/sdk`). `params.apiKey` or `params.authToken`, optional `baseURL` and `headers` (merged into `clientConfig`), optional `clientConfig`, plus model fields such as `temperature`, `maxTokens`, `topP`, `stopSequences`, and `params`. A custom `client` instance is not supported from config. If no key is set, `ANTHROPIC_API_KEY` is used.
+- `anthropic`: Strands **AnthropicModel** (Anthropic Messages API via `@anthropic-ai/sdk`). `params.apiKey` or `params.authToken`, optional `baseURL` and `headers` (merged into `clientConfig`), optional `clientConfig`, `betas`, and `useNativeTokenCount`, plus model fields such as `temperature`, `maxTokens`, `topP`, and `stopSequences`. Any unknown keys are forwarded into the underlying Anthropic Messages request body, so Anthropic-compatible providers can use fields like `thinking` or `service_tier` directly. A custom `client` instance is not supported from config. If no key is set, `ANTHROPIC_API_KEY` is used.
 - `google`: `params.apiKey`, `client`, `clientConfig`, and `builtInTools` are top-level Google model options. Other keys become Gemini generation params, such as `temperature`, `maxOutputTokens`, `topP`, and `topK`.
 - `groq`: `params.apiKey`, `baseURL`, and `headers` configure the provider. Other keys are forwarded as Vercel model config.
 - `moonshot`: `params.apiKey`, `baseURL`, `headers`, and `fetch` configure the provider. Other keys are forwarded as Vercel model config.

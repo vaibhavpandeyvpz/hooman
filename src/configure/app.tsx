@@ -45,6 +45,7 @@ import {
   DEFAULT_INSTRUCTIONS,
   compactJson,
   folderNameForSkill,
+  paramsPreview,
   normalizeOptional,
   noticeColor,
   parseOptionalBoolean,
@@ -1224,9 +1225,7 @@ export function ConfigureApp({
           setScreen({ kind: "config-provider-type", name: entry.name }),
       },
       {
-        label: `Params • ${truncate(
-          compactJson(maskSensitiveParamsForDisplay(entry.options.params)),
-        )}`,
+        label: `Params • ${paramsPreview(entry.options.params)}`,
         value: () =>
           promptValue({
             title: "Update provider params",
@@ -1470,9 +1469,7 @@ export function ConfigureApp({
           }),
       },
       {
-        label: `Params • ${truncate(
-          compactJson(maskSensitiveParamsForDisplay(entry.options.params)),
-        )}`,
+        label: `Params • ${paramsPreview(entry.options.params)}`,
         value: () =>
           promptValue({
             title: "Update LLM params",

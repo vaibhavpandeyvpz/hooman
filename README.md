@@ -570,6 +570,31 @@ You can also rely on the AWS default credential chain (recommended) by setting e
 
 ### Groq
 
+### Anthropic
+
+Uses Strands `AnthropicModel` on top of `@anthropic-ai/sdk`. Provider-specific settings `apiKey`/`authToken`, `baseURL`, `headers`, `clientConfig`, `betas`, and `useNativeTokenCount` are picked up directly. Standard model config such as `temperature`, `topP`, `maxTokens`, and `stopSequences` stays top-level. Any other keys are forwarded to the Anthropic Messages request body, which is useful for Anthropic-compatible providers such as MiniMax.
+
+For MiniMax specifically:
+
+- Use `baseURL: "https://api.minimax.io/anthropic"`.
+- `MiniMax-M3` can emit visible thinking blocks when you set `thinking: { "type": "adaptive" }`.
+- `MiniMax-M2.7` / `M2.5` / `M2.1` / `M2` do internal reasoning, but MiniMax’s Anthropic-compatible API does not expose those as `thinking` content blocks, so Hooman has nothing to render in the transcript.
+
+```json
+{
+  "provider": "anthropic",
+  "model": "MiniMax-M3",
+  "params": {
+    "apiKey": "...",
+    "baseURL": "https://api.minimax.io/anthropic",
+    "thinking": { "type": "adaptive" },
+    "temperature": 1
+  }
+}
+```
+
+### Groq
+
 Uses the Vercel AI SDK Groq provider (`@ai-sdk/groq`) on top of Strands `VercelModel`. Provider-specific settings `apiKey`, `baseURL`, and `headers` are picked up; other values are forwarded into the model config (`temperature`, `maxTokens`, etc.). Defaults to `GROQ_API_KEY` from the environment when no `apiKey` is supplied.
 
 ```json

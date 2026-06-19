@@ -42,6 +42,10 @@ export function truncate(text: string, max: number = 88): string {
   return text.length > max ? `${text.slice(0, max - 1)}…` : text;
 }
 
+export function paramsPreview(value: unknown, max: number = 56): string {
+  return truncate(compactJson(maskSensitiveParamsForDisplay(value)), max);
+}
+
 export function folderNameForSkill(skill: SkillListEntry): string {
   return basename(dirname(skill.path));
 }
