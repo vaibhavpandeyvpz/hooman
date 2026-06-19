@@ -77,7 +77,7 @@ export function renderSessionModePrompt(
 export function createSessionModePromptPlugin(): ContextInjector {
   return new ContextInjector({
     name: "hooman:session-mode-prompt",
-    trigger: "everyTurn",
+    trigger: "userTurn",
     renderContent: async ({ agent }) => {
       const mode = getModeState(agent).mode;
       const sessionModeState = snapshotAppStateForSessionModePrompt(agent);

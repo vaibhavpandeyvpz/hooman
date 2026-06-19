@@ -56,8 +56,8 @@ export function create(sessionId?: string) {
 function createOffloadingPlugins() {
   return [
     new ContextInjector({
-      name: "clock",
-      trigger: "everyTurn",
+      name: "hooman:clock",
+      trigger: "userTurn",
       renderContent: async () => `<now>${new Date().toISOString()}</now>`,
     }),
     new ContextOffloader({
