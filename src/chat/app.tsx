@@ -314,6 +314,8 @@ export function ChatApp({
   const mountedRef = useRef(true);
   const runningRef = useRef(false);
   const assistantLineIdRef = useRef<string | null>(null);
+  const assistantCommittedTextRef = useRef("");
+  const streamedAssistantBlockRef = useRef<string | null>(null);
   const thoughtLineIdRef = useRef<string | null>(null);
   const thoughtTextRef = useRef("");
   const thoughtStartedAtRef = useRef<number | null>(null);
@@ -447,17 +449,38 @@ export function ChatApp({
     });
   }, []);
 
-  const appendAssistantText = useCallback((text: string) => {
+  const replaceAssistantText = useCallback((text: string) => {
     const id = assistantLineIdRef.current;
     if (!id) {
       return;
     }
     setLines((prev) =>
       prev.map((line) =>
-        line.id === id ? { ...line, content: `${line.content}${text}` } : line,
+        line.id === id ? { ...line, content: text } : line,
       ),
     );
   }, []);
+
+  const appendAssistantText = useCallback(
+    (text: string) => {
+      streamedAssistantBlockRef.current = `${
+        streamedAssistantBlockRef.current ?? ""
+      }${text}`;
+      replaceAssistantText(
+        `${assistantCommittedTextRef.current}${streamedAssistantBlockRef.current}`,
+      );
+    },
+    [replaceAssistantText],
+  );
+
+  const commitAssistantBlock = useCallback(
+    (text: string) => {
+      assistantCommittedTextRef.current = `${assistantCommittedTextRef.current}${text}`;
+      streamedAssistantBlockRef.current = null;
+      replaceAssistantText(assistantCommittedTextRef.current);
+    },
+    [replaceAssistantText],
+  );
 
   const finalizeAssistantLine = useCallback(() => {
     const id = assistantLineIdRef.current;
@@ -466,6 +489,8 @@ export function ChatApp({
     }
     updateLine(id, { done: true });
     assistantLineIdRef.current = null;
+    assistantCommittedTextRef.current = "";
+    streamedAssistantBlockRef.current = null;
   }, [updateLine]);
 
   const ensureAssistantLine = useCallback((): string => {
@@ -475,6 +500,8 @@ export function ChatApp({
     }
     const id = nowId();
     assistantLineIdRef.current = id;
+    assistantCommittedTextRef.current = "";
+    streamedAssistantBlockRef.current = null;
     appendLine({
       id,
       role: "assistant",
@@ -735,17 +762,8 @@ export function ChatApp({
                 };
                 if (block.type === "textBlock") {
                   finalizeThoughtLine();
-                  const assistantId = ensureAssistantLine();
-                  setLines((prev) =>
-                    prev.map((line) =>
-                      line.id === assistantId
-                        ? {
-                            ...line,
-                            content: `${line.content}${block.text ?? ""}`,
-                          }
-                        : line,
-                    ),
-                  );
+                  ensureAssistantLine();
+                  commitAssistantBlock(block.text ?? "");
                 } else if (block.type === "toolUseBlock") {
                   finalizeThoughtLine();
                   finalizeAssistantLine();
@@ -837,9 +855,11 @@ export function ChatApp({
                   if (delta?.type === "reasoningContentDelta" && delta.text) {
                     setStatus("thinking");
                     appendThoughtText(delta.text);
-                  } else if (delta?.type === "textDelta") {
+                  } else if (delta?.type === "textDelta" && delta.text) {
                     finalizeThoughtLine();
                     setStatus("streaming");
+                    ensureAssistantLine();
+                    appendAssistantText(delta.text);
                   }
                 }
                 if (modelEvent?.type === "modelMetadataEvent") {

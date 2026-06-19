@@ -16,8 +16,8 @@ export function ChatMessage({ line }: ChatMessageProps) {
   const isPendingAssistant = line.role === "assistant" && !line.done;
   const rawText =
     line.role === "assistant" ? line.content : line.content.trim();
-  const text = rawText || (line.done ? "(empty)" : "");
-  const shouldShowBody = Boolean(text) || !isPendingAssistant;
+  const text = rawText;
+  const shouldShowBody = Boolean(text) || isPendingAssistant;
 
   return (
     <Box flexDirection="column" marginBottom={1}>
