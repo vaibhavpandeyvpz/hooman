@@ -29,9 +29,13 @@ function formatEstimatedTokens(tokens?: number): string {
 
 type ThoughtEventProps = {
   line: ChatLine;
+  assistantName?: string;
 };
 
-export function ThoughtEvent({ line }: ThoughtEventProps) {
+export function ThoughtEvent({
+  line,
+  assistantName = "Assistant",
+}: ThoughtEventProps) {
   const durationMs =
     line.startedAt && line.finishedAt ? line.finishedAt - line.startedAt : 0;
 
@@ -39,7 +43,7 @@ export function ThoughtEvent({ line }: ThoughtEventProps) {
     <Box flexDirection="column" marginBottom={1} width="100%">
       <Box flexDirection="row" width="100%">
         <Text bold color="blue">
-          Assistant
+          {assistantName}
         </Text>
         {line.done ? (
           <Text color="gray">

@@ -74,7 +74,10 @@ export async function chat(options: LaunchChatOptions): Promise<boolean> {
         done = true;
       }}
     />,
-    { exitOnCtrlC: false },
+    {
+      alternateScreen: true,
+      exitOnCtrlC: false,
+    },
   );
 
   try {

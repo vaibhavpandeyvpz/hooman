@@ -6,10 +6,12 @@ import React, {
   useState,
 } from "react";
 import fastq from "fastq";
-import { Box, Static, useApp, useInput } from "ink";
+import { Box, useApp, useInput, useWindowSize } from "ink";
 import {
   Message,
   TextBlock,
+  ToolResultBlock,
+  ToolUseBlock,
   type Agent,
   type AgentStreamEvent,
   type ContentBlock,
@@ -22,24 +24,13 @@ import {
 import type { Config } from "../core/config.js";
 import type { Manager as McpManager } from "../core/mcp/index.js";
 import { modelProviders } from "../core/models/index.js";
-import {
-  MODE_DEFINITIONS,
-  formatModeNames,
-  getModeDefinition,
-  isKnownSessionMode,
-} from "../core/modes/index.js";
+import { formatModeNames, isKnownSessionMode } from "../core/modes/index.js";
 import type { Registry } from "../core/skills/index.js";
 import { takeFileToolDisplay } from "../core/state/file-tool-display.js";
 import { ChatApprovalController } from "./approvals.js";
 import { ChatTurnSteeringController } from "./steering.js";
-import { ApprovalPrompt } from "./components/ApprovalPrompt.js";
-import { Composer } from "./components/Composer.js";
-import { SelectPicker } from "./components/SelectPicker.js";
-import { QueuedPrompts } from "./components/QueuedPrompts.js";
-import { SlashCommands } from "./components/SlashCommands.js";
-import { StatusBar } from "./components/StatusBar.js";
-import { TodoPanel } from "./components/TodoPanel.js";
-import { Transcript, TranscriptLine } from "./components/Transcript.js";
+import { BottomChrome } from "./components/BottomChrome.js";
+import { Transcript } from "./components/Transcript.js";
 import type { ApprovalRequest, ChatLine } from "./types.js";
 import { getTodoViewState, type TodoViewState } from "../core/state/todos.js";
 import { isExitRequested } from "../core/state/exit-request.js";
@@ -55,6 +46,7 @@ import { isMouseInput } from "./mouse.js";
 import type { PromptSubmission } from "./components/prompt-input/hooks/usePromptInputController.js";
 import { readBundledPrompt } from "../core/prompts/bundled.js";
 import { runWithAgentMemoryScope } from "../core/memory/index.js";
+import type { ChatPicker } from "./components/ChromePicker.js";
 
 /** Status bar: Strands `Usage` for the current user turn + summed latency across model cycles. */
 type TurnUsageStatus = Usage & { latencyMs: number };
@@ -95,9 +87,9 @@ function normalizePromptSubmission(
 }
 
 const INPUT_HINT =
-  "shift/meta+enter or \\+enter: newline | esc/ctrl+c: cancel or exit";
+  "pgup/pgdn: scroll | shift/meta+enter or \\+enter: newline | esc/ctrl+c: cancel or exit";
 const INPUT_HINT_WITH_STEERING =
-  "enter on empty input: steer active turn with queued prompts | shift/meta+enter or \\+enter: newline | esc/ctrl+c: cancel or exit";
+  "enter on empty input: steer active turn with queued prompts | pgup/pgdn: scroll | shift/meta+enter or \\+enter: newline | esc/ctrl+c: cancel or exit";
 
 const INIT_AGENTS_PROMPT = readBundledPrompt("static", "init.md");
 
@@ -110,6 +102,17 @@ function stringifyUnknown(value: unknown): string {
     return JSON.stringify(value, null, 2);
   } catch {
     return String(value);
+  }
+}
+
+function blockToFallbackText(block: ContentBlock): string | null {
+  if (block.type === "textBlock") {
+    return block.text;
+  }
+  try {
+    return JSON.stringify(block.toJSON?.() ?? block, null, 2);
+  } catch {
+    return String(block);
   }
 }
 
@@ -146,6 +149,92 @@ function getToolUseId(value: unknown): string | null {
     return data.toolUse.toolUseId;
   }
   return null;
+}
+
+function estimateReasoningTokens(text: string): number {
+  const trimmed = text.trim();
+  if (!trimmed) {
+    return 0;
+  }
+  return Math.max(1, Math.round(trimmed.length / 4));
+}
+
+function buildInitialTranscript(messages: Message[]): ChatLine[] {
+  const lines: ChatLine[] = [];
+  const toolResults = new Map<string, ToolResultBlock>();
+
+  for (const message of messages) {
+    for (const block of message.content) {
+      if (block instanceof ToolResultBlock) {
+        toolResults.set(block.toolUseId, block);
+      }
+    }
+  }
+
+  for (const message of messages) {
+    if (message.role === "user") {
+      const parts = message.content
+        .filter((block) => !(block instanceof ToolResultBlock))
+        .map((block) => blockToFallbackText(block)?.trimEnd() ?? "")
+        .filter(Boolean);
+      if (parts.length > 0) {
+        lines.push({
+          id: nowId(),
+          role: "user",
+          content: parts.join("\n\n"),
+          done: true,
+        });
+      }
+      continue;
+    }
+
+    if (message.role !== "assistant") {
+      continue;
+    }
+
+    for (const block of message.content) {
+      if (block instanceof ToolUseBlock) {
+        const result = toolResults.get(block.toolUseId);
+        lines.push({
+          id: nowId(),
+          role: "tool",
+          title: "tool",
+          toolName: block.name,
+          content: stringifyUnknown(block.input ?? {}),
+          resultContent: result ? toToolResultText(result) : undefined,
+          phase: result ? "done" : "running",
+          done: Boolean(result),
+        });
+        continue;
+      }
+
+      if (block.type === "reasoningBlock") {
+        const text = blockToFallbackText(block)?.trim();
+        if (text) {
+          lines.push({
+            id: nowId(),
+            role: "thought",
+            content: text,
+            done: true,
+            estimatedTokens: estimateReasoningTokens(text),
+          });
+        }
+        continue;
+      }
+
+      const text = blockToFallbackText(block)?.trimEnd();
+      if (text) {
+        lines.push({
+          id: nowId(),
+          role: "assistant",
+          content: text,
+          done: true,
+        });
+      }
+    }
+  }
+
+  return lines;
 }
 
 function currentModelName(config: Config): string {
@@ -217,10 +306,6 @@ function parseSessionModeArg(raw: string): SessionMode | undefined {
   return undefined;
 }
 
-function sessionModeLabel(mode: SessionMode): string {
-  return getModeDefinition(mode)?.name ?? mode;
-}
-
 function listModelsText(config: Config): string {
   const current = currentModelName(config);
   const options = config.llms.map((entry) => {
@@ -275,6 +360,51 @@ function matchingSlashCommands(
   return SLASH_COMMANDS.filter((item) => item.name.startsWith(query));
 }
 
+function estimateChromeRows(params: {
+  running: boolean;
+  todoCount: number;
+  queueCount: number;
+  pendingApproval: boolean;
+  picker: ChatPicker;
+  slashCommandCount: number;
+}): number {
+  let rows = 8;
+
+  if (params.running && params.todoCount > 0) {
+    rows += 2 + params.todoCount;
+  }
+
+  if (params.queueCount > 0) {
+    rows += 2 + params.queueCount;
+  }
+
+  if (params.pendingApproval) {
+    rows += 4;
+    return rows;
+  }
+
+  if (params.picker === "model") {
+    rows += 2 + 4;
+    return rows;
+  }
+
+  if (params.picker === "yolo") {
+    rows += 2 + 2;
+    return rows;
+  }
+
+  if (params.picker === "mode") {
+    rows += 2 + 3;
+    return rows;
+  }
+
+  if (params.slashCommandCount > 0) {
+    rows += params.slashCommandCount + 1;
+  }
+
+  return rows;
+}
+
 export function ChatApp({
   agent,
   config,
@@ -287,10 +417,13 @@ export function ChatApp({
   onExit,
 }: ChatAppProps): React.JSX.Element {
   const { exit } = useApp();
+  const windowSize = useWindowSize();
   const [input, setInput] = useState("");
   const [running, setRunning] = useState(false);
   const [status, setStatus] = useState("ready");
-  const [lines, setLines] = useState<ChatLine[]>([]);
+  const [lines, setLines] = useState<ChatLine[]>(() =>
+    buildInitialTranscript(agent.messages),
+  );
   const [turnCount, setTurnCount] = useState(0);
   const [skillsFound, setSkillsFound] = useState(0);
   const [turnStartedAt, setTurnStartedAt] = useState<number | null>(null);
@@ -298,7 +431,7 @@ export function ChatApp({
   const [usage, setUsage] = useState<TurnUsageStatus>(emptyTurnUsage);
   const [pendingApproval, setPendingApproval] =
     useState<ApprovalRequest | null>(null);
-  const [picker, setPicker] = useState<null | "model" | "yolo" | "mode">(null);
+  const [picker, setPicker] = useState<ChatPicker>(null);
   /** Forces StatusBar to re-read yolo/mode from agent when those change without a picker close or rebuild. */
   const [, setSessionChromeEpoch] = useState(0);
   const bumpSessionChrome = useCallback(() => {
@@ -306,6 +439,7 @@ export function ChatApp({
   }, []);
   const [slashHighlightIndex, setSlashHighlightIndex] = useState(0);
   const [queuedPrompts, setQueuedPrompts] = useState<QueuedPrompt[]>([]);
+  const [transcriptScrollOffset, setTranscriptScrollOffset] = useState(0);
   const [todoState, setTodoState] = useState<TodoViewState>(() =>
     getTodoViewState(agent),
   );
@@ -507,14 +641,6 @@ export function ChatApp({
     return id;
   }, [appendLine]);
 
-  const estimateReasoningTokens = useCallback((text: string): number => {
-    const trimmed = text.trim();
-    if (!trimmed) {
-      return 0;
-    }
-    return Math.max(1, Math.round(trimmed.length / 4));
-  }, []);
-
   const finalizeThoughtLine = useCallback(() => {
     const id = thoughtLineIdRef.current;
     if (!id) {
@@ -529,7 +655,7 @@ export function ChatApp({
     thoughtLineIdRef.current = null;
     thoughtTextRef.current = "";
     thoughtStartedAtRef.current = null;
-  }, [estimateReasoningTokens, updateLine]);
+  }, [updateLine]);
 
   const ensureThoughtLine = useCallback((): string => {
     const existing = thoughtLineIdRef.current;
@@ -983,6 +1109,7 @@ export function ChatApp({
         id: nowId(),
         prompt: { ...normalized, text: trimmed },
       };
+      setTranscriptScrollOffset(0);
       setQueuedPrompts((prev) => [...prev, item]);
       void queueRef.current?.push(item).catch((error) => {
         if (!mountedRef.current) {
@@ -1087,6 +1214,28 @@ export function ChatApp({
       if (isMouseInput(inputKey)) {
         return;
       }
+      if (!key.ctrl && !key.meta && !key.super) {
+        if (key.pageUp) {
+          setTranscriptScrollOffset((offset) =>
+            Math.min(Math.max(0, lines.length - 1), offset + transcriptScrollStep),
+          );
+          return;
+        }
+        if (key.pageDown) {
+          setTranscriptScrollOffset((offset) =>
+            Math.max(0, offset - transcriptScrollStep),
+          );
+          return;
+        }
+        if (key.home) {
+          setTranscriptScrollOffset(Math.max(0, lines.length - 1));
+          return;
+        }
+        if (key.end) {
+          setTranscriptScrollOffset(0);
+          return;
+        }
+      }
       if (key.ctrl && inputKey.toLowerCase() === "c") {
         if (runningRef.current) {
           agent.cancel();
@@ -1129,140 +1278,96 @@ export function ChatApp({
 
   const inputHint =
     running && queuedPrompts.length > 0 ? INPUT_HINT_WITH_STEERING : INPUT_HINT;
-  const firstLiveLineIndex = useMemo(() => {
-    let index = 0;
-    while (index < lines.length && lines[index]?.done) {
-      index += 1;
-    }
-    return index;
-  }, [lines]);
-  const staticLines = useMemo(
-    () => lines.slice(0, firstLiveLineIndex),
-    [firstLiveLineIndex, lines],
+  const transcriptRows = useMemo(
+    () =>
+      Math.max(
+        6,
+        windowSize.rows -
+          estimateChromeRows({
+            running,
+            todoCount: todoState.visible ? todoState.todos.length : 0,
+            queueCount: queuedPrompts.length,
+            pendingApproval: Boolean(pendingApproval),
+            picker,
+            slashCommandCount:
+              !pendingApproval && !picker ? slashCommands.length : 0,
+          }) -
+          2,
+      ),
+    [
+      pendingApproval,
+      picker,
+      queuedPrompts.length,
+      running,
+      slashCommands.length,
+      todoState.todos.length,
+      todoState.visible,
+      windowSize.rows,
+    ],
   );
-  const liveLines = useMemo(
-    () => lines.slice(firstLiveLineIndex),
-    [firstLiveLineIndex, lines],
+  const transcriptScrollStep = useMemo(
+    () => Math.max(1, Math.floor(transcriptRows / 3)),
+    [transcriptRows],
   );
+
+  useEffect(() => {
+    setTranscriptScrollOffset((offset) => Math.min(offset, lines.length - 1));
+  }, [lines.length]);
 
   return (
-    <Box flexDirection="column" width="100%" paddingX={1}>
-      {staticLines.length > 0 ? (
-        <Static items={staticLines}>
-          {(line) => <TranscriptLine key={line.id} line={line} />}
-        </Static>
-      ) : null}
-
-      <Box flexDirection="column" flexShrink={0}>
-        {lines.length === 0 || liveLines.length > 0 ? (
-          <Transcript
-            lines={liveLines}
-            showEmptyBanner={lines.length === 0}
-            marginTop={staticLines.length > 0 ? 0 : 1}
-          />
-        ) : null}
-
-        {running && todoState.visible && todoState.todos.length > 0 ? (
-          <TodoPanel todos={todoState.todos} />
-        ) : null}
-        <QueuedPrompts prompts={queuedPrompts} />
-
-        {pendingApproval ? (
-          <ApprovalPrompt
-            onDecision={(decision) => approvals.decide(decision)}
-          />
-        ) : null}
-
-        {!pendingApproval && picker === "model" ? (
-          <SelectPicker
-            title="Choose model"
-            items={config.llms.map((entry) => ({
-              label: `${entry.name} • ${entry.options.provider}/${entry.options.model}${entry.default ? " • current" : ""}`,
-              value: entry.name,
-            }))}
-            onSelect={(name) => {
-              setPicker(null);
-              void handleModelCommand(name);
-            }}
-          />
-        ) : null}
-
-        {!pendingApproval && picker === "yolo" ? (
-          <SelectPicker
-            title="Auto-approve tools (yolo)"
-            items={[
-              {
-                label: `Off • confirm each tool${
-                  !isYoloEnabled(agent) ? " • current" : ""
-                }`,
-                value: "off",
-              },
-              {
-                label: `On • run tools without prompts${
-                  isYoloEnabled(agent) ? " • current" : ""
-                }`,
-                value: "on",
-              },
-            ]}
-            onSelect={(v) => {
-              setPicker(null);
-              void handleYoloCommand(v);
-            }}
-          />
-        ) : null}
-
-        {!pendingApproval && picker === "mode" ? (
-          <SelectPicker
-            title="Session mode"
-            items={[
-              ...MODE_DEFINITIONS.map((entry) => ({
-                label: `${entry.name} • ${entry.description}${
-                  getModeState(agent).mode === entry.id ? " • current" : ""
-                }`,
-                value: entry.id,
-              })),
-            ]}
-            onSelect={(v) => {
-              setPicker(null);
-              void handleModeCommand(v);
-            }}
-          />
-        ) : null}
-
-        {!pendingApproval && !picker ? (
-          <SlashCommands
-            items={slashCommands}
-            highlightIndex={slashHighlightIndex}
-          />
-        ) : null}
-
-        {!pendingApproval && !picker ? (
-          <Composer
-            input={input}
-            running={running}
-            disabled={Boolean(pendingApproval)}
-            hint={inputHint}
-            onChange={setInput}
-            onSubmit={onSubmit}
-            slashMenu={slashMenu}
-          />
-        ) : null}
-
-        <StatusBar
-          running={running}
-          status={status}
-          sessionId={sessionId}
-          currentModel={currentModelLabel(config)}
-          yoloOn={isYoloEnabled(agent)}
-          sessionMode={sessionModeLabel(getModeState(agent).mode)}
-          elapsedLabel={elapsedLabel}
-          turnCount={turnCount}
-          totalTools={totalTools}
-          skillsFound={skillsFound}
-          manager={manager}
-          usage={usage}
-        />
-      </Box>
+    <Box
+      flexDirection="column"
+      width="100%"
+      paddingX={1}
+      height={Math.max(1, windowSize.rows - 1)}
+    >
+      <Transcript
+        lines={lines}
+        assistantName={config.name}
+        showEmptyBanner={lines.length === 0}
+        marginTop={1}
+        maxRows={transcriptRows}
+        scrollOffset={transcriptScrollOffset}
+      />
+      <BottomChrome
+        config={config}
+        running={running}
+        status={status}
+        sessionId={sessionId}
+        currentModel={currentModelLabel(config)}
+        yoloOn={isYoloEnabled(agent)}
+        sessionMode={getModeState(agent).mode}
+        elapsedLabel={elapsedLabel}
+        turnCount={turnCount}
+        totalTools={totalTools}
+        skillsFound={skillsFound}
+        manager={manager}
+        usage={usage}
+        todoState={todoState}
+        queuedPrompts={queuedPrompts}
+        pendingApproval={Boolean(pendingApproval)}
+        picker={picker}
+        slashCommands={slashCommands}
+        slashHighlightIndex={slashHighlightIndex}
+        input={input}
+        inputHint={inputHint}
+        slashMenu={slashMenu}
+        onApprovalDecision={(decision) => approvals.decide(decision)}
+        onModelSelect={(name) => {
+          setPicker(null);
+          void handleModelCommand(name);
+        }}
+        onYoloSelect={(value) => {
+          setPicker(null);
+          void handleYoloCommand(value);
+        }}
+        onModeSelect={(value) => {
+          setPicker(null);
+          void handleModeCommand(value);
+        }}
+        onInputChange={setInput}
+        onSubmit={onSubmit}
+      />
     </Box>
   );
 }

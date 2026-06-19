@@ -4,14 +4,20 @@ import { lineColor } from "./shared.js";
 import { MarkdownMessage } from "./markdown/MarkdownMessage.js";
 import { ThinkingStatus } from "./ThinkingStatus.js";
 
-type ChatMessageProps = { line: ChatLine };
+type ChatMessageProps = {
+  line: ChatLine;
+  assistantName?: string;
+};
 
-export function ChatMessage({ line }: ChatMessageProps) {
+export function ChatMessage({
+  line,
+  assistantName = "Assistant",
+}: ChatMessageProps) {
   const roleName =
     line.role === "user"
       ? "You"
       : line.role === "assistant"
-        ? "Assistant"
+        ? assistantName
         : (line.title ?? "System");
   const isPendingAssistant = line.role === "assistant" && !line.done;
   const rawText =

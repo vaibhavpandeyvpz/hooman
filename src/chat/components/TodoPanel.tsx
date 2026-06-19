@@ -36,7 +36,9 @@ function truncateSingleLine(text: string, maxChars: number): string {
 }
 
 function findActiveTodo(todos: TodoItem[]): { todo: TodoItem; index: number } {
-  const inProgressIndex = todos.findIndex((todo) => todo.status === "in_progress");
+  const inProgressIndex = todos.findIndex(
+    (todo) => todo.status === "in_progress",
+  );
   if (inProgressIndex >= 0) {
     return { todo: todos[inProgressIndex]!, index: inProgressIndex };
   }
@@ -81,7 +83,10 @@ export function TodoPanel({ todos }: TodoPanelProps) {
     const prefix = `${index + 1}/${todos.length} ${marker} `;
     const preview = truncateSingleLine(
       activeText,
-      Math.max(MIN_COMPACT_PREVIEW_CHARS, columns - prefix.length - COMPACT_PREFIX_RESERVE),
+      Math.max(
+        MIN_COMPACT_PREVIEW_CHARS,
+        columns - prefix.length - COMPACT_PREFIX_RESERVE,
+      ),
     );
 
     return (
