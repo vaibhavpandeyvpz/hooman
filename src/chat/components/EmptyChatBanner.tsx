@@ -1,14 +1,12 @@
 import React from "react";
-import { Box, Text, useWindowSize } from "ink";
+import { Box, Text } from "ink";
 import { ASCII_ART } from "./ascii-logo.js";
 
 export function EmptyChatBanner(): React.JSX.Element {
-  const { columns } = useWindowSize();
-
   return (
-    <Box flexDirection="column" width={columns}>
+    <Box flexDirection="column" width="100%">
       <Box
-        width={columns}
+        width="100%"
         flexDirection="row"
         justifyContent="center"
         paddingY={2}

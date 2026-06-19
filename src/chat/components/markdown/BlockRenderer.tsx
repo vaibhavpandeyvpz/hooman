@@ -55,7 +55,7 @@ function renderBlock(
   switch (token.type) {
     case "paragraph":
       return (
-        <Box key={key} marginBottom={mb}>
+        <Box key={key} marginBottom={mb} width="100%">
           <Text wrap="wrap">
             {renderInlineTokens(token.tokens, { keyPrefix: key })}
           </Text>
@@ -64,7 +64,7 @@ function renderBlock(
     case "heading": {
       const headingColor = token.depth <= 2 ? "cyan" : "white";
       return (
-        <Box key={key} marginBottom={mb}>
+        <Box key={key} marginBottom={mb} width="100%">
           <Text bold color={headingColor} wrap="wrap">
             {renderInlineTokens(token.tokens, { keyPrefix: key })}
           </Text>
@@ -98,7 +98,7 @@ function renderBlock(
     }
     case "list":
       return (
-        <Box key={key} flexDirection="column" marginBottom={mb}>
+        <Box key={key} flexDirection="column" marginBottom={mb} width="100%">
           {token.items.map((item: Tokens.ListItem, index: number) => {
             const marker = token.ordered
               ? `${(token.start ?? 1) + index}.`
@@ -134,10 +134,14 @@ function renderBlock(
                 <Text> </Text>
               );
             return (
-              <Box key={`${key}-item-${index}`} flexDirection="column">
-                <Box flexDirection="row">
+              <Box
+                key={`${key}-item-${index}`}
+                flexDirection="column"
+                width="100%"
+              >
+                <Box flexDirection="row" width="100%">
                   <Text>{`${"  ".repeat(depth)}${marker} ${checkbox}`}</Text>
-                  <Box flexDirection="column" flexGrow={1}>
+                  <Box flexDirection="column" flexGrow={1} width="100%">
                     {headNode}
                   </Box>
                 </Box>
@@ -184,7 +188,7 @@ function renderBlock(
     case "text":
     case "escape":
       return (
-        <Box key={key} marginBottom={mb}>
+        <Box key={key} marginBottom={mb} width="100%">
           <Text wrap="wrap">{token.text ?? token.raw ?? ""}</Text>
         </Box>
       );
@@ -194,7 +198,7 @@ function renderBlock(
       return null;
     default:
       return (
-        <Box key={key} marginBottom={mb}>
+        <Box key={key} marginBottom={mb} width="100%">
           <Text wrap="wrap">{token.raw ?? ""}</Text>
         </Box>
       );
@@ -210,7 +214,7 @@ export function BlockRenderer({
   const { columns } = useWindowSize();
   const lastIndex = tokens.length - 1;
   return (
-    <Box flexDirection="column">
+    <Box flexDirection="column" width="100%">
       {tokens.map((token, index) =>
         renderBlock(
           token,

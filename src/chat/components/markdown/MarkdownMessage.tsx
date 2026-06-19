@@ -25,7 +25,7 @@ export function MarkdownMessage({
   }
 
   return (
-    <Box flexDirection="column">
+    <Box flexDirection="column" width="100%">
       {stablePrefix ? (
         <BlockRenderer
           tokens={stableTokens}

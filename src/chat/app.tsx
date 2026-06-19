@@ -6,7 +6,7 @@ import React, {
   useState,
 } from "react";
 import fastq from "fastq";
-import { Box, useApp, useInput, useWindowSize } from "ink";
+import { Box, Static, useApp, useInput } from "ink";
 import {
   Message,
   TextBlock,
@@ -39,7 +39,7 @@ import { QueuedPrompts } from "./components/QueuedPrompts.js";
 import { SlashCommands } from "./components/SlashCommands.js";
 import { StatusBar } from "./components/StatusBar.js";
 import { TodoPanel } from "./components/TodoPanel.js";
-import { TranscriptViewport } from "./components/TranscriptViewport.js";
+import { Transcript, TranscriptLine } from "./components/Transcript.js";
 import type { ApprovalRequest, ChatLine } from "./types.js";
 import { getTodoViewState, type TodoViewState } from "../core/state/todos.js";
 import { isExitRequested } from "../core/state/exit-request.js";
@@ -287,7 +287,6 @@ export function ChatApp({
   onExit,
 }: ChatAppProps): React.JSX.Element {
   const { exit } = useApp();
-  const { rows } = useWindowSize();
   const [input, setInput] = useState("");
   const [running, setRunning] = useState(false);
   const [status, setStatus] = useState("ready");
@@ -307,7 +306,6 @@ export function ChatApp({
   }, []);
   const [slashHighlightIndex, setSlashHighlightIndex] = useState(0);
   const [queuedPrompts, setQueuedPrompts] = useState<QueuedPrompt[]>([]);
-  const [followRequest, setFollowRequest] = useState(0);
   const [todoState, setTodoState] = useState<TodoViewState>(() =>
     getTodoViewState(agent),
   );
@@ -455,9 +453,7 @@ export function ChatApp({
       return;
     }
     setLines((prev) =>
-      prev.map((line) =>
-        line.id === id ? { ...line, content: text } : line,
-      ),
+      prev.map((line) => (line.id === id ? { ...line, content: text } : line)),
     );
   }, []);
 
@@ -1043,7 +1039,6 @@ export function ChatApp({
             }.`,
             done: true,
           });
-          setFollowRequest((value) => value + 1);
         }
         setInput("");
         return;
@@ -1052,7 +1047,6 @@ export function ChatApp({
       if (command && value.attachments.length === 0) {
         if (command.name === "init") {
           if (pushPrompt(INIT_AGENTS_PROMPT)) {
-            setFollowRequest((value) => value + 1);
             setInput("");
           }
           return;
@@ -1074,7 +1068,6 @@ export function ChatApp({
         }
       }
       if (pushPrompt(value)) {
-        setFollowRequest((value) => value + 1);
         setInput("");
       }
     },
@@ -1144,12 +1137,39 @@ export function ChatApp({
       : status;
   const inputHint =
     running && queuedPrompts.length > 0 ? INPUT_HINT_WITH_STEERING : INPUT_HINT;
+  const firstLiveLineIndex = useMemo(() => {
+    let index = 0;
+    while (index < lines.length && lines[index]?.done) {
+      index += 1;
+    }
+    return index;
+  }, [lines]);
+  const staticLines = useMemo(
+    () => lines.slice(0, firstLiveLineIndex),
+    [firstLiveLineIndex, lines],
+  );
+  const liveLines = useMemo(
+    () => lines.slice(firstLiveLineIndex),
+    [firstLiveLineIndex, lines],
+  );
 
   return (
-    <Box flexDirection="column" width="100%" height={rows} paddingX={1}>
-      <TranscriptViewport lines={lines} followRequest={followRequest} />
+    <Box flexDirection="column" width="100%" paddingX={1}>
+      {staticLines.length > 0 ? (
+        <Static items={staticLines}>
+          {(line) => <TranscriptLine key={line.id} line={line} />}
+        </Static>
+      ) : null}
 
       <Box flexDirection="column" flexShrink={0}>
+        {lines.length === 0 || liveLines.length > 0 ? (
+          <Transcript
+            lines={liveLines}
+            showEmptyBanner={lines.length === 0}
+            marginTop={staticLines.length > 0 ? 0 : 1}
+          />
+        ) : null}
+
         {running && todoState.visible && todoState.todos.length > 0 ? (
           <TodoPanel todos={todoState.todos} />
         ) : null}

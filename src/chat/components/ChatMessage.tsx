@@ -20,8 +20,8 @@ export function ChatMessage({ line }: ChatMessageProps) {
   const shouldShowBody = Boolean(text) || isPendingAssistant;
 
   return (
-    <Box flexDirection="column" marginBottom={1}>
-      <Box flexDirection="row">
+    <Box flexDirection="column" marginBottom={1} width="100%">
+      <Box flexDirection="row" width="100%">
         <Text bold color={lineColor(line)}>
           {roleName}
         </Text>
@@ -33,7 +33,10 @@ export function ChatMessage({ line }: ChatMessageProps) {
             {text}
           </MarkdownMessage>
         ) : (
-          <Text color={line.role === "user" ? undefined : lineColor(line)}>
+          <Text
+            color={line.role === "user" ? undefined : lineColor(line)}
+            wrap="wrap"
+          >
             {text}
           </Text>
         )

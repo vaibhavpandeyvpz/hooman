@@ -5,23 +5,35 @@ import { EmptyChatBanner } from "./EmptyChatBanner.js";
 import { ThoughtEvent } from "./ThoughtEvent.js";
 import { ToolEvent } from "./ToolEvent.js";
 
-type TranscriptProps = { lines: ChatLine[] };
+type TranscriptProps = {
+  lines: ChatLine[];
+  showEmptyBanner?: boolean;
+  marginTop?: number;
+};
 
-export function Transcript({ lines }: TranscriptProps) {
+type TranscriptLineProps = { line: ChatLine };
+
+export function TranscriptLine({ line }: TranscriptLineProps) {
+  return line.role === "tool" ? (
+    <ToolEvent line={line} />
+  ) : line.role === "thought" ? (
+    <ThoughtEvent line={line} />
+  ) : (
+    <ChatMessage line={line} />
+  );
+}
+
+export function Transcript({
+  lines,
+  showEmptyBanner = true,
+  marginTop = 1,
+}: TranscriptProps) {
   return (
-    <Box flexDirection="column" marginTop={1}>
-      {lines.length === 0 ? (
+    <Box flexDirection="column" marginTop={marginTop} width="100%">
+      {lines.length === 0 && showEmptyBanner ? (
         <EmptyChatBanner />
       ) : (
-        lines.map((line) =>
-          line.role === "tool" ? (
-            <ToolEvent key={line.id} line={line} />
-          ) : line.role === "thought" ? (
-            <ThoughtEvent key={line.id} line={line} />
-          ) : (
-            <ChatMessage key={line.id} line={line} />
-          ),
-        )
+        lines.map((line) => <TranscriptLine key={line.id} line={line} />)
       )}
     </Box>
   );
