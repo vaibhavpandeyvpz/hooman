@@ -26,7 +26,7 @@ export function ChatMessage({
   const shouldShowBody = Boolean(text) || isPendingAssistant;
 
   return (
-    <Box flexDirection="column" marginBottom={1} width="100%">
+    <Box flexDirection="column" width="100%">
       <Box flexDirection="row" width="100%">
         <Text bold color={lineColor(line)}>
           {roleName}

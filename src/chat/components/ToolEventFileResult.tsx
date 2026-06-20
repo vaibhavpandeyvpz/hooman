@@ -21,7 +21,7 @@ export function ToolEventFileResult({
   result,
 }: ToolEventFileResultProps): React.ReactNode {
   return (
-    <Box flexDirection="column" marginBottom={1}>
+    <Box flexDirection="column" width="100%">
       <Text color="yellow" bold>
         Tool
       </Text>

@@ -21,7 +21,7 @@ export function ToolEvent({ line }: ToolEventProps) {
     : null;
 
   return (
-    <Box flexDirection="column" marginBottom={1} width="100%">
+    <Box flexDirection="column" width="100%">
       <Text color="yellow" bold>
         Tool
       </Text>

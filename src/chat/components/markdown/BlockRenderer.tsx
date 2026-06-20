@@ -10,8 +10,8 @@ type BlockRendererProps = {
   streaming?: boolean;
   depth?: number;
   /**
-   * When true, the final top-level token omits block bottom margin so spacing matches plain user
-   * messages (ChatMessage already applies marginBottom).
+   * When true, the final top-level token omits block bottom margin so message bodies do not add
+   * extra spacing beyond the transcript row gap.
    */
   omitTrailingBlockMargin?: boolean;
 };

@@ -13,14 +13,21 @@ Hooman is a hackable, local-first AI agent toolkit written in TypeScript. It shi
 | ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
 | `src/cli.ts`                        | CLI entrypoint (Commander + Ink). Compiles to `dist/cli.js`, exposed as the `hooman` bin.                                           |
 | `src/index.ts`                      | Public library API exported by the npm package.                                                                                     |
-| `src/core/`                         | Agent engine, configuration, prompts, tools, MCP management, skills registry, and state.                                            |
+| `src/core/`                         | Core configuration, memory, state, context, and skills registry.                                                                    |
+| `src/core/agent/`                   | Agent bootstrap and invocation loop.                                                                                                |
+| `src/core/tools/`                   | Built-in tool definitions (filesystem, shell, web_search, fetch, etc.).                                                             |
+| `src/core/modes/`                   | Session mode logic (`agent`, `ask`, `plan`).                                                                                        |
+| `src/core/mcp/`                     | MCP client configuration, connection, OAuth auth, and tool bridging.                                                                |
+| `src/core/approvals/`               | Tool-call approval system for `exec`, `chat`, and `daemon`.                                                                         |
+| `src/core/subagents/`               | Subagent orchestration utilities.                                                                                                   |
+| `src/core/utils/`                   | Shared helpers and path normalization.                                                                                              |
+| `src/core/prompts/`                 | Static Markdown prompts, harness prompts, session-mode prompts, agent prompts.                                                      |
+| `src/core/skills/built-in/`         | Built-in skills shipped with the package (e.g. `hooman-coding`, `hooman-config`, `hooman-mcp`, `hooman-channels`, `hooman-skills`). |
 | `src/chat/`                         | Interactive `chat` TUI (Ink/React components).                                                                                      |
 | `src/configure/`                    | Ink-based configuration workflow.                                                                                                   |
 | `src/exec/`                         | One-shot `exec` command approval handling.                                                                                          |
 | `src/daemon/`                       | MCP channel-driven `daemon` command.                                                                                                |
 | `src/acp/`                          | Agent Client Protocol (ACP) stdio server.                                                                                           |
-| `src/core/prompts/`                 | Static Markdown prompts, harness prompts, session-mode prompts, agent prompts.                                                      |
-| `src/core/skills/built-in/`         | Built-in skills shipped with the package (e.g. `hooman-coding`, `hooman-config`, `hooman-mcp`, `hooman-channels`, `hooman-skills`). |
 | `scripts/copy-bundled-assets.mjs`   | Post-build step that copies Markdown skill/prompt assets into `dist/`.                                                              |
 | `reference/`                        | Vendored reference code from other agent projects. **Not source code** — do not edit as part of feature work.                       |
 | `.github/workflows/publish-npm.yml` | CI that installs, builds, and publishes to npm on version tags.                                                                     |
@@ -82,13 +89,14 @@ hooman configure                        # TUI for config, MCP servers, skills
 hooman acp                              # ACP agent over stdio
 hooman mcp auth <server>                # OAuth login for a configured MCP server
 hooman mcp logout <server>              # Clear stored OAuth credentials
+hooman mcp logout <server> --scope all  # Scope: all, client, tokens, discovery
 hooman mcp auth-status                  # Show MCP server auth status
 ```
 
 Common flags on `exec`, `chat`, and `daemon`:
 
 - `-s, --session <id>` — pin or resume a session id.
-- `-m, --mode <default|ask>` — tool surface mode (`ask` is read-oriented and omits plan-lifecycle tools).
+- `-m, --mode <agent|ask|plan>` — tool surface mode. `agent` is the full default surface; `ask` is read-oriented and omits plan-lifecycle tools; `plan` is the plan-file workflow.
 - `--yolo` — auto-approve all tool calls.
 - `--debug` (daemon only) — log raw MCP channel payloads.
 

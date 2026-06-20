@@ -11,12 +11,16 @@ type TranscriptLineProps = {
 
 /** Renders a single transcript entry by role. Shared by the committed (Static) history and the live region. */
 export function TranscriptLine({ line, assistantName }: TranscriptLineProps) {
-  return line.role === "tool" ? (
-    <ToolEvent line={line} />
-  ) : line.role === "thought" ? (
-    <ThoughtEvent line={line} assistantName={assistantName} />
-  ) : (
-    <ChatMessage line={line} assistantName={assistantName} />
+  return (
+    <Box flexDirection="column" marginBottom={1} width="100%">
+      {line.role === "tool" ? (
+        <ToolEvent line={line} />
+      ) : line.role === "thought" ? (
+        <ThoughtEvent line={line} assistantName={assistantName} />
+      ) : (
+        <ChatMessage line={line} assistantName={assistantName} />
+      )}
+    </Box>
   );
 }
 
