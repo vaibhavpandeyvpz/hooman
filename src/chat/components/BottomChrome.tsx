@@ -31,6 +31,7 @@ type BottomChromeProps = {
   totalTools: number;
   skillsFound: number;
   manager: McpManager;
+  mcpNeedsAttention: boolean;
   usage: {
     inputTokens: number;
     outputTokens: number;
@@ -67,6 +68,7 @@ export function BottomChrome({
   totalTools,
   skillsFound,
   manager,
+  mcpNeedsAttention,
   usage,
   todoState,
   queuedPrompts,
@@ -135,6 +137,7 @@ export function BottomChrome({
         totalTools={totalTools}
         skillsFound={skillsFound}
         manager={manager}
+        mcpNeedsAttention={mcpNeedsAttention}
         usage={usage}
       />
     </Box>

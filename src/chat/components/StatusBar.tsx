@@ -27,6 +27,7 @@ type StatusBarProps = {
   totalTools: number;
   skillsFound: number;
   manager: McpManager;
+  mcpNeedsAttention: boolean;
   usage: {
     inputTokens: number;
     outputTokens: number;
@@ -82,6 +83,7 @@ export function StatusBar({
   totalTools,
   skillsFound,
   manager,
+  mcpNeedsAttention,
   usage,
 }: StatusBarProps) {
   const sessionShort = shortSessionId(sessionId);
@@ -107,7 +109,11 @@ export function StatusBar({
         {running ? ` • elapsed ${elapsedLabel}` : ""}
       </Text>
       <Text color="gray">
-        {`mcp servers: ${manager.clients.size} • tools: ${totalTools} • skills: ${skillsFound}`}
+        {`mcp servers: ${manager.clients.size}`}
+        {mcpNeedsAttention ? (
+          <Text color="yellow"> (needs attention)</Text>
+        ) : null}
+        {` • tools: ${totalTools} • skills: ${skillsFound}`}
       </Text>
     </Box>
   );

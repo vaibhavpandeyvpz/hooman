@@ -27,38 +27,17 @@ function printSessionResumeHint(program: string, sessionId: string): void {
   const exe = program.trim() || "hooman";
   console.log("");
   console.log(
-    styleText(["dim", "gray"], ` Resume using: ${exe} chat -s ${sessionId}`),
+    ` ${styleText(["white", "bold"], "Resume using:")} ${styleText(
+      ["white"],
+      `${exe} chat -s ${sessionId}`,
+    )}`,
   );
-}
-
-async function printMcpAuthHint(
-  manager: McpManager,
-  program: string,
-): Promise<void> {
-  const exe = program.trim() || "hooman";
-  const rows = await manager.listAuthStatuses().catch(() => []);
-  const pending = rows.filter(
-    (row) => row.status === "unauthenticated" || row.status === "expired",
-  );
-  if (pending.length === 0) {
-    return;
-  }
-
-  console.log("");
-  console.log(
-    styleText(
-      ["yellow"],
-      " Some MCP servers need OAuth before their tools can be used:",
-    ),
-  );
-  for (const row of pending) {
-    const suffix = row.status === "expired" ? " (expired)" : "";
-    console.log(` - ${row.name}${suffix}: ${exe} mcp auth ${row.name}`);
-  }
 }
 
 export async function chat(options: LaunchChatOptions): Promise<boolean> {
-  await printMcpAuthHint(options.manager, options.program ?? "hooman");
+  // MCP auth state is surfaced inline in the status bar ("mcp servers: N (needs
+  // attention)") rather than printed above the chat, so the banner/transcript
+  // starts at the top of a clean screen.
   let done = false;
   const { waitUntilExit, unmount } = render(
     <ChatApp
@@ -75,7 +54,9 @@ export async function chat(options: LaunchChatOptions): Promise<boolean> {
       }}
     />,
     {
-      alternateScreen: true,
+      // Render into the normal terminal buffer (not the alternate screen) so
+      // finished transcript lines flushed via <Static> become real scrollback.
+      // The terminal's own scrolling then works natively; no manual paging.
       exitOnCtrlC: false,
     },
   );

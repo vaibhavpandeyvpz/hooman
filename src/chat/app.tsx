@@ -6,7 +6,7 @@ import React, {
   useState,
 } from "react";
 import fastq from "fastq";
-import { Box, useApp, useInput, useWindowSize } from "ink";
+import { Box, Static, useApp, useInput, useWindowSize } from "ink";
 import {
   Message,
   TextBlock,
@@ -30,7 +30,8 @@ import { takeFileToolDisplay } from "../core/state/file-tool-display.js";
 import { ChatApprovalController } from "./approvals.js";
 import { ChatTurnSteeringController } from "./steering.js";
 import { BottomChrome } from "./components/BottomChrome.js";
-import { Transcript } from "./components/Transcript.js";
+import { LiveTranscript, TranscriptLine } from "./components/Transcript.js";
+import { EmptyChatBanner } from "./components/EmptyChatBanner.js";
 import type { ApprovalRequest, ChatLine } from "./types.js";
 import { getTodoViewState, type TodoViewState } from "../core/state/todos.js";
 import { isExitRequested } from "../core/state/exit-request.js";
@@ -360,51 +361,6 @@ function matchingSlashCommands(
   return SLASH_COMMANDS.filter((item) => item.name.startsWith(query));
 }
 
-function estimateChromeRows(params: {
-  running: boolean;
-  todoCount: number;
-  queueCount: number;
-  pendingApproval: boolean;
-  picker: ChatPicker;
-  slashCommandCount: number;
-}): number {
-  let rows = 8;
-
-  if (params.running && params.todoCount > 0) {
-    rows += 2 + params.todoCount;
-  }
-
-  if (params.queueCount > 0) {
-    rows += 2 + params.queueCount;
-  }
-
-  if (params.pendingApproval) {
-    rows += 4;
-    return rows;
-  }
-
-  if (params.picker === "model") {
-    rows += 2 + 4;
-    return rows;
-  }
-
-  if (params.picker === "yolo") {
-    rows += 2 + 2;
-    return rows;
-  }
-
-  if (params.picker === "mode") {
-    rows += 2 + 3;
-    return rows;
-  }
-
-  if (params.slashCommandCount > 0) {
-    rows += params.slashCommandCount + 1;
-  }
-
-  return rows;
-}
-
 export function ChatApp({
   agent,
   config,
@@ -439,7 +395,7 @@ export function ChatApp({
   }, []);
   const [slashHighlightIndex, setSlashHighlightIndex] = useState(0);
   const [queuedPrompts, setQueuedPrompts] = useState<QueuedPrompt[]>([]);
-  const [transcriptScrollOffset, setTranscriptScrollOffset] = useState(0);
+  const [mcpNeedsAttention, setMcpNeedsAttention] = useState(false);
   const [todoState, setTodoState] = useState<TodoViewState>(() =>
     getTodoViewState(agent),
   );
@@ -479,6 +435,33 @@ export function ChatApp({
       cancelled = true;
     };
   }, [registry]);
+
+  // Surface MCP OAuth state in the status bar. Re-checked whenever a turn ends,
+  // since a tool call may have triggered (or completed) an auth flow mid-session.
+  useEffect(() => {
+    let cancelled = false;
+    void manager
+      .listAuthStatuses()
+      .then((rows) => {
+        if (cancelled) {
+          return;
+        }
+        setMcpNeedsAttention(
+          rows.some(
+            (row) =>
+              row.status === "unauthenticated" || row.status === "expired",
+          ),
+        );
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setMcpNeedsAttention(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [manager, running]);
 
   useEffect(() => {
     if (!running || turnStartedAt === null) {
@@ -1109,7 +1092,6 @@ export function ChatApp({
         id: nowId(),
         prompt: { ...normalized, text: trimmed },
       };
-      setTranscriptScrollOffset(0);
       setQueuedPrompts((prev) => [...prev, item]);
       void queueRef.current?.push(item).catch((error) => {
         if (!mountedRef.current) {
@@ -1214,28 +1196,9 @@ export function ChatApp({
       if (isMouseInput(inputKey)) {
         return;
       }
-      if (!key.ctrl && !key.meta && !key.super) {
-        if (key.pageUp) {
-          setTranscriptScrollOffset((offset) =>
-            Math.min(Math.max(0, lines.length - 1), offset + transcriptScrollStep),
-          );
-          return;
-        }
-        if (key.pageDown) {
-          setTranscriptScrollOffset((offset) =>
-            Math.max(0, offset - transcriptScrollStep),
-          );
-          return;
-        }
-        if (key.home) {
-          setTranscriptScrollOffset(Math.max(0, lines.length - 1));
-          return;
-        }
-        if (key.end) {
-          setTranscriptScrollOffset(0);
-          return;
-        }
-      }
+      // Scrolling is handled natively by the terminal: finished transcript
+      // lines are flushed to real scrollback via <Static>, so the user scrolls
+      // with their mouse/trackpad/terminal like any other command output.
       if (key.ctrl && inputKey.toLowerCase() === "c") {
         if (runningRef.current) {
           agent.cancel();
@@ -1278,96 +1241,98 @@ export function ChatApp({
 
   const inputHint =
     running && queuedPrompts.length > 0 ? INPUT_HINT_WITH_STEERING : INPUT_HINT;
-  const transcriptRows = useMemo(
-    () =>
-      Math.max(
-        6,
-        windowSize.rows -
-          estimateChromeRows({
-            running,
-            todoCount: todoState.visible ? todoState.todos.length : 0,
-            queueCount: queuedPrompts.length,
-            pendingApproval: Boolean(pendingApproval),
-            picker,
-            slashCommandCount:
-              !pendingApproval && !picker ? slashCommands.length : 0,
-          }) -
-          2,
-      ),
-    [
-      pendingApproval,
-      picker,
-      queuedPrompts.length,
-      running,
-      slashCommands.length,
-      todoState.todos.length,
-      todoState.visible,
-      windowSize.rows,
-    ],
+
+  // Split the transcript at the first not-yet-finalized entry. Everything before
+  // it is final and append-only, so it can be flushed to the terminal scrollback
+  // via <Static> (printed once, never re-rendered). Everything from there on is
+  // the live tail that Ink keeps re-rendering: streaming text, running tools,
+  // active reasoning. Using the done-prefix (rather than per-line `done`)
+  // guarantees Static only ever grows and stays in chronological order even when
+  // tools finish out of order.
+  const committedCount = useMemo(() => {
+    let end = 0;
+    while (end < lines.length && lines[end]?.done) {
+      end += 1;
+    }
+    return end;
+  }, [lines]);
+  const committedLines = useMemo(
+    () => lines.slice(0, committedCount),
+    [lines, committedCount],
   );
-  const transcriptScrollStep = useMemo(
-    () => Math.max(1, Math.floor(transcriptRows / 3)),
-    [transcriptRows],
+  const liveLines = useMemo(
+    () => lines.slice(committedCount),
+    [lines, committedCount],
   );
 
-  useEffect(() => {
-    setTranscriptScrollOffset((offset) => Math.min(offset, lines.length - 1));
-  }, [lines.length]);
+  // Before the first prompt there is nothing in scrollback yet, so grow the live
+  // region to the full viewport and vertically center the banner (with the
+  // composer pinned to the bottom). Once any line exists the region collapses to
+  // its natural height and finished lines flow into the terminal scrollback.
+  const isEmpty = lines.length === 0;
 
   return (
-    <Box
-      flexDirection="column"
-      width="100%"
-      paddingX={1}
-      height={Math.max(1, windowSize.rows - 1)}
-    >
-      <Transcript
-        lines={lines}
-        assistantName={config.name}
-        showEmptyBanner={lines.length === 0}
-        marginTop={1}
-        maxRows={transcriptRows}
-        scrollOffset={transcriptScrollOffset}
-      />
-      <BottomChrome
-        config={config}
-        running={running}
-        status={status}
-        sessionId={sessionId}
-        currentModel={currentModelLabel(config)}
-        yoloOn={isYoloEnabled(agent)}
-        sessionMode={getModeState(agent).mode}
-        elapsedLabel={elapsedLabel}
-        turnCount={turnCount}
-        totalTools={totalTools}
-        skillsFound={skillsFound}
-        manager={manager}
-        usage={usage}
-        todoState={todoState}
-        queuedPrompts={queuedPrompts}
-        pendingApproval={Boolean(pendingApproval)}
-        picker={picker}
-        slashCommands={slashCommands}
-        slashHighlightIndex={slashHighlightIndex}
-        input={input}
-        inputHint={inputHint}
-        slashMenu={slashMenu}
-        onApprovalDecision={(decision) => approvals.decide(decision)}
-        onModelSelect={(name) => {
-          setPicker(null);
-          void handleModelCommand(name);
-        }}
-        onYoloSelect={(value) => {
-          setPicker(null);
-          void handleYoloCommand(value);
-        }}
-        onModeSelect={(value) => {
-          setPicker(null);
-          void handleModeCommand(value);
-        }}
-        onInputChange={setInput}
-        onSubmit={onSubmit}
-      />
+    <Box flexDirection="column" width="100%">
+      <Static items={committedLines}>
+        {(line) => (
+          <Box key={line.id} paddingX={1}>
+            <TranscriptLine line={line} assistantName={config.name} />
+          </Box>
+        )}
+      </Static>
+      <Box
+        flexDirection="column"
+        width="100%"
+        paddingX={1}
+        {...(isEmpty ? { height: Math.max(1, windowSize.rows - 1) } : {})}
+      >
+        {isEmpty ? (
+          <Box flexDirection="column" flexGrow={1} justifyContent="center">
+            <EmptyChatBanner />
+          </Box>
+        ) : null}
+        <LiveTranscript lines={liveLines} assistantName={config.name} />
+        <BottomChrome
+          config={config}
+          running={running}
+          status={status}
+          sessionId={sessionId}
+          currentModel={currentModelLabel(config)}
+          yoloOn={isYoloEnabled(agent)}
+          sessionMode={getModeState(agent).mode}
+          elapsedLabel={elapsedLabel}
+          turnCount={turnCount}
+          totalTools={totalTools}
+          skillsFound={skillsFound}
+          manager={manager}
+          mcpNeedsAttention={mcpNeedsAttention}
+          usage={usage}
+          todoState={todoState}
+          queuedPrompts={queuedPrompts}
+          pendingApproval={Boolean(pendingApproval)}
+          picker={picker}
+          slashCommands={slashCommands}
+          slashHighlightIndex={slashHighlightIndex}
+          input={input}
+          inputHint={inputHint}
+          slashMenu={slashMenu}
+          onApprovalDecision={(decision) => approvals.decide(decision)}
+          onModelSelect={(name) => {
+            setPicker(null);
+            void handleModelCommand(name);
+          }}
+          onYoloSelect={(value) => {
+            setPicker(null);
+            void handleYoloCommand(value);
+          }}
+          onModeSelect={(value) => {
+            setPicker(null);
+            void handleModeCommand(value);
+          }}
+          onInputChange={setInput}
+          onSubmit={onSubmit}
+        />
+      </Box>
     </Box>
   );
 }
