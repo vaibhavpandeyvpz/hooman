@@ -30,7 +30,6 @@ import {
   skillsPath,
 } from "../core/utils/paths.js";
 import { BusyScreen } from "./components/BusyScreen.js";
-import { HomeScreen } from "./components/HomeScreen.js";
 import { MenuScreen } from "./components/MenuScreen.js";
 import { PromptForm } from "./components/PromptForm.js";
 import { openFileInEditor } from "./open-in-editor.js";
@@ -843,9 +842,7 @@ export function ConfigureApp({
   const renderHome = () => {
     const items: MenuItem[] = [
       {
-        label: `Inference • ${llmSummary(
-          config.llms.find((m) => m.default) ?? config.llms[0]!,
-        )}`,
+        label: "Inference",
         value: () => setScreen({ kind: "config" }),
       },
       {
@@ -887,13 +884,13 @@ export function ConfigureApp({
       },
     ];
     return (
-      <HomeScreen
-        rootPath={basePath()}
-        configPath={configJsonPath()}
-        instructionsPath={instructionsMdPath()}
-        mcpPath={mcpJsonPath()}
-        skillsPath={skillsPath()}
+      <MenuScreen
+        title={configData.name}
+        description={`inference: ${llmSummary(
+          config.llms.find((m) => m.default) ?? config.llms[0]!,
+        )}`}
         items={items}
+        footerHint="enter: select | ctrl+c: exit"
       />
     );
   };
@@ -2091,14 +2088,6 @@ export function ConfigureApp({
           <Text color={noticeColor(notice.kind)}>{notice.text}</Text>
         </Box>
       ) : null}
-
-      <Box marginTop={1}>
-        <Text color="gray">
-          {`inference: ${llmSummary(
-            config.llms.find((m) => m.default) ?? config.llms[0]!,
-          )} • mcp: ${mcpServers.length} • skills: ${installedSkills.length}`}
-        </Text>
-      </Box>
 
       {body}
     </Box>
