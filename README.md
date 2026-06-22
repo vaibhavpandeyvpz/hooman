@@ -21,7 +21,7 @@ It gives you a practical toolkit to build and run agent workflows:
 - a one-shot `exec` command for single prompts
 - a stateful `chat` interface for iterative sessions
 - a `daemon` command for channel-driven MCP automation
-- an Ink-powered `configure` workflow for app config, prompts, MCP servers, and installed skills
+- an in-chat `/config` workflow (Ink-powered) for app config, prompts, MCP servers, and installed skills
 - an `acp` command for running Hooman as an Agent Client Protocol (ACP) agent over stdio
 
 ## Related
@@ -53,7 +53,6 @@ It gives you a practical toolkit to build and run agent workflows:
 Fastest way to get started without cloning the repo:
 
 ```bash
-npx hoomanjs configure
 npx hoomanjs
 
 # or install globally
@@ -63,14 +62,13 @@ npm i -g hoomanjs
 Or with Bun:
 
 ```bash
-bunx hoomanjs configure
 bunx hoomanjs
 ```
 
 Recommended first run:
 
-1. Run `hooman configure` to choose your LLM provider and model.
-2. Start chatting with `hooman` (same as `hooman chat`).
+1. Start chatting with `hooman` (same as `hooman chat`).
+2. Run `/config` in chat to choose your LLM provider and model, and to manage MCP servers and skills.
 3. Use `hooman exec "your prompt"` for one-off tasks.
 
 ## Must have
@@ -182,6 +180,18 @@ Start in ask mode:
 hooman chat --mode ask
 ```
 
+### Chat commands
+
+Inside an interactive `chat` session, type `/` to discover slash commands:
+
+- `/model` - pick or set the chat model for this session.
+- `/mode` - switch the session mode (`agent`, `ask`, `plan`); see [Session mode](#session-mode).
+- `/yolo` - toggle auto-approve of tool calls (`on` / `off`).
+- `/init` - generate or refresh `AGENTS.md` for the current project.
+- `/compact` - compact the conversation history now and persist the result.
+- `/new` - start a fresh chat session.
+- `/config` - launch the configuration workflow (see below).
+
 ### Session mode
 
 `exec`, `chat`, and `daemon` accept **`-m` / `--mode`** with:
@@ -243,15 +253,15 @@ Runtime tool and prompt switches are controlled from `config.json`:
 - `tools.agents.enabled` (enables built-in `run_subagents` tool)
 - `tools.agents.concurrency` (defaults to `3` when omitted on load; a freshly generated default `config.json` uses `2`)
 
-### `hooman configure`
+### `/config`
 
-Open the Ink configuration workflow.
+The configuration workflow is launched from inside a `chat` session with the `/config` slash command (there is no separate top-level `configure` command). It takes over the terminal on the alternate screen buffer while open, and restores the chat session on exit. Any config changes are picked up when the session re-bootstraps.
 
-```bash
-hooman configure
+```text
+/config
 ```
 
-The configure UI currently lets you:
+The configuration UI currently lets you:
 
 - edit app configuration values
 - choose search provider and set its API key
@@ -751,7 +761,7 @@ The local skills folder is treated as a parent directory of skill subdirectories
 
 When a session starts, the plugin injects available skill metadata into the system prompt and exposes the `skills` tool so the model can activate a skill and load its full instructions on demand.
 
-The configure workflow can:
+The `/config` workflow can:
 
 - search the public skills catalog
 - install a skill from a source string, repo, URL, or local path

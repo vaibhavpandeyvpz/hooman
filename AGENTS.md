@@ -85,7 +85,6 @@ Other top-level commands:
 ```bash
 hooman exec "prompt"                    # one-shot prompt
 hooman daemon                           # long-lived MCP channel listener
-hooman configure                        # TUI for config, MCP servers, skills
 hooman acp                              # ACP agent over stdio
 hooman mcp auth <server>                # OAuth login for a configured MCP server
 hooman mcp logout <server>              # Clear stored OAuth credentials
@@ -93,12 +92,16 @@ hooman mcp logout <server> --scope all  # Scope: all, client, tokens, discovery
 hooman mcp auth-status                  # Show MCP server auth status
 ```
 
+There is no top-level `configure` command. The configuration TUI is launched from inside a `chat` session via the `/config` slash command (see in-chat commands below).
+
 Common flags on `exec`, `chat`, and `daemon`:
 
 - `-s, --session <id>` — pin or resume a session id.
 - `-m, --mode <agent|ask|plan>` — tool surface mode. `agent` is the full default surface; `ask` is read-oriented and omits plan-lifecycle tools; `plan` is the plan-file workflow.
 - `--yolo` — auto-approve all tool calls.
 - `--debug` (daemon only) — log raw MCP channel payloads.
+
+In-chat slash commands (interactive `chat`): `/model`, `/mode`, `/yolo`, `/init`, `/compact` (compact history now), `/new` (start a fresh session), and `/config` (launch the configuration TUI on the alternate screen, restoring chat on exit).
 
 ## Configuration layout
 
