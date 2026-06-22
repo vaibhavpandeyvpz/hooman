@@ -548,6 +548,10 @@ export function ChatApp({
     );
   }, []);
 
+  const removeLine = useCallback((id: string) => {
+    setLines((prev) => prev.filter((line) => line.id !== id));
+  }, []);
+
   const moveLineToEnd = useCallback((id: string) => {
     setLines((prev) => {
       const index = prev.findIndex((line) => line.id === id);
@@ -600,11 +604,18 @@ export function ChatApp({
     if (!id) {
       return;
     }
-    updateLine(id, { done: true });
+    const text = `${assistantCommittedTextRef.current}${
+      streamedAssistantBlockRef.current ?? ""
+    }`;
+    if (text.trim().length === 0) {
+      removeLine(id);
+    } else {
+      updateLine(id, { done: true });
+    }
     assistantLineIdRef.current = null;
     assistantCommittedTextRef.current = "";
     streamedAssistantBlockRef.current = null;
-  }, [updateLine]);
+  }, [removeLine, updateLine]);
 
   const ensureAssistantLine = useCallback((): string => {
     const existing = assistantLineIdRef.current;
