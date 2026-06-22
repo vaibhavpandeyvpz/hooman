@@ -23,6 +23,11 @@ type LaunchChatOptions = {
   program?: string;
 };
 
+export type ChatResult = {
+  exitRequested: boolean;
+  startNewSession: boolean;
+};
+
 function printSessionResumeHint(program: string, sessionId: string): void {
   const exe = program.trim() || "hooman";
   console.log("");
@@ -34,11 +39,12 @@ function printSessionResumeHint(program: string, sessionId: string): void {
   );
 }
 
-export async function chat(options: LaunchChatOptions): Promise<boolean> {
+export async function chat(options: LaunchChatOptions): Promise<ChatResult> {
   // MCP auth state is surfaced inline in the status bar ("mcp servers: N (needs
   // attention)") rather than printed above the chat, so the banner/transcript
   // starts at the top of a clean screen.
   let done = false;
+  let startNewSession = false;
   const { waitUntilExit, unmount } = render(
     <ChatApp
       agent={options.agent}
@@ -51,6 +57,10 @@ export async function chat(options: LaunchChatOptions): Promise<boolean> {
       steering={options.steering}
       onExit={() => {
         done = true;
+      }}
+      onNewSession={() => {
+        done = true;
+        startNewSession = true;
       }}
     />,
     {
@@ -68,6 +78,11 @@ export async function chat(options: LaunchChatOptions): Promise<boolean> {
       unmount();
     }
   }
-  printSessionResumeHint(options.program ?? "hooman", options.sessionId);
-  return consumeExitRequest(options.agent);
+  if (!startNewSession) {
+    printSessionResumeHint(options.program ?? "hooman", options.sessionId);
+  }
+  return {
+    exitRequested: consumeExitRequest(options.agent),
+    startNewSession,
+  };
 }

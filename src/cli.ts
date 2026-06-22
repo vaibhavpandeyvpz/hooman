@@ -28,6 +28,8 @@ import {
   consumeExitRequest,
   EXIT_REQUESTED_CODE,
 } from "./core/state/exit-request.js";
+import { getModeState, type SessionMode } from "./core/state/session-mode.js";
+import { isYoloEnabled } from "./core/state/yolo.js";
 import { formatModeNames, getModeIds } from "./core/modes/index.js";
 
 async function readPackageMeta(): Promise<{
@@ -143,50 +145,64 @@ program
   .addOption(cliYoloOption("interactive"))
   .action(
     async (prompt: string | undefined, options: CliAgentBootstrapFlags) => {
-      const sessionId = options.session?.trim() || crypto.randomUUID();
       const config = createSessionConfig();
-      const approvals = new ChatApprovalController();
-      const steering = new ChatTurnSteeringController();
-      const {
-        agent,
-        mcp: { manager },
-        registry,
-      } = await bootstrap(
-        "default",
-        {
-          userId: "default",
-          sessionId,
-          yolo: Boolean(options.yolo),
-          sessionMode: options.mode,
-          interventions: [
-            createChatApprovalIntervention(approvals),
-            createChatTurnSteeringIntervention(steering),
-          ],
-        },
-        false,
-        config,
-      );
-
+      let currentSessionId = options.session?.trim() || crypto.randomUUID();
+      let currentPrompt = prompt?.trim() || undefined;
+      let currentYolo = Boolean(options.yolo);
+      let currentMode = options.mode as SessionMode;
       let exitRequested = false;
-      try {
-        exitRequested = await chat({
+      while (true) {
+        const approvals = new ChatApprovalController();
+        const steering = new ChatTurnSteeringController();
+        const {
           agent,
-          config,
-          manager,
+          mcp: { manager },
           registry,
-          sessionId,
-          prompt: prompt?.trim() || undefined,
-          approvals,
-          steering,
-          program: packageMeta.name,
-        });
-      } finally {
+        } = await bootstrap(
+          "default",
+          {
+            userId: "default",
+            sessionId: currentSessionId,
+            yolo: currentYolo,
+            sessionMode: currentMode,
+            interventions: [
+              createChatApprovalIntervention(approvals),
+              createChatTurnSteeringIntervention(steering),
+            ],
+          },
+          false,
+          config,
+        );
+
         try {
-          await flushAgentMemory(agent);
-        } catch {}
-        try {
-          await manager.disconnect();
-        } catch {}
+          const result = await chat({
+            agent,
+            config,
+            manager,
+            registry,
+            sessionId: currentSessionId,
+            prompt: currentPrompt,
+            approvals,
+            steering,
+            program: packageMeta.name,
+          });
+          if (result.startNewSession) {
+            currentSessionId = crypto.randomUUID();
+            currentPrompt = undefined;
+            currentYolo = isYoloEnabled(agent);
+            currentMode = getModeState(agent).mode;
+            continue;
+          }
+          exitRequested = result.exitRequested;
+          break;
+        } finally {
+          try {
+            await flushAgentMemory(agent);
+          } catch {}
+          try {
+            await manager.disconnect();
+          } catch {}
+        }
       }
       if (exitRequested) {
         process.exit(EXIT_REQUESTED_CODE);

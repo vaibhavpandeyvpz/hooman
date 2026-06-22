@@ -70,6 +70,7 @@ type ChatAppProps = {
   steering: ChatTurnSteeringController;
   prompt?: string;
   onExit: () => void;
+  onNewSession: () => void;
 };
 
 type QueuedPrompt = {
@@ -331,6 +332,10 @@ function listModelsText(config: Config): string {
 
 const SLASH_COMMANDS = [
   {
+    name: "compact",
+    description: "Compact conversation history now.",
+  },
+  {
     name: "init",
     description: "Generate or refresh AGENTS.md for this project.",
   },
@@ -343,12 +348,12 @@ const SLASH_COMMANDS = [
     description: "Pick or set the chat model.",
   },
   {
-    name: "yolo",
-    description: "Auto-approve tools (on|off).",
+    name: "new",
+    description: "Start a new chat session.",
   },
   {
-    name: "compact",
-    description: "Compact conversation history now.",
+    name: "yolo",
+    description: "Auto-approve tools (on|off).",
   },
 ] as const;
 
@@ -379,6 +384,7 @@ export function ChatApp({
   steering,
   prompt,
   onExit,
+  onNewSession,
 }: ChatAppProps): React.JSX.Element {
   const { exit } = useApp();
   const windowSize = useWindowSize();
@@ -899,6 +905,21 @@ export function ChatApp({
     }
   }, [agent, appendLine]);
 
+  const handleNewCommand = useCallback(() => {
+    if (runningRef.current) {
+      appendLine({
+        id: nowId(),
+        role: "system",
+        title: "new",
+        content: "Wait for the active turn to finish before starting a new session.",
+        done: true,
+      });
+      return;
+    }
+    onNewSession();
+    exit();
+  }, [appendLine, exit, onNewSession]);
+
   const runTurn = useCallback(
     async (prompt: PromptSubmission) => {
       const trimmed = prompt.text.trim();
@@ -1264,6 +1285,11 @@ export function ChatApp({
           setInput("");
           return;
         }
+        if (command.name === "new") {
+          handleNewCommand();
+          setInput("");
+          return;
+        }
       }
       if (pushPrompt(value)) {
         setInput("");
@@ -1274,6 +1300,7 @@ export function ChatApp({
       handleModelCommand,
       handleCompactCommand,
       handleModeCommand,
+      handleNewCommand,
       handleYoloCommand,
       pendingApproval,
       pushPrompt,
