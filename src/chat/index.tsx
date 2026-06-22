@@ -25,7 +25,7 @@ type LaunchChatOptions = {
 
 export type ChatResult = {
   exitRequested: boolean;
-  startNewSession: boolean;
+  nextAction: "exit" | "new" | "configure";
 };
 
 function printSessionResumeHint(program: string, sessionId: string): void {
@@ -44,7 +44,7 @@ export async function chat(options: LaunchChatOptions): Promise<ChatResult> {
   // attention)") rather than printed above the chat, so the banner/transcript
   // starts at the top of a clean screen.
   let done = false;
-  let startNewSession = false;
+  let nextAction: ChatResult["nextAction"] = "exit";
   const { waitUntilExit, unmount } = render(
     <ChatApp
       agent={options.agent}
@@ -60,7 +60,11 @@ export async function chat(options: LaunchChatOptions): Promise<ChatResult> {
       }}
       onNewSession={() => {
         done = true;
-        startNewSession = true;
+        nextAction = "new";
+      }}
+      onConfigure={() => {
+        done = true;
+        nextAction = "configure";
       }}
     />,
     {
@@ -78,11 +82,11 @@ export async function chat(options: LaunchChatOptions): Promise<ChatResult> {
       unmount();
     }
   }
-  if (!startNewSession) {
+  if (nextAction === "exit") {
     printSessionResumeHint(options.program ?? "hooman", options.sessionId);
   }
   return {
     exitRequested: consumeExitRequest(options.agent),
-    startNewSession,
+    nextAction,
   };
 }

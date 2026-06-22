@@ -71,6 +71,7 @@ type ChatAppProps = {
   prompt?: string;
   onExit: () => void;
   onNewSession: () => void;
+  onConfigure: () => void;
 };
 
 type QueuedPrompt = {
@@ -336,6 +337,10 @@ const SLASH_COMMANDS = [
     description: "Compact conversation history now.",
   },
   {
+    name: "config",
+    description: "Launch the configuration flow.",
+  },
+  {
     name: "init",
     description: "Generate or refresh AGENTS.md for this project.",
   },
@@ -385,6 +390,7 @@ export function ChatApp({
   prompt,
   onExit,
   onNewSession,
+  onConfigure,
 }: ChatAppProps): React.JSX.Element {
   const { exit } = useApp();
   const windowSize = useWindowSize();
@@ -920,6 +926,22 @@ export function ChatApp({
     exit();
   }, [appendLine, exit, onNewSession]);
 
+  const handleConfigCommand = useCallback(() => {
+    if (runningRef.current) {
+      appendLine({
+        id: nowId(),
+        role: "system",
+        title: "config",
+        content:
+          "Wait for the active turn to finish before launching configuration.",
+        done: true,
+      });
+      return;
+    }
+    onConfigure();
+    exit();
+  }, [appendLine, exit, onConfigure]);
+
   const runTurn = useCallback(
     async (prompt: PromptSubmission) => {
       const trimmed = prompt.text.trim();
@@ -1285,6 +1307,11 @@ export function ChatApp({
           setInput("");
           return;
         }
+        if (command.name === "config") {
+          handleConfigCommand();
+          setInput("");
+          return;
+        }
         if (command.name === "new") {
           handleNewCommand();
           setInput("");
@@ -1299,6 +1326,7 @@ export function ChatApp({
       appendLine,
       handleModelCommand,
       handleCompactCommand,
+      handleConfigCommand,
       handleModeCommand,
       handleNewCommand,
       handleYoloCommand,

@@ -186,7 +186,17 @@ program
             steering,
             program: packageMeta.name,
           });
-          if (result.startNewSession) {
+          if (result.nextAction === "configure") {
+            await configure();
+            config.reload();
+            currentPrompt = undefined;
+            // The config flow restored the chat screen on exit; clear it so the
+            // re-bootstrapped session (which picks up any config changes) renders
+            // cleanly instead of stacking below the restored frame.
+            process.stdout.write("\x1b[2J\x1b[3J\x1b[H");
+            continue;
+          }
+          if (result.nextAction === "new") {
             currentSessionId = crypto.randomUUID();
             currentPrompt = undefined;
             currentYolo = isYoloEnabled(agent);
@@ -259,13 +269,6 @@ program
     if (exitRequested) {
       process.exit(EXIT_REQUESTED_CODE);
     }
-  });
-
-program
-  .command("configure")
-  .description("Manage app config, MCP servers, and installed skills.")
-  .action(async () => {
-    await configure();
   });
 
 const mcp = program
