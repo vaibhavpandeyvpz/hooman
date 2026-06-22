@@ -1,6 +1,7 @@
 import {
   Agent,
   BeforeInvocationEvent,
+  HookOrder,
   type InterventionHandler,
 } from "@strands-agents/sdk";
 import type { Tool } from "@strands-agents/sdk";
@@ -27,7 +28,10 @@ import {
   createWebSearchTools,
 } from "../tools/index.js";
 import { createSessionModePromptPlugin } from "../prompts/session-mode-appendix.js";
-import { createAgentSkillsPlugin } from "../skills/index.js";
+import {
+  clearAgentSkillsPromptInjectionState,
+  createAgentSkillsPlugin,
+} from "../skills/index.js";
 import { ModeAwareToolRegistry } from "./mode-aware-tool-registry.js";
 import { applySessionMode } from "./sync-tool-registry-mode.js";
 import { clearTodoState } from "../state/todos.js";
@@ -118,11 +122,16 @@ export async function create(
   (agent as unknown as { _toolRegistry: ModeAwareToolRegistry })._toolRegistry =
     new ModeAwareToolRegistry(agent.toolRegistry.list());
   await agent.initialize();
-  agent.addHook(BeforeInvocationEvent, async (event) => {
-    clearTodoState(event.agent);
-    clearReadTimeAgentInstructionState(event.agent);
-    event.agent.systemPrompt = await buildBaseSystemPrompt();
-  });
+  agent.addHook(
+    BeforeInvocationEvent,
+    async (event) => {
+      clearTodoState(event.agent);
+      clearReadTimeAgentInstructionState(event.agent);
+      clearAgentSkillsPromptInjectionState(event.agent);
+      event.agent.systemPrompt = await buildBaseSystemPrompt();
+    },
+    { order: HookOrder.SDK_FIRST - 1 },
+  );
   applySessionMode(agent);
   return agent;
 }
