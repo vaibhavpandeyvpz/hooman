@@ -44,8 +44,9 @@ export type SystemMode = "default" | "daemon" | "acp";
 const SECTION_BREAK = "\n\n---\n\n";
 
 /**
- * Loads `prompts/static/*.md` from the package, then `instructions.md` from disk,
- * concatenates them, and renders with Handlebars using `context`.
+ * Loads `prompts/static/*.md` from the package plus `instructions.md` from disk,
+ * renders those template-backed sources with Handlebars, then appends `AGENTS.md`
+ * content as literal text.
  */
 export class System {
   private readonly path: string;
@@ -153,13 +154,12 @@ export class System {
     return parts.join("|");
   }
 
-  private readRawText(): string {
+  private readTemplateText(): string {
     const instructions = existsSync(this.path)
       ? readFileSync(this.path, "utf8").trim()
       : "";
     const bundled = this.readBundledStaticPrompts();
     const harness = this.readBundledHarnessPrompts();
-    const extra = this.readCwdAgentsInstructions();
 
     const blocks: string[] = [];
     if (bundled.length > 0) {
@@ -170,9 +170,6 @@ export class System {
     }
     if (instructions.length > 0) {
       blocks.push(instructions);
-    }
-    if (extra.length > 0) {
-      blocks.push(extra);
     }
     if (blocks.length === 0) {
       return "";
@@ -198,10 +195,14 @@ export class System {
   public async reload(): Promise<void> {
     const fp = this.computeSourceFingerprint();
     if (fp !== this.sourceFingerprint || this.compiledTemplate === null) {
-      const raw = this.readRawText();
+      const raw = this.readTemplateText();
       this.compiledTemplate = compile(raw);
       this.sourceFingerprint = fp;
     }
-    this.data = this.compiledTemplate(this.context()).trim();
+    const renderedTemplate = this.compiledTemplate(this.context()).trim();
+    const agentsInstructions = this.readCwdAgentsInstructions();
+    this.data = [renderedTemplate, agentsInstructions]
+      .filter((block) => block.length > 0)
+      .join(SECTION_BREAK);
   }
 }
