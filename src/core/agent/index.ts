@@ -2,6 +2,8 @@ import {
   Agent,
   BeforeInvocationEvent,
   HookOrder,
+  type ConversationManager,
+  type SessionManager,
   type InterventionHandler,
 } from "@strands-agents/sdk";
 import type { Tool } from "@strands-agents/sdk";
@@ -39,6 +41,18 @@ import { MODE_STATE_KEY, type SessionMode } from "../state/session-mode.js";
 import { YOLO_STATE_KEY } from "../state/yolo.js";
 
 const SECTION_BREAK = "\n\n---\n\n";
+const agentConversationManagers = new WeakMap<Agent, ConversationManager>();
+const agentSessionManagers = new WeakMap<Agent, SessionManager>();
+
+export function getAgentConversationManager(
+  agent: Agent,
+): ConversationManager | undefined {
+  return agentConversationManagers.get(agent);
+}
+
+export function getAgentSessionManager(agent: Agent): SessionManager | undefined {
+  return agentSessionManagers.get(agent);
+}
 
 export async function create(
   config: Config,
@@ -59,7 +73,12 @@ export async function create(
   const userId = meta.userId ?? sessionId;
   const llm = await modelProviders[config.llm.provider]!();
   const ctx = createContext(sessionId);
-  const { plugins: contextPlugins = [], ...agentContext } = ctx;
+  const {
+    plugins: contextPlugins = [],
+    conversationManager,
+    sessionManager,
+    ...agentContext
+  } = ctx;
   const prefixed = await mcp.manager.listPrefixedTools();
   const skillsPlugin = createAgentSkillsPlugin();
   const sessionModePlugin = createSessionModePromptPlugin();
@@ -117,8 +136,16 @@ export async function create(
     interventions: meta.interventions ?? [],
     tools,
     printer: print,
+    ...(conversationManager ? { conversationManager } : {}),
+    ...(sessionManager ? { sessionManager } : {}),
     ...agentContext,
   });
+  if (conversationManager) {
+    agentConversationManagers.set(agent, conversationManager);
+  }
+  if (sessionManager) {
+    agentSessionManagers.set(agent, sessionManager);
+  }
   (agent as unknown as { _toolRegistry: ModeAwareToolRegistry })._toolRegistry =
     new ModeAwareToolRegistry(agent.toolRegistry.list());
   await agent.initialize();

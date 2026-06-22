@@ -42,6 +42,10 @@ import {
 } from "../core/state/session-mode.js";
 import { isYoloEnabled, setYoloEnabled } from "../core/state/yolo.js";
 import { applySessionMode } from "../core/agent/sync-tool-registry-mode.js";
+import {
+  getAgentConversationManager,
+  getAgentSessionManager,
+} from "../core/agent/index.js";
 import { attachmentPathsToPromptBlocks } from "../core/utils/attachments.js";
 import { isMouseInput } from "./mouse.js";
 import type { PromptSubmission } from "./components/prompt-input/hooks/usePromptInputController.js";
@@ -341,6 +345,10 @@ const SLASH_COMMANDS = [
   {
     name: "yolo",
     description: "Auto-approve tools (on|off).",
+  },
+  {
+    name: "compact",
+    description: "Compact conversation history now.",
   },
 ] as const;
 
@@ -826,6 +834,71 @@ export function ChatApp({
     [agent, appendLine, bumpSessionChrome],
   );
 
+  const handleCompactCommand = useCallback(async () => {
+    if (runningRef.current) {
+      appendLine({
+        id: nowId(),
+        role: "system",
+        title: "compact",
+        content: "Wait for the active turn to finish before compacting history.",
+        done: true,
+      });
+      return;
+    }
+
+    const conversationManager = getAgentConversationManager(agent);
+    if (!conversationManager) {
+      appendLine({
+        id: nowId(),
+        role: "system",
+        title: "compact",
+        content: "This session does not have a conversation manager to compact.",
+        done: true,
+      });
+      return;
+    }
+
+    const beforeCount = agent.messages.length;
+    try {
+      const reduced = await conversationManager.reduce({
+        agent,
+        model: agent.model,
+      });
+      const afterCount = agent.messages.length;
+      if (!reduced) {
+        appendLine({
+          id: nowId(),
+          role: "system",
+          title: "compact",
+          content: "Conversation history is already too short to compact.",
+          done: true,
+        });
+        return;
+      }
+
+      await getAgentSessionManager(agent)?.saveSnapshot({
+        target: agent,
+        isLatest: true,
+      });
+
+      appendLine({
+        id: nowId(),
+        role: "system",
+        title: "compact",
+        content: `Compacted conversation history for future turns (${beforeCount} messages -> ${afterCount}).`,
+        done: true,
+      });
+    } catch (error) {
+      appendLine({
+        id: nowId(),
+        role: "system",
+        title: "compact",
+        content: error instanceof Error ? error.message : String(error),
+        done: true,
+      });
+    }
+  }, [agent, appendLine]);
+
   const runTurn = useCallback(
     async (prompt: PromptSubmission) => {
       const trimmed = prompt.text.trim();
@@ -1186,6 +1259,11 @@ export function ChatApp({
           setInput("");
           return;
         }
+        if (command.name === "compact") {
+          void handleCompactCommand();
+          setInput("");
+          return;
+        }
       }
       if (pushPrompt(value)) {
         setInput("");
@@ -1194,6 +1272,7 @@ export function ChatApp({
     [
       appendLine,
       handleModelCommand,
+      handleCompactCommand,
       handleModeCommand,
       handleYoloCommand,
       pendingApproval,
