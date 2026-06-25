@@ -11,7 +11,7 @@ const KNOWN_TOOL_KINDS = new Map<string, ToolKind>([
   ["list_directory", "read"],
   ["directory_tree", "read"],
   ["move_file", "move"],
-  ["search_files", "search"],
+  ["grep", "search"],
   ["get_file_info", "read"],
   ["shell", "execute"],
   ["sleep", "other"],

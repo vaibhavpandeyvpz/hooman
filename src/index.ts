@@ -115,6 +115,7 @@ export {
   createByeTools,
   createFetchTools,
   createFilesystemTools,
+  createGrepTools,
   createShellTools,
   createSleepTools,
   createThinkingTools,

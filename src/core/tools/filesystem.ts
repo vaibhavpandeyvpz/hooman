@@ -16,7 +16,6 @@ import { z } from "zod";
 
 const DEFAULT_READ_LIMIT = 250;
 const DEFAULT_MAX_READ_BYTES = 1024 * 1024;
-const DEFAULT_SEARCH_MAX_RESULTS = 500;
 const DEFAULT_TREE_DEPTH = 4;
 const SNIPPET_RADIUS = 3;
 const FAST_READ_MAX_BYTES = 10 * 1024 * 1024;
@@ -678,51 +677,6 @@ async function buildTree(
   return build(rootPath, 1);
 }
 
-async function searchFiles(
-  rootPath: string,
-  pattern: string,
-  options?: { excludePatterns?: string[]; maxResults?: number },
-): Promise<string[]> {
-  const matcher = globToRegExp(pattern);
-  const excludes = (options?.excludePatterns ?? []).map(globToRegExp);
-  const maxResults = options?.maxResults ?? DEFAULT_SEARCH_MAX_RESULTS;
-  const results: string[] = [];
-
-  async function visit(currentPath: string): Promise<void> {
-    if (results.length >= maxResults) {
-      return;
-    }
-
-    const entries = await fs.readdir(currentPath, { withFileTypes: true });
-
-    for (const entry of entries) {
-      if (results.length >= maxResults) {
-        return;
-      }
-
-      const fullPath = path.join(currentPath, entry.name);
-      const relative = normalizeForGlob(
-        path.relative(rootPath, fullPath) || entry.name,
-      );
-
-      if (excludes.some((exclude) => exclude.test(relative))) {
-        continue;
-      }
-
-      if (matcher.test(relative) || matcher.test(entry.name)) {
-        results.push(fullPath);
-      }
-
-      if (entry.isDirectory()) {
-        await visit(fullPath);
-      }
-    }
-  }
-
-  await visit(rootPath);
-  return results;
-}
-
 function createFilesystemSchema() {
   return {
     readFile: z.object({
@@ -804,14 +758,6 @@ function createFilesystemSchema() {
         .boolean()
         .optional()
         .describe("Overwrite destination if it exists."),
-    }),
-    searchFiles: z.object({
-      path: z.string().describe("Root directory to search."),
-      pattern: z
-        .string()
-        .describe("Glob-style pattern, e.g. '**/*.ts' or '*.md'."),
-      exclude_patterns: z.array(z.string()).optional(),
-      max_results: z.number().int().min(1).optional(),
     }),
     getFileInfo: z.object({
       path: z.string().describe("File or directory path."),
@@ -1082,29 +1028,6 @@ export function createFilesystemTools() {
           source,
           destination,
           overwritten: input.overwrite ?? false,
-        });
-      },
-    }),
-    tool({
-      name: "search_files",
-      description:
-        "Recursively search for files and directories under a root path using glob-style matching.",
-      inputSchema: schema.searchFiles,
-      callback: async (input) => {
-        const rootPath = normalizeUserPath(input.path);
-        await ensureExists(rootPath);
-        await ensureDirectory(rootPath);
-
-        const matches = await searchFiles(rootPath, input.pattern, {
-          excludePatterns: input.exclude_patterns,
-          maxResults: input.max_results,
-        });
-
-        return toJsonValue({
-          path: rootPath,
-          pattern: input.pattern,
-          count: matches.length,
-          matches,
         });
       },
     }),

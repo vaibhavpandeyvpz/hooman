@@ -30,3 +30,10 @@ export const attachmentsPath = () => join(basePath(), "attachments");
 export const plansPath = () => join(basePath(), "plans");
 
 export const skillsPath = () => join(basePath(), "skills");
+
+export const cachePath = () => join(basePath(), "cache");
+
+export const binPath = () => join(basePath(), "bin");
+
+export const ripgrepPath = () =>
+  join(binPath(), process.platform === "win32" ? "rg.exe" : "rg");

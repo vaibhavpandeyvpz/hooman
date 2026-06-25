@@ -31,7 +31,7 @@ export const RESEARCH_SUBAGENT: ResearchSubagentConfig = {
     "read_multiple_files",
     "list_directory",
     "directory_tree",
-    "search_files",
+    "grep",
     "get_file_info",
     "fetch",
     "web_search",

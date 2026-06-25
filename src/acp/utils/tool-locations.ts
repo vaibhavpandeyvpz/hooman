@@ -9,7 +9,7 @@ const KNOWN_TOOL_LOCATION_KEYS = new Map<string, readonly string[]>([
   ["list_directory", ["path"]],
   ["directory_tree", ["path"]],
   ["move_file", ["source", "destination"]],
-  ["search_files", ["path"]],
+  ["grep", ["path"]],
   ["get_file_info", ["path"]],
 ]);
 

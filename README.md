@@ -39,6 +39,7 @@ It gives you a practical toolkit to build and run agent workflows:
 - Runtime skills via Strands `AgentSkills`, loading bundled built-in skills plus local `~/.hooman/skills`
 - Bundled prompt harness toggles (`behaviour`, `communication`, `execution`, `guardrails`); coding guidance ships as the built-in `hooman-coding` skill
 - Built-in research sub-agent runner (`research`) with configurable concurrency
+- Built-in `grep` tool backed by ripgrep (`rg`), with runtime bootstrap when `rg` is not available on PATH
 - Toolkit-oriented architecture with configurable tools, prompts, and transports
 - Interactive terminal UI for chat and configuration
 
@@ -300,8 +301,16 @@ Important files and folders:
 - `instructions.md` - system instructions used to build the agent prompt
 - `mcp.json` - MCP server definitions
 - `skills/` - installed skills
+- `bin/` - runtime-managed helper binaries (including bootstrapped `rg` for the `grep` tool when system `rg` is unavailable)
+- `cache/` - runtime caches used by tools and subsystems
 - `sessions/` - persisted session data
 - `acp-sessions/` - persisted ACP session metadata and message snapshots
+
+`grep` tool binary resolution order:
+
+1. Use system `rg` when available.
+2. Else use cached `~/.hooman/bin/rg` (or `rg.exe` on Windows).
+3. Else download and verify a platform-specific ripgrep release into `~/.hooman/bin/`.
 
 ## Example `config.json`
 

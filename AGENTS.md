@@ -112,6 +112,8 @@ Hooman stores user data under `~/.hooman/`:
 - `mcp.json` — configured MCP servers (`stdio`, `streamable-http`, `sse`).
 - `mcp-oauth.json` — stored OAuth credentials for remote MCP servers.
 - `skills/` — installed skills (Markdown `SKILL.md` files in subdirectories).
+- `bin/` — runtime-managed helper binaries (including bootstrapped `rg` for the `grep` tool).
+- `cache/` — runtime caches used by tools/subsystems.
 - `sessions/` — persisted session data.
 - `acp-sessions/` — persisted ACP session metadata.
 
@@ -136,6 +138,7 @@ Default `config.json` uses a local Ollama provider and `gemma4:e4b` as the defau
 - **Path safety:** filesystem tools normalize user paths and reject traversal outside the working directory; see `src/core/utils/normalize-user-path.ts`.
 - **MCP OAuth:** remote MCP servers may trigger an OAuth flow that starts a local callback server. Review server configs in `mcp.json` before authenticating.
 - **Daemon mode:** processes MCP channel notifications as queued prompts; use `--yolo` only when the channel source and tools are trusted.
+- **Ripgrep bootstrap (`grep` tool):** runtime lookup order is system `rg` → `~/.hooman/bin/rg` cache → download+checksum-verify into `~/.hooman/bin/`. First use on systems without `rg` may require network access.
 
 ## Release workflow
 

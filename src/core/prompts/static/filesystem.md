@@ -24,7 +24,7 @@ You have access to filesystem tools for reading, writing, editing, moving, listi
 - Use `create_directory` for directory creation
 - Use `list_directory` or `directory_tree` for structure discovery
 - Use `move_file` for renaming or relocating files and directories
-- Use `search_files` to locate files by pattern
+- Use `grep` to locate files by pattern or search file contents
 - Use `get_file_info` for metadata without opening the file
 
 ### Safety

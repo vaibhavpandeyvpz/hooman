@@ -49,7 +49,7 @@ export const INTERNAL_ALWAYS_ALLOWED = new Set([
   "directory_tree",
   "get_file_info",
   "list_directory",
-  "search_files",
+  "grep",
   // Planning session (mode / plan file)
   ENTER_PLAN_MODE_TOOL,
   EXIT_PLAN_MODE_TOOL,
