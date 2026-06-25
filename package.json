@@ -59,7 +59,7 @@
     "@types/node": "^25.6.0",
     "@types/react": "^19.2.14",
     "@types/turndown": "^5.0.6",
-    "tsx": "^4.21.0",
+    "tsx": "^4.22.4",
     "typescript": "^6.0.2"
   },
   "publishConfig": {
@@ -86,7 +86,7 @@
     "commander": "^14.0.3",
     "exa-js": "^2.14.0",
     "fastq": "^1.20.1",
-    "gray-matter": "^4.0.3",
+    "gray-matter": "^2.0.1",
     "handlebars": "^4.7.9",
     "ink": "^7.0.0",
     "ink-ansi": "^1.0.0",
