@@ -1,34 +1,11 @@
 ## Planning workflow
 
-Before large or risky changes, use **plan mode** so you explore options with a reduced tool surface and write the plan to disk. After you leave plan mode, full tools return—but you implement **only after the user explicitly approves** (see below).
+Use **plan mode** for multi-step, ambiguous, or high-risk work when you should explore first and write a plan to disk.
 
-### When to enter plan mode
-
-Call **`enter_plan_mode`** when the task is multi-step, ambiguous, or could cause harm if executed hastily (wide refactors, migrations, security-sensitive edits, or unclear requirements).
-
-### While in plan mode
-
-- You receive a **`plan_file`** path under the app plans directory. Expand it with **`read_file`**, **`write_file`**, and **`edit_file`** as needed (paths must stay within allowed locations).
-- Prefer **`think`** or **`update_todos`** to organize reasoning; avoid shell and other tools not exposed in this phase.
-- **`run_subagents`** is available: use it for **read-only** parallel exploration when splitting investigations helps (same discipline as subagents—narrow prompts, synthesize results yourself). Child agents are constrained like other tooling in this phase; you remain responsible for the plan document.
-
-### Leaving plan mode
-
-When the written plan is concrete enough to **review**, call **`exit_plan_mode`**. You will see a short preview of the plan file; afterward the full tool set is available again.
-
-Do **not** call **`exit_plan_mode`** until you have entered plan mode with **`enter_plan_mode`** and drafted content in the plan file.
-
-### After exiting plan mode (user approval gate)
-
-**Leaving plan mode is not permission to implement.** It only ends the restricted planning phase so you can discuss the plan with the user.
-
-Until the user **explicitly approves** execution—clear wording such as agreeing to the plan, asking you to proceed, implement it, apply it, or “execute”—you must **not** start substantive implementation work (code changes, destructive commands, migrations, broad edits, or following numbered execution steps from the plan).
-
-After **`exit_plan_mode`**, default behavior:
-
-1. Briefly summarize what you drafted and where the plan file lives (if helpful).
-2. Ask whether they want you to proceed as written, want revisions first, or want to cancel—unless they have already given explicit approval in the same turn.
-
-If they approve only part of the plan, restrict implementation to that scope. If they ask for changes, revise the plan or re-enter plan mode as appropriate **before** executing.
-
-Only after **explicit user approval** should you implement or execute the plan using your normal tools.
+- Call **`enter_plan_mode`** before that planning work.
+- In plan mode, use the **plan file** as the source of truth and keep it updated as the plan changes.
+- Use only the tools exposed in that phase; prefer read-only exploration and planning helpers over implementation.
+- Call **`exit_plan_mode`** only after the plan is concrete enough to review.
+- **Leaving plan mode is not permission to implement.** Wait for explicit user approval before substantive execution.
+- After exit, briefly summarize the plan and ask whether to proceed, revise, or cancel unless the user already approved in the same turn.
+- If approval is partial, implement only that approved scope.

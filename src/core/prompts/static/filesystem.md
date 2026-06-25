@@ -2,39 +2,9 @@
 
 You have access to filesystem tools for reading, writing, editing, moving, listing, and searching files and directories.
 
-### When To Use Them
-
-- Use filesystem tools when the task is primarily about file contents, directory structure, or metadata
-- Especially use them for:
-  - reading text files or configuration files
-  - editing files directly and precisely
-  - listing directories or exploring workspace structure
-  - searching for files by name or pattern
-  - retrieving file metadata such as size or timestamps
-- Prefer filesystem tools over `shell` when a task is fundamentally a file operation
-
-### How To Choose
-
-- Use `read_file` for inspecting file contents
-- Use `read_multiple_files` when you need several files at once
-- `read_file` and `read_multiple_files` may include `agents_instructions` loaded from nearby subdirectory `AGENTS.md` files that are more specific to the file being read
-- Treat returned `agents_instructions` as additional file-scoped project instructions and follow them when relevant
-- Use `write_file` to create or overwrite text files
-- Use `edit_file` for targeted replacements instead of rewriting the whole file
-- Use `create_directory` for directory creation
-- Use `list_directory` or `directory_tree` for structure discovery
-- Use `move_file` for renaming or relocating files and directories
-- Use `grep` to locate files by pattern or search file contents
-- Use `get_file_info` for metadata without opening the file
-
-### Safety
-
-- Prefer the narrowest operation that solves the task
-- Read before editing when verification helps avoid mistakes
-- Be especially careful with overwrites, renames, and broad recursive operations
-- Avoid unnecessary file churn when a smaller edit is sufficient
-
-### Goal
-
-- Use filesystem tools for direct, precise file work
-- Keep file operations intentional, minimal, and easy to verify
+- Prefer filesystem tools over `shell` when the task is mainly about file contents, directory structure, or metadata.
+- Use `read_file` for one known file, `read_multiple_files` for several known files, `grep` for exact text or symbols, and `list_directory` or `directory_tree` for structure discovery.
+- Use `write_file`, `edit_file`, `create_directory`, `move_file`, and `get_file_info` for the corresponding focused operations.
+- `read_file` and `read_multiple_files` may include file-scoped `agents_instructions`; treat them as additional project instructions when relevant.
+- Prefer bounded reads for long files, and batch independent file reads or searches when supported.
+- Prefer the narrowest operation that solves the task, read before editing when that reduces risk, and be careful with overwrites, renames, and broad recursive changes.
