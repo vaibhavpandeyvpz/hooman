@@ -135,7 +135,9 @@ function selectPowerShell(): string {
     return "powershell.exe";
   }
   return (
-    lookupBinary("pwsh.exe") || lookupBinary("powershell.exe") || "powershell.exe"
+    lookupBinary("pwsh.exe") ||
+    lookupBinary("powershell.exe") ||
+    "powershell.exe"
   );
 }
 
@@ -178,9 +180,7 @@ async function installManagedRipgrep(): Promise<string> {
   const fileName = archiveName(config);
   const expectedHash = ARCHIVE_SHA256[fileName];
   if (!expectedHash) {
-    throw new Error(
-      `Missing pinned SHA-256 for ripgrep archive: ${fileName}`,
-    );
+    throw new Error(`Missing pinned SHA-256 for ripgrep archive: ${fileName}`);
   }
 
   const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "hooman-rg-"));

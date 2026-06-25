@@ -30,7 +30,9 @@ function agentInstructionSearchRoot(cwd: string): string {
   }
 }
 
-export function candidateAgentInstructionPaths(cwd: string = process.cwd()): string[] {
+export function candidateAgentInstructionPaths(
+  cwd: string = process.cwd(),
+): string[] {
   const resolvedCwd = resolve(cwd);
   const root = agentInstructionSearchRoot(resolvedCwd);
   const directories: string[] = [];
@@ -132,7 +134,9 @@ export function resolveAgentInstructionsForFile(
   if (!isWithinDirectory(cwd, startDir) || startDir === cwd) {
     return { paths: [], content: "" };
   }
-  const exclude = new Set((options?.excludePaths ?? []).map((item) => resolve(item)));
+  const exclude = new Set(
+    (options?.excludePaths ?? []).map((item) => resolve(item)),
+  );
   const directories: string[] = [];
   let current = startDir;
   while (isWithinDirectory(cwd, current) && current !== cwd) {
@@ -148,7 +152,10 @@ export function resolveAgentInstructionsForFile(
   for (const dir of directories) {
     const instructionPath = join(dir, AGENTS_FILENAME);
     const resolvedInstructionPath = resolve(instructionPath);
-    if (resolvedInstructionPath === target || exclude.has(resolvedInstructionPath)) {
+    if (
+      resolvedInstructionPath === target ||
+      exclude.has(resolvedInstructionPath)
+    ) {
       continue;
     }
     if (!existsSync(resolvedInstructionPath)) {

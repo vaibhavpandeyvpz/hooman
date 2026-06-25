@@ -68,7 +68,8 @@ function resolveReadTimeAgentInstructions(
     return undefined;
   }
   const loadedPaths =
-    runtimeResolvedAgentInstructionPaths.get(context.agent) ?? new Set<string>();
+    runtimeResolvedAgentInstructionPaths.get(context.agent) ??
+    new Set<string>();
   const resolved = resolveAgentInstructionsForFile(filePath, {
     excludePaths: [...loadedPaths],
   });

@@ -852,7 +852,8 @@ export function ChatApp({
         id: nowId(),
         role: "system",
         title: "compact",
-        content: "Wait for the active turn to finish before compacting history.",
+        content:
+          "Wait for the active turn to finish before compacting history.",
         done: true,
       });
       return;
@@ -864,7 +865,8 @@ export function ChatApp({
         id: nowId(),
         role: "system",
         title: "compact",
-        content: "This session does not have a conversation manager to compact.",
+        content:
+          "This session does not have a conversation manager to compact.",
         done: true,
       });
       return;
@@ -917,7 +919,8 @@ export function ChatApp({
         id: nowId(),
         role: "system",
         title: "new",
-        content: "Wait for the active turn to finish before starting a new session.",
+        content:
+          "Wait for the active turn to finish before starting a new session.",
         done: true,
       });
       return;

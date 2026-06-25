@@ -34,8 +34,18 @@ function createGrepSchema() {
       .min(0)
       .optional()
       .describe("Context lines around matches."),
-    before: z.number().int().min(0).optional().describe("Lines before each match."),
-    after: z.number().int().min(0).optional().describe("Lines after each match."),
+    before: z
+      .number()
+      .int()
+      .min(0)
+      .optional()
+      .describe("Lines before each match."),
+    after: z
+      .number()
+      .int()
+      .min(0)
+      .optional()
+      .describe("Lines after each match."),
     case_insensitive: z
       .boolean()
       .optional()

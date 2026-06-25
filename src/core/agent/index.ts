@@ -51,7 +51,9 @@ export function getAgentConversationManager(
   return agentConversationManagers.get(agent);
 }
 
-export function getAgentSessionManager(agent: Agent): SessionManager | undefined {
+export function getAgentSessionManager(
+  agent: Agent,
+): SessionManager | undefined {
   return agentSessionManagers.get(agent);
 }
 
