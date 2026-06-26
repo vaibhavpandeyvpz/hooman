@@ -43,7 +43,6 @@ import {
   EXIT_PLAN_MODE_TOOL,
 } from "../core/state/tool-approvals.js";
 import { isYoloEnabled } from "../core/state/yolo.js";
-import { extractAcpClientSystemPrompt } from "./meta/system-prompt.js";
 import { extractAcpClientUserId } from "./meta/user-id.js";
 import { deriveSessionTitleFromEcho } from "./sessions/title.js";
 import { acpPromptEchoText, acpPromptToInvokeArgs } from "./prompt-invoke.js";
@@ -346,8 +345,6 @@ export class AcpAgent implements AgentContract {
     assertAbsolutePath(params.cwd, "cwd");
     const sessionId = crypto.randomUUID();
     const clientUserId = extractAcpClientUserId(params._meta) ?? null;
-    const clientSystemPrompt =
-      extractAcpClientSystemPrompt(params._meta) ?? null;
     const bootstrapUserId = clientUserId ?? sessionId;
     const mcpServers = normalizeAcpSessionMcpServers(params.mcpServers);
 
@@ -358,7 +355,6 @@ export class AcpAgent implements AgentContract {
       updatedAt: now,
       title: null,
       userId: clientUserId,
-      systemPrompt: clientSystemPrompt,
       mcpServers,
     };
     await writeSessionMeta(this.#acpRoot, sessionId, meta);
@@ -383,7 +379,6 @@ export class AcpAgent implements AgentContract {
         ],
         acp: {
           mcpServers,
-          ...(clientSystemPrompt ? { systemPrompt: clientSystemPrompt } : {}),
         },
       },
       false,
@@ -448,14 +443,8 @@ export class AcpAgent implements AgentContract {
     assertAbsolutePath(params.cwd, "cwd");
 
     const fromRequest = extractAcpClientUserId(params._meta);
-    const requestedSystemPrompt = extractAcpClientSystemPrompt(params._meta);
     const storedUserId = existing.userId ?? null;
-    const storedSystemPrompt = existing.systemPrompt ?? null;
     const clientUserId = fromRequest !== undefined ? fromRequest : storedUserId;
-    const clientSystemPrompt =
-      requestedSystemPrompt !== undefined
-        ? requestedSystemPrompt
-        : storedSystemPrompt;
     const bootstrapUserId = clientUserId ?? params.sessionId;
     const mcpServers =
       params.mcpServers.length > 0
@@ -472,7 +461,7 @@ export class AcpAgent implements AgentContract {
         userId: bootstrapUserId,
         sessionId: params.sessionId,
         yolo: existing.yolo === true,
-        sessionMode: existing.sessionMode ?? "agent",
+        mode: existing.sessionMode ?? "agent",
         createInterventions: () => [
           createAcpToolApprovalIntervention(
             this.#connection,
@@ -484,7 +473,6 @@ export class AcpAgent implements AgentContract {
         ],
         acp: {
           mcpServers,
-          ...(clientSystemPrompt ? { systemPrompt: clientSystemPrompt } : {}),
         },
       },
       false,
@@ -531,9 +519,6 @@ export class AcpAgent implements AgentContract {
       cwd: params.cwd,
       updatedAt: new Date().toISOString(),
       ...(fromRequest !== undefined ? { userId: fromRequest || null } : {}),
-      ...(requestedSystemPrompt !== undefined
-        ? { systemPrompt: requestedSystemPrompt || null }
-        : {}),
       mcpServers,
     });
 
@@ -590,7 +575,7 @@ export class AcpAgent implements AgentContract {
         userId: bootstrapUserId,
         sessionId,
         yolo: isYoloEnabled(rec.agent),
-        sessionMode: getModeState(rec.agent).mode,
+        mode: getModeState(rec.agent).mode,
         createInterventions: () => [
           createAcpToolApprovalIntervention(
             this.#connection,
@@ -602,7 +587,6 @@ export class AcpAgent implements AgentContract {
         ],
         acp: {
           mcpServers,
-          ...(meta.systemPrompt ? { systemPrompt: meta.systemPrompt } : {}),
         },
       },
       false,

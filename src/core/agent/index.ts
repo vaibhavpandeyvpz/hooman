@@ -65,10 +65,9 @@ export async function create(
   meta: {
     userId?: string;
     sessionId?: string;
-    systemPrompt?: string;
     /** Auto-approve tools (CLI `--yolo`, ACP toggle); stored on {@link Agent.appState}. */
     yolo?: boolean;
-    sessionMode?: SessionMode;
+    mode?: SessionMode;
     interventions?: InterventionHandler[];
   },
 ): Promise<Agent> {
@@ -90,9 +89,7 @@ export async function create(
   async function buildBaseSystemPrompt(): Promise<string> {
     await system.reload();
     const appendNext = await mcp.manager.listServerInstructions();
-    return [system.content, meta.systemPrompt, ...appendNext]
-      .filter(Boolean)
-      .join(SECTION_BREAK);
+    return [system.content, ...appendNext].filter(Boolean).join(SECTION_BREAK);
   }
 
   const base = await buildBaseSystemPrompt();
@@ -136,7 +133,7 @@ export async function create(
       ...(userId ? { userId } : {}),
       ...(sessionId ? { sessionId } : {}),
       ...(meta.yolo ? { [YOLO_STATE_KEY]: true } : {}),
-      ...(meta.sessionMode ? { [MODE_STATE_KEY]: meta.sessionMode } : {}),
+      ...(meta.mode ? { [MODE_STATE_KEY]: meta.mode } : {}),
     },
     plugins: [skillsPlugin, sessionModePlugin, ...contextPlugins],
     interventions: meta.interventions ?? [],

@@ -284,8 +284,7 @@ ACP notes:
 
 - ACP sessions are stored under the active Hooman data directory in `acp-sessions/`
 - ACP loads MCP servers passed on `session/new` and `session/load`, in addition to Hooman's local `mcp.json`
-- ACP `session/new` and `session/load` support `_meta.userId` and `_meta.systemPrompt`
-- when `_meta.systemPrompt` is provided, it is appended to the agent system prompt with a section break
+- ACP `session/new` and `session/load` support `_meta.userId`
 - session configuration includes `hooman.sessionMode` (`agent`, `plan`, or `ask`); see [Session mode](#session-mode)
 
 ## Configuration Layout

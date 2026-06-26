@@ -114,7 +114,7 @@ program
         userId: "default",
         sessionId,
         yolo: Boolean(options.yolo),
-        sessionMode: options.mode,
+        mode: options.mode,
         interventions: [createToolApprovalIntervention()],
       },
       true,
@@ -164,7 +164,7 @@ program
             userId: "default",
             sessionId: currentSessionId,
             yolo: currentYolo,
-            sessionMode: currentMode,
+            mode: currentMode,
             interventions: [
               createChatApprovalIntervention(approvals),
               createChatTurnSteeringIntervention(steering),
@@ -243,7 +243,7 @@ program
         userId: session,
         sessionId: session,
         yolo: Boolean(options.yolo),
-        sessionMode: options.mode,
+        mode: options.mode,
         createInterventions: ({ manager }) => [
           createDaemonApprovalIntervention(manager),
         ],

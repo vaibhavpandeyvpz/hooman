@@ -25,7 +25,7 @@ export type BootstrapMeta = {
   /** When true, seeds `hooman.yolo` on the agent appState (auto-approve tools). */
   yolo?: boolean;
   /** Seeds session mode on agent appState (`agent`, `ask`, or `plan`). */
-  sessionMode?: SessionMode;
+  mode?: SessionMode;
   interventions?: InterventionHandler[];
   createInterventions?: (deps: {
     manager: McpConnectionManager;
@@ -36,7 +36,6 @@ export type BootstrapMeta = {
 export type BootstrapMode = "default" | "daemon" | "acp";
 
 export type AcpMeta = {
-  systemPrompt?: string;
   mcpServers?: NamedMcpTransport[];
 };
 
@@ -67,9 +66,8 @@ export async function bootstrap(
   const agent = await createAgent(config, system, mcp, print, {
     userId: meta?.userId ?? meta?.sessionId,
     sessionId: meta?.sessionId,
-    systemPrompt: meta?.acp?.systemPrompt,
     yolo: meta?.yolo,
-    sessionMode: meta?.sessionMode,
+    mode: meta?.mode,
     interventions,
   });
   return { config, agent, mcp, registry };

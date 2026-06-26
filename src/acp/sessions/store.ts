@@ -12,8 +12,6 @@ export type SessionMetaFile = {
   title?: string | null;
   /** Logical user from ACP client `_meta` (see `extractAcpClientUserId`). */
   userId?: string | null;
-  /** Session-level system prompt from ACP client `_meta`. */
-  systemPrompt?: string | null;
   /** Session-scoped MCP servers requested by the ACP client. */
   mcpServers?: NamedMcpTransport[];
   /**
