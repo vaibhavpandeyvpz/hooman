@@ -7,10 +7,7 @@ import {
   type NamedLlmConfig,
   type NamedProviderConfig,
 } from "../core/config.js";
-import {
-  type McpOAuthConfig,
-  McpOAuthConfigSchema,
-} from "../core/mcp/oauth/types.js";
+import { McpOAuthConfigSchema } from "../core/mcp/oauth/types.js";
 import {
   McpTransportSchema,
   type Sse,
@@ -67,6 +64,129 @@ const SEARCH_PROVIDER_LABELS: Record<SearchProvider, string> = {
   serper: "Serper",
   tavily: "Tavily",
 };
+
+type McpDraftField = {
+  key: string;
+  label: string;
+  placeholder?: string;
+  note?: string;
+};
+
+const MCP_STDIO_FIELDS: McpDraftField[] = [
+  { key: "name", label: "Server name", placeholder: "filesystem" },
+  { key: "command", label: "Command", placeholder: "npx" },
+  {
+    key: "args",
+    label: "Arguments",
+    placeholder: '["-y", "@modelcontextprotocol/server-filesystem"]',
+    note: "Provide a JSON array of strings, or leave as [].",
+  },
+  {
+    key: "env",
+    label: "Environment variables",
+    placeholder: '{"API_KEY":"..."}',
+    note: "Optional JSON object with string values.",
+  },
+  {
+    key: "cwd",
+    label: "Working directory",
+    placeholder: "/absolute/path",
+    note: "Optional working directory for the subprocess.",
+  },
+];
+
+const MCP_REMOTE_BASE_FIELDS: McpDraftField[] = [
+  { key: "name", label: "Server name", placeholder: "my-remote-server" },
+  { key: "url", label: "URL", placeholder: "https://example.com/mcp" },
+  {
+    key: "headers",
+    label: "Headers",
+    placeholder: '{"Authorization":"Bearer ..."}',
+    note: "Optional JSON object with string values.",
+  },
+  {
+    key: "oauthEnabled",
+    label: "Enable OAuth? (yes/no)",
+    placeholder: "no",
+    note: "Choose yes for servers that use OAuth 2.0/2.1 or dynamic client registration.",
+  },
+];
+
+const MCP_REMOTE_OAUTH_FIELDS: McpDraftField[] = [
+  { key: "clientId", label: "OAuth client ID", placeholder: "client-id" },
+  {
+    key: "clientSecret",
+    label: "OAuth client secret",
+    placeholder: "secret",
+    note: "Stored in mcp.json only if you enter a value.",
+  },
+  { key: "scopes", label: "OAuth scopes", placeholder: '["read","write"]' },
+  {
+    key: "audiences",
+    label: "OAuth audiences",
+    placeholder: '["https://api.example.com"]',
+  },
+  {
+    key: "callbackPort",
+    label: "OAuth callback port",
+    placeholder: "19876",
+  },
+  {
+    key: "redirectUri",
+    label: "OAuth redirect URI",
+    placeholder: "http://127.0.0.1:19876/mcp/oauth/callback",
+  },
+  {
+    key: "issuer",
+    label: "OAuth issuer",
+    placeholder: "https://auth.example.com",
+  },
+  {
+    key: "authorizationUrl",
+    label: "OAuth authorization URL override",
+    placeholder: "https://auth.example.com/authorize",
+  },
+  {
+    key: "tokenUrl",
+    label: "OAuth token URL override",
+    placeholder: "https://auth.example.com/token",
+  },
+  {
+    key: "registrationUrl",
+    label: "OAuth registration URL override",
+    placeholder: "https://auth.example.com/register",
+  },
+  {
+    key: "tokenParamName",
+    label: "OAuth token param name",
+    placeholder: "access_token",
+  },
+];
+
+function isTruthyToggle(value: string | undefined): boolean {
+  const normalized = value?.trim().toLowerCase();
+  return normalized !== undefined
+    ? ["y", "yes", "true", "1", "on"].includes(normalized)
+    : false;
+}
+
+function formatDraftFieldValue(
+  field: McpDraftField,
+  value: string | undefined,
+): string {
+  const normalized = value ?? "";
+  if (!normalized.trim()) {
+    return "not set";
+  }
+  if (
+    field.key === "clientSecret" ||
+    field.key === "env" ||
+    field.key === "headers"
+  ) {
+    return paramsPreview(normalized);
+  }
+  return truncate(normalized, 44);
+}
 
 type McpAuthStatus =
   | "unsupported"
@@ -440,6 +560,7 @@ export function ConfigureApp({
   const [notice, setNotice] = useState<Notice | null>(null);
   const [busyMessage, setBusyMessage] = useState<string | null>(null);
   const [revision, setRevision] = useState(0);
+  const [mcpDraft, setMcpDraft] = useState<Record<string, string> | null>(null);
   const [installedSkills, setInstalledSkills] = useState<SkillListEntry[]>([]);
   const [searchResults, setSearchResults] = useState<SkillSearchResult[]>([]);
   const [mcpAuthStatuses, setMcpAuthStatuses] = useState<
@@ -535,6 +656,14 @@ export function ConfigureApp({
         setPrompt(null);
         return;
       }
+      if (
+        screen.kind === "mcp-stdio-edit" ||
+        screen.kind === "mcp-remote-edit"
+      ) {
+        setMcpDraft(null);
+        setScreen({ kind: "mcp" });
+        return;
+      }
       if (screen.kind === "mcp-delete-confirm") {
         setScreen({ kind: "mcp" });
         return;
@@ -564,7 +693,10 @@ export function ConfigureApp({
       }
       if (screen.kind !== "home") {
         setScreen({ kind: "home" });
+        return;
       }
+      onExit();
+      exit();
     },
     { isActive: true },
   );
@@ -734,414 +866,221 @@ export function ConfigureApp({
     [prompt],
   );
 
-  const promptForStdio = useCallback(
-    (name: string, initial?: Stdio) => {
-      const mode = initial ? "Edit" : "Add";
-      promptValue({
-        title: `${mode} stdio server`,
-        label: "Command",
-        initialValue: initial?.command ?? "",
-        placeholder: "npx",
-        onSubmit: async (commandValue) => {
-          const command = commandValue.trim();
-          if (!command) {
-            throw new Error("Command is required.");
-          }
-          promptValue({
-            title: `${mode} stdio server`,
-            label: "Arguments",
-            note: 'Example: ["-y", "@modelcontextprotocol/server-filesystem"]',
-            initialValue: compactJson(initial?.args ?? []),
-            placeholder: "[]",
-            onSubmit: async (argsValue) => {
-              const args = parseStringArray(argsValue, "Arguments");
-              promptValue({
-                title: `${mode} stdio server`,
-                label: "Environment variables (optional)",
-                initialValue: initial?.env ? compactJson(initial.env) : "",
-                placeholder: '{"API_KEY":"..."}',
-                onSubmit: async (envValue) => {
-                  const env = parseStringRecord(
-                    envValue,
-                    "Environment variables",
-                  );
-                  promptValue({
-                    title: `${mode} stdio server`,
-                    label: "Working directory (optional)",
-                    initialValue: initial?.cwd ?? "",
-                    placeholder: "/absolute/path",
-                    onSubmit: async (cwdValue) => {
-                      const transport = McpTransportSchema.parse({
-                        type: "stdio",
-                        command,
-                        ...(args.length > 0 ? { args } : {}),
-                        ...(env && Object.keys(env).length > 0 ? { env } : {}),
-                        ...(normalizeOptional(cwdValue)
-                          ? { cwd: normalizeOptional(cwdValue) }
-                          : {}),
-                      }) as Stdio;
-                      if (initial) {
-                        mcpConfig.update(name, transport);
-                        setSuccess(`Updated MCP server "${name}".`);
-                      } else {
-                        mcpConfig.add(name, transport);
-                        setSuccess(`Added MCP server "${name}".`);
-                      }
-                      setPrompt(null);
-                      setScreen({ kind: "mcp" });
-                      refresh();
-                    },
-                  });
-                },
-              });
-            },
-          });
-        },
-      });
+  const persistMcpTransport = useCallback(
+    (
+      currentName: string | undefined,
+      nextName: string,
+      transport: Stdio | StreamableHttp | Sse,
+    ) => {
+      if (!nextName) {
+        throw new Error("Server name is required.");
+      }
+      if (currentName && currentName !== nextName && mcpConfig.get(nextName)) {
+        throw new Error(`MCP server "${nextName}" already exists.`);
+      }
+      if (!currentName) {
+        mcpConfig.add(nextName, transport);
+        setSuccess(`Added MCP server "${nextName}".`);
+      } else if (currentName === nextName) {
+        mcpConfig.update(currentName, transport);
+        setSuccess(`Updated MCP server "${currentName}".`);
+      } else {
+        mcpConfig.add(nextName, transport);
+        mcpConfig.remove(currentName);
+        setSuccess(`Renamed MCP server "${currentName}" to "${nextName}".`);
+      }
+      setMcpDraft(null);
+      setScreen({ kind: "mcp" });
+      refresh();
     },
-    [mcpConfig, promptValue, refresh, setSuccess],
+    [mcpConfig, refresh, setSuccess],
   );
 
-  const promptForRemote = useCallback(
+  const openMcpStdioEditor = useCallback(
+    (currentName?: string, initial?: Stdio) => {
+      setMcpDraft({
+        name: currentName ?? "",
+        command: initial?.command ?? "",
+        args: compactJson(initial?.args ?? []),
+        env: initial?.env ? compactJson(initial.env) : "",
+        cwd: initial?.cwd ?? "",
+      });
+      setScreen({ kind: "mcp-stdio-edit", originalName: currentName });
+    },
+    [],
+  );
+
+  const openMcpRemoteEditor = useCallback(
     (
-      name: string,
       type: StreamableHttp["type"] | Sse["type"],
+      currentName?: string,
       initial?: StreamableHttp | Sse,
     ) => {
-      const mode = initial ? "Edit" : "Add";
-      const persistRemote = (
-        url: string,
-        headers: Record<string, string> | undefined,
-        oauth: McpOAuthConfig | undefined,
-      ) => {
-        const transport = McpTransportSchema.parse({
-          type,
-          url,
-          ...(headers && Object.keys(headers).length > 0 ? { headers } : {}),
-          ...(oauth ? { oauth } : {}),
-        }) as StreamableHttp | Sse;
-        if (initial) {
-          mcpConfig.update(name, transport);
-          setSuccess(`Updated MCP server "${name}".`);
-        } else {
-          mcpConfig.add(name, transport);
-          setSuccess(`Added MCP server "${name}".`);
-        }
-        setPrompt(null);
-        setScreen({ kind: "mcp" });
-        refresh();
-      };
-      const promptForOAuthDetails = (
-        url: string,
-        headers: Record<string, string> | undefined,
-        oauthEnabled: boolean,
-      ) => {
-        if (!oauthEnabled) {
-          persistRemote(url, headers, undefined);
-          return;
-        }
-        promptValue({
-          title: `${mode} ${type} server`,
-          label: "OAuth client ID (optional)",
-          initialValue: initial?.oauth?.clientId ?? "",
-          placeholder: "client-id",
-          onSubmit: async (clientIdValue) => {
-            promptValue({
-              title: `${mode} ${type} server`,
-              label: "OAuth client secret (optional)",
-              initialValue: initial?.oauth?.clientSecret ?? "",
-              placeholder: "secret",
-              note: "Stored in mcp.json only if you enter a value.",
-              onSubmit: async (clientSecretValue) => {
-                promptValue({
-                  title: `${mode} ${type} server`,
-                  label: "OAuth scopes (optional)",
-                  initialValue: initial?.oauth?.scopes
-                    ? compactJson(initial.oauth.scopes)
-                    : "",
-                  placeholder: '["read","write"]',
-                  onSubmit: async (scopesValue) => {
-                    promptValue({
-                      title: `${mode} ${type} server`,
-                      label: "OAuth audiences (optional)",
-                      initialValue: initial?.oauth?.audiences
-                        ? compactJson(initial.oauth.audiences)
-                        : "",
-                      placeholder: '["https://api.example.com"]',
-                      onSubmit: async (audiencesValue) => {
-                        promptValue({
-                          title: `${mode} ${type} server`,
-                          label: "OAuth callback port (optional)",
-                          initialValue:
-                            initial?.oauth?.callbackPort !== undefined
-                              ? String(initial.oauth.callbackPort)
-                              : "",
-                          placeholder: "19876",
-                          onSubmit: async (callbackPortValue) => {
-                            promptValue({
-                              title: `${mode} ${type} server`,
-                              label: "OAuth redirect URI (optional)",
-                              initialValue: initial?.oauth?.redirectUri ?? "",
-                              placeholder:
-                                "http://127.0.0.1:19876/mcp/oauth/callback",
-                              onSubmit: async (redirectUriValue) => {
-                                promptValue({
-                                  title: `${mode} ${type} server`,
-                                  label: "OAuth issuer (optional)",
-                                  initialValue: initial?.oauth?.issuer ?? "",
-                                  placeholder: "https://auth.example.com",
-                                  onSubmit: async (issuerValue) => {
-                                    promptValue({
-                                      title: `${mode} ${type} server`,
-                                      label:
-                                        "OAuth authorization URL override (optional)",
-                                      initialValue:
-                                        initial?.oauth?.authorizationUrl ?? "",
-                                      placeholder:
-                                        "https://auth.example.com/authorize",
-                                      onSubmit: async (
-                                        authorizationUrlValue,
-                                      ) => {
-                                        promptValue({
-                                          title: `${mode} ${type} server`,
-                                          label:
-                                            "OAuth token URL override (optional)",
-                                          initialValue:
-                                            initial?.oauth?.tokenUrl ?? "",
-                                          placeholder:
-                                            "https://auth.example.com/token",
-                                          onSubmit: async (tokenUrlValue) => {
-                                            promptValue({
-                                              title: `${mode} ${type} server`,
-                                              label:
-                                                "OAuth registration URL override (optional)",
-                                              initialValue:
-                                                initial?.oauth
-                                                  ?.registrationUrl ?? "",
-                                              placeholder:
-                                                "https://auth.example.com/register",
-                                              onSubmit: async (
-                                                registrationUrlValue,
-                                              ) => {
-                                                promptValue({
-                                                  title: `${mode} ${type} server`,
-                                                  label:
-                                                    "OAuth token param name (optional)",
-                                                  initialValue:
-                                                    initial?.oauth
-                                                      ?.tokenParamName ?? "",
-                                                  placeholder: "access_token",
-                                                  onSubmit: async (
-                                                    tokenParamNameValue,
-                                                  ) => {
-                                                    const scopes =
-                                                      parseStringArray(
-                                                        scopesValue,
-                                                        "OAuth scopes",
-                                                      );
-                                                    const audiences =
-                                                      parseStringArray(
-                                                        audiencesValue,
-                                                        "OAuth audiences",
-                                                      );
-                                                    const callbackPort =
-                                                      normalizeOptional(
-                                                        callbackPortValue,
-                                                      ) !== undefined
-                                                        ? parseNumber(
-                                                            callbackPortValue,
-                                                            "OAuth callback port",
-                                                            {
-                                                              integer: true,
-                                                              min: 1,
-                                                              max: 65535,
-                                                            },
-                                                          )
-                                                        : undefined;
-                                                    const oauth =
-                                                      McpOAuthConfigSchema.parse(
-                                                        {
-                                                          enabled: true,
-                                                          ...(normalizeOptional(
-                                                            clientIdValue,
-                                                          )
-                                                            ? {
-                                                                clientId:
-                                                                  normalizeOptional(
-                                                                    clientIdValue,
-                                                                  ),
-                                                              }
-                                                            : {}),
-                                                          ...(normalizeOptional(
-                                                            clientSecretValue,
-                                                          )
-                                                            ? {
-                                                                clientSecret:
-                                                                  normalizeOptional(
-                                                                    clientSecretValue,
-                                                                  ),
-                                                              }
-                                                            : {}),
-                                                          ...(scopes.length > 0
-                                                            ? { scopes }
-                                                            : {}),
-                                                          ...(audiences.length >
-                                                          0
-                                                            ? { audiences }
-                                                            : {}),
-                                                          ...(callbackPort !==
-                                                          undefined
-                                                            ? { callbackPort }
-                                                            : {}),
-                                                          ...(normalizeOptional(
-                                                            redirectUriValue,
-                                                          )
-                                                            ? {
-                                                                redirectUri:
-                                                                  normalizeOptional(
-                                                                    redirectUriValue,
-                                                                  ),
-                                                              }
-                                                            : {}),
-                                                          ...(normalizeOptional(
-                                                            issuerValue,
-                                                          )
-                                                            ? {
-                                                                issuer:
-                                                                  normalizeOptional(
-                                                                    issuerValue,
-                                                                  ),
-                                                              }
-                                                            : {}),
-                                                          ...(normalizeOptional(
-                                                            authorizationUrlValue,
-                                                          )
-                                                            ? {
-                                                                authorizationUrl:
-                                                                  normalizeOptional(
-                                                                    authorizationUrlValue,
-                                                                  ),
-                                                              }
-                                                            : {}),
-                                                          ...(normalizeOptional(
-                                                            tokenUrlValue,
-                                                          )
-                                                            ? {
-                                                                tokenUrl:
-                                                                  normalizeOptional(
-                                                                    tokenUrlValue,
-                                                                  ),
-                                                              }
-                                                            : {}),
-                                                          ...(normalizeOptional(
-                                                            registrationUrlValue,
-                                                          )
-                                                            ? {
-                                                                registrationUrl:
-                                                                  normalizeOptional(
-                                                                    registrationUrlValue,
-                                                                  ),
-                                                              }
-                                                            : {}),
-                                                          ...(normalizeOptional(
-                                                            tokenParamNameValue,
-                                                          )
-                                                            ? {
-                                                                tokenParamName:
-                                                                  normalizeOptional(
-                                                                    tokenParamNameValue,
-                                                                  ),
-                                                              }
-                                                            : {}),
-                                                        },
-                                                      );
-                                                    persistRemote(
-                                                      url,
-                                                      headers,
-                                                      oauth,
-                                                    );
-                                                  },
-                                                });
-                                              },
-                                            });
-                                          },
-                                        });
-                                      },
-                                    });
-                                  },
-                                });
-                              },
-                            });
-                          },
-                        });
-                      },
-                    });
-                  },
-                });
-              },
-            });
-          },
-        });
-      };
-      promptValue({
-        title: `${mode} ${type} server`,
-        label: "URL",
-        initialValue: initial?.url ?? "",
-        placeholder: "https://example.com/mcp",
-        onSubmit: async (urlValue) => {
-          const url = urlValue.trim();
-          if (!url) {
-            throw new Error("URL is required.");
-          }
-          promptValue({
-            title: `${mode} ${type} server`,
-            label: "Headers (optional)",
-            initialValue: initial?.headers ? compactJson(initial.headers) : "",
-            placeholder: '{"Authorization":"Bearer ..."}',
-            onSubmit: async (headersValue) => {
-              const headers = parseStringRecord(headersValue, "Headers");
-              promptValue({
-                title: `${mode} ${type} server`,
-                label: "Enable OAuth? (yes/no)",
-                initialValue: initial?.oauth ? "yes" : "no",
-                placeholder: "no",
-                note: "Choose yes for servers that use OAuth 2.0/2.1 or dynamic client registration.",
-                onSubmit: async (oauthEnabledValue) => {
-                  const oauthEnabled = parseOptionalBoolean(
-                    oauthEnabledValue,
-                    "Enable OAuth",
-                  );
-                  promptForOAuthDetails(url, headers, oauthEnabled);
-                },
-              });
-            },
-          });
-        },
+      setMcpDraft({
+        name: currentName ?? "",
+        url: initial?.url ?? "",
+        headers: initial?.headers ? compactJson(initial.headers) : "",
+        oauthEnabled: initial?.oauth ? "yes" : "no",
+        clientId: initial?.oauth?.clientId ?? "",
+        clientSecret: initial?.oauth?.clientSecret ?? "",
+        scopes: initial?.oauth?.scopes ? compactJson(initial.oauth.scopes) : "",
+        audiences: initial?.oauth?.audiences
+          ? compactJson(initial.oauth.audiences)
+          : "",
+        callbackPort:
+          initial?.oauth?.callbackPort !== undefined
+            ? String(initial.oauth.callbackPort)
+            : "",
+        redirectUri: initial?.oauth?.redirectUri ?? "",
+        issuer: initial?.oauth?.issuer ?? "",
+        authorizationUrl: initial?.oauth?.authorizationUrl ?? "",
+        tokenUrl: initial?.oauth?.tokenUrl ?? "",
+        registrationUrl: initial?.oauth?.registrationUrl ?? "",
+        tokenParamName: initial?.oauth?.tokenParamName ?? "",
+      });
+      setScreen({
+        kind: "mcp-remote-edit",
+        transportType: type,
+        originalName: currentName,
       });
     },
-    [mcpConfig, promptValue, refresh, setSuccess],
+    [],
   );
 
-  const promptForServerName = useCallback(
-    (type: "stdio" | "streamable-http" | "sse") => {
+  const updateMcpDraftField = useCallback((key: string, value: string) => {
+    setMcpDraft((current) =>
+      current ? { ...current, [key]: value } : current,
+    );
+  }, []);
+
+  const editMcpDraftField = useCallback(
+    (field: McpDraftField, initialValue: string) => {
       promptValue({
-        title: `Add ${type} server`,
-        label: "Server name",
-        placeholder: "filesystem",
-        onSubmit: async (nameValue) => {
-          const name = nameValue.trim();
-          if (!name) {
-            throw new Error("Server name is required.");
-          }
-          if (type === "stdio") {
-            promptForStdio(name);
-            return;
-          }
-          promptForRemote(name, type);
+        title: `Update ${field.label}`,
+        label: field.label,
+        initialValue,
+        placeholder: field.placeholder,
+        note: field.note,
+        onSubmit: async (value) => {
+          updateMcpDraftField(field.key, value);
+          setPrompt(null);
         },
       });
     },
-    [promptForRemote, promptForStdio, promptValue],
+    [promptValue, updateMcpDraftField],
+  );
+
+  const saveMcpStdioDraft = useCallback(
+    (originalName?: string) => {
+      const values = mcpDraft ?? {};
+      const name = (values.name ?? "").trim();
+      const command = (values.command ?? "").trim();
+      if (!name) {
+        throw new Error("Server name is required.");
+      }
+      if (!command) {
+        throw new Error("Command is required.");
+      }
+      const args = parseStringArray(values.args ?? "", "Arguments");
+      const env = parseStringRecord(values.env ?? "", "Environment variables");
+      const cwd = normalizeOptional(values.cwd ?? "");
+      const transport = McpTransportSchema.parse({
+        type: "stdio",
+        command,
+        ...(args.length > 0 ? { args } : {}),
+        ...(env && Object.keys(env).length > 0 ? { env } : {}),
+        ...(cwd ? { cwd } : {}),
+      }) as Stdio;
+      persistMcpTransport(originalName, name, transport);
+    },
+    [mcpDraft, persistMcpTransport],
+  );
+
+  const saveMcpRemoteDraft = useCallback(
+    (
+      transportType: StreamableHttp["type"] | Sse["type"],
+      originalName?: string,
+    ) => {
+      const values = mcpDraft ?? {};
+      const name = (values.name ?? "").trim();
+      const url = (values.url ?? "").trim();
+      if (!name) {
+        throw new Error("Server name is required.");
+      }
+      if (!url) {
+        throw new Error("URL is required.");
+      }
+      const headers = parseStringRecord(values.headers ?? "", "Headers");
+      const oauthEnabled = parseOptionalBoolean(
+        values.oauthEnabled ?? "",
+        "Enable OAuth",
+      );
+      const scopes = parseStringArray(values.scopes ?? "", "OAuth scopes");
+      const audiences = parseStringArray(
+        values.audiences ?? "",
+        "OAuth audiences",
+      );
+      const callbackPort =
+        normalizeOptional(values.callbackPort ?? "") !== undefined
+          ? parseNumber(values.callbackPort ?? "", "OAuth callback port", {
+              integer: true,
+              min: 1,
+              max: 65535,
+            })
+          : undefined;
+      const oauth = oauthEnabled
+        ? McpOAuthConfigSchema.parse({
+            enabled: true,
+            ...(normalizeOptional(values.clientId ?? "")
+              ? { clientId: normalizeOptional(values.clientId ?? "") }
+              : {}),
+            ...(normalizeOptional(values.clientSecret ?? "")
+              ? { clientSecret: normalizeOptional(values.clientSecret ?? "") }
+              : {}),
+            ...(scopes.length > 0 ? { scopes } : {}),
+            ...(audiences.length > 0 ? { audiences } : {}),
+            ...(callbackPort !== undefined ? { callbackPort } : {}),
+            ...(normalizeOptional(values.redirectUri ?? "")
+              ? { redirectUri: normalizeOptional(values.redirectUri ?? "") }
+              : {}),
+            ...(normalizeOptional(values.issuer ?? "")
+              ? { issuer: normalizeOptional(values.issuer ?? "") }
+              : {}),
+            ...(normalizeOptional(values.authorizationUrl ?? "")
+              ? {
+                  authorizationUrl: normalizeOptional(
+                    values.authorizationUrl ?? "",
+                  ),
+                }
+              : {}),
+            ...(normalizeOptional(values.tokenUrl ?? "")
+              ? { tokenUrl: normalizeOptional(values.tokenUrl ?? "") }
+              : {}),
+            ...(normalizeOptional(values.registrationUrl ?? "")
+              ? {
+                  registrationUrl: normalizeOptional(
+                    values.registrationUrl ?? "",
+                  ),
+                }
+              : {}),
+            ...(normalizeOptional(values.tokenParamName ?? "")
+              ? {
+                  tokenParamName: normalizeOptional(
+                    values.tokenParamName ?? "",
+                  ),
+                }
+              : {}),
+          })
+        : undefined;
+      const transport = McpTransportSchema.parse({
+        type: transportType,
+        url,
+        ...(headers && Object.keys(headers).length > 0 ? { headers } : {}),
+        ...(oauth ? { oauth } : {}),
+      }) as StreamableHttp | Sse;
+      persistMcpTransport(originalName, name, transport);
+    },
+    [mcpDraft, persistMcpTransport],
   );
 
   const llmSummary = useCallback(
@@ -1168,6 +1107,7 @@ export function ConfigureApp({
   );
 
   const renderHome = () => {
+    const defaultLlm = config.llms.find((m) => m.default) ?? config.llms[0];
     const items: MenuItem[] = [
       {
         label: "General",
@@ -1196,7 +1136,7 @@ export function ConfigureApp({
         },
       },
       {
-        label: "Models",
+        label: defaultLlm ? `Models • ${defaultLlm.name}` : "Models",
         value: () => setScreen({ kind: "config" }),
       },
       {
@@ -1208,7 +1148,7 @@ export function ConfigureApp({
         value: () => setScreen({ kind: "skills" }),
       },
       {
-        label: "Exit",
+        label: "Back",
         value: () => {
           onExit();
           exit();
@@ -1222,7 +1162,7 @@ export function ConfigureApp({
           config.llms.find((m) => m.default) ?? config.llms[0]!,
         )}`}
         items={items}
-        footerHint="enter: select | ctrl+c: exit"
+        footerHint="enter: select | esc: back"
       />
     );
   };
@@ -2351,6 +2291,77 @@ export function ConfigureApp({
     );
   };
 
+  const renderMcpStdioEditMenu = () => {
+    if (screen.kind !== "mcp-stdio-edit" || !mcpDraft) {
+      return null;
+    }
+    const items: MenuItem[] = [
+      ...MCP_STDIO_FIELDS.map((field) => ({
+        key: `mcp-stdio:${field.key}`,
+        label: `${field.label} • ${formatDraftFieldValue(field, mcpDraft[field.key])}`,
+        value: () => editMcpDraftField(field, mcpDraft[field.key] ?? ""),
+      })),
+      {
+        label: "Save",
+        value: () => saveMcpStdioDraft(screen.originalName),
+      },
+      {
+        label: "Back",
+        value: () => {
+          setMcpDraft(null);
+          setScreen({ kind: "mcp" });
+        },
+      },
+    ];
+
+    return (
+      <MenuScreen
+        title={`${screen.originalName ? "Edit" : "Add"} stdio server`}
+        description="Select a field to edit, then save when you're done."
+        items={items}
+      />
+    );
+  };
+
+  const renderMcpRemoteEditMenu = () => {
+    if (screen.kind !== "mcp-remote-edit" || !mcpDraft) {
+      return null;
+    }
+    const fields = [
+      ...MCP_REMOTE_BASE_FIELDS,
+      ...(isTruthyToggle(mcpDraft.oauthEnabled) ? MCP_REMOTE_OAUTH_FIELDS : []),
+    ];
+    const items: MenuItem[] = [
+      ...fields.map((field) => ({
+        key: `mcp-remote:${field.key}`,
+        label: `${field.label} • ${formatDraftFieldValue(field, mcpDraft[field.key])}`,
+        value: () => editMcpDraftField(field, mcpDraft[field.key] ?? ""),
+      })),
+      {
+        label: "Save",
+        value: () =>
+          saveMcpRemoteDraft(screen.transportType, screen.originalName),
+      },
+      {
+        label: "Back",
+        value: () => {
+          setMcpDraft(null);
+          setScreen({ kind: "mcp" });
+        },
+      },
+    ];
+
+    return (
+      <MenuScreen
+        title={`${
+          screen.originalName ? "Edit" : "Add"
+        } ${screen.transportType} server`}
+        description="Select a field to edit, then save when you're done."
+        items={items}
+      />
+    );
+  };
+
   const renderMcpMenu = () => {
     const serverItems: MenuItem[] = mcpServers.map((server) => {
       const oauthStatus = mcpAuthStatuses[server.name];
@@ -2369,11 +2380,11 @@ export function ConfigureApp({
             : undefined,
         value: () => {
           if (server.transport.type === "stdio") {
-            promptForStdio(server.name, server.transport);
+            openMcpStdioEditor(server.name, server.transport);
           } else {
-            promptForRemote(
-              server.name,
+            openMcpRemoteEditor(
               server.transport.type,
+              server.name,
               server.transport,
             );
           }
@@ -2384,15 +2395,15 @@ export function ConfigureApp({
     const items: MenuItem[] = [
       {
         label: "Add stdio server",
-        value: () => promptForServerName("stdio"),
+        value: () => openMcpStdioEditor(),
       },
       {
         label: "Add streamable HTTP server",
-        value: () => promptForServerName("streamable-http"),
+        value: () => openMcpRemoteEditor("streamable-http"),
       },
       {
         label: "Add SSE server",
-        value: () => promptForServerName("sse"),
+        value: () => openMcpRemoteEditor("sse"),
       },
       ...serverItems,
       {
@@ -2684,6 +2695,10 @@ export function ConfigureApp({
         return renderSearchProviderMenu();
       case "mcp":
         return renderMcpMenu();
+      case "mcp-stdio-edit":
+        return renderMcpStdioEditMenu();
+      case "mcp-remote-edit":
+        return renderMcpRemoteEditMenu();
       case "mcp-delete-confirm":
         return renderMcpDeleteConfirm();
       case "skills":
