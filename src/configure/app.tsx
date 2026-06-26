@@ -842,8 +842,8 @@ export function ConfigureApp({
   const renderHome = () => {
     const items: MenuItem[] = [
       {
-        label: "Inference",
-        value: () => setScreen({ kind: "config" }),
+        label: "General",
+        value: () => setScreen({ kind: "config-general" }),
       },
       {
         label: "Instructions • edit instructions.md",
@@ -868,6 +868,10 @@ export function ConfigureApp({
         },
       },
       {
+        label: "Models",
+        value: () => setScreen({ kind: "config" }),
+      },
+      {
         label: `MCP servers • ${mcpServers.length} configured`,
         value: () => setScreen({ kind: "mcp" }),
       },
@@ -886,7 +890,7 @@ export function ConfigureApp({
     return (
       <MenuScreen
         title={configData.name}
-        description={`inference: ${llmSummary(
+        description={`models: ${llmSummary(
           config.llms.find((m) => m.default) ?? config.llms[0]!,
         )}`}
         items={items}
@@ -895,7 +899,7 @@ export function ConfigureApp({
     );
   };
 
-  const renderConfigMenu = () => {
+  const renderGeneralMenu = () => {
     const enabledPrompts = Object.values(configData.prompts).filter(
       Boolean,
     ).length;
@@ -917,17 +921,6 @@ export function ConfigureApp({
               setPrompt(null);
             },
           }),
-      },
-      {
-        label: (() => {
-          const def = config.llms.find((m) => m.default) ?? config.llms[0]!;
-          return `LLMs • ${config.llms.length} configured (default: ${def.name})`;
-        })(),
-        value: () => setScreen({ kind: "config-llms" }),
-      },
-      {
-        label: `Providers • ${config.providers.length} configured`,
-        value: () => setScreen({ kind: "config-providers" }),
       },
       {
         label: `Prompts • ${enabledPrompts}/${totalPrompts} enabled`,
@@ -995,8 +988,34 @@ export function ConfigureApp({
 
     return (
       <MenuScreen
-        title="Configuration"
-        description="Edit the same values loaded from ~/.hooman/config.json."
+        title="General"
+        description="Manage app-wide settings loaded from ~/.hooman/config.json."
+        items={items}
+      />
+    );
+  };
+
+  const renderConfigMenu = () => {
+    const defaultLlm = config.llms.find((m) => m.default) ?? config.llms[0]!;
+    const items: MenuItem[] = [
+      {
+        label: `LLMs • ${config.llms.length} configured (default: ${defaultLlm.name})`,
+        value: () => setScreen({ kind: "config-llms" }),
+      },
+      {
+        label: `Providers • ${config.providers.length} configured`,
+        value: () => setScreen({ kind: "config-providers" }),
+      },
+      {
+        label: "Back",
+        value: () => setScreen({ kind: "home" }),
+      },
+    ];
+
+    return (
+      <MenuScreen
+        title="Models"
+        description="Manage configured providers and LLMs from ~/.hooman/config.json."
         items={items}
       />
     );
@@ -1113,7 +1132,7 @@ export function ConfigureApp({
       },
       {
         label: "Back",
-        value: () => setScreen({ kind: "config" }),
+        value: () => setScreen({ kind: "config-general" }),
       },
     ];
 
@@ -1623,7 +1642,7 @@ export function ConfigureApp({
       }),
       {
         label: "Back",
-        value: () => setScreen({ kind: "config-tools" }),
+        value: () => setScreen({ kind: "config-general" }),
       },
     ];
 
@@ -2040,6 +2059,8 @@ export function ConfigureApp({
     switch (screen.kind) {
       case "home":
         return renderHome();
+      case "config-general":
+        return renderGeneralMenu();
       case "config":
         return renderConfigMenu();
       case "config-providers":

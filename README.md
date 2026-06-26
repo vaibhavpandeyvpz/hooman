@@ -21,7 +21,7 @@ It gives you a practical toolkit to build and run agent workflows:
 - a one-shot `exec` command for single prompts
 - a stateful `chat` interface for iterative sessions
 - a `daemon` command for channel-driven MCP automation
-- an in-chat `/config` workflow (Ink-powered) for app config, prompts, MCP servers, and installed skills
+- an in-chat `/config` workflow (Ink-powered) for general settings, models, MCP servers, and installed skills
 - an `acp` command for running Hooman as an Agent Client Protocol (ACP) agent over stdio
 
 ## Related
@@ -264,7 +264,8 @@ The configuration workflow is launched from inside a `chat` session with the `/c
 
 The configuration UI currently lets you:
 
-- edit app configuration values
+- manage general settings such as name, prompts, tools, and compaction
+- manage models and providers
 - choose search provider and set its API key
 - toggle bundled harness prompts (`behaviour`, `communication`, `execution`, `guardrails`)
 - edit `instructions.md` in your `$VISUAL` / `$EDITOR` (cross-platform fallback included)
