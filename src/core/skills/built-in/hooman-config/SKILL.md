@@ -1,6 +1,6 @@
 ---
 name: hooman-config
-description: Read and update Hooman's own config.json and instructions.md safely. Use when the user asks about Hooman config, custom instructions, model providers, LLM params, tool toggles, prompts, search, agents, compaction, or ~/.hooman config settings.
+description: Read and update Hooman's own config.json and instructions.md safely. Use when the user asks about Hooman config, custom instructions, model providers, LLM options, tool toggles, prompts, search, agents, compaction, or ~/.hooman config settings.
 ---
 
 # Hooman Config

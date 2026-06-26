@@ -63,6 +63,13 @@ npm run clean        # rm -rf dist
 npm link             # link `hooman` CLI locally
 ```
 
+After making any code change, run both:
+
+```bash
+npm run typecheck
+npm run build
+```
+
 ## Testing and verification
 
 - **There is no test framework configured in this repository.** `package.json` has no `test` script and there are no `.test.*` files.
@@ -70,6 +77,7 @@ npm link             # link `hooman` CLI locally
   - `npm run typecheck` — strict TypeScript check.
   - `npm run build` — must compile without errors and copy assets.
   - Smoke-test the built CLI: `node dist/cli.js --help`.
+- For normal code changes, treat `npm run typecheck` and `npm run build` as the default verification pair.
 
 ## CLI commands
 
@@ -103,6 +111,8 @@ Common flags on `exec`, `chat`, and `daemon`:
 
 In-chat slash commands (interactive `chat`): `/model`, `/mode`, `/yolo`, `/init`, `/compact` (compact history now), `/new` (start a fresh session), and `/config` (launch the configuration TUI on the alternate screen, restoring chat on exit).
 
+The `/config` workflow uses menu screens where you select a field and edit just that value. Enum-like values such as provider thinking modes use pickers.
+
 ## Configuration layout
 
 Hooman stores user data under `~/.hooman/`:
@@ -117,14 +127,14 @@ Hooman stores user data under `~/.hooman/`:
 - `sessions/` — persisted session data.
 - `acp-sessions/` — persisted ACP session metadata.
 
-Default `config.json` uses a local Ollama provider and `gemma4:e4b` as the default model. Supported providers include `anthropic`, `bedrock`, `google`, `groq`, `moonshot`, `ollama`, `openai`, and `xai`. See `src/core/models/index.ts` for the currently wired providers and `src/core/config.ts` for the JSON schema.
+Default `config.json` uses a local Ollama provider and `gemma4:e4b` as the default model. Supported providers include `anthropic`, `bedrock`, `google`, `groq`, `minimax`, `moonshot`, `ollama`, `openai`, and `xai`. See `src/core/models/index.ts` for the currently wired providers, `src/core/config.ts` for the top-level config schema, and `src/core/models/types.ts` for provider/LLM option schemas.
 
 ## Code style and conventions
 
 - **Language:** TypeScript with strict mode enabled (`tsconfig.json`).
 - **Module resolution:** `NodeNext`; imports use `.js` extensions even for `.ts`/`.tsx` source files.
 - **React/JSX:** `jsx: "react-jsx"` (Ink components use React 19).
-- **Formatting/Linting:** No ESLint or Prettier config is present. Follow existing formatting and keep changes narrow.
+- **Formatting/Linting:** No ESLint or Prettier config is present. Follow existing formatting and keep changes narrow. TypeScript unused checks are enforced through `tsconfig.json` (`noUnusedLocals`, `noUnusedParameters`).
 - **File naming:** kebab-case for modules (`acp-agent.ts`, `tool-approvals.ts`).
 - **Imports:** prefer explicit named imports; internal imports always include the `.js` extension.
 - **State:** session-scoped agent state is stored on the Strands `appState` object; see `src/core/state/`.

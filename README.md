@@ -30,7 +30,7 @@ It gives you a practical toolkit to build and run agent workflows:
 
 ## Features
 
-- Multiple LLM providers: `anthropic`, `bedrock`, `google`, `groq`, `moonshot`, `ollama`, `openai`, `xai`
+- Multiple LLM providers: `anthropic`, `bedrock`, `google`, `groq`, `minimax`, `moonshot`, `ollama`, `openai`, `xai`
 - Local configuration under `~/.hooman`
 - Optional web search tool with provider selection (`brave`, `exa`, `firecrawl`, `serper`, or `tavily`)
 - MCP server support via `stdio`, `streamable-http`, and `sse`
@@ -265,11 +265,11 @@ The configuration workflow is launched from inside a `chat` session with the `/c
 The configuration UI currently lets you:
 
 - manage general settings such as name, prompts, tools, and compaction
-- manage models and providers
+- manage models and providers with field-by-field editors
 - choose search provider and set its API key
 - toggle bundled harness prompts (`behaviour`, `communication`, `execution`, `guardrails`)
 - edit `instructions.md` in your `$VISUAL` / `$EDITOR` (cross-platform fallback included)
-- add, edit, and delete MCP servers with confirmation
+- add, edit, and delete MCP servers with field-by-field editors and confirmation
 - search, install, refresh, and remove skills
 
 ### `hooman acp`
@@ -584,6 +584,19 @@ Run typecheck:
 
 ```bash
 npm run typecheck
+```
+
+Build the project:
+
+```bash
+npm run build
+```
+
+After making any code change, run both verification steps:
+
+```bash
+npm run typecheck
+npm run build
 ```
 
 ## License
