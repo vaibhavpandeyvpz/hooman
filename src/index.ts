@@ -155,6 +155,7 @@ export { create as createBedrockModelProvider } from "./core/models/bedrock.js";
 export type { BedrockLlmParams } from "./core/models/bedrock.js";
 export { create as createGoogleModelProvider } from "./core/models/google.js";
 export { create as createGroqModelProvider } from "./core/models/groq.js";
+export { create as createMinimaxModelProvider } from "./core/models/minimax.js";
 export { create as createMoonshotModelProvider } from "./core/models/moonshot.js";
 export { create as createOllamaModelProvider } from "./core/models/ollama/index.js";
 export {

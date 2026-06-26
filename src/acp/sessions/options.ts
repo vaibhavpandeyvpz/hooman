@@ -48,8 +48,8 @@ export function buildSessionConfigOptions(
         description: (() => {
           const resolved = config.resolveLlm(m.name);
           return resolved
-            ? `${m.options.provider} -> ${resolved.options.provider}/${resolved.options.model}`
-            : `${m.options.provider}/${m.options.model}`;
+            ? `${m.provider} -> ${resolved.provider}/${resolved.llmOptions.model}`
+            : `${m.provider}/${m.options.model}`;
         })(),
       })),
     },

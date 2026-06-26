@@ -1,4 +1,3 @@
-import React from "react";
 import { mkdir } from "node:fs/promises";
 import { render } from "ink";
 import { ConfigureApp } from "./app.js";

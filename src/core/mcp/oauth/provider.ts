@@ -4,7 +4,6 @@ import type {
   OAuthDiscoveryState,
 } from "@modelcontextprotocol/sdk/client/auth.js";
 import type {
-  OAuthClientInformationFull,
   OAuthClientInformationMixed,
   OAuthClientMetadata,
   OAuthTokens,

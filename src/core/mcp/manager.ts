@@ -444,7 +444,7 @@ export class Manager {
           method: string;
           params?: unknown;
         }) => {
-          const { method, params } = notification;
+          const { params } = notification;
           const prompt = this.toChannelPrompt(params);
           if (!prompt) {
             return;

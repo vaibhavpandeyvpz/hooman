@@ -1,10 +1,11 @@
 import type { Model, BaseModelConfig } from "@strands-agents/sdk";
+import type { LlmOptions, ProviderOptions } from "./types.js";
 
 export type ModelProvider = {
-  create: (
-    model: string,
-    params: Record<string, any>,
-  ) => Model<BaseModelConfig>;
+  create(
+    providerOptions: ProviderOptions,
+    llmOptions: LlmOptions,
+  ): Model<BaseModelConfig>;
 };
 
 export const modelProviders: Record<string, () => Promise<ModelProvider>> = {
@@ -12,6 +13,7 @@ export const modelProviders: Record<string, () => Promise<ModelProvider>> = {
   bedrock: () => import("./bedrock.js"),
   google: () => import("./google.js"),
   groq: () => import("./groq.js"),
+  minimax: () => import("./minimax.js"),
   moonshot: () => import("./moonshot.js"),
   ollama: () => import("./ollama/index.js"),
   openai: () => import("./openai.js"),

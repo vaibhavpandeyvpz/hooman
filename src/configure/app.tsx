@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import path from "node:path";
 import { Box, Text, useApp, useInput } from "ink";
 import {
   LlmProvider,
@@ -22,13 +21,7 @@ import type {
   SkillListEntry,
   SkillSearchResult,
 } from "../core/skills/registry.js";
-import {
-  basePath,
-  configJsonPath,
-  instructionsMdPath,
-  mcpJsonPath,
-  skillsPath,
-} from "../core/utils/paths.js";
+import { instructionsMdPath } from "../core/utils/paths.js";
 import { BusyScreen } from "./components/BusyScreen.js";
 import { MenuScreen } from "./components/MenuScreen.js";
 import { PromptForm } from "./components/PromptForm.js";
@@ -49,7 +42,6 @@ import {
   noticeColor,
   parseOptionalBoolean,
   parseNumber,
-  parseObjectRecord,
   maskSensitiveParamsForDisplay,
   parseStringArray,
   parseStringRecord,
@@ -87,13 +79,35 @@ const SUPPORTED_PROVIDER_TYPES = [
   LlmProvider.Bedrock,
   LlmProvider.Google,
   LlmProvider.Groq,
+  LlmProvider.Minimax,
   LlmProvider.Moonshot,
   LlmProvider.Ollama,
   LlmProvider.OpenAI,
   LlmProvider.Xai,
 ] as const;
 
-function providerParamsTemplate(
+const DEFAULT_MODEL_BY_PROVIDER: Record<
+  (typeof SUPPORTED_PROVIDER_TYPES)[number],
+  string
+> = {
+  [LlmProvider.Anthropic]: "claude-sonnet-4-6",
+  [LlmProvider.Bedrock]: "anthropic.claude-sonnet-4-6",
+  [LlmProvider.Google]: "gemini-2.5-flash",
+  [LlmProvider.Groq]: "openai/gpt-oss-20b",
+  [LlmProvider.Minimax]: "MiniMax-M3",
+  [LlmProvider.Moonshot]: "kimi-k2.7-code",
+  [LlmProvider.Ollama]: "gemma4:e4b",
+  [LlmProvider.OpenAI]: "gpt-5.5",
+  [LlmProvider.Xai]: "grok-4.3",
+};
+
+function defaultModelForProviderType(
+  provider: (typeof SUPPORTED_PROVIDER_TYPES)[number],
+): string {
+  return DEFAULT_MODEL_BY_PROVIDER[provider];
+}
+
+function providerOptionsTemplate(
   provider: (typeof SUPPORTED_PROVIDER_TYPES)[number],
 ): Record<string, unknown> {
   switch (provider) {
@@ -105,6 +119,8 @@ function providerParamsTemplate(
       return { apiKey: "" };
     case LlmProvider.Groq:
       return { apiKey: "" };
+    case LlmProvider.Minimax:
+      return { apiKey: "" };
     case LlmProvider.Moonshot:
       return { apiKey: "" };
     case LlmProvider.Ollama:
@@ -113,6 +129,298 @@ function providerParamsTemplate(
       return { apiKey: "" };
     case LlmProvider.Xai:
       return { apiKey: "" };
+  }
+}
+
+type TypedFieldKind =
+  | "string"
+  | "stringRecord"
+  | "optionalNumber"
+  | "optionalInteger"
+  | "bedrockCredentials"
+  | "anthropicThinking"
+  | "ollamaThinking";
+
+type TypedFieldDefinition = {
+  key: string;
+  label: string;
+  kind: TypedFieldKind;
+  placeholder?: string;
+  note?: string;
+  sensitive?: boolean;
+};
+
+const PROVIDER_FIELD_DEFINITIONS: Record<
+  (typeof SUPPORTED_PROVIDER_TYPES)[number],
+  TypedFieldDefinition[]
+> = {
+  [LlmProvider.Anthropic]: [
+    {
+      key: "apiKey",
+      label: "API key",
+      kind: "string",
+      placeholder: "sk-ant-...",
+      sensitive: true,
+    },
+    {
+      key: "baseURL",
+      label: "Base URL",
+      kind: "string",
+      placeholder: "https://api.anthropic.com",
+    },
+    {
+      key: "headers",
+      label: "Headers",
+      kind: "stringRecord",
+      placeholder: '{"x-my-header":"value"}',
+    },
+    {
+      key: "thinking",
+      label: "Thinking",
+      kind: "anthropicThinking",
+      placeholder: "adaptive",
+      note: 'Allowed: "disabled", "adaptive", or blank to clear.',
+    },
+  ],
+  [LlmProvider.Bedrock]: [
+    {
+      key: "region",
+      label: "Region",
+      kind: "string",
+      placeholder: "us-west-2",
+    },
+    {
+      key: "credentials",
+      label: "Static credentials",
+      kind: "bedrockCredentials",
+      note: "Set both access key ID and secret access key together, or leave blank to rely on the AWS default credential chain.",
+    },
+    {
+      key: "sessionToken",
+      label: "Session token",
+      kind: "string",
+      placeholder: "...",
+      sensitive: true,
+    },
+    {
+      key: "apiKey",
+      label: "API key",
+      kind: "string",
+      placeholder: "...",
+      sensitive: true,
+    },
+  ],
+  [LlmProvider.Google]: [
+    {
+      key: "apiKey",
+      label: "API key",
+      kind: "string",
+      placeholder: "...",
+      sensitive: true,
+    },
+  ],
+  [LlmProvider.Groq]: [
+    {
+      key: "apiKey",
+      label: "API key",
+      kind: "string",
+      placeholder: "gsk_...",
+      sensitive: true,
+    },
+    {
+      key: "baseURL",
+      label: "Base URL",
+      kind: "string",
+      placeholder: "https://api.groq.com/openai/v1",
+    },
+    {
+      key: "headers",
+      label: "Headers",
+      kind: "stringRecord",
+      placeholder: '{"x-my-header":"value"}',
+    },
+  ],
+  [LlmProvider.Minimax]: [
+    {
+      key: "apiKey",
+      label: "API key",
+      kind: "string",
+      placeholder: "...",
+      sensitive: true,
+    },
+    {
+      key: "headers",
+      label: "Headers",
+      kind: "stringRecord",
+      placeholder: '{"x-my-header":"value"}',
+    },
+    {
+      key: "thinking",
+      label: "Thinking",
+      kind: "anthropicThinking",
+      placeholder: "adaptive",
+      note: 'Allowed: "disabled", "adaptive", or blank to clear.',
+    },
+  ],
+  [LlmProvider.Moonshot]: [
+    {
+      key: "apiKey",
+      label: "API key",
+      kind: "string",
+      placeholder: "...",
+      sensitive: true,
+    },
+    {
+      key: "baseURL",
+      label: "Base URL",
+      kind: "string",
+      placeholder: "https://api.moonshot.ai/v1",
+      note: "Leave blank to use the default Moonshot API base URL.",
+    },
+    {
+      key: "headers",
+      label: "Headers",
+      kind: "stringRecord",
+      placeholder: '{"x-my-header":"value"}',
+    },
+  ],
+  [LlmProvider.Ollama]: [
+    {
+      key: "baseURL",
+      label: "Base URL",
+      kind: "string",
+      placeholder: "http://127.0.0.1:11434",
+    },
+    {
+      key: "thinking",
+      label: "Thinking",
+      kind: "ollamaThinking",
+      placeholder: "medium",
+      note: 'Allowed: yes/no/true/false or "high", "medium", "low". Leave blank to clear.',
+    },
+  ],
+  [LlmProvider.OpenAI]: [
+    {
+      key: "apiKey",
+      label: "API key",
+      kind: "string",
+      placeholder: "sk-...",
+      sensitive: true,
+    },
+    {
+      key: "baseURL",
+      label: "Base URL",
+      kind: "string",
+      placeholder: "https://api.openai.com/v1",
+    },
+    {
+      key: "headers",
+      label: "Headers",
+      kind: "stringRecord",
+      placeholder: '{"x-my-header":"value"}',
+    },
+  ],
+  [LlmProvider.Xai]: [
+    {
+      key: "apiKey",
+      label: "API key",
+      kind: "string",
+      placeholder: "...",
+      sensitive: true,
+    },
+    {
+      key: "baseURL",
+      label: "Base URL",
+      kind: "string",
+      placeholder: "https://api.x.ai/v1",
+    },
+    {
+      key: "headers",
+      label: "Headers",
+      kind: "stringRecord",
+      placeholder: '{"x-my-header":"value"}',
+    },
+  ],
+};
+
+const LLM_FIELD_DEFINITIONS: TypedFieldDefinition[] = [
+  {
+    key: "temperature",
+    label: "Temperature",
+    kind: "optionalNumber",
+    placeholder: "0.7",
+    note: "Leave blank to clear.",
+  },
+  {
+    key: "maxTokens",
+    label: "Max tokens",
+    kind: "optionalInteger",
+    placeholder: "4096",
+    note: "Leave blank to clear.",
+  },
+];
+
+function formatTypedFieldValue(
+  definition: TypedFieldDefinition,
+  value: unknown,
+): string {
+  if (value === undefined) {
+    return "not set";
+  }
+  if (definition.sensitive) {
+    return "[REDACTED]";
+  }
+  if (definition.kind === "bedrockCredentials") {
+    return value ? "[REDACTED]" : "not set";
+  }
+  if (definition.kind === "stringRecord") {
+    return paramsPreview(value);
+  }
+  return truncate(String(value), 44);
+}
+
+function parseTypedFieldValue(
+  input: string,
+  definition: TypedFieldDefinition,
+): unknown {
+  switch (definition.kind) {
+    case "string":
+      return normalizeOptional(input);
+    case "stringRecord":
+      return parseStringRecord(input, definition.label);
+    case "optionalNumber":
+      return normalizeOptional(input) === undefined
+        ? undefined
+        : parseNumber(input, definition.label);
+    case "optionalInteger":
+      return normalizeOptional(input) === undefined
+        ? undefined
+        : parseNumber(input, definition.label, {
+            integer: true,
+            min: 1,
+          });
+    case "bedrockCredentials":
+      return undefined;
+    case "anthropicThinking": {
+      const value = normalizeOptional(input);
+      if (value === undefined) {
+        return undefined;
+      }
+      if (value === "disabled" || value === "adaptive") {
+        return value;
+      }
+      throw new Error(`${definition.label} must be "disabled" or "adaptive".`);
+    }
+    case "ollamaThinking": {
+      const value = normalizeOptional(input);
+      if (value === undefined) {
+        return undefined;
+      }
+      if (value === "high" || value === "medium" || value === "low") {
+        return value;
+      }
+      return parseOptionalBoolean(value, definition.label);
+    }
   }
 }
 
@@ -243,6 +551,17 @@ export function ConfigureApp({
         setScreen({ kind: "config-provider-edit", name: screen.name });
         return;
       }
+      if (
+        screen.kind === "config-provider-anthropic-thinking" ||
+        screen.kind === "config-provider-ollama-thinking"
+      ) {
+        setScreen({ kind: "config-provider-edit", name: screen.name });
+        return;
+      }
+      if (screen.kind === "config-provider-add-type") {
+        setScreen({ kind: "config-providers" });
+        return;
+      }
       if (screen.kind !== "home") {
         setScreen({ kind: "home" });
       }
@@ -286,10 +605,18 @@ export function ConfigureApp({
   );
 
   const patchLlm = useCallback(
-    (name: string, patch: Partial<LlmEntry["options"]>) =>
+    (name: string, patch: Record<string, unknown>) =>
       config.llms.map((m) =>
-        m.name === name ? { ...m, options: { ...m.options, ...patch } } : m,
-      ),
+        m.name === name
+          ? {
+              ...m,
+              options: {
+                ...(m.options as Record<string, unknown>),
+                ...patch,
+              } as LlmEntry["options"],
+            }
+          : m,
+      ) as ConfigData["llms"],
     [config],
   );
 
@@ -308,18 +635,23 @@ export function ConfigureApp({
   );
 
   const addLlm = useCallback(
-    (name: string) => [
-      ...config.llms,
-      {
-        name,
-        options: {
-          provider: config.providers[0]?.name ?? LlmProvider.Ollama,
-          model: "gemma4:e4b",
-          params: {} as Record<string, unknown>,
+    (name: string) => {
+      const providerName = config.providers[0]?.name ?? "Ollama";
+      const providerType =
+        config.providers.find((provider) => provider.name === providerName)
+          ?.provider ?? LlmProvider.Ollama;
+      return [
+        ...config.llms,
+        {
+          name,
+          provider: providerName,
+          options: {
+            model: defaultModelForProviderType(providerType),
+          },
+          default: false,
         },
-        default: false,
-      },
-    ],
+      ];
+    },
     [config],
   );
 
@@ -329,19 +661,18 @@ export function ConfigureApp({
   );
 
   const patchProvider = useCallback(
-    (name: string, patch: Partial<ProviderEntry["options"]>) =>
+    (name: string, patch: Record<string, unknown>) =>
       config.providers.map((provider) =>
         provider.name === name
           ? {
               ...provider,
               options: {
-                ...provider.options,
+                ...(provider.options as Record<string, unknown>),
                 ...patch,
-                params: patch.params ?? provider.options.params,
-              },
+              } as ProviderEntry["options"],
             }
           : provider,
-      ),
+      ) as ConfigData["providers"],
     [config],
   );
 
@@ -351,13 +682,10 @@ export function ConfigureApp({
         provider.name === oldName ? { ...provider, name: newName } : provider,
       ),
       llms: config.llms.map((llm) =>
-        llm.options.provider === oldName
+        llm.provider === oldName
           ? {
               ...llm,
-              options: {
-                ...llm.options,
-                provider: newName,
-              },
+              provider: newName,
             }
           : llm,
       ),
@@ -366,13 +694,13 @@ export function ConfigureApp({
   );
 
   const addProvider = useCallback(
-    (name: string) => [
+    (name: string, provider: (typeof SUPPORTED_PROVIDER_TYPES)[number]) => [
       ...config.providers,
       {
         name,
+        provider,
         options: {
-          provider: LlmProvider.Ollama,
-          params: providerParamsTemplate(LlmProvider.Ollama),
+          ...providerOptionsTemplate(provider),
         },
       },
     ],
@@ -826,16 +1154,16 @@ export function ConfigureApp({
       };
       const resolved = config.resolveLlm(entry.name);
       if (!resolved) {
-        return `${entry.options.provider}/${compactModelId(entry.options.model)}`;
+        return `${entry.provider}/${compactModelId(entry.options.model)}`;
       }
-      return `${entry.options.provider} -> ${resolved.options.provider}/${compactModelId(resolved.options.model)}`;
+      return `${entry.provider} -> ${resolved.provider}/${compactModelId(resolved.llmOptions.model)}`;
     },
     [config],
   );
 
   const providerUsageCount = useCallback(
     (name: string): number =>
-      config.llms.filter((llm) => llm.options.provider === name).length,
+      config.llms.filter((llm) => llm.provider === name).length,
     [config],
   );
 
@@ -1148,7 +1476,7 @@ export function ConfigureApp({
   const renderProvidersMenu = () => {
     const providerItems: MenuItem[] = config.providers.map((provider) => ({
       key: `provider:${provider.name}`,
-      label: `${provider.name} • ${provider.options.provider} • ${providerUsageCount(provider.name)} model(s)`,
+      label: `${provider.name} • ${provider.provider} • ${providerUsageCount(provider.name)} model(s)`,
       boldSubstring: provider.name,
       value: () =>
         setScreen({ kind: "config-provider-edit", name: provider.name }),
@@ -1170,12 +1498,8 @@ export function ConfigureApp({
               if (config.providers.some((provider) => provider.name === name)) {
                 throw new Error(`A provider named "${name}" already exists.`);
               }
-              updateConfig(
-                { providers: addProvider(name) },
-                `Added provider "${name}" with an Ollama scaffold.`,
-              );
               setPrompt(null);
-              setScreen({ kind: "config-provider-edit", name });
+              setScreen({ kind: "config-provider-add-type", name });
             },
           }),
       },
@@ -1205,6 +1529,8 @@ export function ConfigureApp({
       return null;
     }
     const usageCount = providerUsageCount(entry.name);
+    const providerFields = PROVIDER_FIELD_DEFINITIONS[entry.provider];
+    const providerOptions = entry.options as Record<string, unknown>;
 
     const items: MenuItem[] = [
       {
@@ -1236,28 +1562,111 @@ export function ConfigureApp({
           }),
       },
       {
-        label: `Type • ${entry.options.provider}`,
+        label: `Type • ${entry.provider}`,
         value: () =>
           setScreen({ kind: "config-provider-type", name: entry.name }),
       },
-      {
-        label: `Params • ${paramsPreview(entry.options.params)}`,
-        value: () =>
-          promptValue({
-            title: "Update provider params",
-            label: "Parameters",
-            initialValue: compactJson(entry.options.params),
-            placeholder: '{"apiKey":"..."}',
-            onSubmit: async (value) => {
-              const params = parseObjectRecord(value, "Provider params");
-              updateConfig(
-                { providers: patchProvider(entry.name, { params }) },
-                "Updated provider params.",
-              );
-              setPrompt(null);
+      ...providerFields.map(
+        (definition) =>
+          ({
+            key: `provider-field:${entry.name}:${definition.key}`,
+            label: `${definition.label} • ${formatTypedFieldValue(
+              definition,
+              definition.kind === "bedrockCredentials"
+                ? providerOptions.accessKeyId && providerOptions.secretAccessKey
+                : providerOptions[definition.key],
+            )}`,
+            value: () => {
+              if (definition.kind === "anthropicThinking") {
+                setScreen({
+                  kind: "config-provider-anthropic-thinking",
+                  name: entry.name,
+                });
+                return;
+              }
+              if (definition.kind === "ollamaThinking") {
+                setScreen({
+                  kind: "config-provider-ollama-thinking",
+                  name: entry.name,
+                });
+                return;
+              }
+              if (definition.kind === "bedrockCredentials") {
+                promptValue({
+                  title: "Update static credentials",
+                  label: "Access key ID",
+                  initialValue:
+                    typeof providerOptions.accessKeyId === "string"
+                      ? providerOptions.accessKeyId
+                      : "",
+                  placeholder: "AKIA...",
+                  note: definition.note,
+                  onSubmit: async (accessKeyIdValue) => {
+                    promptValue({
+                      title: "Update static credentials",
+                      label: "Secret access key",
+                      initialValue:
+                        typeof providerOptions.secretAccessKey === "string"
+                          ? providerOptions.secretAccessKey
+                          : "",
+                      placeholder: "...",
+                      onSubmit: async (secretAccessKeyValue) => {
+                        const accessKeyId = normalizeOptional(accessKeyIdValue);
+                        const secretAccessKey =
+                          normalizeOptional(secretAccessKeyValue);
+                        if (
+                          (accessKeyId === undefined) !==
+                          (secretAccessKey === undefined)
+                        ) {
+                          throw new Error(
+                            "Access key ID and secret access key must be provided together.",
+                          );
+                        }
+                        updateConfig(
+                          {
+                            providers: patchProvider(entry.name, {
+                              accessKeyId,
+                              secretAccessKey,
+                            }),
+                          },
+                          `Updated static credentials for "${entry.name}".`,
+                        );
+                        setPrompt(null);
+                      },
+                    });
+                  },
+                });
+                return;
+              }
+              promptValue({
+                title: `Update ${definition.label}`,
+                label: definition.label,
+                initialValue:
+                  definition.kind === "stringRecord"
+                    ? providerOptions[definition.key]
+                      ? compactJson(providerOptions[definition.key])
+                      : ""
+                    : providerOptions[definition.key] !== undefined
+                      ? String(providerOptions[definition.key])
+                      : "",
+                placeholder: definition.placeholder,
+                note: definition.note,
+                onSubmit: async (value) => {
+                  const nextValue = parseTypedFieldValue(value, definition);
+                  updateConfig(
+                    {
+                      providers: patchProvider(entry.name, {
+                        [definition.key]: nextValue,
+                      }),
+                    },
+                    `Updated ${definition.label.toLowerCase()} for "${entry.name}".`,
+                  );
+                  setPrompt(null);
+                },
+              });
             },
-          }),
-      },
+          }) satisfies MenuItem,
+      ),
       ...(usageCount > 0
         ? []
         : [
@@ -1290,6 +1699,116 @@ export function ConfigureApp({
     );
   };
 
+  const renderAnthropicThinkingMenu = () => {
+    if (screen.kind !== "config-provider-anthropic-thinking") {
+      return null;
+    }
+    const entry = config.providers.find(
+      (provider) => provider.name === screen.name,
+    );
+    if (!entry) {
+      return null;
+    }
+    const current =
+      "thinking" in entry.options ? entry.options.thinking : undefined;
+    const items: MenuItem[] = [
+      {
+        label:
+          current === undefined ? "Not set • current" : "Not set (clear value)",
+        value: () => {
+          updateConfig(
+            { providers: patchProvider(entry.name, { thinking: undefined }) },
+            `Cleared thinking for "${entry.name}".`,
+          );
+          setScreen({ kind: "config-provider-edit", name: entry.name });
+        },
+      },
+      {
+        label: current === "disabled" ? "disabled • current" : "disabled",
+        value: () => {
+          updateConfig(
+            { providers: patchProvider(entry.name, { thinking: "disabled" }) },
+            `Updated thinking for "${entry.name}" to "disabled".`,
+          );
+          setScreen({ kind: "config-provider-edit", name: entry.name });
+        },
+      },
+      {
+        label: current === "adaptive" ? "adaptive • current" : "adaptive",
+        value: () => {
+          updateConfig(
+            { providers: patchProvider(entry.name, { thinking: "adaptive" }) },
+            `Updated thinking for "${entry.name}" to "adaptive".`,
+          );
+          setScreen({ kind: "config-provider-edit", name: entry.name });
+        },
+      },
+      {
+        label: "Back",
+        value: () =>
+          setScreen({ kind: "config-provider-edit", name: entry.name }),
+      },
+    ];
+
+    return (
+      <MenuScreen
+        title={`Choose Thinking • ${entry.name}`}
+        description='Pick one of the allowed values: "disabled", "adaptive", or clear it.'
+        items={items}
+      />
+    );
+  };
+
+  const renderOllamaThinkingMenu = () => {
+    if (screen.kind !== "config-provider-ollama-thinking") {
+      return null;
+    }
+    const entry = config.providers.find(
+      (provider) => provider.name === screen.name,
+    );
+    if (!entry) {
+      return null;
+    }
+    const current =
+      "thinking" in entry.options ? entry.options.thinking : undefined;
+    const items: MenuItem[] = [
+      {
+        label:
+          current === undefined ? "Not set • current" : "Not set (clear value)",
+        value: () => {
+          updateConfig(
+            { providers: patchProvider(entry.name, { thinking: undefined }) },
+            `Cleared thinking for "${entry.name}".`,
+          );
+          setScreen({ kind: "config-provider-edit", name: entry.name });
+        },
+      },
+      ...[false, true, "low", "medium", "high"].map((value) => ({
+        label: current === value ? `${String(value)} • current` : String(value),
+        value: () => {
+          updateConfig(
+            { providers: patchProvider(entry.name, { thinking: value }) },
+            `Updated thinking for "${entry.name}" to "${String(value)}".`,
+          );
+          setScreen({ kind: "config-provider-edit", name: entry.name });
+        },
+      })),
+      {
+        label: "Back",
+        value: () =>
+          setScreen({ kind: "config-provider-edit", name: entry.name }),
+      },
+    ];
+
+    return (
+      <MenuScreen
+        title={`Choose Thinking • ${entry.name}`}
+        description='Pick one of the allowed values: clear, false, true, "low", "medium", or "high".'
+        items={items}
+      />
+    );
+  };
+
   const renderProviderTypeMenu = () => {
     if (screen.kind !== "config-provider-type") {
       return null;
@@ -1301,19 +1820,21 @@ export function ConfigureApp({
     }
     const items: MenuItem[] = [
       ...SUPPORTED_PROVIDER_TYPES.map((provider) => ({
-        label:
-          provider === entry.options.provider
-            ? `${provider} • current`
-            : provider,
+        label: provider === entry.provider ? `${provider} • current` : provider,
         value: () => {
           updateConfig(
             {
-              providers: patchProvider(entry.name, {
-                provider,
-                params: providerParamsTemplate(provider),
-              }),
+              providers: config.providers.map((item) =>
+                item.name === entry.name
+                  ? {
+                      ...item,
+                      provider,
+                      options: providerOptionsTemplate(provider),
+                    }
+                  : item,
+              ),
             },
-            `Updated provider type for "${entry.name}" to "${provider}" and scaffolded params.`,
+            `Updated provider type for "${entry.name}" to "${provider}" and scaffolded options.`,
           );
           setScreen({ kind: "config-provider-edit", name: entry.name });
         },
@@ -1329,6 +1850,37 @@ export function ConfigureApp({
       <MenuScreen
         title={`Choose Provider Type • ${entry.name}`}
         description="Pick which runtime provider this shared config targets."
+        items={items}
+      />
+    );
+  };
+
+  const renderProviderAddTypeMenu = () => {
+    if (screen.kind !== "config-provider-add-type") {
+      return null;
+    }
+    const { name } = screen;
+    const items: MenuItem[] = [
+      ...SUPPORTED_PROVIDER_TYPES.map((provider) => ({
+        label: provider,
+        value: () => {
+          updateConfig(
+            { providers: addProvider(name, provider) },
+            `Added provider "${name}" as "${provider}".`,
+          );
+          setScreen({ kind: "config-provider-edit", name });
+        },
+      })),
+      {
+        label: "Back",
+        value: () => setScreen({ kind: "config-providers" }),
+      },
+    ];
+
+    return (
+      <MenuScreen
+        title={`Choose Provider Type • ${name}`}
+        description="Pick the runtime provider before creating this shared config."
         items={items}
       />
     );
@@ -1429,6 +1981,7 @@ export function ConfigureApp({
     }
     const isOnly = config.llms.length === 1;
     const isDefault = entry.default;
+    const llmOptions = entry.options as Record<string, unknown>;
 
     const items: MenuItem[] = [
       {
@@ -1460,7 +2013,7 @@ export function ConfigureApp({
           }),
       },
       {
-        label: `Provider • ${entry.options.provider}`,
+        label: `Provider • ${entry.provider}`,
         value: () =>
           setScreen({ kind: "config-llm-provider", name: entry.name }),
       },
@@ -1471,6 +2024,14 @@ export function ConfigureApp({
             title: "Update model id",
             label: "Model",
             initialValue: entry.options.model,
+            note: (() => {
+              const providerType = config.providers.find(
+                (provider) => provider.name === entry.provider,
+              )?.provider;
+              return providerType
+                ? `Suggested default for ${providerType}: ${defaultModelForProviderType(providerType)}`
+                : undefined;
+            })(),
             onSubmit: async (value) => {
               const model = value.trim();
               if (!model) {
@@ -1484,24 +2045,39 @@ export function ConfigureApp({
             },
           }),
       },
-      {
-        label: `Params • ${paramsPreview(entry.options.params)}`,
-        value: () =>
-          promptValue({
-            title: "Update LLM params",
-            label: "Parameters",
-            initialValue: compactJson(entry.options.params),
-            placeholder: '{"temperature":0.7}',
-            onSubmit: async (value) => {
-              const params = parseObjectRecord(value, "LLM params");
-              updateConfig(
-                { llms: patchLlm(entry.name, { params }) },
-                "Updated LLM params.",
-              );
-              setPrompt(null);
-            },
-          }),
-      },
+      ...LLM_FIELD_DEFINITIONS.map(
+        (definition) =>
+          ({
+            key: `llm-field:${entry.name}:${definition.key}`,
+            label: `${definition.label} • ${formatTypedFieldValue(
+              definition,
+              llmOptions[definition.key],
+            )}`,
+            value: () =>
+              promptValue({
+                title: `Update ${definition.label}`,
+                label: definition.label,
+                initialValue:
+                  llmOptions[definition.key] !== undefined
+                    ? String(llmOptions[definition.key])
+                    : "",
+                placeholder: definition.placeholder,
+                note: definition.note,
+                onSubmit: async (value) => {
+                  const nextValue = parseTypedFieldValue(value, definition);
+                  updateConfig(
+                    {
+                      llms: patchLlm(entry.name, {
+                        [definition.key]: nextValue,
+                      }),
+                    },
+                    `Updated ${definition.label.toLowerCase()} for "${entry.name}".`,
+                  );
+                  setPrompt(null);
+                },
+              }),
+          }) satisfies MenuItem,
+      ),
       {
         label: isDefault ? "Default • yes" : "Set as default",
         value: () => {
@@ -1560,13 +2136,26 @@ export function ConfigureApp({
     const items: MenuItem[] = [
       ...config.providers.map((provider) => ({
         label:
-          provider.name === entry.options.provider
+          provider.name === entry.provider
             ? `${provider.name} • current`
-            : `${provider.name} • ${provider.options.provider}`,
+            : `${provider.name} • ${provider.provider}`,
         value: () => {
           updateConfig(
-            { llms: patchLlm(entry.name, { provider: provider.name }) },
-            `Updated provider for "${entry.name}" to "${provider.name}".`,
+            {
+              llms: config.llms.map((llm) =>
+                llm.name === entry.name
+                  ? {
+                      ...llm,
+                      provider: provider.name,
+                      options: {
+                        ...llm.options,
+                        model: defaultModelForProviderType(provider.provider),
+                      },
+                    }
+                  : llm,
+              ),
+            },
+            `Updated provider for "${entry.name}" to "${provider.name}" and scaffolded its default model.`,
           );
           setScreen({ kind: "config-llm-edit", name: entry.name });
         },
@@ -2065,10 +2654,16 @@ export function ConfigureApp({
         return renderConfigMenu();
       case "config-providers":
         return renderProvidersMenu();
+      case "config-provider-add-type":
+        return renderProviderAddTypeMenu();
       case "config-provider-edit":
         return renderProviderEditMenu();
       case "config-provider-type":
         return renderProviderTypeMenu();
+      case "config-provider-anthropic-thinking":
+        return renderAnthropicThinkingMenu();
+      case "config-provider-ollama-thinking":
+        return renderOllamaThinkingMenu();
       case "config-provider-delete-confirm":
         return renderProviderDeleteConfirm();
       case "config-llms":

@@ -1,4 +1,3 @@
-import React from "react";
 import { render } from "ink";
 import { styleText } from "node:util";
 import type { Agent } from "@strands-agents/sdk";

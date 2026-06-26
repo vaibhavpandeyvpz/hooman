@@ -319,9 +319,9 @@ function listModelsText(config: Config): string {
     const marker = entry.name === current ? "*" : "-";
     const resolved = config.resolveLlm(entry.name);
     if (!resolved) {
-      return `${marker} ${entry.name} (${entry.options.provider}/${entry.options.model})`;
+      return `${marker} ${entry.name} (${entry.provider}/${entry.options.model})`;
     }
-    return `${marker} ${entry.name} (${entry.options.provider} -> ${resolved.options.provider}/${resolved.options.model})`;
+    return `${marker} ${entry.name} (${entry.provider} -> ${resolved.provider}/${resolved.llmOptions.model})`;
   });
   return [
     `Current model: ${current}`,
@@ -572,22 +572,6 @@ export function ChatApp({
     setLines((prev) => prev.filter((line) => line.id !== id));
   }, []);
 
-  const moveLineToEnd = useCallback((id: string) => {
-    setLines((prev) => {
-      const index = prev.findIndex((line) => line.id === id);
-      if (index === -1 || index === prev.length - 1) {
-        return prev;
-      }
-      const next = [...prev];
-      const [line] = next.splice(index, 1);
-      if (!line) {
-        return prev;
-      }
-      next.push(line);
-      return next;
-    });
-  }, []);
-
   const replaceAssistantText = useCallback((text: string) => {
     const id = assistantLineIdRef.current;
     if (!id) {
@@ -746,8 +730,12 @@ export function ChatApp({
         })),
       });
       try {
-        const provider = await modelProviders[config.llm.provider]!();
-        agent.model = provider.create(config.llm.model, config.llm.params);
+        const resolved = config.llm;
+        const provider = await modelProviders[resolved.provider]!();
+        agent.model = provider.create(
+          resolved.providerOptions,
+          resolved.llmOptions,
+        );
       } catch (error) {
         config.update({
           llms: config.llms.map((entry) => ({

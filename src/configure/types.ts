@@ -16,8 +16,11 @@ export type Screen =
   | { kind: "config-general" }
   | { kind: "config" }
   | { kind: "config-providers" }
+  | { kind: "config-provider-add-type"; name: string }
   | { kind: "config-provider-edit"; name: string }
   | { kind: "config-provider-type"; name: string }
+  | { kind: "config-provider-anthropic-thinking"; name: string }
+  | { kind: "config-provider-ollama-thinking"; name: string }
   | { kind: "config-provider-delete-confirm"; name: string }
   | { kind: "config-tools" }
   | { kind: "config-llms" }

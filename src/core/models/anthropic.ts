@@ -1,133 +1,41 @@
 import type { ClientOptions } from "@anthropic-ai/sdk";
 import { AnthropicModel } from "@strands-agents/sdk/models/anthropic";
-import type { AnthropicModelOptions } from "@strands-agents/sdk/models/anthropic";
+import type { AnthropicProviderOptions, LlmOptions } from "./types.js";
 
-/** Config JSON / provider params (`modelId` is set by {@link create}; no injected `client`). */
-export type AnthropicModelParams = Omit<
-  AnthropicModelOptions,
-  "modelId" | "client"
->;
+export type AnthropicModelParams = AnthropicProviderOptions & LlmOptions;
 
-const RESERVED = new Set([
-  "apiKey",
-  "authToken",
-  "baseURL",
-  "headers",
-  "client",
-  "clientConfig",
-]);
-
-const TOP_LEVEL_MODEL_KEYS = new Set([
-  "temperature",
-  "topP",
-  "maxTokens",
-  "stopSequences",
-  "params",
-  "betas",
-  "useNativeTokenCount",
-]);
-
-function pickModelOptions(
-  params: Record<string, unknown>,
-): Omit<AnthropicModelParams, "apiKey" | "clientConfig"> {
-  const out: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(params)) {
-    if (!RESERVED.has(k) && TOP_LEVEL_MODEL_KEYS.has(k)) {
-      out[k] = v;
-    }
-  }
-  return out as Omit<AnthropicModelParams, "apiKey" | "clientConfig">;
-}
-
-function pickRequestParams(
-  params: Record<string, unknown>,
-): Record<string, unknown> {
-  const explicit = params.params;
-  const out =
-    explicit && typeof explicit === "object" && !Array.isArray(explicit)
-      ? { ...(explicit as Record<string, unknown>) }
-      : {};
-
-  for (const [k, v] of Object.entries(params)) {
-    if (!RESERVED.has(k) && !TOP_LEVEL_MODEL_KEYS.has(k)) {
-      out[k] = v;
-    }
-  }
-
-  return out;
-}
-
-function resolveApiKey(params: Record<string, unknown>): string | undefined {
-  const k = params.apiKey;
-  const t = params.authToken;
-  if (typeof k === "string" && k.length > 0) {
-    return k;
-  }
-  if (typeof t === "string" && t.length > 0) {
-    return t;
-  }
-  return undefined;
-}
-
-function mergeClientConfig(
-  params: Record<string, unknown>,
-): ClientOptions | undefined {
-  const explicit = params.clientConfig as ClientOptions | undefined;
-  const baseURL =
-    typeof params.baseURL === "string" && params.baseURL.length > 0
-      ? params.baseURL
-      : undefined;
-  const headers = params.headers;
-  const defaultHeaders =
-    headers &&
-    typeof headers === "object" &&
-    headers !== null &&
-    !Array.isArray(headers)
-      ? (headers as Record<string, string | undefined>)
-      : undefined;
-
-  if (!explicit && !baseURL && !defaultHeaders) {
-    return undefined;
-  }
-
-  return {
-    ...explicit,
-    ...(baseURL ? { baseURL } : {}),
-    ...(defaultHeaders
-      ? {
-          defaultHeaders: {
-            ...explicit?.defaultHeaders,
-            ...defaultHeaders,
-          },
-        }
-      : {}),
-  };
-}
-
-/**
- * Anthropic via Strands {@link AnthropicModel} (Messages API).
- *
- * - **`config.llm.model`**: Claude model id (e.g. `claude-sonnet-4-20250514`).
- * - **`params`**: `apiKey` or `authToken`, optional `baseURL` / `headers` (merged into `clientConfig`),
- *   optional `clientConfig`, plus model fields (`temperature`, `maxTokens`, `topP`, `stopSequences`, `params`, …).
- *   If no key is set, `ANTHROPIC_API_KEY` is used.
- */
 export function create(
-  model: string,
-  params: Record<string, unknown> = {},
+  providerOptions: AnthropicProviderOptions,
+  llmOptions: LlmOptions,
 ): AnthropicModel {
-  const apiKey = resolveApiKey(params);
-  const clientConfig = mergeClientConfig(params);
-  const modelOpts = pickModelOptions(params);
-  const requestParams = pickRequestParams(params);
+  const clientConfig: ClientOptions | undefined =
+    providerOptions.baseURL || providerOptions.headers
+      ? {
+          ...(providerOptions.baseURL
+            ? { baseURL: providerOptions.baseURL }
+            : {}),
+          ...(providerOptions.headers
+            ? { defaultHeaders: providerOptions.headers }
+            : {}),
+        }
+      : undefined;
+  const params =
+    providerOptions.thinking !== undefined
+      ? { thinking: { type: providerOptions.thinking } }
+      : undefined;
 
   return new AnthropicModel({
-    modelId: model,
-    ...(apiKey ? { apiKey } : {}),
+    modelId: llmOptions.model,
+    ...(providerOptions.apiKey ? { apiKey: providerOptions.apiKey } : {}),
     ...(clientConfig && Object.keys(clientConfig).length > 0
       ? { clientConfig }
       : {}),
-    ...modelOpts,
-    ...(Object.keys(requestParams).length > 0 ? { params: requestParams } : {}),
+    ...(llmOptions.temperature !== undefined
+      ? { temperature: llmOptions.temperature }
+      : {}),
+    ...(llmOptions.maxTokens !== undefined
+      ? { maxTokens: llmOptions.maxTokens }
+      : {}),
+    ...(params ? { params } : {}),
   });
 }

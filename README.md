@@ -315,27 +315,24 @@ Important files and folders:
 
 ## Example `config.json`
 
-The on-disk shape uses a reusable **`providers`** array plus a non-empty **`llms`** array. Each provider stores the shared runtime type and params once; each LLM references a provider by name, sets its `model`, optional model-specific `params`, and `default`. The bundled **hooman-config** skill documents the full schema.
+The on-disk shape uses a reusable **`providers`** array plus a non-empty **`llms`** array. Each provider stores a runtime `provider` id plus provider-specific `options`; each LLM references a provider by name, stores its model `options`, and marks one entry as the default. The bundled **hooman-config** skill documents the full schema.
 
 ```json
 {
   "name": "Hooman",
   "providers": [
     {
-      "name": "ollama-local",
-      "options": {
-        "provider": "ollama",
-        "params": {}
-      }
+      "name": "Ollama",
+      "provider": "ollama",
+      "options": {}
     }
   ],
   "llms": [
     {
       "name": "Default",
+      "provider": "Ollama",
       "options": {
-        "provider": "ollama-local",
-        "model": "gemma4:e4b",
-        "params": {}
+        "model": "gemma4:e4b"
       },
       "default": true
     }
@@ -356,25 +353,12 @@ The on-disk shape uses a reusable **`providers`** array plus a non-empty **`llms
     "guardrails": true
   },
   "tools": {
-    "todo": {
-      "enabled": true
-    },
-    "fetch": {
-      "enabled": true
-    },
-    "filesystem": {
-      "enabled": true
-    },
-    "shell": {
-      "enabled": true
-    },
-    "sleep": {
-      "enabled": true
-    },
-    "agents": {
-      "enabled": true,
-      "concurrency": 2
-    }
+    "todo": { "enabled": true },
+    "fetch": { "enabled": true },
+    "filesystem": { "enabled": true },
+    "shell": { "enabled": true },
+    "sleep": { "enabled": true },
+    "agents": { "enabled": true, "concurrency": 2 }
   },
   "compaction": {
     "ratio": 0.75,
@@ -387,18 +371,17 @@ Tool approvals are session-scoped and are not persisted in `config.json`.
 
 Hooman enables Strands `ContextOffloader` by default with file-backed storage under `~/.hooman/sessions/offloaded-content`, so large tool results can be previewed in-context and retrieved later without bloating the active conversation window.
 
-Supported `providers[].options.provider` values registered in this release (see `src/core/models/index.ts`):
+Supported `providers[].provider` values registered in this release (see `src/core/models/index.ts`):
 
 - `anthropic`
 - `bedrock`
 - `google`
 - `groq`
+- `minimax`
 - `moonshot`
 - `ollama`
 - `openai`
 - `xai`
-
-The `LlmProvider` enum in `src/core/config.ts` may list additional strings for forwards compatibility; unknown providers are not loaded at runtime.
 
 Supported `search.provider` values:
 
@@ -410,253 +393,58 @@ Supported `search.provider` values:
 
 ## Provider Notes
 
-### Ollama
-
-Good default for local usage. Example:
+Provider entries now look like:
 
 ```json
 {
-  "providers": [
-    {
-      "name": "ollama-local",
-      "options": {
-        "provider": "ollama",
-        "params": {}
-      }
-    }
-  ],
-  "llms": [
-    {
-      "name": "Default",
-      "options": {
-        "provider": "ollama-local",
-        "model": "gemma4:e4b",
-        "params": {}
-      },
-      "default": true
-    }
-  ]
-}
-```
-
-### OpenAI
-
-Uses Strands **OpenAIModel** (Chat Completions). `apiKey` is optional if `OPENAI_API_KEY` is set. Use `clientConfig` for a custom base URL or other OpenAI client options (OpenAI-compatible proxies and gateways).
-
-Example:
-
-```json
-{
-  "providers": [
-    {
-      "name": "openai",
-      "options": {
-        "provider": "openai",
-        "params": {
-          "apiKey": "..."
-        }
-      }
-    }
-  ],
-  "llms": [
-    {
-      "name": "GPT-5",
-      "options": {
-        "provider": "openai",
-        "model": "gpt-5",
-        "params": {}
-      },
-      "default": true
-    }
-  ]
-}
-```
-
-OpenAI-compatible gateways that put token `usage` on the last streamed chunk together with `choices` are handled via a small stream shim so usage still surfaces in the UI.
-
-### Anthropic
-
-Uses Strands **AnthropicModel** (Anthropic Messages API). `apiKey` or `authToken`, optional `baseURL` and `headers` (merged into `clientConfig`), optional `clientConfig`, and model fields such as `temperature` and `maxTokens`. A prebuilt `client` is not configurable from JSON.
-
-```json
-{
-  "providers": [
-    {
-      "name": "anthropic",
-      "options": {
-        "provider": "anthropic",
-        "params": {
-          "apiKey": "..."
-        }
-      }
-    }
-  ],
-  "llms": [
-    {
-      "name": "Claude Sonnet",
-      "options": {
-        "provider": "anthropic",
-        "model": "claude-sonnet-4-20250514",
-        "params": {
-          "temperature": 0.7
-        }
-      },
-      "default": true
-    }
-  ]
-}
-```
-
-### Google
-
-Uses Strands `GoogleModel` on top of `@google/genai`. Top-level options like `apiKey`, `client`, `clientConfig`, and `builtInTools` are supported; other values go into Google generation params.
-
-```json
-{
-  "providers": [
-    {
-      "name": "google",
-      "options": {
-        "provider": "google",
-        "params": {
-          "apiKey": "..."
-        }
-      }
-    }
-  ],
-  "llms": [
-    {
-      "name": "Gemini Flash",
-      "options": {
-        "provider": "google",
-        "model": "gemini-2.5-flash",
-        "params": {
-          "temperature": 0.7,
-          "maxOutputTokens": 2048,
-          "topP": 0.9,
-          "topK": 40
-        }
-      },
-      "default": true
-    }
-  ]
-}
-```
-
-### Bedrock
-
-Supports `region`, `clientConfig`, and optional `apiKey`, with all other values forwarded as Bedrock model options.
-
-```json
-{
-  "providers": [
-    {
-      "name": "bedrock-dev",
-      "options": {
-        "provider": "bedrock",
-        "params": {
-          "region": "us-east-1",
-          "clientConfig": {
-            "profile": "dev",
-            "maxAttempts": 3,
-            "credentials": {
-              "accessKeyId": "AKIA...",
-              "secretAccessKey": "...",
-              "sessionToken": "..."
-            }
-          }
-        }
-      }
-    }
-  ],
-  "llms": [
-    {
-      "name": "Claude Sonnet",
-      "options": {
-        "provider": "bedrock-dev",
-        "model": "anthropic.claude-sonnet-4-20250514-v1:0",
-        "params": {
-          "temperature": 0.7,
-          "maxTokens": 1024
-        }
-      },
-      "default": true
-    }
-  ]
-}
-```
-
-You can also rely on the AWS default credential chain (recommended) by setting environment variables such as `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and optionally `AWS_SESSION_TOKEN`.
-
-### Groq
-
-### Anthropic
-
-Uses Strands `AnthropicModel` on top of `@anthropic-ai/sdk`. Provider-specific settings `apiKey`/`authToken`, `baseURL`, `headers`, `clientConfig`, `betas`, and `useNativeTokenCount` are picked up directly. Standard model config such as `temperature`, `topP`, `maxTokens`, and `stopSequences` stays top-level. Any other keys are forwarded to the Anthropic Messages request body, which is useful for Anthropic-compatible providers such as MiniMax.
-
-For MiniMax specifically:
-
-- Use `baseURL: "https://api.minimax.io/anthropic"`.
-- `MiniMax-M3` can emit visible thinking blocks when you set `thinking: { "type": "adaptive" }`.
-- `MiniMax-M2.7` / `M2.5` / `M2.1` / `M2` do internal reasoning, but MiniMax’s Anthropic-compatible API does not expose those as `thinking` content blocks, so Hooman has nothing to render in the transcript.
-
-```json
-{
-  "provider": "anthropic",
-  "model": "MiniMax-M3",
-  "params": {
-    "apiKey": "...",
-    "baseURL": "https://api.minimax.io/anthropic",
-    "thinking": { "type": "adaptive" },
-    "temperature": 1
+  "name": "MiniMax",
+  "provider": "minimax",
+  "options": {
+    "apiKey": "..."
   }
 }
 ```
 
-### Groq
-
-Uses the Vercel AI SDK Groq provider (`@ai-sdk/groq`) on top of Strands `VercelModel`. Provider-specific settings `apiKey`, `baseURL`, and `headers` are picked up; other values are forwarded into the model config (`temperature`, `maxTokens`, etc.). Defaults to `GROQ_API_KEY` from the environment when no `apiKey` is supplied.
+LLM entries reference a provider by name and carry normalized model options:
 
 ```json
 {
-  "provider": "groq",
-  "model": "gemma2-9b-it",
-  "params": {
-    "apiKey": "...",
-    "temperature": 0.7
-  }
+  "name": "MiniMax M3",
+  "provider": "MiniMax",
+  "options": {
+    "model": "MiniMax-M3",
+    "temperature": 1,
+    "maxTokens": 4096
+  },
+  "default": true
 }
 ```
 
-### Moonshot
+Supported provider option fields:
 
-Uses the Vercel AI SDK Moonshot provider (`@ai-sdk/moonshotai`) on top of Strands `VercelModel`. Provider-specific settings `apiKey`, `baseURL`, `headers`, and `fetch` are picked up; other values are forwarded into the model config (`temperature`, `maxTokens`, `providerOptions`, etc.). Defaults to `MOONSHOT_API_KEY` from the environment when no `apiKey` is supplied. Moonshot reasoning models such as `kimi-k2-thinking` can be configured through `params.providerOptions.moonshotai`.
+- `anthropic`: `apiKey`, optional `baseURL`, optional `headers`, optional `thinking`
+- `bedrock`: `region`, `accessKeyId`, `secretAccessKey`, optional `sessionToken`, optional `apiKey`
+- `google`: `apiKey`
+- `groq`: `apiKey`, optional `baseURL`, optional `headers`
+- `minimax`: `apiKey`, optional `headers`, optional `thinking`
+- `moonshot`: `apiKey`, optional `baseURL`, optional `headers`
+- `ollama`: optional `baseURL`, optional `thinking`
+- `openai`: `apiKey`, optional `baseURL`, optional `headers`
+- `xai`: `apiKey`, optional `baseURL`, optional `headers`
 
-```json
-{
-  "provider": "moonshot",
-  "model": "kimi-k2.5",
-  "params": {
-    "apiKey": "...",
-    "temperature": 0.7
-  }
-}
-```
+Normalized LLM option fields:
 
-### xAI
+- `model`
+- optional `temperature`
+- optional `maxTokens`
 
-Uses the Vercel AI SDK xAI provider (`@ai-sdk/xai`) on top of Strands `VercelModel`. Provider-specific settings `apiKey`, `baseURL`, and `headers` are picked up; other values are forwarded into the model config (`temperature`, `maxTokens`, etc.). Defaults to `XAI_API_KEY` from the environment when no `apiKey` is supplied.
+Notes:
 
-```json
-{
-  "provider": "xai",
-  "model": "grok-4.20-non-reasoning",
-  "params": {
-    "apiKey": "...",
-    "temperature": 0.7
-  }
-}
-```
+- Google maps normalized `maxTokens` to the SDK's `maxOutputTokens` internally.
+- Ollama maps normalized `temperature` into Ollama `options.temperature`.
+- MiniMax uses the Anthropic-compatible endpoint `https://api.minimax.io/anthropic` automatically.
+- Moonshot defaults `baseURL` to `https://api.moonshot.ai/v1` when it is omitted.
+- Bedrock can rely on the AWS default credential chain when explicit credentials are not provided.
 
 ## MCP Configuration
 

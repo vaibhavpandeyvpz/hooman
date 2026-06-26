@@ -30,8 +30,6 @@ const CommandObjectSchema = z.object({
 
 const CommandSchema = z.union([z.string(), CommandObjectSchema]);
 
-type CommandInput = z.infer<typeof CommandSchema>;
-
 type ShellConfig = {
   file: string;
   args: string[];

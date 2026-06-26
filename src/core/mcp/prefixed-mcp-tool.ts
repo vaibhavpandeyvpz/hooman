@@ -27,7 +27,7 @@ export class PrefixedMcpTool extends Tool {
   readonly mcpReadOnlyHint: boolean;
 
   public constructor(
-    private readonly serverKey: string,
+    serverKey: string,
     private readonly inner: Tool,
     mcpReadOnlyHint = false,
   ) {

@@ -213,13 +213,6 @@ async function ensureDirectory(filePath: string): Promise<void> {
   }
 }
 
-async function ensureFile(filePath: string): Promise<void> {
-  const stat = await fs.stat(filePath);
-  if (!stat.isFile()) {
-    throw new Error(`Path is not a file: ${filePath}`);
-  }
-}
-
 async function statFile(
   filePath: string,
 ): Promise<Awaited<ReturnType<typeof fs.stat>>> {
@@ -433,13 +426,11 @@ function lineNumberForIndex(content: string, index: number): number {
 
 function buildPatchHunk(
   original: string,
-  edited: string,
   oldText: string,
   newText: string,
   index: number,
 ): StructuredPatchHunk {
   const originalLines = splitLines(original);
-  const editedLines = splitLines(edited);
   const oldLines = splitLines(oldText);
   const newLines = splitLines(newText);
   const changedLine = lineNumberForIndex(original, index);
@@ -572,13 +563,7 @@ function applyEdits(
     replacements.push({
       index,
       snippet: snippetAroundChange(current, index, countLines(edit.newText)),
-      hunk: buildPatchHunk(
-        previous,
-        current,
-        edit.oldText,
-        edit.newText,
-        index,
-      ),
+      hunk: buildPatchHunk(previous, edit.oldText, edit.newText, index),
     });
   }
 

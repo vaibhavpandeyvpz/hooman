@@ -32,20 +32,17 @@ This is the default shape Hooman writes when `~/.hooman/config.json` is missing:
   "name": "Hooman",
   "providers": [
     {
-      "name": "ollama-local",
-      "options": {
-        "provider": "ollama",
-        "params": {}
-      }
+      "name": "Ollama",
+      "provider": "ollama",
+      "options": {}
     }
   ],
   "llms": [
     {
       "name": "Default",
+      "provider": "Ollama",
       "options": {
-        "provider": "ollama-local",
-        "model": "gemma4:e4b",
-        "params": {}
+        "model": "gemma4:e4b"
       },
       "default": true
     }
@@ -53,21 +50,11 @@ This is the default shape Hooman writes when `~/.hooman/config.json` is missing:
   "search": {
     "enabled": false,
     "provider": "brave",
-    "brave": {
-      "apiKey": "..."
-    },
-    "exa": {
-      "apiKey": "..."
-    },
-    "firecrawl": {
-      "apiKey": "..."
-    },
-    "serper": {
-      "apiKey": "..."
-    },
-    "tavily": {
-      "apiKey": "..."
-    }
+    "brave": {},
+    "exa": {},
+    "firecrawl": {},
+    "serper": {},
+    "tavily": {}
   },
   "prompts": {
     "behaviour": true,
@@ -76,25 +63,12 @@ This is the default shape Hooman writes when `~/.hooman/config.json` is missing:
     "guardrails": true
   },
   "tools": {
-    "todo": {
-      "enabled": true
-    },
-    "fetch": {
-      "enabled": true
-    },
-    "filesystem": {
-      "enabled": true
-    },
-    "shell": {
-      "enabled": true
-    },
-    "sleep": {
-      "enabled": true
-    },
-    "agents": {
-      "enabled": true,
-      "concurrency": 2
-    }
+    "todo": { "enabled": true },
+    "fetch": { "enabled": true },
+    "filesystem": { "enabled": true },
+    "shell": { "enabled": true },
+    "sleep": { "enabled": true },
+    "agents": { "enabled": true, "concurrency": 2 }
   },
   "compaction": {
     "ratio": 0.75,
@@ -106,8 +80,8 @@ This is the default shape Hooman writes when `~/.hooman/config.json` is missing:
 ## Top-Level Options
 
 - `name`: non-empty display name for the agent.
-- `providers`: required reusable provider definitions. Configure shared credentials or transport params once, then reference the provider from one or more LLM entries.
-- `llms`: required non-empty list of named LLM configs (see **LLMs array**).
+- `providers`: required reusable provider definitions. Each entry has `name`, runtime `provider`, and provider-specific `options`.
+- `llms`: required non-empty list of named LLM configs. Each entry has `name`, provider reference `provider`, model `options`, and `default`.
 - `search`: optional web search config; defaults to disabled Brave.
 - `prompts`: optional built-in static prompt toggles; omitted fields default to `true`. Custom user instructions live in `~/.hooman/instructions.md`.
 - `tools`: optional tool toggles and tool-specific settings.
@@ -117,25 +91,22 @@ This is the default shape Hooman writes when `~/.hooman/config.json` is missing:
 
 Each element of `llms` has:
 
-- `name`: non-empty label for this entry (for display and editing).
-- `options.provider`: provider reference name. It must match one of the entries in top-level `providers`.
+- `name`: non-empty label for this entry.
+- `provider`: provider reference name. It must match one of the entries in top-level `providers`.
 - `options.model`: model id passed to the resolved runtime provider.
-- `options.params`: model-specific params. When `options.provider` references a named provider, these params override the provider's shared params on key conflict.
-- `default`: boolean; mark **one** entry `"default": true` for the active model. If several have `true`, the **first** in the array wins; if none have `true`, Hooman uses the **first** entry—so keep a single default when possible.
-
-Runtime APIs may still expose a single active profile as `llm` (derived from the default entry); on disk the source of truth is always `llms`.
+- `options.temperature`: optional normalized temperature override.
+- `options.maxTokens`: optional normalized output token limit.
+- `default`: boolean; mark one entry `"default": true` for the active model.
 
 ## Providers array
 
 Each element of `providers` has:
 
-- `name`: non-empty reference name used by `llms[].options.provider`.
-- `options.provider`: runtime provider id such as `"openai"`, `"bedrock"`, or `"ollama"`.
-- `options.params`: shared provider params such as API keys, host/base URL, region, headers, or client config.
+- `name`: non-empty reference name used by `llms[].provider`.
+- `provider`: runtime provider id such as `"openai"`, `"bedrock"`, or `"ollama"`.
+- `options`: provider-specific shared settings such as API keys, base URL, headers, region, or AWS credentials.
 
-### LLM Providers
-
-`providers[].options.provider` must be one of the values Hooman registers at runtime (the config schema may list additional legacy enum values; stick to this set):
+Supported `providers[].provider` values:
 
 ```json
 [
@@ -143,6 +114,7 @@ Each element of `providers` has:
   "bedrock",
   "google",
   "groq",
+  "minimax",
   "moonshot",
   "ollama",
   "openai",
@@ -150,31 +122,27 @@ Each element of `providers` has:
 ]
 ```
 
-Common shape (single default model):
+Common shape:
 
 ```json
 {
   "providers": [
     {
-      "name": "anthropic",
+      "name": "Anthropic",
+      "provider": "anthropic",
       "options": {
-        "provider": "anthropic",
-        "params": {
-          "apiKey": "..."
-        }
+        "apiKey": "..."
       }
     }
   ],
   "llms": [
     {
-      "name": "Default",
+      "name": "Claude Sonnet",
+      "provider": "Anthropic",
       "options": {
-        "provider": "anthropic",
         "model": "claude-sonnet-4-20250514",
-        "params": {
-          "temperature": 0.2,
-          "maxTokens": 4096
-        }
+        "temperature": 0.2,
+        "maxTokens": 4096
       },
       "default": true
     }
@@ -182,16 +150,17 @@ Common shape (single default model):
 }
 ```
 
-Provider notes (these refer to fields inside `providers[].options.params` unless noted; `llms[].options.params` can override them per model):
+Provider notes:
 
-- `anthropic`: Strands **AnthropicModel** (Anthropic Messages API via `@anthropic-ai/sdk`). `params.apiKey` or `params.authToken`, optional `baseURL` and `headers` (merged into `clientConfig`), optional `clientConfig`, `betas`, and `useNativeTokenCount`, plus model fields such as `temperature`, `maxTokens`, `topP`, and `stopSequences`. Any unknown keys are forwarded into the underlying Anthropic Messages request body, so Anthropic-compatible providers can use fields like `thinking` or `service_tier` directly. A custom `client` instance is not supported from config. If no key is set, `ANTHROPIC_API_KEY` is used.
-- `google`: `params.apiKey`, `client`, `clientConfig`, and `builtInTools` are top-level Google model options. Other keys become Gemini generation params, such as `temperature`, `maxOutputTokens`, `topP`, and `topK`.
-- `groq`: `params.apiKey`, `baseURL`, and `headers` configure the provider. Other keys are forwarded as Vercel model config.
-- `moonshot`: `params.apiKey`, `baseURL`, `headers`, and `fetch` configure the provider. Other keys are forwarded as Vercel model config.
-- `xai`: `params.apiKey`, `baseURL`, and `headers` configure the provider. Other keys are forwarded as Vercel model config.
-- `openai`: Strands **OpenAIModel** (Chat Completions). `params.apiKey` (or env `OPENAI_API_KEY`), optional `clientConfig` (e.g. `baseURL` for an OpenAI-compatible HTTP API). `model` becomes `modelId`. A small client patch splits final-chunk `usage` when it arrives with non-empty `choices` so Strands can record token usage.
-- `ollama`: `params.host`, `keepAlive`, `options`, and `think` configure the Ollama wrapper. `think` may be `true`, `false`, `"high"`, `"medium"`, or `"low"`.
-- `bedrock`: `params.region`, `clientConfig`, and optional `apiKey` configure Bedrock access. Put AWS credentials under `params.clientConfig.credentials` with `accessKeyId`, `secretAccessKey`, and optional `sessionToken`; put an AWS CLI/shared-config profile name in `params.clientConfig.profile`. If credentials and profile are omitted, Bedrock uses the AWS SDK default credential chain, including environment variables and AWS CLI/shared credentials. Other keys are forwarded as Bedrock model options, such as `temperature`, `maxTokens`, `stream`, and `cacheConfig`.
+- `anthropic`: provider `options` support `apiKey`, optional `baseURL`, optional `headers`, and optional `thinking` (`"disabled"` or `"adaptive"`). LLM `options` support `model`, `temperature`, and `maxTokens`.
+- `bedrock`: provider `options` support `region`, `accessKeyId`, `secretAccessKey`, `sessionToken`, and optional `apiKey`. LLM `options` support `model`, `temperature`, and `maxTokens`.
+- `google`: provider `options` support `apiKey`. LLM `options` support `model`, `temperature`, and `maxTokens` (Hooman maps this to the Google SDK's `maxOutputTokens` internally).
+- `groq`: provider `options` support `apiKey`, optional `baseURL`, and optional `headers`. LLM `options` support `model`, `temperature`, and `maxTokens`.
+- `minimax`: provider `options` support `apiKey`, optional `headers`, and optional `thinking`. Hooman routes this through the Anthropic-compatible MiniMax endpoint automatically.
+- `moonshot`: provider `options` support `apiKey`, optional `baseURL`, and optional `headers`. When omitted, Hooman defaults the base URL to `https://api.moonshot.ai/v1`.
+- `ollama`: provider `options` support optional `baseURL` and optional `thinking`. LLM `options` support `model`, `temperature`, and `maxTokens`.
+- `openai`: provider `options` support `apiKey`, optional `baseURL`, and optional `headers`. LLM `options` support `model`, `temperature`, and `maxTokens`.
+- `xai`: provider `options` support `apiKey`, optional `baseURL`, and optional `headers`. LLM `options` support `model`, `temperature`, and `maxTokens`.
 
 Examples:
 
@@ -199,150 +168,65 @@ Examples:
 {
   "providers": [
     {
-      "name": "ollama-local",
+      "name": "MiniMax",
+      "provider": "minimax",
       "options": {
-        "provider": "ollama",
-        "params": {
-          "host": "http://127.0.0.1:11434",
-          "think": "medium"
-        }
-      }
-    }
-  ],
-  "llms": [
-    {
-      "name": "Local",
-      "options": {
-        "provider": "ollama-local",
-        "model": "qwen3:8b",
-        "params": {
-          "options": {
-            "num_ctx": 32768,
-            "temperature": 0.2
-          }
-        }
-      },
-      "default": true
-    }
-  ]
-}
-```
-
-```json
-{
-  "providers": [
-    {
-      "name": "google",
-      "options": {
-        "provider": "google",
-        "params": {
-          "apiKey": "..."
-        }
-      }
-    }
-  ],
-  "llms": [
-    {
-      "name": "Gemini",
-      "options": {
-        "provider": "google",
-        "model": "gemini-2.5-flash",
-        "params": {
-          "temperature": 0.2,
-          "maxOutputTokens": 8192
-        }
-      },
-      "default": true
-    }
-  ]
-}
-```
-
-```json
-{
-  "providers": [
-    {
-      "name": "bedrock-dev",
-      "options": {
-        "provider": "bedrock",
-        "params": {
-          "region": "us-west-2",
-          "clientConfig": {
-            "profile": "dev",
-            "maxAttempts": 3,
-            "credentials": {
-              "accessKeyId": "AKIA...",
-              "secretAccessKey": "...",
-              "sessionToken": "..."
-            }
-          }
-        }
-      }
-    }
-  ],
-  "llms": [
-    {
-      "name": "Bedrock",
-      "options": {
-        "provider": "bedrock-dev",
-        "model": "anthropic.claude-3-5-sonnet-20241022-v2:0",
-        "params": {
-          "temperature": 0.2,
-          "maxTokens": 4096
-        }
-      },
-      "default": true
-    }
-  ]
-}
-```
-
-For Bedrock, prefer leaving `clientConfig.credentials` out when the runtime already has AWS credentials. Without explicit credentials or `profile`, Hooman falls back to the AWS SDK default credential chain, such as `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, optional `AWS_SESSION_TOKEN`, `AWS_PROFILE`, and AWS CLI/shared credential files.
-
-### Multiple models
-
-You may list several entries and flip which one is default:
-
-```json
-{
-  "providers": [
-    {
-      "name": "openai",
-      "options": {
-        "provider": "openai",
-        "params": {
-          "apiKey": "..."
-        }
+        "apiKey": "..."
       }
     },
     {
-      "name": "anthropic",
+      "name": "Kimi",
+      "provider": "moonshot",
       "options": {
-        "provider": "anthropic",
-        "params": {
-          "apiKey": "..."
-        }
+        "apiKey": "..."
       }
     }
   ],
   "llms": [
     {
-      "name": "Fast",
+      "name": "MiniMax M3",
+      "provider": "MiniMax",
       "options": {
-        "provider": "openai",
-        "model": "gpt-4.1-mini",
-        "params": {}
+        "model": "MiniMax-M3"
       },
       "default": true
     },
     {
-      "name": "Heavy",
+      "name": "Kimi K2.7 Code",
+      "provider": "Kimi",
       "options": {
-        "provider": "anthropic",
-        "model": "claude-opus-4-20250514",
-        "params": {}
+        "model": "kimi-k2.7-code"
       },
       "default": false
+    }
+  ]
+}
+```
+
+```json
+{
+  "providers": [
+    {
+      "name": "Bedrock",
+      "provider": "bedrock",
+      "options": {
+        "region": "us-west-2",
+        "accessKeyId": "AKIA...",
+        "secretAccessKey": "...",
+        "sessionToken": "..."
+      }
+    }
+  ],
+  "llms": [
+    {
+      "name": "Claude Sonnet",
+      "provider": "Bedrock",
+      "options": {
+        "model": "anthropic.claude-sonnet-4-20250514-v1:0",
+        "temperature": 0.2,
+        "maxTokens": 4096
+      },
+      "default": true
     }
   ]
 }
@@ -462,13 +346,19 @@ Keep instruction edits focused and preserve existing wording unless the user ask
 ```json
 {
   "name": "Hooman",
+  "providers": [
+    {
+      "name": "Ollama",
+      "provider": "ollama",
+      "options": {}
+    }
+  ],
   "llms": [
     {
       "name": "Default",
+      "provider": "Ollama",
       "options": {
-        "provider": "ollama",
-        "model": "gemma4:e4b",
-        "params": {}
+        "model": "gemma4:e4b"
       },
       "default": true
     }
@@ -476,4 +366,4 @@ Keep instruction edits focused and preserve existing wording unless the user ask
 }
 ```
 
-Hooman will fill all optional sections with defaults on load and persist.
+Hooman fills all optional sections with defaults on load and persist.

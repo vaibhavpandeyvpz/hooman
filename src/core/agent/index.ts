@@ -74,7 +74,8 @@ export async function create(
 ): Promise<Agent> {
   const sessionId = meta.sessionId;
   const userId = meta.userId ?? sessionId;
-  const llm = await modelProviders[config.llm.provider]!();
+  const activeLlm = config.llm;
+  const llm = await modelProviders[activeLlm.provider]!();
   const ctx = createContext(sessionId);
   const {
     plugins: contextPlugins = [],
@@ -95,7 +96,7 @@ export async function create(
   }
 
   const base = await buildBaseSystemPrompt();
-  const model = llm.create(config.llm.model, config.llm.params);
+  const model = llm.create(activeLlm.providerOptions, activeLlm.llmOptions);
 
   const tools: Tool[] = [
     ...createByeTools(),
@@ -121,7 +122,8 @@ export async function create(
         parent: config.name,
         research,
         tools,
-        createModel: () => llm.create(config.llm.model, config.llm.params),
+        createModel: () =>
+          llm.create(activeLlm.providerOptions, activeLlm.llmOptions),
         concurrency: config.tools.agents.concurrency,
       }),
     );

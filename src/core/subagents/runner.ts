@@ -349,7 +349,7 @@ export async function runSubagentJobs(
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Graph execution failed.";
-      for (const [nodeId, index] of nodeToIndex.entries()) {
+      for (const [, index] of nodeToIndex.entries()) {
         if (results[index]) {
           continue;
         }

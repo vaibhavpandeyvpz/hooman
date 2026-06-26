@@ -38,7 +38,7 @@ export function ChromePicker({
       <SelectPicker
         title="Choose model"
         items={config.llms.map((entry) => ({
-          label: `${entry.name} • ${entry.options.provider}/${entry.options.model}${entry.default ? " • current" : ""}`,
+          label: `${entry.name} • ${entry.provider}/${entry.options.model}${entry.default ? " • current" : ""}`,
           value: entry.name,
         }))}
         onSelect={onModelSelect}
