@@ -2,6 +2,7 @@ import { z } from "zod";
 
 export enum LlmProvider {
   Anthropic = "anthropic",
+  Azure = "azure",
   Bedrock = "bedrock",
   Google = "google",
   Groq = "groq",
@@ -9,6 +10,7 @@ export enum LlmProvider {
   Moonshot = "moonshot",
   Ollama = "ollama",
   OpenAI = "openai",
+  OpenRouter = "openrouter",
   Xai = "xai",
 }
 
@@ -26,6 +28,15 @@ export type AnthropicProviderOptions = {
   baseURL?: string;
   headers?: Record<string, string>;
   thinking?: AnthropicThinking;
+};
+
+export type AzureProviderOptions = {
+  resourceName?: string;
+  baseURL?: string;
+  apiKey?: string;
+  headers?: Record<string, string>;
+  apiVersion?: string;
+  useDeploymentBasedUrls?: boolean;
 };
 
 export type BedrockProviderOptions = {
@@ -69,6 +80,12 @@ export type OpenAIProviderOptions = {
   headers?: Record<string, string>;
 };
 
+export type OpenRouterProviderOptions = {
+  apiKey?: string;
+  baseURL?: string;
+  headers?: Record<string, string>;
+};
+
 export type XaiProviderOptions = {
   apiKey?: string;
   baseURL?: string;
@@ -77,6 +94,7 @@ export type XaiProviderOptions = {
 
 export type ProviderOptions =
   | AnthropicProviderOptions
+  | AzureProviderOptions
   | BedrockProviderOptions
   | GoogleProviderOptions
   | GroqProviderOptions
@@ -84,6 +102,7 @@ export type ProviderOptions =
   | MoonshotProviderOptions
   | OllamaProviderOptions
   | OpenAIProviderOptions
+  | OpenRouterProviderOptions
   | XaiProviderOptions;
 
 const NonEmptyStringSchema = z.string().min(1);
@@ -109,6 +128,17 @@ export const AnthropicProviderOptionsSchema = z
     baseURL: NonEmptyStringSchema.optional(),
     headers: HeadersSchema,
     thinking: AnthropicThinkingSchema.optional(),
+  })
+  .strict();
+
+export const AzureProviderOptionsSchema = z
+  .object({
+    resourceName: NonEmptyStringSchema.optional(),
+    baseURL: NonEmptyStringSchema.optional(),
+    apiKey: NonEmptyStringSchema.optional(),
+    headers: HeadersSchema,
+    apiVersion: NonEmptyStringSchema.optional(),
+    useDeploymentBasedUrls: z.boolean().optional(),
   })
   .strict();
 
@@ -178,6 +208,14 @@ export const OpenAIProviderOptionsSchema = z
   })
   .strict();
 
+export const OpenRouterProviderOptionsSchema = z
+  .object({
+    apiKey: NonEmptyStringSchema.optional(),
+    baseURL: NonEmptyStringSchema.optional(),
+    headers: HeadersSchema,
+  })
+  .strict();
+
 export const XaiProviderOptionsSchema = z
   .object({
     apiKey: NonEmptyStringSchema.optional(),
@@ -188,6 +226,7 @@ export const XaiProviderOptionsSchema = z
 
 export const ProviderOptionsSchemas = {
   [LlmProvider.Anthropic]: AnthropicProviderOptionsSchema,
+  [LlmProvider.Azure]: AzureProviderOptionsSchema,
   [LlmProvider.Bedrock]: BedrockProviderOptionsSchema,
   [LlmProvider.Google]: GoogleProviderOptionsSchema,
   [LlmProvider.Groq]: GroqProviderOptionsSchema,
@@ -195,6 +234,7 @@ export const ProviderOptionsSchemas = {
   [LlmProvider.Moonshot]: MoonshotProviderOptionsSchema,
   [LlmProvider.Ollama]: OllamaProviderOptionsSchema,
   [LlmProvider.OpenAI]: OpenAIProviderOptionsSchema,
+  [LlmProvider.OpenRouter]: OpenRouterProviderOptionsSchema,
   [LlmProvider.Xai]: XaiProviderOptionsSchema,
 } as const;
 
@@ -204,6 +244,13 @@ export const NamedProviderConfigSchema = z.discriminatedUnion("provider", [
       name: NonEmptyStringSchema,
       provider: z.literal(LlmProvider.Anthropic),
       options: AnthropicProviderOptionsSchema,
+    })
+    .strict(),
+  z
+    .object({
+      name: NonEmptyStringSchema,
+      provider: z.literal(LlmProvider.Azure),
+      options: AzureProviderOptionsSchema,
     })
     .strict(),
   z
@@ -253,6 +300,13 @@ export const NamedProviderConfigSchema = z.discriminatedUnion("provider", [
       name: NonEmptyStringSchema,
       provider: z.literal(LlmProvider.OpenAI),
       options: OpenAIProviderOptionsSchema,
+    })
+    .strict(),
+  z
+    .object({
+      name: NonEmptyStringSchema,
+      provider: z.literal(LlmProvider.OpenRouter),
+      options: OpenRouterProviderOptionsSchema,
     })
     .strict(),
   z

@@ -151,6 +151,10 @@ export {
   create as createAnthropicModelProvider,
   type AnthropicModelParams,
 } from "./core/models/anthropic.js";
+export {
+  create as createAzureModelProvider,
+  type AzureModelParams,
+} from "./core/models/azure.js";
 export { create as createBedrockModelProvider } from "./core/models/bedrock.js";
 export type { BedrockLlmParams } from "./core/models/bedrock.js";
 export { create as createGoogleModelProvider } from "./core/models/google.js";
@@ -162,6 +166,10 @@ export {
   create as createOpenAIModelProvider,
   type OpenAIModelParams,
 } from "./core/models/openai.js";
+export {
+  create as createOpenRouterModelProvider,
+  type OpenRouterModelParams,
+} from "./core/models/openrouter.js";
 export { create as createXaiModelProvider } from "./core/models/xai.js";
 export {
   StrandsOllamaModel,

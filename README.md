@@ -30,7 +30,7 @@ It gives you a practical toolkit to build and run agent workflows:
 
 ## Features
 
-- Multiple LLM providers: `anthropic`, `bedrock`, `google`, `groq`, `minimax`, `moonshot`, `ollama`, `openai`, `xai`
+- Multiple LLM providers: `anthropic`, `azure`, `bedrock`, `google`, `groq`, `minimax`, `moonshot`, `ollama`, `openai`, `openrouter`, `xai`
 - Local configuration under `~/.hooman`
 - Optional web search tool with provider selection (`brave`, `exa`, `firecrawl`, `serper`, or `tavily`)
 - MCP server support via `stdio`, `streamable-http`, and `sse`
@@ -374,6 +374,7 @@ Hooman enables Strands `ContextOffloader` by default with file-backed storage un
 Supported `providers[].provider` values registered in this release (see `src/core/models/index.ts`):
 
 - `anthropic`
+- `azure`
 - `bedrock`
 - `google`
 - `groq`
@@ -381,6 +382,7 @@ Supported `providers[].provider` values registered in this release (see `src/cor
 - `moonshot`
 - `ollama`
 - `openai`
+- `openrouter`
 - `xai`
 
 Supported `search.provider` values:
@@ -423,6 +425,7 @@ LLM entries reference a provider by name and carry normalized model options:
 Supported provider option fields:
 
 - `anthropic`: `apiKey`, optional `baseURL`, optional `headers`, optional `thinking`
+- `azure`: optional `resourceName`, optional `baseURL`, optional `apiKey`, optional `headers`, optional `apiVersion`, optional `useDeploymentBasedUrls`
 - `bedrock`: `region`, `accessKeyId`, `secretAccessKey`, optional `sessionToken`, optional `apiKey`
 - `google`: `apiKey`
 - `groq`: `apiKey`, optional `baseURL`, optional `headers`
@@ -430,6 +433,7 @@ Supported provider option fields:
 - `moonshot`: `apiKey`, optional `baseURL`, optional `headers`
 - `ollama`: optional `baseURL`, optional `thinking`
 - `openai`: `apiKey`, optional `baseURL`, optional `headers`
+- `openrouter`: `apiKey`, optional `baseURL`, optional `headers`
 - `xai`: `apiKey`, optional `baseURL`, optional `headers`
 
 Normalized LLM option fields:
@@ -441,9 +445,11 @@ Normalized LLM option fields:
 Notes:
 
 - Google maps normalized `maxTokens` to the SDK's `maxOutputTokens` internally.
+- Azure uses the Vercel AI SDK `@ai-sdk/azure` provider. Set the LLM `model` to your Azure deployment name, not the raw OpenAI model id.
 - Ollama maps normalized `temperature` into Ollama `options.temperature`.
 - MiniMax uses the Anthropic-compatible endpoint `https://api.minimax.io/anthropic` automatically.
 - Moonshot defaults `baseURL` to `https://api.moonshot.ai/v1` when it is omitted.
+- OpenRouter defaults `baseURL` to `https://openrouter.ai/api/v1` when it is omitted, and model names are usually provider-qualified ids such as `anthropic/claude-3.5-sonnet`.
 - Bedrock can rely on the AWS default credential chain when explicit credentials are not provided.
 
 ## MCP Configuration

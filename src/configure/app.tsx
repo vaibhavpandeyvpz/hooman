@@ -196,6 +196,7 @@ type McpAuthStatus =
 
 const SUPPORTED_PROVIDER_TYPES = [
   LlmProvider.Anthropic,
+  LlmProvider.Azure,
   LlmProvider.Bedrock,
   LlmProvider.Google,
   LlmProvider.Groq,
@@ -203,6 +204,7 @@ const SUPPORTED_PROVIDER_TYPES = [
   LlmProvider.Moonshot,
   LlmProvider.Ollama,
   LlmProvider.OpenAI,
+  LlmProvider.OpenRouter,
   LlmProvider.Xai,
 ] as const;
 
@@ -211,6 +213,7 @@ const DEFAULT_MODEL_BY_PROVIDER: Record<
   string
 > = {
   [LlmProvider.Anthropic]: "claude-sonnet-4-6",
+  [LlmProvider.Azure]: "gpt-5.4-mini",
   [LlmProvider.Bedrock]: "anthropic.claude-sonnet-4-6",
   [LlmProvider.Google]: "gemini-2.5-flash",
   [LlmProvider.Groq]: "openai/gpt-oss-20b",
@@ -218,6 +221,7 @@ const DEFAULT_MODEL_BY_PROVIDER: Record<
   [LlmProvider.Moonshot]: "kimi-k2.7-code",
   [LlmProvider.Ollama]: "gemma4:e4b",
   [LlmProvider.OpenAI]: "gpt-5.5",
+  [LlmProvider.OpenRouter]: "google/gemma-4-26b-a4b-it:free",
   [LlmProvider.Xai]: "grok-4.3",
 };
 
@@ -233,6 +237,8 @@ function providerOptionsTemplate(
   switch (provider) {
     case LlmProvider.Anthropic:
       return { apiKey: "" };
+    case LlmProvider.Azure:
+      return {};
     case LlmProvider.Bedrock:
       return { region: "us-west-2" };
     case LlmProvider.Google:
@@ -247,6 +253,8 @@ function providerOptionsTemplate(
       return {};
     case LlmProvider.OpenAI:
       return { apiKey: "" };
+    case LlmProvider.OpenRouter:
+      return { apiKey: "" };
     case LlmProvider.Xai:
       return { apiKey: "" };
   }
@@ -255,6 +263,7 @@ function providerOptionsTemplate(
 type TypedFieldKind =
   | "string"
   | "stringRecord"
+  | "optionalBoolean"
   | "optionalNumber"
   | "optionalInteger"
   | "bedrockCredentials"
@@ -300,6 +309,49 @@ const PROVIDER_FIELD_DEFINITIONS: Record<
       kind: "anthropicThinking",
       placeholder: "adaptive",
       note: 'Allowed: "disabled", "adaptive", or blank to clear.',
+    },
+  ],
+  [LlmProvider.Azure]: [
+    {
+      key: "resourceName",
+      label: "Resource name",
+      kind: "string",
+      placeholder: "your-resource-name",
+      note: "Used to build the Azure OpenAI base URL when `baseURL` is not set.",
+    },
+    {
+      key: "baseURL",
+      label: "Base URL",
+      kind: "string",
+      placeholder: "https://your-resource-name.openai.azure.com/openai",
+      note: "Optional override for the Azure OpenAI endpoint prefix. When set, it takes precedence over `resourceName`.",
+    },
+    {
+      key: "apiKey",
+      label: "API key",
+      kind: "string",
+      placeholder: "...",
+      sensitive: true,
+    },
+    {
+      key: "headers",
+      label: "Headers",
+      kind: "stringRecord",
+      placeholder: '{"x-my-header":"value"}',
+    },
+    {
+      key: "apiVersion",
+      label: "API version",
+      kind: "string",
+      placeholder: "preview",
+      note: "Leave blank to use the AI SDK default API version.",
+    },
+    {
+      key: "useDeploymentBasedUrls",
+      label: "Deployment-based URLs",
+      kind: "optionalBoolean",
+      placeholder: "false",
+      note: "Allowed: yes/no/true/false. Leave blank to use the AI SDK default.",
     },
   ],
   [LlmProvider.Bedrock]: [
@@ -440,6 +492,29 @@ const PROVIDER_FIELD_DEFINITIONS: Record<
       placeholder: '{"x-my-header":"value"}',
     },
   ],
+  [LlmProvider.OpenRouter]: [
+    {
+      key: "apiKey",
+      label: "API key",
+      kind: "string",
+      placeholder: "sk-or-...",
+      sensitive: true,
+    },
+    {
+      key: "baseURL",
+      label: "Base URL",
+      kind: "string",
+      placeholder: "https://openrouter.ai/api/v1",
+      note: "Leave blank to use the default OpenRouter API base URL.",
+    },
+    {
+      key: "headers",
+      label: "Headers",
+      kind: "stringRecord",
+      placeholder: '{"HTTP-Referer":"https://example.com","X-Title":"Hooman"}',
+      note: "Optional extra headers such as attribution metadata for OpenRouter.",
+    },
+  ],
   [LlmProvider.Xai]: [
     {
       key: "apiKey",
@@ -508,6 +583,8 @@ function parseTypedFieldValue(
       return normalizeOptional(input);
     case "stringRecord":
       return parseStringRecord(input, definition.label);
+    case "optionalBoolean":
+      return parseOptionalBoolean(input, definition.label);
     case "optionalNumber":
       return normalizeOptional(input) === undefined
         ? undefined

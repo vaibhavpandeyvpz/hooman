@@ -111,6 +111,7 @@ Supported `providers[].provider` values:
 ```json
 [
   "anthropic",
+  "azure",
   "bedrock",
   "google",
   "groq",
@@ -118,6 +119,7 @@ Supported `providers[].provider` values:
   "moonshot",
   "ollama",
   "openai",
+  "openrouter",
   "xai"
 ]
 ```
@@ -153,6 +155,7 @@ Common shape:
 Provider notes:
 
 - `anthropic`: provider `options` support `apiKey`, optional `baseURL`, optional `headers`, and optional `thinking` (`"disabled"` or `"adaptive"`). LLM `options` support `model`, `temperature`, and `maxTokens`.
+- `azure`: provider `options` support optional `resourceName`, optional `baseURL`, optional `apiKey`, optional `headers`, optional `apiVersion`, and optional `useDeploymentBasedUrls`. LLM `options` support `model`, `temperature`, and `maxTokens`. The `model` value should be your Azure deployment name.
 - `bedrock`: provider `options` support `region`, `accessKeyId`, `secretAccessKey`, `sessionToken`, and optional `apiKey`. LLM `options` support `model`, `temperature`, and `maxTokens`.
 - `google`: provider `options` support `apiKey`. LLM `options` support `model`, `temperature`, and `maxTokens` (Hooman maps this to the Google SDK's `maxOutputTokens` internally).
 - `groq`: provider `options` support `apiKey`, optional `baseURL`, and optional `headers`. LLM `options` support `model`, `temperature`, and `maxTokens`.
@@ -160,6 +163,7 @@ Provider notes:
 - `moonshot`: provider `options` support `apiKey`, optional `baseURL`, and optional `headers`. When omitted, Hooman defaults the base URL to `https://api.moonshot.ai/v1`.
 - `ollama`: provider `options` support optional `baseURL` and optional `thinking`. LLM `options` support `model`, `temperature`, and `maxTokens`.
 - `openai`: provider `options` support `apiKey`, optional `baseURL`, and optional `headers`. LLM `options` support `model`, `temperature`, and `maxTokens`.
+- `openrouter`: provider `options` support `apiKey`, optional `baseURL`, and optional `headers`. LLM `options` support `model`, `temperature`, and `maxTokens`. The `model` value is usually a provider-qualified OpenRouter model id such as `anthropic/claude-3.5-sonnet`.
 - `xai`: provider `options` support `apiKey`, optional `baseURL`, and optional `headers`. LLM `options` support `model`, `temperature`, and `maxTokens`.
 
 Examples:
