@@ -36,6 +36,7 @@ import {
   listCliSessions,
   type CliSessionSummary,
 } from "./core/sessions/list-cli-sessions.js";
+import { createRuntimeConfig } from "./core/runtime-config.js";
 
 async function readPackageMeta(): Promise<{
   name: string;
@@ -98,6 +99,42 @@ type CliAgentBootstrapFlags = CliSessionModeOption & {
 type CliChatFlags = CliAgentBootstrapFlags & {
   continue?: boolean;
 };
+
+const REDACTED = "[REDACTED]";
+const SENSITIVE_KEY_PATTERN =
+  /(api[_-]?key|token|secret|password|authorization|cookie|accesskeyid|secretaccesskey|sessiontoken|headers|env|clientid|clientsecret)/i;
+
+function redactSensitiveValue(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(() => REDACTED);
+  }
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.keys(value as Record<string, unknown>).map((key) => [
+        key,
+        REDACTED,
+      ]),
+    );
+  }
+  return REDACTED;
+}
+
+function redactCredentials(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map((item) => redactCredentials(item));
+  }
+  if (!value || typeof value !== "object") {
+    return value;
+  }
+  return Object.fromEntries(
+    Object.entries(value).map(([key, entry]) => {
+      if (SENSITIVE_KEY_PATTERN.test(key)) {
+        return [key, redactSensitiveValue(entry)];
+      }
+      return [key, redactCredentials(entry)];
+    }),
+  );
+}
 
 function formatSessionAge(isoTimestamp: string): string {
   const date = new Date(isoTimestamp);
@@ -309,6 +346,26 @@ sessions
       return;
     }
     printSessionList(rows);
+  });
+
+program
+  .command("config")
+  .description(
+    "Dump merged runtime config.json for this working directory with secrets redacted.",
+  )
+  .action(() => {
+    const appConfig = createRuntimeConfig();
+    const payload = {
+      name: appConfig.name,
+      providers: appConfig.providers,
+      llms: appConfig.llms,
+      search: appConfig.search,
+      prompts: appConfig.prompts,
+      tools: appConfig.tools,
+      compaction: appConfig.compaction,
+    };
+    const redacted = redactCredentials(payload);
+    console.log(JSON.stringify(redacted, null, 2));
   });
 
 program

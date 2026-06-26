@@ -7,6 +7,9 @@ const McpServersFileSchema = z.object({
 });
 
 export type McpServersFile = z.infer<typeof McpServersFileSchema>;
+export type ConfigOptions = {
+  overlayPaths?: readonly string[];
+};
 
 /** One named MCP transport from the config file. */
 export type NamedMcpTransport = { name: string; transport: McpTransport };
@@ -16,26 +19,61 @@ export type NamedMcpTransport = { name: string; transport: McpTransport };
  */
 export class Config {
   private readonly path: string;
+  private readonly overlayPaths: string[];
   private servers: Record<string, McpTransport>;
 
-  public constructor(path: string) {
+  public constructor(path: string, options?: ConfigOptions) {
     this.path = path;
+    this.overlayPaths = [...(options?.overlayPaths ?? [])];
     this.servers = {};
     this.reload();
   }
 
-  private readJson(): McpServersFile {
-    if (!existsSync(this.path)) {
-      return { mcpServers: {} };
+  private readJson(path: string, fallback: McpServersFile): McpServersFile {
+    if (!existsSync(path)) {
+      return fallback;
     }
-    const raw = readFileSync(this.path, "utf8");
-    return JSON.parse(raw) as McpServersFile;
+    try {
+      const raw = readFileSync(path, "utf8");
+      return JSON.parse(raw) as McpServersFile;
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Unknown configuration error.";
+      throw new Error(`Failed to load MCP config from "${path}": ${message}`, {
+        cause: error instanceof Error ? error : undefined,
+      });
+    }
+  }
+
+  private parse(path: string, fallback: McpServersFile): McpServersFile {
+    try {
+      return McpServersFileSchema.parse(this.readJson(path, fallback));
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Unknown configuration error.";
+      throw new Error(`Failed to parse MCP config from "${path}": ${message}`, {
+        cause: error instanceof Error ? error : undefined,
+      });
+    }
+  }
+
+  private mergedServers(): Record<string, McpTransport> {
+    const primary = this.parse(this.path, { mcpServers: {} });
+    const merged = { ...primary.mcpServers };
+    for (const overlayPath of this.overlayPaths) {
+      const overlay = this.parse(overlayPath, { mcpServers: {} });
+      Object.assign(merged, overlay.mcpServers);
+    }
+    return merged;
   }
 
   /** Reload servers from disk (overwrites unsaved in-memory changes). */
   public reload(): void {
-    const parsed = McpServersFileSchema.parse(this.readJson());
-    this.servers = { ...parsed.mcpServers };
+    const wasMissing = !existsSync(this.path);
+    this.servers = this.mergedServers();
+    if (wasMissing) {
+      this.persist();
+    }
   }
 
   /** All configured servers, stable sort by name. */

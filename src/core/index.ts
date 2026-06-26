@@ -3,21 +3,19 @@ import { Config } from "./config.js";
 import { create as createAgent } from "./agent/index.js";
 import type { SessionMode } from "./state/session-mode.js";
 import {
-  createMcpConfig,
   createMcpManager,
   type Config as McpServersConfig,
   type Manager as McpConnectionManager,
   type NamedMcpTransport,
 } from "./mcp/index.js";
+import {
+  createRuntimeConfig,
+  createRuntimeMcpConfig,
+} from "./runtime-config.js";
 import { createSkillsRegistry } from "./skills/index.js";
 import type { Registry } from "./skills/index.js";
 import { system as createSystemPrompt } from "./prompts/index.js";
-import {
-  basePath,
-  configJsonPath,
-  instructionsMdPath,
-  mcpJsonPath,
-} from "./utils/paths.js";
+import { basePath, instructionsMdPath } from "./utils/paths.js";
 
 export type BootstrapMeta = {
   userId?: string;
@@ -43,14 +41,14 @@ export async function bootstrap(
   mode: BootstrapMode,
   meta: BootstrapMeta,
   print: boolean = false,
-  config: Config = new Config(configJsonPath()),
+  config: Config = createRuntimeConfig(),
 ): Promise<{
   config: Config;
   agent: Agent;
   mcp: { config: McpServersConfig; manager: McpConnectionManager };
   registry: Registry;
 }> {
-  const mcpConfig = createMcpConfig(mcpJsonPath());
+  const mcpConfig = createRuntimeMcpConfig();
   const mcpManager = createMcpManager(
     mcpConfig,
     mode === "acp",

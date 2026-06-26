@@ -14,6 +14,12 @@ Use this skill when the user asks you to inspect, explain, or change Hooman's ow
 - User instructions: `~/.hooman/instructions.md`.
 - This skill does not cover `mcp.json`, installed skill directories, or bundled skill files.
 
+## Effective Runtime View
+
+Use `hooman config` to inspect the merged runtime `config.json` for
+the current working directory (home config plus repo-local overlays). The
+command prints full `config.json` shape and redacts credential-like values.
+
 ## Read/Write Rules
 
 1. Read the existing JSON first. Preserve user values, comments are not supported, and secrets such as API keys may be present.

@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
+import { candidateWalkUpPaths } from "../utils/discover-files.js";
 
 const AGENTS_FILENAME = "AGENTS.md";
 const AGENTS_CHAR_BUDGET = 32_000;
@@ -16,40 +17,10 @@ export type AgentInstructionResolution = {
   content: string;
 };
 
-function agentInstructionSearchRoot(cwd: string): string {
-  let current = resolve(cwd);
-  while (true) {
-    if (existsSync(join(current, ".git"))) {
-      return current;
-    }
-    const parent = dirname(current);
-    if (parent === current) {
-      return resolve(cwd);
-    }
-    current = parent;
-  }
-}
-
 export function candidateAgentInstructionPaths(
   cwd: string = process.cwd(),
 ): string[] {
-  const resolvedCwd = resolve(cwd);
-  const root = agentInstructionSearchRoot(resolvedCwd);
-  const directories: string[] = [];
-  let current = resolvedCwd;
-  while (true) {
-    directories.push(current);
-    if (current === root) {
-      break;
-    }
-    const parent = dirname(current);
-    if (parent === current) {
-      break;
-    }
-    current = parent;
-  }
-  directories.reverse();
-  return directories.map((dir) => join(dir, AGENTS_FILENAME));
+  return candidateWalkUpPaths(AGENTS_FILENAME, cwd);
 }
 
 function isWithinDirectory(baseDir: string, candidatePath: string): boolean {

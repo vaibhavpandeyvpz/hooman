@@ -231,6 +231,15 @@ Log raw notification payloads:
 hooman daemon --debug
 ```
 
+### `hooman config`
+
+Print the effective runtime `config.json` for the current working directory in
+the same shape as `config.json`, with credential-like values redacted.
+
+```bash
+hooman config
+```
+
 ### Feature Flags
 
 Runtime tool and prompt switches are controlled from `config.json`:
@@ -256,7 +265,7 @@ Runtime tool and prompt switches are controlled from `config.json`:
 
 ### `/config`
 
-The configuration workflow is launched from inside a `chat` session with the `/config` slash command (there is no separate top-level `configure` command). It takes over the terminal on the alternate screen buffer while open, and restores the chat session on exit. Any config changes are picked up when the session re-bootstraps.
+The interactive configuration workflow is launched from inside a `chat` session with the `/config` slash command (there is no separate top-level `configure` command). It takes over the terminal on the alternate screen buffer while open, and restores the chat session on exit. Any config changes are picked up when the session re-bootstraps.
 
 ```text
 /config
@@ -305,6 +314,33 @@ Important files and folders:
 - `cache/` - runtime caches used by tools and subsystems
 - `sessions/` - persisted session data
 - `acp-sessions/` - persisted ACP session metadata and message snapshots
+
+### Repo-local runtime overlays
+
+At runtime, Hooman resolves configuration in this order:
+
+1. `~/.hooman/config.json` and `~/.hooman/mcp.json`
+2. `<git-root>/config.json` and `<git-root>/mcp.json` (if present)
+3. matching files in nested directories from git root to current working directory
+
+Nearest files win when keys overlap.
+
+For app config (`config.json`):
+
+- plain objects are deep-merged
+- scalar values are overridden by the nearest file
+- `providers` and `llms` are merged by `name` (nearest entry with the same name replaces inherited entries)
+
+For MCP config (`mcp.json`):
+
+- `mcpServers` is merged by server name (nearest entry with the same name wins)
+
+Notes:
+
+- Runtime overlays apply to `chat`, `exec`, `daemon`, and `acp` bootstraps.
+- `hooman config` prints only the merged effective `config.json` shape with credential-like values redacted.
+- The `/config` UI and `hooman mcp auth/logout/auth-status` still target home config (`~/.hooman/*`) directly.
+- Keep secrets in home config unless you explicitly want project-scoped credentials.
 
 `grep` tool binary resolution order:
 
@@ -462,6 +498,8 @@ Detailed design notes for planned OAuth-enabled remote MCP support live in [docs
   "mcpServers": {}
 }
 ```
+
+At runtime, project-local `mcp.json` files are merged on top of `~/.hooman/mcp.json` from git root to current directory. On name conflicts, the nearest `mcpServers.<name>` entry wins.
 
 ### Example stdio server
 

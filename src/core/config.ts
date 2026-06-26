@@ -137,7 +137,20 @@ const ConfigSchema = z
     },
   }));
 
+const ConfigOverlaySchema = z
+  .object({
+    name: z.string().min(1).optional(),
+    providers: z.array(NamedProviderConfigSchema).optional(),
+    llms: z.array(NamedLlmConfigSchema).optional(),
+    search: SearchPartialSchema.optional(),
+    prompts: PromptsPartialSchema.optional(),
+    tools: ToolsPartialSchema.optional(),
+    compaction: CompactionPartialSchema.optional(),
+  })
+  .strict();
+
 export type ConfigData = z.infer<typeof ConfigSchema>;
+type ConfigOverlay = z.infer<typeof ConfigOverlaySchema>;
 export type ProviderConfig = ProviderOptions;
 export type LlmConfig = {
   provider: LlmProvider;
@@ -155,6 +168,9 @@ export type CompactionConfig = ConfigData["compaction"];
 export type PromptsConfig = ConfigData["prompts"];
 export type SearchConfig = ConfigData["search"];
 export type ToolsConfig = ConfigData["tools"];
+export type ConfigOptions = {
+  overlayPaths?: readonly string[];
+};
 
 const defaultConfigData = (): ConfigData => ({
   name: "Hooman",
@@ -203,15 +219,71 @@ function clone<T>(value: T): T {
   return structuredClone(value);
 }
 
+function mergeNamedEntries<T extends { name: string }>(
+  base: readonly T[],
+  overlay: readonly T[],
+): T[] {
+  const merged = new Map<string, T>(base.map((entry) => [entry.name, entry]));
+  for (const entry of overlay) {
+    merged.set(entry.name, entry);
+  }
+  return [...merged.values()];
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function deepMerge<T>(base: T, overlay: unknown): T {
+  if (!isPlainObject(base) || !isPlainObject(overlay)) {
+    return overlay as T;
+  }
+  const result: Record<string, unknown> = { ...base };
+  for (const [key, value] of Object.entries(overlay)) {
+    if (value === undefined) {
+      continue;
+    }
+    const current = result[key];
+    if (isPlainObject(current) && isPlainObject(value)) {
+      result[key] = deepMerge(current, value);
+      continue;
+    }
+    result[key] = value;
+  }
+  return result as T;
+}
+
+function applyOverlay(base: ConfigData, overlay: ConfigOverlay): ConfigData {
+  const { providers, llms, ...remaining } = overlay;
+  const mergedBase = deepMerge(base, remaining);
+  return {
+    ...mergedBase,
+    providers: providers
+      ? mergeNamedEntries(mergedBase.providers, providers)
+      : mergedBase.providers,
+    llms: llms ? mergeNamedEntries(mergedBase.llms, llms) : mergedBase.llms,
+  };
+}
+
+function formatLoadError(path: string, error: unknown): Error {
+  const message =
+    error instanceof Error ? error.message : "Unknown configuration error.";
+  return new Error(`Failed to load config from "${path}": ${message}`, {
+    cause: error instanceof Error ? error : undefined,
+  });
+}
+
 export { LlmProvider };
 export type { NamedLlmConfig, NamedProviderConfig };
 
 export class Config {
   private data!: ConfigData;
   private readonly path: string;
+  private readonly overlayPaths: string[];
 
-  public constructor(path: string) {
+  public constructor(path: string, options?: ConfigOptions) {
     this.path = path;
+    this.overlayPaths = [...(options?.overlayPaths ?? [])];
     this.reload();
   }
 
@@ -281,16 +353,53 @@ export class Config {
     return clone(this.data.compaction);
   }
 
-  private readJson(): unknown {
-    if (!existsSync(this.path)) {
-      return defaultConfigData();
+  private readJson(path: string, fallback: unknown): unknown {
+    if (!existsSync(path)) {
+      return fallback;
     }
-    return JSON.parse(readFileSync(this.path, "utf8"));
+    try {
+      return JSON.parse(readFileSync(path, "utf8"));
+    } catch (error) {
+      throw formatLoadError(path, error);
+    }
+  }
+
+  private readOverlay(path: string): ConfigOverlay {
+    try {
+      return ConfigOverlaySchema.parse(this.readJson(path, {}));
+    } catch (error) {
+      throw formatLoadError(path, error);
+    }
   }
 
   public reload(): void {
     const wasMissing = !existsSync(this.path);
-    this.data = ConfigSchema.parse(this.readJson());
+    let resolved: ConfigData;
+    try {
+      resolved = ConfigSchema.parse(
+        this.readJson(this.path, defaultConfigData()),
+      );
+    } catch (error) {
+      throw formatLoadError(this.path, error);
+    }
+    for (const overlayPath of this.overlayPaths) {
+      resolved = applyOverlay(resolved, this.readOverlay(overlayPath));
+    }
+    try {
+      this.data = ConfigSchema.parse(resolved);
+    } catch (error) {
+      const origins = [this.path, ...this.overlayPaths].join(", ");
+      throw new Error(
+        `Failed to validate merged config (sources: ${origins}): ${
+          error instanceof Error
+            ? error.message
+            : "Unknown configuration error."
+        }`,
+        {
+          cause: error instanceof Error ? error : undefined,
+        },
+      );
+    }
     if (wasMissing) {
       this.persist();
     }

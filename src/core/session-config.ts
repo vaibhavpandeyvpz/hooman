@@ -1,4 +1,5 @@
 import { Config } from "./config.js";
+import { runtimeConfigOptions } from "./runtime-config.js";
 import { configJsonPath } from "./utils/paths.js";
 
 /**
@@ -12,5 +13,5 @@ export class SessionConfig extends Config {
 }
 
 export function createSessionConfig(): SessionConfig {
-  return new SessionConfig(configJsonPath());
+  return new SessionConfig(configJsonPath(), runtimeConfigOptions());
 }
