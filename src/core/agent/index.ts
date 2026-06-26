@@ -2,16 +2,28 @@ import {
   Agent,
   BeforeInvocationEvent,
   HookOrder,
+  IntervalTrigger,
+  SessionManager,
+  SummarizingConversationManager,
   type ConversationManager,
-  type SessionManager,
+  type Plugin,
   type InterventionHandler,
 } from "@strands-agents/sdk";
+import { ContextInjector } from "@strands-agents/sdk/vended-plugins/context-injector";
+import {
+  ContextOffloader,
+  FileStorage,
+} from "@strands-agents/sdk/vended-plugins/context-offloader";
+import { join } from "node:path";
 import type { Tool } from "@strands-agents/sdk";
 import { type Config } from "../config.js";
-import { create as createContext } from "../context/index.js";
+import { FileMemoryStore } from "../memory/index.js";
+import { ToolBasedModelExtractor } from "../memory/model-extractor.js";
 import { modelProviders } from "../models/index.js";
 import type { Manager as McpManager } from "../mcp/index.js";
 import type { System as SystemPrompt } from "../prompts/index.js";
+import { FlatFileStorage } from "../sessions/flat-file-storage.js";
+import { LazySessionManager } from "../sessions/lazy-session-manager.js";
 import {
   createRunSubagentTools,
   loadResearchSubagent,
@@ -40,8 +52,15 @@ import { applySessionMode } from "./sync-tool-registry-mode.js";
 import { clearTodoState } from "../state/todos.js";
 import { MODE_STATE_KEY, type SessionMode } from "../state/session-mode.js";
 import { YOLO_STATE_KEY } from "../state/yolo.js";
+import { memoryPath, sessionsPath } from "../utils/paths.js";
 
 const SECTION_BREAK = "\n\n---\n\n";
+const OFFLOADED_CONTENT_DIR = "offloaded-content";
+const OFFLOADING_MAX_RESULT_TOKENS = 5_000;
+const OFFLOADING_PREVIEW_TOKENS = 2_000;
+const MEMORY_STORE_NAME = "long_term";
+const MEMORY_EXTRACTION_TURNS = 5;
+const MEMORY_MAX_SEARCH_RESULTS = 5;
 const agentConversationManagers = new WeakMap<Agent, ConversationManager>();
 const agentSessionManagers = new WeakMap<Agent, SessionManager>();
 
@@ -164,4 +183,74 @@ export async function create(
   );
   applySessionMode(agent);
   return agent;
+}
+
+export function createContext(sessionId?: string): {
+  plugins: Plugin[];
+  conversationManager: SummarizingConversationManager;
+  memoryManager: ReturnType<typeof createMemoryManager>;
+  sessionManager?: SessionManager;
+} {
+  const conversationManager = new SummarizingConversationManager({
+    summaryRatio: 0.5,
+    preserveRecentMessages: 5,
+  });
+  const storage = new FlatFileStorage(sessionsPath());
+  const offloadingPlugins = createOffloadingPlugins();
+  const memoryManager = createMemoryManager();
+
+  if (!sessionId) {
+    return {
+      plugins: [...offloadingPlugins, new LazySessionManager({ storage })],
+      conversationManager,
+      memoryManager,
+    };
+  }
+
+  const sessionManager = new SessionManager({
+    sessionId,
+    storage: { snapshot: storage },
+  });
+
+  return {
+    plugins: offloadingPlugins,
+    sessionManager,
+    conversationManager,
+    memoryManager,
+  };
+}
+
+function createOffloadingPlugins(): Plugin[] {
+  return [
+    new ContextInjector({
+      name: "hooman:clock",
+      trigger: "userTurn",
+      renderContent: async () => `<now>${new Date().toISOString()}</now>`,
+    }),
+    new ContextOffloader({
+      storage: new FileStorage(join(sessionsPath(), OFFLOADED_CONTENT_DIR)),
+      maxResultTokens: OFFLOADING_MAX_RESULT_TOKENS,
+      previewTokens: OFFLOADING_PREVIEW_TOKENS,
+      includeRetrievalTool: true,
+    }),
+  ];
+}
+
+function createMemoryManager() {
+  const store = new FileMemoryStore({
+    baseDir: memoryPath(),
+    name: MEMORY_STORE_NAME,
+    description:
+      "Durable facts, preferences, recurring tasks, and stable context learned about the current user across sessions.",
+    maxSearchResults: MEMORY_MAX_SEARCH_RESULTS,
+    writable: true,
+    extraction: {
+      trigger: new IntervalTrigger({ turns: MEMORY_EXTRACTION_TURNS }),
+      extractor: new ToolBasedModelExtractor(),
+    },
+  });
+
+  return {
+    stores: [store],
+  };
 }

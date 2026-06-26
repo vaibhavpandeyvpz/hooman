@@ -52,6 +52,7 @@ import type { PromptSubmission } from "./components/prompt-input/hooks/usePrompt
 import { readBundledPrompt } from "../core/prompts/bundled.js";
 import { runWithAgentMemoryScope } from "../core/memory/index.js";
 import type { ChatPicker } from "./components/ChromePicker.js";
+import { listCliSessions } from "../core/sessions/list-cli-sessions.js";
 
 /** Status bar: Strands `Usage` for the current user turn + summed latency across model cycles. */
 type TurnUsageStatus = Usage & { latencyMs: number };
@@ -71,6 +72,7 @@ type ChatAppProps = {
   prompt?: string;
   onExit: () => void;
   onNewSession: () => void;
+  onResumeSession: (sessionId: string) => void;
   onConfigure: () => void;
 };
 
@@ -102,6 +104,35 @@ const INIT_AGENTS_PROMPT = readBundledPrompt("static", "init.md");
 
 function nowId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function shortSessionId(sessionId: string): string {
+  const parts = sessionId.split("-");
+  return parts.length > 1 ? (parts[parts.length - 1] ?? sessionId) : sessionId;
+}
+
+function formatSessionAge(isoTimestamp: string): string {
+  const date = new Date(isoTimestamp);
+  const deltaMs = Date.now() - date.getTime();
+  if (!Number.isFinite(deltaMs)) {
+    return "unknown";
+  }
+  if (deltaMs < 60_000) {
+    return "just now";
+  }
+  const minutes = Math.floor(deltaMs / 60_000);
+  if (minutes < 60) {
+    return `${minutes}m ago`;
+  }
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) {
+    return `${hours}h ago`;
+  }
+  const days = Math.floor(hours / 24);
+  if (days < 30) {
+    return `${days}d ago`;
+  }
+  return date.toISOString().slice(0, 10);
 }
 
 function stringifyUnknown(value: unknown): string {
@@ -357,6 +388,10 @@ const SLASH_COMMANDS = [
     description: "Start a new chat session.",
   },
   {
+    name: "sessions",
+    description: "Browse and resume saved sessions.",
+  },
+  {
     name: "yolo",
     description: "Auto-approve tools (on|off).",
   },
@@ -390,6 +425,7 @@ export function ChatApp({
   prompt,
   onExit,
   onNewSession,
+  onResumeSession,
   onConfigure,
 }: ChatAppProps): React.JSX.Element {
   const { exit } = useApp();
@@ -416,6 +452,9 @@ export function ChatApp({
   const [slashHighlightIndex, setSlashHighlightIndex] = useState(0);
   const [queuedPrompts, setQueuedPrompts] = useState<QueuedPrompt[]>([]);
   const [mcpNeedsAttention, setMcpNeedsAttention] = useState(false);
+  const [sessionItems, setSessionItems] = useState<
+    Array<{ label: string; value: string }>
+  >([]);
   const [todoState, setTodoState] = useState<TodoViewState>(() =>
     getTodoViewState(agent),
   );
@@ -933,6 +972,60 @@ export function ChatApp({
     exit();
   }, [appendLine, exit, onConfigure]);
 
+  const handleSessionsCommand = useCallback(async () => {
+    if (runningRef.current) {
+      appendLine({
+        id: nowId(),
+        role: "system",
+        title: "sessions",
+        content:
+          "Wait for the active turn to finish before switching sessions.",
+        done: true,
+      });
+      return;
+    }
+    const rows = await listCliSessions({ cwd: process.cwd() });
+    const filtered = rows.filter((row) => row.sessionId !== sessionId);
+    if (filtered.length === 0) {
+      appendLine({
+        id: nowId(),
+        role: "system",
+        title: "sessions",
+        content: "No saved sessions found for this directory.",
+        done: true,
+      });
+      return;
+    }
+    setSessionItems(
+      filtered.map((row) => ({
+        value: row.sessionId,
+        label: `${row.title} • ${formatSessionAge(row.updatedAt)} • ${shortSessionId(
+          row.sessionId,
+        )}`,
+      })),
+    );
+    setPicker("sessions");
+  }, [appendLine, sessionId]);
+
+  const handleResumeSessionCommand = useCallback(
+    (nextSessionId: string) => {
+      if (runningRef.current) {
+        appendLine({
+          id: nowId(),
+          role: "system",
+          title: "sessions",
+          content:
+            "Wait for the active turn to finish before switching sessions.",
+          done: true,
+        });
+        return;
+      }
+      onResumeSession(nextSessionId);
+      exit();
+    },
+    [appendLine, exit, onResumeSession],
+  );
+
   const runTurn = useCallback(
     async (prompt: PromptSubmission) => {
       const trimmed = prompt.text.trim();
@@ -1308,6 +1401,11 @@ export function ChatApp({
           setInput("");
           return;
         }
+        if (command.name === "sessions") {
+          void handleSessionsCommand();
+          setInput("");
+          return;
+        }
       }
       if (pushPrompt(value)) {
         setInput("");
@@ -1320,6 +1418,7 @@ export function ChatApp({
       handleConfigCommand,
       handleModeCommand,
       handleNewCommand,
+      handleSessionsCommand,
       handleYoloCommand,
       pendingApproval,
       pushPrompt,
@@ -1447,6 +1546,7 @@ export function ChatApp({
           queuedPrompts={queuedPrompts}
           pendingApproval={Boolean(pendingApproval)}
           picker={picker}
+          sessionItems={sessionItems}
           slashCommands={slashCommands}
           slashHighlightIndex={slashHighlightIndex}
           input={input}
@@ -1464,6 +1564,10 @@ export function ChatApp({
           onModeSelect={(value) => {
             setPicker(null);
             void handleModeCommand(value);
+          }}
+          onSessionSelect={(value) => {
+            setPicker(null);
+            handleResumeSessionCommand(value);
           }}
           onInputChange={setInput}
           onSubmit={onSubmit}

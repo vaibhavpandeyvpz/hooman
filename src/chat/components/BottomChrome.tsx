@@ -48,9 +48,11 @@ type BottomChromeProps = {
   inputHint: string;
   slashMenu?: SlashCommandMenuProps;
   onApprovalDecision: (decision: ApprovalDecision) => void;
+  sessionItems: Array<{ label: string; value: string }>;
   onModelSelect: (name: string) => void;
   onYoloSelect: (value: string) => void;
   onModeSelect: (value: string) => void;
+  onSessionSelect: (value: string) => void;
   onInputChange: (value: string) => void;
   onSubmit: (value: PromptSubmission) => void;
 };
@@ -74,6 +76,7 @@ export function BottomChrome({
   queuedPrompts,
   pendingApproval,
   picker,
+  sessionItems,
   slashCommands,
   slashHighlightIndex,
   input,
@@ -83,6 +86,7 @@ export function BottomChrome({
   onModelSelect,
   onYoloSelect,
   onModeSelect,
+  onSessionSelect,
   onInputChange,
   onSubmit,
 }: BottomChromeProps) {
@@ -101,9 +105,11 @@ export function BottomChrome({
         yoloOn={yoloOn}
         sessionMode={sessionMode}
         onApprovalDecision={onApprovalDecision}
+        sessionItems={sessionItems}
         onModelSelect={onModelSelect}
         onYoloSelect={onYoloSelect}
         onModeSelect={onModeSelect}
+        onSessionSelect={onSessionSelect}
       />
 
       {!pendingApproval && !picker ? (

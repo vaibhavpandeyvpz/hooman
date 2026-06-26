@@ -175,12 +175,12 @@ export {
   StrandsOllamaModel,
   type OllamaModelConfig,
 } from "./core/models/ollama/strands-ollama.js";
+export { createContext } from "./core/agent/index.js";
+export { FlatFileStorage } from "./core/sessions/flat-file-storage.js";
 export {
-  create as createContext,
   LazySessionManager,
-} from "./core/context/index.js";
-export type { LazySessionManagerConfig } from "./core/context/index.js";
-export { FlatFileStorage } from "./core/context/flat-file-storage.js";
+  type LazySessionManagerConfig,
+} from "./core/sessions/lazy-session-manager.js";
 
 export {
   RESEARCH_SUBAGENT,

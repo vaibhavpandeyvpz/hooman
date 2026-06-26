@@ -1,10 +1,11 @@
+import { Text } from "ink";
 import type { Config } from "../../core/config.js";
 import { MODE_DEFINITIONS, type SessionMode } from "../../core/modes/index.js";
 import { ApprovalPrompt } from "./ApprovalPrompt.js";
 import { SelectPicker } from "./SelectPicker.js";
 import type { ApprovalDecision } from "../types.js";
 
-export type ChatPicker = null | "model" | "yolo" | "mode";
+export type ChatPicker = null | "model" | "yolo" | "mode" | "sessions";
 
 type ChromePickerProps = {
   config: Config;
@@ -13,9 +14,11 @@ type ChromePickerProps = {
   yoloOn: boolean;
   sessionMode: SessionMode;
   onApprovalDecision: (decision: ApprovalDecision) => void;
+  sessionItems: Array<{ label: string; value: string }>;
   onModelSelect: (name: string) => void;
   onYoloSelect: (value: string) => void;
   onModeSelect: (value: string) => void;
+  onSessionSelect: (value: string) => void;
 };
 
 export function ChromePicker({
@@ -25,9 +28,11 @@ export function ChromePicker({
   yoloOn,
   sessionMode,
   onApprovalDecision,
+  sessionItems,
   onModelSelect,
   onYoloSelect,
   onModeSelect,
+  onSessionSelect,
 }: ChromePickerProps) {
   if (pendingApproval) {
     return <ApprovalPrompt onDecision={onApprovalDecision} />;
@@ -76,6 +81,21 @@ export function ChromePicker({
           value: entry.id,
         }))}
         onSelect={onModeSelect}
+      />
+    );
+  }
+
+  if (picker === "sessions") {
+    if (sessionItems.length === 0) {
+      return (
+        <Text color="gray">No saved sessions found for this directory.</Text>
+      );
+    }
+    return (
+      <SelectPicker
+        title="Resume saved session"
+        items={sessionItems}
+        onSelect={onSessionSelect}
       />
     );
   }

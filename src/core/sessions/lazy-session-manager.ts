@@ -6,11 +6,11 @@ import {
   type LocalAgent,
   type MessageData,
   type Plugin,
-  type SystemPrompt,
-  type SystemPromptData,
   type Snapshot,
   type SnapshotLocation,
   type SnapshotStorage,
+  type SystemPrompt,
+  type SystemPromptData,
 } from "@strands-agents/sdk";
 import type { JSONValue } from "@strands-agents/sdk";
 import { EXIT_REQUESTED_STATE_KEY } from "../state/exit-request.js";

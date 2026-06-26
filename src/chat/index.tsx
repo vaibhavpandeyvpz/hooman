@@ -24,7 +24,8 @@ type LaunchChatOptions = {
 
 export type ChatResult = {
   exitRequested: boolean;
-  nextAction: "exit" | "new" | "configure";
+  nextAction: "exit" | "new" | "resume" | "configure";
+  resumeSessionId?: string;
 };
 
 function printSessionResumeHint(program: string, sessionId: string): void {
@@ -36,6 +37,12 @@ function printSessionResumeHint(program: string, sessionId: string): void {
       `${exe} chat -s ${sessionId}`,
     )}`,
   );
+  console.log(
+    ` ${styleText(["white", "bold"], "Resume latest in cwd:")} ${styleText(
+      ["white"],
+      `${exe} chat --continue`,
+    )}`,
+  );
 }
 
 export async function chat(options: LaunchChatOptions): Promise<ChatResult> {
@@ -44,6 +51,7 @@ export async function chat(options: LaunchChatOptions): Promise<ChatResult> {
   // starts at the top of a clean screen.
   let done = false;
   let nextAction: ChatResult["nextAction"] = "exit";
+  let resumeSessionId: string | undefined;
   const { waitUntilExit, unmount } = render(
     <ChatApp
       agent={options.agent}
@@ -60,6 +68,11 @@ export async function chat(options: LaunchChatOptions): Promise<ChatResult> {
       onNewSession={() => {
         done = true;
         nextAction = "new";
+      }}
+      onResumeSession={(sessionId) => {
+        done = true;
+        nextAction = "resume";
+        resumeSessionId = sessionId;
       }}
       onConfigure={() => {
         done = true;
@@ -87,5 +100,6 @@ export async function chat(options: LaunchChatOptions): Promise<ChatResult> {
   return {
     exitRequested: consumeExitRequest(options.agent),
     nextAction,
+    resumeSessionId,
   };
 }

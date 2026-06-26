@@ -31,6 +31,11 @@ import {
 import { getModeState, type SessionMode } from "./core/state/session-mode.js";
 import { isYoloEnabled } from "./core/state/yolo.js";
 import { formatModeNames, getModeIds } from "./core/modes/index.js";
+import {
+  latestCliSessionForCwd,
+  listCliSessions,
+  type CliSessionSummary,
+} from "./core/sessions/list-cli-sessions.js";
 
 async function readPackageMeta(): Promise<{
   name: string;
@@ -90,6 +95,59 @@ type CliAgentBootstrapFlags = CliSessionModeOption & {
   yolo?: boolean;
 };
 
+type CliChatFlags = CliAgentBootstrapFlags & {
+  continue?: boolean;
+};
+
+function formatSessionAge(isoTimestamp: string): string {
+  const date = new Date(isoTimestamp);
+  const deltaMs = Date.now() - date.getTime();
+  if (!Number.isFinite(deltaMs)) {
+    return "unknown";
+  }
+  if (deltaMs < 60_000) {
+    return "just now";
+  }
+  const minutes = Math.floor(deltaMs / 60_000);
+  if (minutes < 60) {
+    return `${minutes}m ago`;
+  }
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) {
+    return `${hours}h ago`;
+  }
+  const days = Math.floor(hours / 24);
+  if (days < 30) {
+    return `${days}d ago`;
+  }
+  return date.toISOString().slice(0, 10);
+}
+
+function printSessionList(rows: CliSessionSummary[]): void {
+  const headers = ["session", "updated", "cwd", "title"] as const;
+  const tableRows = rows.map((row) => ({
+    session: row.sessionId,
+    updated: formatSessionAge(row.updatedAt),
+    cwd: row.cwd ?? "-",
+    title: row.title,
+  }));
+  const widths = headers.map((header) =>
+    Math.max(
+      header.length,
+      ...tableRows.map((row) => row[header as keyof typeof row].length),
+    ),
+  );
+  const formatColumns = (values: string[]): string =>
+    values
+      .map((value, index) => value.padEnd(widths[index] ?? value.length))
+      .join("  ");
+
+  console.log(formatColumns(headers.map((header) => header)));
+  for (const row of tableRows) {
+    console.log(formatColumns(headers.map((header) => row[header])));
+  }
+}
+
 const program = new Command()
   .name(packageMeta.name)
   .description(packageMeta.description)
@@ -143,82 +201,115 @@ program
   .addOption(cliSessionIdOption())
   .addOption(cliSessionModeOption())
   .addOption(cliYoloOption("interactive"))
-  .action(
-    async (prompt: string | undefined, options: CliAgentBootstrapFlags) => {
-      const config = createSessionConfig();
-      let currentSessionId = options.session?.trim() || crypto.randomUUID();
-      let currentPrompt = prompt?.trim() || undefined;
-      let currentYolo = Boolean(options.yolo);
-      let currentMode = options.mode as SessionMode;
-      let exitRequested = false;
-      while (true) {
-        const approvals = new ChatApprovalController();
-        const steering = new ChatTurnSteeringController();
-        const {
-          agent,
-          mcp: { manager },
-          registry,
-        } = await bootstrap(
-          "default",
-          {
-            userId: "default",
-            sessionId: currentSessionId,
-            yolo: currentYolo,
-            mode: currentMode,
-            interventions: [
-              createChatApprovalIntervention(approvals),
-              createChatTurnSteeringIntervention(steering),
-            ],
-          },
-          false,
-          config,
-        );
+  .option(
+    "-C, --continue",
+    "Resume the latest session in the current working directory.",
+  )
+  .action(async (prompt: string | undefined, options: CliChatFlags) => {
+    const config = createSessionConfig();
+    const pinnedSession = options.session?.trim();
+    const continuedSession = options.continue
+      ? await latestCliSessionForCwd(process.cwd())
+      : null;
+    let currentSessionId =
+      pinnedSession || continuedSession?.sessionId || crypto.randomUUID();
+    let currentPrompt = prompt?.trim() || undefined;
+    let currentYolo = Boolean(options.yolo);
+    let currentMode = options.mode as SessionMode;
+    let exitRequested = false;
+    while (true) {
+      const approvals = new ChatApprovalController();
+      const steering = new ChatTurnSteeringController();
+      const {
+        agent,
+        mcp: { manager },
+        registry,
+      } = await bootstrap(
+        "default",
+        {
+          userId: "default",
+          sessionId: currentSessionId,
+          yolo: currentYolo,
+          mode: currentMode,
+          interventions: [
+            createChatApprovalIntervention(approvals),
+            createChatTurnSteeringIntervention(steering),
+          ],
+        },
+        false,
+        config,
+      );
 
-        try {
-          const result = await chat({
-            agent,
-            config,
-            manager,
-            registry,
-            sessionId: currentSessionId,
-            prompt: currentPrompt,
-            approvals,
-            steering,
-            program: packageMeta.name,
-          });
-          if (result.nextAction === "configure") {
-            await configure();
-            config.reload();
-            currentPrompt = undefined;
-            // The config flow restored the chat screen on exit; clear it so the
-            // re-bootstrapped session (which picks up any config changes) renders
-            // cleanly instead of stacking below the restored frame.
-            process.stdout.write("\x1b[2J\x1b[3J\x1b[H");
-            continue;
-          }
-          if (result.nextAction === "new") {
-            currentSessionId = crypto.randomUUID();
-            currentPrompt = undefined;
-            currentYolo = isYoloEnabled(agent);
-            currentMode = getModeState(agent).mode;
-            continue;
-          }
-          exitRequested = result.exitRequested;
-          break;
-        } finally {
-          try {
-            await flushAgentMemory(agent);
-          } catch {}
-          try {
-            await manager.disconnect();
-          } catch {}
+      try {
+        const result = await chat({
+          agent,
+          config,
+          manager,
+          registry,
+          sessionId: currentSessionId,
+          prompt: currentPrompt,
+          approvals,
+          steering,
+          program: packageMeta.name,
+        });
+        if (result.nextAction === "configure") {
+          await configure();
+          config.reload();
+          currentPrompt = undefined;
+          // The config flow restored the chat screen on exit; clear it so the
+          // re-bootstrapped session (which picks up any config changes) renders
+          // cleanly instead of stacking below the restored frame.
+          process.stdout.write("\x1b[2J\x1b[3J\x1b[H");
+          continue;
         }
+        if (result.nextAction === "new") {
+          currentSessionId = crypto.randomUUID();
+          currentPrompt = undefined;
+          currentYolo = isYoloEnabled(agent);
+          currentMode = getModeState(agent).mode;
+          continue;
+        }
+        if (result.nextAction === "resume" && result.resumeSessionId) {
+          currentSessionId = result.resumeSessionId;
+          currentPrompt = undefined;
+          currentYolo = isYoloEnabled(agent);
+          currentMode = getModeState(agent).mode;
+          continue;
+        }
+        exitRequested = result.exitRequested;
+        break;
+      } finally {
+        try {
+          await flushAgentMemory(agent);
+        } catch {}
+        try {
+          await manager.disconnect();
+        } catch {}
       }
-      if (exitRequested) {
-        process.exit(EXIT_REQUESTED_CODE);
-      }
-    },
-  );
+    }
+    if (exitRequested) {
+      process.exit(EXIT_REQUESTED_CODE);
+    }
+  });
+
+const sessions = program
+  .command("sessions")
+  .description("List and inspect saved CLI sessions.");
+
+sessions
+  .command("list")
+  .description("List saved sessions from local snapshot storage.")
+  .option("--cwd", "Only include sessions for the current working directory.")
+  .action(async (options: { cwd?: boolean }) => {
+    const rows = await listCliSessions({
+      cwd: options.cwd ? process.cwd() : undefined,
+    });
+    if (rows.length === 0) {
+      console.log("No saved sessions found.");
+      return;
+    }
+    printSessionList(rows);
+  });
 
 program
   .command("daemon")
