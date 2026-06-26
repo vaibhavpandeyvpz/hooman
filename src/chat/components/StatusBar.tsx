@@ -18,7 +18,6 @@ function formatTokenCount(n: number): string {
 type StatusBarProps = {
   running: boolean;
   status: string;
-  sessionId: string;
   currentModel: string;
   yoloOn: boolean;
   sessionMode: string;
@@ -36,13 +35,7 @@ type StatusBarProps = {
   };
 };
 
-/** Last UUID segment (or whole string) for a compact session label. */
-function shortSessionId(sessionId: string): string {
-  const parts = sessionId.split("-");
-  return parts.length > 1 ? (parts[parts.length - 1] ?? sessionId) : sessionId;
-}
-
-function sessionModeValueColor(mode: string): string {
+function sessionModeValueColor(mode: string): string | undefined {
   const normalized = mode.trim().toLowerCase();
   if (normalized === "plan") {
     return "#FFA500";
@@ -50,10 +43,7 @@ function sessionModeValueColor(mode: string): string {
   if (normalized === "ask") {
     return "cyan";
   }
-  if (normalized === "research") {
-    return "blue";
-  }
-  return "gray";
+  return undefined;
 }
 
 /** Ink color for the live status token only (labels stay `gray`). */
@@ -74,7 +64,6 @@ function statusValueColor(status: string): string {
 export function StatusBar({
   running,
   status,
-  sessionId,
   currentModel,
   yoloOn,
   sessionMode,
@@ -86,13 +75,11 @@ export function StatusBar({
   mcpNeedsAttention,
   usage,
 }: StatusBarProps) {
-  const sessionShort = shortSessionId(sessionId);
-
   return (
     <Box marginTop={1} flexDirection="column">
       <Text>
-        <Text color="gray">session: </Text>
-        <Text color="gray">{sessionShort}</Text>
+        <Text color="gray">model: </Text>
+        <Text bold>{currentModel}</Text>
         <Text color="gray"> • status: </Text>
         <Text color={statusValueColor(status)}>{status}</Text>
         <Text color="gray"> • mode: </Text>
@@ -101,11 +88,9 @@ export function StatusBar({
         <Text color={yoloOn ? "red" : "green"}>{yoloOn ? "on" : "off"}</Text>
       </Text>
       <Text color="gray">
-        model: {currentModel} • turns: {turnCount} • tokens:{" "}
-        {formatTokenCount(usage.inputTokens)} +{" "}
+        turns: {turnCount} • tokens: {formatTokenCount(usage.inputTokens)} +{" "}
         {formatTokenCount(usage.outputTokens)} ={" "}
         {formatTokenCount(usage.totalTokens)}
-        {usage.latencyMs > 0 ? ` • latency: ${usage.latencyMs}ms` : ""}
         {running ? ` • elapsed ${elapsedLabel}` : ""}
       </Text>
       <Text color="gray">

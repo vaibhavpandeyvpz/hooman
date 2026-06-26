@@ -25,8 +25,8 @@ import type { System as SystemPrompt } from "../prompts/index.js";
 import { FlatFileStorage } from "../sessions/flat-file-storage.js";
 import { LazySessionManager } from "../sessions/lazy-session-manager.js";
 import {
-  createRunSubagentTools,
-  loadResearchSubagent,
+  createSubagentTools,
+  loadSubagentRegistry,
 } from "../subagents/index.js";
 import {
   createByeTools,
@@ -128,19 +128,18 @@ export async function create(
     ...createPlanTools(),
     ...prefixed,
   ];
-  if (config.tools.agents.enabled) {
-    const research = loadResearchSubagent(config, {
+  if (config.tools.subagents.enabled) {
+    const registry = loadSubagentRegistry(config, {
       knownTools: tools.map((entry) => entry.name),
       baseSystemPrompt: base,
     });
     tools.push(
-      ...createRunSubagentTools({
+      ...createSubagentTools({
         parent: config.name,
-        research,
+        registry,
         tools,
         createModel: () =>
           llm.create(activeLlm.providerOptions, activeLlm.llmOptions),
-        concurrency: config.tools.agents.concurrency,
       }),
     );
   }

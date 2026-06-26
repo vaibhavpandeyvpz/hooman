@@ -96,9 +96,9 @@ function normalizePromptSubmission(
 }
 
 const INPUT_HINT =
-  "pgup/pgdn: scroll | shift/meta+enter or \\+enter: newline | esc/ctrl+c: cancel or exit";
+  "shift/meta+enter or \\+enter: newline | esc/ctrl+c: cancel or exit";
 const INPUT_HINT_WITH_STEERING =
-  "enter on empty input: steer active turn with queued prompts | pgup/pgdn: scroll | shift/meta+enter or \\+enter: newline | esc/ctrl+c: cancel or exit";
+  "enter on empty input: steer active turn with queued prompts | shift/meta+enter or \\+enter: newline | esc/ctrl+c: cancel or exit";
 
 const INIT_AGENTS_PROMPT = readBundledPrompt("static", "init.md");
 
@@ -1531,7 +1531,6 @@ export function ChatApp({
           config={config}
           running={running}
           status={status}
-          sessionId={sessionId}
           currentModel={currentModelLabel(config)}
           yoloOn={isYoloEnabled(agent)}
           sessionMode={getModeState(agent).mode}

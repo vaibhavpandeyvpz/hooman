@@ -35,7 +35,7 @@ export function ToolEvent({ line }: ToolEventProps) {
           <Text color="gray"> running...</Text>
         </Box>
       ) : null}
-      {result ? <Text>{result}</Text> : null}
+      {result ? <Text color="gray">{result}</Text> : null}
     </Box>
   );
 }

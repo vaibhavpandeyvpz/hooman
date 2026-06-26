@@ -1458,19 +1458,19 @@ export function ConfigureApp({
         },
       },
       {
-        label: `Subagents tool • ${yesNo(configData.tools.agents.enabled)}`,
+        label: `Subagents • ${yesNo(configData.tools.subagents.enabled)}`,
         value: () => {
           updateConfig(
             {
               tools: {
                 ...config.tools,
-                agents: {
-                  ...config.tools.agents,
-                  enabled: !configData.tools.agents.enabled,
+                subagents: {
+                  ...config.tools.subagents,
+                  enabled: !configData.tools.subagents.enabled,
                 },
               },
             },
-            `Subagents tool ${configData.tools.agents.enabled ? "disabled" : "enabled"}.`,
+            `Subagents ${configData.tools.subagents.enabled ? "disabled" : "enabled"}.`,
           );
           setScreen({ kind: "config-tools" });
         },

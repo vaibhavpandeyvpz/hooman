@@ -183,18 +183,14 @@ export {
 } from "./core/sessions/lazy-session-manager.js";
 
 export {
-  RESEARCH_SUBAGENT,
-  RUN_SUBAGENTS_TOOL_NAME,
-  createRunSubagentTools,
-  loadResearchSubagent,
-  runSubagentJobs,
+  SUBAGENT_TOOL_NAME_PREFIX,
+  createSubagentTools,
+  loadSubagentRegistry,
 } from "./core/subagents/index.js";
 export type {
-  AgentJob,
-  AgentJobResult,
-  ResearchSubagentConfig,
-  ResearchSubagentDefinition,
-  RunAgentJobsResult,
+  SubagentKindConfig,
+  SubagentKindDefinition,
+  SubagentRegistry,
 } from "./core/subagents/index.js";
 
 export {

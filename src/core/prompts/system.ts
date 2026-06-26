@@ -82,7 +82,7 @@ export class System {
         case "sleep.md":
           return this.config.tools.sleep.enabled;
         case "subagents.md":
-          return this.config.tools.agents.enabled;
+          return this.config.tools.subagents.enabled;
         case "daemon.md":
           return this.mode === "daemon";
         default:

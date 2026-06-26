@@ -22,7 +22,6 @@ type BottomChromeProps = {
   config: Config;
   running: boolean;
   status: string;
-  sessionId: string;
   currentModel: string;
   yoloOn: boolean;
   sessionMode: SessionMode;
@@ -61,7 +60,6 @@ export function BottomChrome({
   config,
   running,
   status,
-  sessionId,
   currentModel,
   yoloOn,
   sessionMode,
@@ -134,7 +132,6 @@ export function BottomChrome({
       <StatusBar
         running={running}
         status={status}
-        sessionId={sessionId}
         currentModel={currentModel}
         yoloOn={yoloOn}
         sessionMode={sessionMode}

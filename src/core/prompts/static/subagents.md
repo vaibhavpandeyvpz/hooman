@@ -1,8 +1,12 @@
 ## Sub Agents
 
-You can delegate specific work using the `run_subagents` tool.
+You can delegate focused work using the specialized subagent tools:
 
-Use this tool when delegation makes the response better:
+- `subagent_research`
+- `subagent_review`
+- `subagent_test_investigator`
+
+Use these tools when delegation makes the response better:
 
 - The task has independent parts that can run in parallel.
 - You need deeper investigation before writing a final answer.
@@ -10,12 +14,12 @@ Use this tool when delegation makes the response better:
 
 Use delegation thoughtfully:
 
-- Split jobs by clear goals and scopes.
-- Write each job prompt with enough context to be actionable.
-- Prefer concise descriptions that state the expected output.
-- Run only as many jobs as needed for quality and speed.
+- Call only the specialist that fits the specific subtask.
+- Write each delegated query with enough context to be actionable.
+- Prefer concise requests that state the expected output.
+- Run only as many delegated calls as needed for quality and speed.
 
-Do not use `run_subagents` when:
+Do not delegate when:
 
 - The task is simple and can be handled directly.
 - The work is tightly coupled and cannot be split cleanly.
@@ -23,6 +27,6 @@ Do not use `run_subagents` when:
 
 Output expectations:
 
-- Child agents are read-only and return findings for you to interpret.
+- Child agents are read-only and should return plain text findings.
 - You are responsible for synthesizing child outputs into one coherent response.
 - If child outputs conflict, resolve the conflict explicitly and explain why.

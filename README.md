@@ -38,7 +38,7 @@ It gives you a practical toolkit to build and run agent workflows:
 - MCP channel notifications: `hooman daemon` subscribes to servers that advertise `hooman/channel`
 - Runtime skills via Strands `AgentSkills`, loading bundled built-in skills plus local `~/.hooman/skills`
 - Bundled prompt harness toggles (`behaviour`, `communication`, `execution`, `guardrails`); coding guidance ships as the built-in `hooman-coding` skill
-- Built-in research sub-agent runner (`research`) with configurable concurrency
+- Built-in read-only subagent tools (`subagent_research`, `subagent_review`, `subagent_test_investigator`)
 - Built-in `grep` tool backed by ripgrep (`rg`), with runtime bootstrap when `rg` is not available on PATH
 - Toolkit-oriented architecture with configurable tools, prompts, and transports
 - Interactive terminal UI for chat and configuration
@@ -260,8 +260,7 @@ Runtime tool and prompt switches are controlled from `config.json`:
 - `tools.filesystem.enabled`
 - `tools.shell.enabled`
 - `tools.sleep.enabled`
-- `tools.agents.enabled` (enables built-in `run_subagents` tool)
-- `tools.agents.concurrency` (defaults to `3` when omitted on load; a freshly generated default `config.json` uses `2`)
+- `tools.subagents.enabled` (enables built-in subagent tools)
 
 ### `/config`
 
@@ -393,7 +392,7 @@ The on-disk shape uses a reusable **`providers`** array plus a non-empty **`llms
     "filesystem": { "enabled": true },
     "shell": { "enabled": true },
     "sleep": { "enabled": true },
-    "agents": { "enabled": true, "concurrency": 2 }
+    "subagents": { "enabled": true }
   },
   "compaction": {
     "ratio": 0.75,

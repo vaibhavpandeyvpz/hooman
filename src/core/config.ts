@@ -34,9 +34,8 @@ const PromptsPartialSchema = z.object({
   guardrails: z.boolean().optional(),
 });
 
-const AgentsPartialSchema = z.object({
+const SubagentsPartialSchema = z.object({
   enabled: z.boolean().optional(),
-  concurrency: z.number().int().min(1).optional(),
 });
 
 const SearchPartialSchema = z.object({
@@ -55,7 +54,7 @@ const ToolsPartialSchema = z.object({
   filesystem: ToolTogglePartialSchema.optional(),
   shell: ToolTogglePartialSchema.optional(),
   sleep: ToolTogglePartialSchema.optional(),
-  agents: AgentsPartialSchema.optional(),
+  subagents: SubagentsPartialSchema.optional(),
 });
 
 const DEFAULT_COMPACTION = { ratio: 0.75, keep: 5 } as const;
@@ -126,9 +125,8 @@ const ConfigSchema = z
       filesystem: { enabled: input.tools?.filesystem?.enabled ?? true },
       shell: { enabled: input.tools?.shell?.enabled ?? true },
       sleep: { enabled: input.tools?.sleep?.enabled ?? true },
-      agents: {
-        enabled: input.tools?.agents?.enabled ?? true,
-        concurrency: input.tools?.agents?.concurrency ?? 3,
+      subagents: {
+        enabled: input.tools?.subagents?.enabled ?? true,
       },
     },
     compaction: {
@@ -207,7 +205,7 @@ const defaultConfigData = (): ConfigData => ({
     filesystem: { enabled: true },
     shell: { enabled: true },
     sleep: { enabled: true },
-    agents: { enabled: true, concurrency: 2 },
+    subagents: { enabled: true },
   },
   compaction: {
     ratio: 0.75,

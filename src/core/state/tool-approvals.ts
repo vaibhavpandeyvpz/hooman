@@ -1,4 +1,3 @@
-import { RUN_SUBAGENTS_TOOL_NAME } from "../subagents/tool.js";
 import { getModeTools } from "../modes/definitions.js";
 import { getModeState } from "./session-mode.js";
 import type { SessionMode } from "./session-mode.js";
@@ -36,8 +35,10 @@ export const INTERNAL_ALWAYS_ALLOWED = new Set([
   "update_todos",
   // Thinking
   "think",
-  // Agent orchestration
-  RUN_SUBAGENTS_TOOL_NAME,
+  // Subagents (read-only)
+  "subagent_research",
+  "subagent_review",
+  "subagent_test_investigator",
   // Sleep
   "sleep",
   // Process lifecycle
