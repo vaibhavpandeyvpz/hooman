@@ -1,4 +1,5 @@
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname } from "node:path";
 import { z } from "zod";
 import { McpTransportSchema, type McpTransport } from "./types.js";
 
@@ -89,6 +90,7 @@ export class Config {
 
   private persist(): void {
     const data: McpServersFile = { mcpServers: this.servers };
+    mkdirSync(dirname(this.path), { recursive: true });
     writeFileSync(this.path, JSON.stringify(data, null, 2), "utf8");
   }
 

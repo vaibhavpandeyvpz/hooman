@@ -1,4 +1,5 @@
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname } from "node:path";
 import { z } from "zod";
 import {
   LlmProvider,
@@ -404,6 +405,7 @@ export class Config {
   }
 
   public persist(): void {
+    mkdirSync(dirname(this.path), { recursive: true });
     writeFileSync(this.path, JSON.stringify(this.data, null, 2), "utf8");
   }
 
