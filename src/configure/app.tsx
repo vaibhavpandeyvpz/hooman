@@ -236,27 +236,27 @@ function providerOptionsTemplate(
 ): Record<string, unknown> {
   switch (provider) {
     case LlmProvider.Anthropic:
-      return { apiKey: "" };
+      return {};
     case LlmProvider.Azure:
       return {};
     case LlmProvider.Bedrock:
       return { region: "us-west-2" };
     case LlmProvider.Google:
-      return { apiKey: "" };
+      return {};
     case LlmProvider.Groq:
-      return { apiKey: "" };
+      return {};
     case LlmProvider.Minimax:
-      return { apiKey: "" };
+      return {};
     case LlmProvider.Moonshot:
-      return { apiKey: "" };
+      return {};
     case LlmProvider.Ollama:
       return {};
     case LlmProvider.OpenAI:
-      return { apiKey: "" };
+      return {};
     case LlmProvider.OpenRouter:
-      return { apiKey: "" };
+      return {};
     case LlmProvider.Xai:
-      return { apiKey: "" };
+      return {};
   }
 }
 
@@ -782,6 +782,10 @@ export function ConfigureApp({
     setNotice({ kind: "success", text });
   }, []);
 
+  const setError = useCallback((text: string) => {
+    setNotice({ kind: "error", text });
+  }, []);
+
   const authenticateMcpServer = useCallback(
     async (name: string) => {
       await runTask(`Authenticating MCP server "${name}"...`, async () => {
@@ -806,11 +810,16 @@ export function ConfigureApp({
 
   const updateConfig = useCallback(
     (partial: Partial<ConfigData>, message: string) => {
-      config.update(partial);
+      const result = config.tryUpdate(partial);
+      if (!result.ok) {
+        setError(result.error);
+        return false;
+      }
       refresh();
       setSuccess(message);
+      return true;
     },
-    [config, refresh, setSuccess],
+    [config, refresh, setError, setSuccess],
   );
 
   const patchLlm = useCallback(
@@ -1262,8 +1271,9 @@ export function ConfigureApp({
               if (!next) {
                 throw new Error("Name is required.");
               }
-              updateConfig({ name: next }, "Updated app name.");
-              setPrompt(null);
+              if (updateConfig({ name: next }, "Updated app name.")) {
+                setPrompt(null);
+              }
             },
           }),
       },
@@ -1287,7 +1297,8 @@ export function ConfigureApp({
                 min: 0,
                 max: 1,
               });
-              updateConfig(
+              if (
+                updateConfig(
                 {
                   compaction: {
                     ...config.compaction,
@@ -1295,8 +1306,10 @@ export function ConfigureApp({
                   },
                 },
                 "Updated compaction ratio.",
-              );
-              setPrompt(null);
+                )
+              ) {
+                setPrompt(null);
+              }
             },
           }),
       },
@@ -1312,7 +1325,8 @@ export function ConfigureApp({
                 min: 0,
                 integer: true,
               });
-              updateConfig(
+              if (
+                updateConfig(
                 {
                   compaction: {
                     ...config.compaction,
@@ -1320,8 +1334,10 @@ export function ConfigureApp({
                   },
                 },
                 "Updated compaction keep.",
-              );
-              setPrompt(null);
+                )
+              ) {
+                setPrompt(null);
+              }
             },
           }),
       },
@@ -1375,7 +1391,8 @@ export function ConfigureApp({
       {
         label: `Todo tool • ${yesNo(configData.tools.todo.enabled)}`,
         value: () => {
-          updateConfig(
+          if (
+            updateConfig(
             {
               tools: {
                 ...config.tools,
@@ -1385,14 +1402,17 @@ export function ConfigureApp({
               },
             },
             `Todo tool ${configData.tools.todo.enabled ? "disabled" : "enabled"}.`,
-          );
-          setScreen({ kind: "config-tools" });
+            )
+          ) {
+            setScreen({ kind: "config-tools" });
+          }
         },
       },
       {
         label: `Fetch tool • ${yesNo(configData.tools.fetch.enabled)}`,
         value: () => {
-          updateConfig(
+          if (
+            updateConfig(
             {
               tools: {
                 ...config.tools,
@@ -1402,14 +1422,17 @@ export function ConfigureApp({
               },
             },
             `Fetch tool ${configData.tools.fetch.enabled ? "disabled" : "enabled"}.`,
-          );
-          setScreen({ kind: "config-tools" });
+            )
+          ) {
+            setScreen({ kind: "config-tools" });
+          }
         },
       },
       {
         label: `Filesystem tool • ${yesNo(configData.tools.filesystem.enabled)}`,
         value: () => {
-          updateConfig(
+          if (
+            updateConfig(
             {
               tools: {
                 ...config.tools,
@@ -1419,14 +1442,17 @@ export function ConfigureApp({
               },
             },
             `Filesystem tool ${configData.tools.filesystem.enabled ? "disabled" : "enabled"}.`,
-          );
-          setScreen({ kind: "config-tools" });
+            )
+          ) {
+            setScreen({ kind: "config-tools" });
+          }
         },
       },
       {
         label: `Shell tool • ${yesNo(configData.tools.shell.enabled)}`,
         value: () => {
-          updateConfig(
+          if (
+            updateConfig(
             {
               tools: {
                 ...config.tools,
@@ -1436,14 +1462,17 @@ export function ConfigureApp({
               },
             },
             `Shell tool ${configData.tools.shell.enabled ? "disabled" : "enabled"}.`,
-          );
-          setScreen({ kind: "config-tools" });
+            )
+          ) {
+            setScreen({ kind: "config-tools" });
+          }
         },
       },
       {
         label: `Sleep tool • ${yesNo(configData.tools.sleep.enabled)}`,
         value: () => {
-          updateConfig(
+          if (
+            updateConfig(
             {
               tools: {
                 ...config.tools,
@@ -1453,14 +1482,17 @@ export function ConfigureApp({
               },
             },
             `Sleep tool ${configData.tools.sleep.enabled ? "disabled" : "enabled"}.`,
-          );
-          setScreen({ kind: "config-tools" });
+            )
+          ) {
+            setScreen({ kind: "config-tools" });
+          }
         },
       },
       {
         label: `Subagents • ${yesNo(configData.tools.subagents.enabled)}`,
         value: () => {
-          updateConfig(
+          if (
+            updateConfig(
             {
               tools: {
                 ...config.tools,
@@ -1471,8 +1503,10 @@ export function ConfigureApp({
               },
             },
             `Subagents ${configData.tools.subagents.enabled ? "disabled" : "enabled"}.`,
-          );
-          setScreen({ kind: "config-tools" });
+            )
+          ) {
+            setScreen({ kind: "config-tools" });
+          }
         },
       },
       {
@@ -1569,12 +1603,15 @@ export function ConfigureApp({
               if (config.providers.some((provider) => provider.name === next)) {
                 throw new Error(`A provider named "${next}" already exists.`);
               }
-              updateConfig(
+              if (
+                updateConfig(
                 renameProvider(entry.name, next),
                 `Renamed provider "${entry.name}" to "${next}".`,
-              );
-              setPrompt(null);
-              setScreen({ kind: "config-provider-edit", name: next });
+                )
+              ) {
+                setPrompt(null);
+                setScreen({ kind: "config-provider-edit", name: next });
+              }
             },
           }),
       },
@@ -1639,7 +1676,8 @@ export function ConfigureApp({
                             "Access key ID and secret access key must be provided together.",
                           );
                         }
-                        updateConfig(
+                        if (
+                          updateConfig(
                           {
                             providers: patchProvider(entry.name, {
                               accessKeyId,
@@ -1647,8 +1685,10 @@ export function ConfigureApp({
                             }),
                           },
                           `Updated static credentials for "${entry.name}".`,
-                        );
-                        setPrompt(null);
+                          )
+                        ) {
+                          setPrompt(null);
+                        }
                       },
                     });
                   },
@@ -1670,15 +1710,18 @@ export function ConfigureApp({
                 note: definition.note,
                 onSubmit: async (value) => {
                   const nextValue = parseTypedFieldValue(value, definition);
-                  updateConfig(
+                  if (
+                    updateConfig(
                     {
                       providers: patchProvider(entry.name, {
                         [definition.key]: nextValue,
                       }),
                     },
                     `Updated ${definition.label.toLowerCase()} for "${entry.name}".`,
-                  );
-                  setPrompt(null);
+                    )
+                  ) {
+                    setPrompt(null);
+                  }
                 },
               });
             },
@@ -1733,31 +1776,40 @@ export function ConfigureApp({
         label:
           current === undefined ? "Not set • current" : "Not set (clear value)",
         value: () => {
-          updateConfig(
+          if (
+            updateConfig(
             { providers: patchProvider(entry.name, { thinking: undefined }) },
             `Cleared thinking for "${entry.name}".`,
-          );
-          setScreen({ kind: "config-provider-edit", name: entry.name });
+            )
+          ) {
+            setScreen({ kind: "config-provider-edit", name: entry.name });
+          }
         },
       },
       {
         label: current === "disabled" ? "disabled • current" : "disabled",
         value: () => {
-          updateConfig(
+          if (
+            updateConfig(
             { providers: patchProvider(entry.name, { thinking: "disabled" }) },
             `Updated thinking for "${entry.name}" to "disabled".`,
-          );
-          setScreen({ kind: "config-provider-edit", name: entry.name });
+            )
+          ) {
+            setScreen({ kind: "config-provider-edit", name: entry.name });
+          }
         },
       },
       {
         label: current === "adaptive" ? "adaptive • current" : "adaptive",
         value: () => {
-          updateConfig(
+          if (
+            updateConfig(
             { providers: patchProvider(entry.name, { thinking: "adaptive" }) },
             `Updated thinking for "${entry.name}" to "adaptive".`,
-          );
-          setScreen({ kind: "config-provider-edit", name: entry.name });
+            )
+          ) {
+            setScreen({ kind: "config-provider-edit", name: entry.name });
+          }
         },
       },
       {
@@ -1793,21 +1845,27 @@ export function ConfigureApp({
         label:
           current === undefined ? "Not set • current" : "Not set (clear value)",
         value: () => {
-          updateConfig(
+          if (
+            updateConfig(
             { providers: patchProvider(entry.name, { thinking: undefined }) },
             `Cleared thinking for "${entry.name}".`,
-          );
-          setScreen({ kind: "config-provider-edit", name: entry.name });
+            )
+          ) {
+            setScreen({ kind: "config-provider-edit", name: entry.name });
+          }
         },
       },
       ...[false, true, "low", "medium", "high"].map((value) => ({
         label: current === value ? `${String(value)} • current` : String(value),
         value: () => {
-          updateConfig(
+          if (
+            updateConfig(
             { providers: patchProvider(entry.name, { thinking: value }) },
             `Updated thinking for "${entry.name}" to "${String(value)}".`,
-          );
-          setScreen({ kind: "config-provider-edit", name: entry.name });
+            )
+          ) {
+            setScreen({ kind: "config-provider-edit", name: entry.name });
+          }
         },
       })),
       {
@@ -1839,7 +1897,8 @@ export function ConfigureApp({
       ...SUPPORTED_PROVIDER_TYPES.map((provider) => ({
         label: provider === entry.provider ? `${provider} • current` : provider,
         value: () => {
-          updateConfig(
+          if (
+            updateConfig(
             {
               providers: config.providers.map((item) =>
                 item.name === entry.name
@@ -1852,8 +1911,10 @@ export function ConfigureApp({
               ),
             },
             `Updated provider type for "${entry.name}" to "${provider}" and scaffolded options.`,
-          );
-          setScreen({ kind: "config-provider-edit", name: entry.name });
+            )
+          ) {
+            setScreen({ kind: "config-provider-edit", name: entry.name });
+          }
         },
       })),
       {
@@ -1881,11 +1942,14 @@ export function ConfigureApp({
       ...SUPPORTED_PROVIDER_TYPES.map((provider) => ({
         label: provider,
         value: () => {
-          updateConfig(
+          if (
+            updateConfig(
             { providers: addProvider(name, provider) },
             `Added provider "${name}" as "${provider}".`,
-          );
-          setScreen({ kind: "config-provider-edit", name });
+            )
+          ) {
+            setScreen({ kind: "config-provider-edit", name });
+          }
         },
       })),
       {
@@ -1918,11 +1982,14 @@ export function ConfigureApp({
         key: `provider-del-confirm:${name}`,
         label: "Yes — remove provider",
         value: () => {
-          updateConfig(
+          if (
+            updateConfig(
             { providers: removeProvider(name) },
             `Deleted provider "${name}".`,
-          );
-          setScreen({ kind: "config-providers" });
+            )
+          ) {
+            setScreen({ kind: "config-providers" });
+          }
         },
       },
     ];
@@ -1965,9 +2032,10 @@ export function ConfigureApp({
                   "Add at least one provider first so the model can reference it.",
                 );
               }
-              updateConfig({ llms: addLlm(name) }, `Added LLM "${name}".`);
-              setPrompt(null);
-              setScreen({ kind: "config-llm-edit", name });
+              if (updateConfig({ llms: addLlm(name) }, `Added LLM "${name}".`)) {
+                setPrompt(null);
+                setScreen({ kind: "config-llm-edit", name });
+              }
             },
           }),
       },
@@ -2020,12 +2088,15 @@ export function ConfigureApp({
               if (config.llms.some((m) => m.name === next)) {
                 throw new Error(`An LLM named "${next}" already exists.`);
               }
-              updateConfig(
+              if (
+                updateConfig(
                 { llms: renameLlm(entry.name, next) },
                 `Renamed "${entry.name}" to "${next}".`,
-              );
-              setPrompt(null);
-              setScreen({ kind: "config-llm-edit", name: next });
+                )
+              ) {
+                setPrompt(null);
+                setScreen({ kind: "config-llm-edit", name: next });
+              }
             },
           }),
       },
@@ -2054,11 +2125,14 @@ export function ConfigureApp({
               if (!model) {
                 throw new Error("Model is required.");
               }
-              updateConfig(
+              if (
+                updateConfig(
                 { llms: patchLlm(entry.name, { model }) },
                 "Updated model id.",
-              );
-              setPrompt(null);
+                )
+              ) {
+                setPrompt(null);
+              }
             },
           }),
       },
@@ -2082,15 +2156,18 @@ export function ConfigureApp({
                 note: definition.note,
                 onSubmit: async (value) => {
                   const nextValue = parseTypedFieldValue(value, definition);
-                  updateConfig(
+                  if (
+                    updateConfig(
                     {
                       llms: patchLlm(entry.name, {
                         [definition.key]: nextValue,
                       }),
                     },
                     `Updated ${definition.label.toLowerCase()} for "${entry.name}".`,
-                  );
-                  setPrompt(null);
+                    )
+                  ) {
+                    setPrompt(null);
+                  }
                 },
               }),
           }) satisfies MenuItem,
@@ -2157,7 +2234,8 @@ export function ConfigureApp({
             ? `${provider.name} • current`
             : `${provider.name} • ${provider.provider}`,
         value: () => {
-          updateConfig(
+          if (
+            updateConfig(
             {
               llms: config.llms.map((llm) =>
                 llm.name === entry.name
@@ -2173,8 +2251,10 @@ export function ConfigureApp({
               ),
             },
             `Updated provider for "${entry.name}" to "${provider.name}" and scaffolded its default model.`,
-          );
-          setScreen({ kind: "config-llm-edit", name: entry.name });
+            )
+          ) {
+            setScreen({ kind: "config-llm-edit", name: entry.name });
+          }
         },
       })),
       {
@@ -2207,8 +2287,9 @@ export function ConfigureApp({
         key: `llm-del-confirm:${name}`,
         label: "Yes — remove LLM",
         value: () => {
-          updateConfig({ llms: removeLlm(name) }, `Deleted LLM "${name}".`);
-          setScreen({ kind: "config-llms" });
+          if (updateConfig({ llms: removeLlm(name) }, `Deleted LLM "${name}".`)) {
+            setScreen({ kind: "config-llms" });
+          }
         },
       },
     ];
@@ -2233,7 +2314,8 @@ export function ConfigureApp({
         return {
           label: `${label} • ${yesNo(enabled)}`,
           value: () => {
-            updateConfig(
+            if (
+              updateConfig(
               {
                 prompts: {
                   ...config.prompts,
@@ -2241,8 +2323,10 @@ export function ConfigureApp({
                 },
               },
               `${label} prompt ${enabled ? "disabled" : "enabled"}.`,
-            );
-            setScreen({ kind: "config-prompts" });
+              )
+            ) {
+              setScreen({ kind: "config-prompts" });
+            }
           },
         };
       }),
@@ -2270,7 +2354,8 @@ export function ConfigureApp({
               ? `${SEARCH_PROVIDER_LABELS[provider]} • current`
               : SEARCH_PROVIDER_LABELS[provider],
           value: () => {
-            updateConfig(
+            if (
+              updateConfig(
               {
                 search: {
                   ...config.search,
@@ -2278,8 +2363,10 @@ export function ConfigureApp({
                 },
               },
               `Updated search provider to "${SEARCH_PROVIDER_LABELS[provider]}".`,
-            );
-            setScreen({ kind: "config-search" });
+              )
+            ) {
+              setScreen({ kind: "config-search" });
+            }
           },
         }),
       ),
@@ -2309,7 +2396,8 @@ export function ConfigureApp({
       {
         label: `Enabled • ${yesNo(configData.search.enabled)}`,
         value: () => {
-          updateConfig(
+          if (
+            updateConfig(
             {
               search: {
                 ...config.search,
@@ -2317,8 +2405,10 @@ export function ConfigureApp({
               },
             },
             `Search tool ${configData.search.enabled ? "disabled" : "enabled"}.`,
-          );
-          setScreen({ kind: "config-search" });
+            )
+          ) {
+            setScreen({ kind: "config-search" });
+          }
         },
       },
       {
@@ -2337,7 +2427,8 @@ export function ConfigureApp({
               if (!nextApiKey) {
                 throw new Error("API key is required.");
               }
-              updateConfig(
+              if (
+                updateConfig(
                 {
                   search: {
                     ...config.search,
@@ -2348,8 +2439,10 @@ export function ConfigureApp({
                   },
                 },
                 `Updated ${activeProviderLabel} API key.`,
-              );
-              setPrompt(null);
+                )
+              ) {
+                setPrompt(null);
+              }
             },
           }),
       },

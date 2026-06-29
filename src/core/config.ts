@@ -151,6 +151,9 @@ const ConfigOverlaySchema = z
 export type ConfigData = z.infer<typeof ConfigSchema>;
 type ConfigOverlay = z.infer<typeof ConfigOverlaySchema>;
 export type ProviderConfig = ProviderOptions;
+export type ConfigUpdateResult =
+  | { ok: true }
+  | { ok: false; error: string };
 export type LlmConfig = {
   provider: LlmProvider;
   providerOptions: ProviderOptions;
@@ -270,6 +273,17 @@ function formatLoadError(path: string, error: unknown): Error {
   return new Error(`Failed to load config from "${path}": ${message}`, {
     cause: error instanceof Error ? error : undefined,
   });
+}
+
+function formatValidationError(error: z.ZodError): string {
+  const issue = error.issues[0];
+  if (!issue) {
+    return "Invalid config.";
+  }
+  const path = issue.path.map(String).join(".");
+  return path
+    ? `Invalid config: ${path}: ${issue.message}`
+    : `Invalid config: ${issue.message}`;
 }
 
 export { LlmProvider };
@@ -409,8 +423,20 @@ export class Config {
     writeFileSync(this.path, JSON.stringify(this.data, null, 2), "utf8");
   }
 
-  public update(partial: Partial<ConfigData>): void {
-    this.data = ConfigSchema.parse({ ...this.data, ...partial });
+  public tryUpdate(partial: Partial<ConfigData>): ConfigUpdateResult {
+    const parsed = ConfigSchema.safeParse({ ...this.data, ...partial });
+    if (!parsed.success) {
+      return { ok: false, error: formatValidationError(parsed.error) };
+    }
+    this.data = parsed.data;
     this.persist();
+    return { ok: true };
+  }
+
+  public update(partial: Partial<ConfigData>): void {
+    const result = this.tryUpdate(partial);
+    if (!result.ok) {
+      throw new Error(result.error);
+    }
   }
 }
