@@ -27,8 +27,7 @@ export type AttachmentMediaBlocks = Array<
 >;
 
 export type AttachmentReadResult =
-  | AttachmentMediaBlocks
-  | AttachmentBinaryFallback;
+  AttachmentMediaBlocks | AttachmentBinaryFallback;
 
 type AttachmentReadOptions = {
   maxBytes?: number;

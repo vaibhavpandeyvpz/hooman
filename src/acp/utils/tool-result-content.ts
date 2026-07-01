@@ -1,4 +1,26 @@
 import type { ToolCallContent } from "@agentclientprotocol/sdk";
+import type { FileToolDisplay } from "../../core/state/file-tool-display.js";
+
+/**
+ * ACP `diff` content for a file-modifying tool, when the tool captured the
+ * before/after text. Returns `undefined` for non-file tools so the caller can
+ * fall back to {@link toolResultToAcpContent}.
+ */
+export function fileToolDiffContent(
+  display: FileToolDisplay | undefined,
+): Array<ToolCallContent> | undefined {
+  if (!display || display.path === undefined || display.newText === undefined) {
+    return undefined;
+  }
+  return [
+    {
+      type: "diff",
+      path: display.path,
+      oldText: display.oldText ?? null,
+      newText: display.newText,
+    },
+  ];
+}
 
 type ToolResultLike = {
   toolUseId: string;

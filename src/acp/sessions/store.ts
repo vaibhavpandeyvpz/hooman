@@ -1,4 +1,4 @@
-import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { SessionInfo } from "@agentclientprotocol/sdk";
 import type { MessageData } from "@strands-agents/sdk";
@@ -21,6 +21,8 @@ export type SessionMetaFile = {
   yolo?: boolean;
   /** Persisted session planning mode (`hooman.sessionMode` / agent appState `mode`). */
   sessionMode?: SessionMode;
+  /** Persisted named LLM (`config.llms[].name`) selected via `session/set_config_option`. */
+  model?: string;
 };
 
 const META = "meta.json";
@@ -139,6 +141,14 @@ export async function loadSessionMessages(
   } catch {
     return [];
   }
+}
+
+/** Hard-delete a persisted session. No-op when it does not exist. */
+export async function deleteStoredSession(
+  root: string,
+  sessionId: string,
+): Promise<void> {
+  await rm(sessionDir(root, sessionId), { recursive: true, force: true });
 }
 
 export async function listStoredSessionIds(root: string): Promise<string[]> {

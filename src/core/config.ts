@@ -151,9 +151,7 @@ const ConfigOverlaySchema = z
 export type ConfigData = z.infer<typeof ConfigSchema>;
 type ConfigOverlay = z.infer<typeof ConfigOverlaySchema>;
 export type ProviderConfig = ProviderOptions;
-export type ConfigUpdateResult =
-  | { ok: true }
-  | { ok: false; error: string };
+export type ConfigUpdateResult = { ok: true } | { ok: false; error: string };
 export type LlmConfig = {
   provider: LlmProvider;
   providerOptions: ProviderOptions;

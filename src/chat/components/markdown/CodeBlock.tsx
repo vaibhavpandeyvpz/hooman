@@ -30,8 +30,7 @@ function getInkAnsi(): InkAnsiComponent | null {
   }
   try {
     const moduleValue = localRequire("ink-ansi") as
-      | InkAnsiComponent
-      | { default?: InkAnsiComponent };
+      InkAnsiComponent | { default?: InkAnsiComponent };
     cachedInkAnsi =
       typeof moduleValue === "function"
         ? moduleValue

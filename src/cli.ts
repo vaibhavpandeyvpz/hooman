@@ -15,7 +15,7 @@ import {
   createChatTurnSteeringIntervention,
 } from "./chat/steering.js";
 import { configure } from "./configure/index.js";
-import { runAcpStdio } from "./acp/acp-agent.js";
+import { runAcpStdio } from "./acp/index.js";
 import { main as daemon } from "./daemon/index.js";
 import { createDaemonApprovalIntervention } from "./daemon/approvals.js";
 import {

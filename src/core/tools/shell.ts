@@ -6,6 +6,7 @@ import { tool } from "@strands-agents/sdk";
 import type { JSONValue, ToolContext } from "@strands-agents/sdk";
 import { z } from "zod";
 import { getCwd } from "../utils/cwd-context.js";
+import { getTerminalBackend } from "./terminal-backend.js";
 
 const DEFAULT_TIMEOUT_SECONDS = Number.parseInt(
   process.env.SHELL_DEFAULT_TIMEOUT ?? "900",
@@ -13,6 +14,8 @@ const DEFAULT_TIMEOUT_SECONDS = Number.parseInt(
 );
 const SIGKILL_TIMEOUT_MS = 200;
 const MAX_OUTPUT_CHARS = 12_000;
+/** Output bytes the host terminal should retain before truncating. */
+const TERMINAL_OUTPUT_BYTE_LIMIT = 1_048_576;
 
 const CommandObjectSchema = z.object({
   command: z.string().min(1).describe("Shell command to execute."),
@@ -222,11 +225,58 @@ function updateSequentialDir(currentDir: string, command: string): string {
   return nextDir;
 }
 
+async function executeViaTerminal(
+  item: NormalizedCommand,
+  cwd: string,
+  context: ToolContext,
+): Promise<CommandResult> {
+  const backend = getTerminalBackend(context.agent)!;
+  const startedAt = Date.now();
+  const cfg = shellConfig(item.command);
+
+  const result = await backend.run({
+    toolUseId: context.toolUse?.toolUseId,
+    command: cfg.file,
+    args: cfg.args,
+    cwd,
+    timeoutMs: item.timeoutSeconds * 1000,
+    outputByteLimit: TERMINAL_OUTPUT_BYTE_LIMIT,
+    cancelSignal: context.agent.cancelSignal,
+  });
+
+  const output = trimOutput(result.output);
+  const exitCode = result.timedOut
+    ? 124
+    : (result.exitCode ?? (result.signal ? 137 : 1));
+
+  return {
+    command: item.command,
+    cwd,
+    exit_code: exitCode,
+    status: exitCode === 0 && !result.timedOut ? "success" : "error",
+    stdout: output,
+    stderr: "",
+    output,
+    timed_out: result.timedOut,
+    duration_ms: Date.now() - startedAt,
+  };
+}
+
 async function executeOne(
   item: NormalizedCommand,
   cwd: string,
   context?: ToolContext,
 ): Promise<CommandResult> {
+  // Route through the host terminal when available. The ACP `terminal/create`
+  // API has no stdin channel, so commands that pipe stdin stay local.
+  if (
+    context &&
+    item.stdin === undefined &&
+    getTerminalBackend(context.agent)
+  ) {
+    return executeViaTerminal(item, cwd, context);
+  }
+
   const startedAt = Date.now();
   const cfg = shellConfig(item.command);
 

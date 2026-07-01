@@ -17,9 +17,7 @@ const INPUT_PREVIEW_LIMIT = 1_024;
 export type ToolApprovalDecision = "allow" | "always";
 
 export type ToolApprovalResult =
-  | ToolApprovalDecision
-  | "reject"
-  | { decision: "reject"; reason?: string };
+  ToolApprovalDecision | "reject" | { decision: "reject"; reason?: string };
 
 export type ToolApprovalRequest = {
   toolName: string;

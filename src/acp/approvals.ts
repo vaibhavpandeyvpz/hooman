@@ -1,14 +1,21 @@
-import type { AgentSideConnection } from "@agentclientprotocol/sdk";
+import {
+  type AgentContext,
+  type SessionNotification,
+  methods,
+} from "@agentclientprotocol/sdk";
 import { HoomanToolApprovalIntervention } from "../core/approvals/intervention.js";
 import { inferToolKind, toolDisplayTitle } from "./utils/tool-kind.js";
 import { toolCallLocationsFromInput } from "./utils/tool-locations.js";
 
 export function createAcpToolApprovalIntervention(
-  connection: AgentSideConnection,
+  client: AgentContext,
   sessionId: string,
   /** Tool calls already announced via model stream (`tool_call` pending). */
   streamPrimedToolCallIds?: () => ReadonlySet<string>,
 ) {
+  const sendUpdate = (update: SessionNotification["update"]) =>
+    client.notify(methods.client.session.update, { sessionId, update });
+
   async function sendPending(
     request: {
       toolName: string;
@@ -29,17 +36,14 @@ export function createAcpToolApprovalIntervention(
     );
     const primed = streamPrimedToolCallIds?.().has(toolUseId) ?? false;
 
-    await connection.sessionUpdate({
-      sessionId,
-      update: {
-        sessionUpdate: primed ? "tool_call_update" : "tool_call",
-        toolCallId: toolUseId,
-        title,
-        kind,
-        status: "pending",
-        rawInput: request.input,
-        ...(locations ? { locations } : {}),
-      },
+    await sendUpdate({
+      sessionUpdate: primed ? "tool_call_update" : "tool_call",
+      toolCallId: toolUseId,
+      title,
+      kind,
+      status: "pending",
+      rawInput: request.input,
+      ...(locations ? { locations } : {}),
     });
   }
 
@@ -51,24 +55,18 @@ export function createAcpToolApprovalIntervention(
       if (decision === "auto") {
         await sendPending(request, event.toolUse.toolUseId);
       }
-      await connection.sessionUpdate({
-        sessionId,
-        update: {
-          sessionUpdate: "tool_call_update",
-          toolCallId: event.toolUse.toolUseId,
-          status: "in_progress",
-        },
+      await sendUpdate({
+        sessionUpdate: "tool_call_update",
+        toolCallId: event.toolUse.toolUseId,
+        status: "in_progress",
       });
     },
     onRejected: async (_request, event, reason) => {
-      await connection.sessionUpdate({
-        sessionId,
-        update: {
-          sessionUpdate: "tool_call_update",
-          toolCallId: event.toolUse.toolUseId,
-          status: "failed",
-          rawOutput: { reason: "permission_rejected", message: reason },
-        },
+      await sendUpdate({
+        sessionUpdate: "tool_call_update",
+        toolCallId: event.toolUse.toolUseId,
+        status: "failed",
+        rawOutput: { reason: "permission_rejected", message: reason },
       });
     },
     ask: async (request, event) => {
@@ -79,34 +77,37 @@ export function createAcpToolApprovalIntervention(
         request.input,
       );
 
-      const response = await connection.requestPermission({
-        sessionId,
-        toolCall: {
-          toolCallId: event.toolUse.toolUseId,
-          title,
-          kind,
-          status: "pending",
-          rawInput: request.input,
-          ...(locations ? { locations } : {}),
+      const response = await client.request(
+        methods.client.session.requestPermission,
+        {
+          sessionId,
+          toolCall: {
+            toolCallId: event.toolUse.toolUseId,
+            title,
+            kind,
+            status: "pending",
+            rawInput: request.input,
+            ...(locations ? { locations } : {}),
+          },
+          options: [
+            {
+              kind: "allow_once",
+              name: "Allow once",
+              optionId: "allow_once",
+            },
+            {
+              kind: "allow_always",
+              name: "Always allow",
+              optionId: "allow_always",
+            },
+            {
+              kind: "reject_once",
+              name: "Reject",
+              optionId: "reject_once",
+            },
+          ],
         },
-        options: [
-          {
-            kind: "allow_once",
-            name: "Allow once",
-            optionId: "allow_once",
-          },
-          {
-            kind: "allow_always",
-            name: "Always allow",
-            optionId: "allow_always",
-          },
-          {
-            kind: "reject_once",
-            name: "Reject",
-            optionId: "reject_once",
-          },
-        ],
-      });
+      );
 
       if (response.outcome.outcome === "cancelled") {
         return {

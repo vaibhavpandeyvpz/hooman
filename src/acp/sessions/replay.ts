@@ -1,4 +1,8 @@
-import type { AgentSideConnection } from "@agentclientprotocol/sdk";
+import {
+  type AgentContext,
+  type SessionNotification,
+  methods,
+} from "@agentclientprotocol/sdk";
 import type { Message } from "@strands-agents/sdk";
 import {
   ToolResultBlock,
@@ -36,10 +40,13 @@ function collectToolResults(messages: Message[]): Map<string, ToolResultBlock> {
  * Emits separate chunks for text vs structured tool call / result updates.
  */
 export async function replayConversationHistory(
-  connection: AgentSideConnection,
+  client: AgentContext,
   sessionId: string,
   messages: Message[],
 ): Promise<void> {
+  const send = (update: SessionNotification["update"]) =>
+    client.notify(methods.client.session.update, { sessionId, update });
+
   const resultsByToolUseId = collectToolResults(messages);
 
   for (const message of messages) {
@@ -48,26 +55,20 @@ export async function replayConversationHistory(
     for (const block of message.content) {
       if (role === "user") {
         if (block instanceof ToolResultBlock) {
-          await connection.sessionUpdate({
-            sessionId,
-            update: {
-              sessionUpdate: "tool_call_update",
-              toolCallId: block.toolUseId,
-              status: block.status === "success" ? "completed" : "failed",
-              rawOutput: block.toJSON() as unknown,
-              content: toolResultToAcpContent(block),
-            },
+          await send({
+            sessionUpdate: "tool_call_update",
+            toolCallId: block.toolUseId,
+            status: block.status === "success" ? "completed" : "failed",
+            rawOutput: block.toJSON() as unknown,
+            content: toolResultToAcpContent(block),
           });
           continue;
         }
         const text = blockToFallbackText(block);
         if (text?.trim()) {
-          await connection.sessionUpdate({
-            sessionId,
-            update: {
-              sessionUpdate: "user_message_chunk",
-              content: { type: "text", text },
-            },
+          await send({
+            sessionUpdate: "user_message_chunk",
+            content: { type: "text", text },
           });
         }
         continue;
@@ -76,28 +77,22 @@ export async function replayConversationHistory(
       if (role === "assistant") {
         if (block instanceof ToolUseBlock) {
           const hasResult = resultsByToolUseId.has(block.toolUseId);
-          await connection.sessionUpdate({
-            sessionId,
-            update: {
-              sessionUpdate: "tool_call",
-              toolCallId: block.toolUseId,
-              title: block.name,
-              kind: inferToolKind(block.name),
-              rawInput: block.input,
-              status: hasResult ? "in_progress" : "completed",
-            },
+          await send({
+            sessionUpdate: "tool_call",
+            toolCallId: block.toolUseId,
+            title: block.name,
+            kind: inferToolKind(block.name),
+            rawInput: block.input,
+            status: hasResult ? "in_progress" : "completed",
           });
           continue;
         }
         if (block.type === "textBlock") {
           const t = block.text;
           if (t) {
-            await connection.sessionUpdate({
-              sessionId,
-              update: {
-                sessionUpdate: "agent_message_chunk",
-                content: { type: "text", text: t },
-              },
+            await send({
+              sessionUpdate: "agent_message_chunk",
+              content: { type: "text", text: t },
             });
           }
           continue;
@@ -105,24 +100,18 @@ export async function replayConversationHistory(
         if (block.type === "reasoningBlock") {
           const t = blockToFallbackText(block);
           if (t?.trim()) {
-            await connection.sessionUpdate({
-              sessionId,
-              update: {
-                sessionUpdate: "agent_thought_chunk",
-                content: { type: "text", text: t },
-              },
+            await send({
+              sessionUpdate: "agent_thought_chunk",
+              content: { type: "text", text: t },
             });
           }
           continue;
         }
         const fallback = blockToFallbackText(block);
         if (fallback?.trim()) {
-          await connection.sessionUpdate({
-            sessionId,
-            update: {
-              sessionUpdate: "agent_message_chunk",
-              content: { type: "text", text: fallback },
-            },
+          await send({
+            sessionUpdate: "agent_message_chunk",
+            content: { type: "text", text: fallback },
           });
         }
       }

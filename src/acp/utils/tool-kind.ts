@@ -33,8 +33,8 @@ const KNOWN_TOOL_KINDS = new Map<string, ToolKind>([
   ["update_todos", "other"],
   ["get_current_time", "other"],
   ["convert_time", "other"],
-  [ENTER_PLAN_MODE_TOOL, "other"],
-  [EXIT_PLAN_MODE_TOOL, "other"],
+  [ENTER_PLAN_MODE_TOOL, "switch_mode"],
+  [EXIT_PLAN_MODE_TOOL, "switch_mode"],
 ]);
 
 export { INTERNAL_ALWAYS_ALLOWED };

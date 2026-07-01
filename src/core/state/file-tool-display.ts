@@ -13,6 +13,12 @@ export type StructuredPatchHunk = {
 export type FileToolDisplay = {
   previews?: string[];
   structuredPatch?: StructuredPatchHunk[];
+  /** Absolute path of the file this tool modified (ACP diffs + follow-along). */
+  path?: string;
+  /** Full content before the change; `null` when the file was newly created. */
+  oldText?: string | null;
+  /** Full content after the change. */
+  newText?: string;
 };
 
 type DisplayStateStore = {

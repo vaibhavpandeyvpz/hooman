@@ -12,6 +12,7 @@ import {
   readAttachmentAsBlocksOrBase64,
   type AttachmentMediaBlocks,
 } from "../utils/attachments.js";
+import { getTextFsBackend, type TextFsBackend } from "./text-fs-backend.js";
 import { z } from "zod";
 
 const DEFAULT_READ_LIMIT = 250;
@@ -227,6 +228,7 @@ async function statFile(
 async function readTextFile(
   filePath: string,
   options?: { offset?: number; limit?: number; maxBytes?: number },
+  backend?: TextFsBackend,
 ): Promise<{
   path: string;
   content: string;
@@ -236,6 +238,32 @@ async function readTextFile(
   truncated: boolean;
   sizeBytes: number;
 }> {
+  if (backend?.canRead) {
+    // Host owns the file contents (including unsaved editor state). Fetch the
+    // whole file and reuse the local windowing/metadata logic for a consistent
+    // result shape.
+    const whole = await backend.readTextFile(filePath);
+    const offset = options?.offset ?? 1;
+    const excerpt = makeLineExcerpt(whole, options?.offset, options?.limit);
+    textReadState.set(filePath, {
+      content: excerpt.content,
+      mtimeMs: 0,
+      offset,
+      limit: options?.limit,
+      isPartial:
+        excerpt.startLine !== 1 || excerpt.endLine < excerpt.totalLines,
+    });
+    return {
+      path: filePath,
+      content: excerpt.content,
+      startLine: excerpt.startLine,
+      endLine: excerpt.endLine,
+      totalLines: excerpt.totalLines,
+      truncated: excerpt.truncated,
+      sizeBytes: Buffer.byteLength(whole, "utf8"),
+    };
+  }
+
   const stat = await statFile(filePath);
   const maxBytes = options?.maxBytes ?? DEFAULT_MAX_READ_BYTES;
   const offset = options?.offset ?? 1;
@@ -771,10 +799,14 @@ export function createFilesystemTools() {
           return result as unknown as JSONValue;
         }
 
-        const result = await readTextFile(filePath, {
-          offset: input.offset,
-          limit: input.limit,
-        });
+        const result = await readTextFile(
+          filePath,
+          {
+            offset: input.offset,
+            limit: input.limit,
+          },
+          getTextFsBackend(context?.agent),
+        );
         const agentsInstructions = resolveReadTimeAgentInstructions(
           filePath,
           context,
@@ -793,14 +825,19 @@ export function createFilesystemTools() {
         "Read multiple text files in one call. Each file is returned independently with success or error details.",
       inputSchema: schema.readMultipleFiles,
       callback: async (input, context?: ToolContext) => {
+        const backend = getTextFsBackend(context?.agent);
         const results = await Promise.all(
           input.paths.map(async (itemPath) => {
             const filePath = normalizeUserPath(itemPath);
             try {
-              const readResult = await readTextFile(filePath, {
-                offset: input.offset,
-                limit: input.limit,
-              });
+              const readResult = await readTextFile(
+                filePath,
+                {
+                  offset: input.offset,
+                  limit: input.limit,
+                },
+                backend,
+              );
               const agentsInstructions = resolveReadTimeAgentInstructions(
                 filePath,
                 context,
@@ -833,29 +870,40 @@ export function createFilesystemTools() {
       inputSchema: schema.writeFile,
       callback: async (input, context?: ToolContext) => {
         const filePath = normalizeUserPath(input.path);
+        const backend = getTextFsBackend(context?.agent);
 
-        if (input.create_parents ?? true) {
+        // The host creates the file on write; only manage parents locally.
+        if (!backend?.canWrite && (input.create_parents ?? true)) {
           await fs.mkdir(path.dirname(filePath), { recursive: true });
         }
 
         let oldContent = "";
+        let fileExisted = false;
         try {
           oldContent = normalizeLineEndings(
-            await fs.readFile(filePath, "utf8"),
+            backend?.canRead
+              ? await backend.readTextFile(filePath)
+              : await fs.readFile(filePath, "utf8"),
           );
+          fileExisted = true;
         } catch {
           oldContent = "";
-        }
-
-        if (input.append) {
-          await fs.appendFile(filePath, input.content, "utf8");
-        } else {
-          await fs.writeFile(filePath, input.content, "utf8");
         }
 
         const newContent = input.append
           ? `${oldContent}${normalizeLineEndings(input.content)}`
           : normalizeLineEndings(input.content);
+
+        if (backend?.canWrite) {
+          await backend.writeTextFile(
+            filePath,
+            input.append ? `${oldContent}${input.content}` : input.content,
+          );
+        } else if (input.append) {
+          await fs.appendFile(filePath, input.content, "utf8");
+        } else {
+          await fs.writeFile(filePath, input.content, "utf8");
+        }
         const structuredPatch = buildContentPatchHunks(oldContent, newContent);
         if (structuredPatch.length > 0) {
           if (context) {
@@ -864,6 +912,9 @@ export function createFilesystemTools() {
               context.toolUse.toolUseId,
               {
                 structuredPatch,
+                path: filePath,
+                oldText: fileExisted ? oldContent : null,
+                newText: newContent,
               },
             );
           }
@@ -883,35 +934,48 @@ export function createFilesystemTools() {
       inputSchema: schema.editFile,
       callback: async (input, context?: ToolContext) => {
         const filePath = normalizeUserPath(input.path);
-        const stat = await statFile(filePath);
-        const previousRead = textReadState.get(filePath);
-        const rawOriginal = await fs.readFile(filePath, "utf8");
-        const lineEndings = detectLineEndings(rawOriginal);
-        const original = normalizeLineEndings(rawOriginal);
+        const backend = getTextFsBackend(context?.agent);
 
-        if (previousRead && stat.mtimeMs > previousRead.mtimeMs) {
-          const fullReadWasUnchanged =
-            !previousRead.isPartial && previousRead.content === original;
-          if (!fullReadWasUnchanged) {
-            throw new Error(
-              "File changed since it was last read. Read the file again before editing.",
-            );
+        // When the host owns the file (incl. unsaved edits) it is authoritative,
+        // so we read through it and skip the local mtime staleness check.
+        let rawOriginal: string;
+        if (backend?.canRead) {
+          rawOriginal = await backend.readTextFile(filePath);
+        } else {
+          const stat = await statFile(filePath);
+          const previousRead = textReadState.get(filePath);
+          rawOriginal = await fs.readFile(filePath, "utf8");
+          const original = normalizeLineEndings(rawOriginal);
+          if (previousRead && stat.mtimeMs > previousRead.mtimeMs) {
+            const fullReadWasUnchanged =
+              !previousRead.isPartial && previousRead.content === original;
+            if (!fullReadWasUnchanged) {
+              throw new Error(
+                "File changed since it was last read. Read the file again before editing.",
+              );
+            }
           }
         }
+        const lineEndings = detectLineEndings(rawOriginal);
+        const original = normalizeLineEndings(rawOriginal);
 
         const edited = applyEdits(original, input.edits);
         const contentToWrite = restoreLineEndings(edited.content, lineEndings);
 
         if (!input.dry_run) {
-          await fs.writeFile(filePath, contentToWrite, "utf8");
-          const updatedStat = await fs.stat(filePath);
-          textReadState.set(filePath, {
-            content: edited.content,
-            mtimeMs: updatedStat.mtimeMs,
-            offset: 1,
-            limit: undefined,
-            isPartial: false,
-          });
+          if (backend?.canWrite) {
+            await backend.writeTextFile(filePath, contentToWrite);
+          } else {
+            await fs.writeFile(filePath, contentToWrite, "utf8");
+            const updatedStat = await fs.stat(filePath);
+            textReadState.set(filePath, {
+              content: edited.content,
+              mtimeMs: updatedStat.mtimeMs,
+              offset: 1,
+              limit: undefined,
+              isPartial: false,
+            });
+          }
         }
 
         if (context) {
@@ -921,6 +985,9 @@ export function createFilesystemTools() {
             {
               previews: edited.replacements.map((item) => item.snippet),
               structuredPatch: edited.replacements.map((item) => item.hunk),
+              path: filePath,
+              oldText: original,
+              newText: edited.content,
             },
           );
         }
