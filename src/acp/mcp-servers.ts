@@ -32,14 +32,20 @@ function toNamedTransport(server: McpServer): NamedMcpTransport {
       },
     };
   }
-  return {
-    name: server.name,
-    transport: {
-      type: "sse",
-      url: server.url,
-      headers: pairsToRecord(server.headers),
-    },
-  };
+  if (server.type === "sse") {
+    return {
+      name: server.name,
+      transport: {
+        type: "sse",
+        url: server.url,
+        headers: pairsToRecord(server.headers),
+      },
+    };
+  }
+  throw RequestError.invalidParams({
+    mcpServer: server,
+    message: `Unsupported ACP MCP server transport "${server.type}"`,
+  });
 }
 
 /**

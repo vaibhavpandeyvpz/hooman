@@ -297,7 +297,6 @@ export class AcpAgent implements AgentContract {
   async listSessions(
     params: Parameters<NonNullable<AgentContract["listSessions"]>>[0],
   ) {
-    void params.additionalDirectories;
     const ids = await listStoredSessionIds(this.#acpRoot);
     const rows: Array<{
       id: string;
