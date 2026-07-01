@@ -146,6 +146,10 @@ type SessionRecord = {
   streamingToolInputJson: Map<string, string>;
   /** Latest tool use block seen in the model stream (sequential tool calls). */
   lastStreamToolUseId: string | null;
+  /** Re-apply the mode tool surface at the next turn boundary (deferred mid-turn). */
+  pendingModeReapply: boolean;
+  /** Rebuild the model at the next turn boundary (deferred mid-turn). */
+  pendingModelRebuild: boolean;
 };
 
 async function readAgentIdentity(): Promise<AgentIdentity> {
@@ -474,6 +478,10 @@ export class HoomanAcpAgent {
     });
 
     await this.#advertiseCommands(client, params.sessionId);
+    // Surface any restored plan so a resumed session shows its todo list.
+    if (getTodoViewState(record.agent).total > 0) {
+      await this.#sendPlanUpdate(client, params.sessionId, record);
+    }
 
     return {
       modes: buildSessionModeState(mode),
@@ -506,11 +514,11 @@ export class HoomanAcpAgent {
         message: `Unknown mode "${params.modeId}"`,
       });
     }
-    setSessionMode(rec.agent, params.modeId);
-    applySessionMode(rec.agent);
-    await patchSessionMeta(this.#acpRoot, params.sessionId, {
-      sessionMode: params.modeId,
-    });
+    if (this.#transitionMode(rec, params.modeId)) {
+      await patchSessionMeta(this.#acpRoot, params.sessionId, {
+        sessionMode: params.modeId,
+      });
+    }
     return {};
   }
 
@@ -540,11 +548,11 @@ export class HoomanAcpAgent {
           message: `Unknown mode "${value}"`,
         });
       }
-      setSessionMode(rec.agent, value);
-      applySessionMode(rec.agent);
-      await patchSessionMeta(this.#acpRoot, params.sessionId, {
-        sessionMode: value,
-      });
+      if (this.#transitionMode(rec, value)) {
+        await patchSessionMeta(this.#acpRoot, params.sessionId, {
+          sessionMode: value,
+        });
+      }
     } else if (params.configId === CONFIG_ID_MODEL) {
       await this.#applyModelChange(rec, value);
       await patchSessionMeta(this.#acpRoot, params.sessionId, { model: value });
@@ -563,9 +571,34 @@ export class HoomanAcpAgent {
     };
   }
 
+  /** Whether a prompt turn is currently streaming for this session. */
+  #isTurnActive(rec: SessionRecord): boolean {
+    return rec.turnAbort !== null;
+  }
+
   /**
-   * Swap the live model for a session. Flips the in-memory (ephemeral) config
-   * default and rebuilds the Strands model; rolls back the config on failure.
+   * Switch the session mode. Records it immediately (so state reads are
+   * correct), but defers the tool-surface rebuild to the next turn boundary
+   * when a turn is streaming, avoiding a mid-turn tool-surface swap. Returns
+   * whether the mode actually changed.
+   */
+  #transitionMode(rec: SessionRecord, mode: SessionMode): boolean {
+    if (resolveSessionMode(getModeState(rec.agent).mode) === mode) {
+      return false;
+    }
+    setSessionMode(rec.agent, mode);
+    if (this.#isTurnActive(rec)) {
+      rec.pendingModeReapply = true;
+    } else {
+      applySessionMode(rec.agent);
+    }
+    return true;
+  }
+
+  /**
+   * Select a new model for the session. Flips the in-memory (ephemeral) config
+   * default immediately, then rebuilds the live model — deferring the rebuild
+   * to the next turn boundary when a turn is streaming.
    */
   async #applyModelChange(
     rec: SessionRecord,
@@ -588,6 +621,15 @@ export class HoomanAcpAgent {
         default: entry.name === match.name,
       })),
     });
+    if (this.#isTurnActive(rec)) {
+      rec.pendingModelRebuild = true;
+      return;
+    }
+    await this.#rebuildModel(rec, previous);
+  }
+
+  /** Rebuild the Strands model from current config, rolling back on failure. */
+  async #rebuildModel(rec: SessionRecord, previous?: string): Promise<void> {
     try {
       const resolved = rec.config.llm;
       const provider = await modelProviders[resolved.provider]!();
@@ -596,15 +638,32 @@ export class HoomanAcpAgent {
         resolved.llmOptions,
       );
     } catch (error) {
-      rec.config.update({
-        llms: rec.config.llms.map((entry) => ({
-          ...entry,
-          default: entry.name === previous,
-        })),
-      });
+      if (previous) {
+        rec.config.update({
+          llms: rec.config.llms.map((entry) => ({
+            ...entry,
+            default: entry.name === previous,
+          })),
+        });
+      }
       throw RequestError.internalError({
         message: error instanceof Error ? error.message : String(error),
       });
+    }
+  }
+
+  /**
+   * Apply settings changes deferred during a turn (mode tool-surface + model
+   * rebuild). Runs at the turn boundary before the next turn may start.
+   */
+  async #flushPendingSettings(rec: SessionRecord): Promise<void> {
+    if (rec.pendingModeReapply) {
+      rec.pendingModeReapply = false;
+      applySessionMode(rec.agent);
+    }
+    if (rec.pendingModelRebuild) {
+      rec.pendingModelRebuild = false;
+      await this.#rebuildModel(rec).catch(() => undefined);
     }
   }
 
@@ -646,11 +705,9 @@ export class HoomanAcpAgent {
     if (!isKnownSessionMode(arg)) {
       return `Unknown mode "${arg}". Use ${formatModeNames()}.`;
     }
-    if (arg === current) {
+    if (!this.#transitionMode(rec, arg)) {
       return `Already in "${arg}" mode.`;
     }
-    setSessionMode(rec.agent, arg);
-    applySessionMode(rec.agent);
     await this.#syncCurrentMode(client, sessionId, rec);
     return `Switched session mode to "${arg}".`;
   }
@@ -835,6 +892,15 @@ export class HoomanAcpAgent {
       }
       const cancelSignal = AbortSignal.any(signals);
 
+      // A new turn resets todos (BeforeInvocationEvent). Clear any stale plan
+      // the client is still showing from the previous turn.
+      if (getTodoViewState(rec.agent).total > 0) {
+        await this.#sendUpdate(client, params.sessionId, {
+          sessionUpdate: "plan",
+          entries: [],
+        });
+      }
+
       try {
         await runWithAgentMemoryScope(rec.agent, async () => {
           await runWithCwd(rec.cwd, async () => {
@@ -903,6 +969,9 @@ export class HoomanAcpAgent {
       }
     } finally {
       rec.turnAbort = null;
+      // Apply mode/model changes requested mid-turn before releasing the gate
+      // so the next turn sees the settled state.
+      await this.#flushPendingSettings(rec);
       releaseExclusive();
       try {
         await saveSessionMessages(
@@ -924,9 +993,9 @@ export class HoomanAcpAgent {
   }
 
   /**
-   * Surface the agent's todo list as an ACP `plan` update. Todos carry no
-   * priority, so every entry defaults to `medium`. Sends the complete list, as
-   * the client replaces the plan wholesale on each update.
+   * Surface the agent's todo list as an ACP `plan` update. Sends the complete
+   * list, as the client replaces the plan wholesale on each update. The
+   * in-progress entry uses its present-tense `activeForm` for a nicer live view.
    */
   #sendPlanUpdate(
     client: AgentContext,
@@ -937,8 +1006,11 @@ export class HoomanAcpAgent {
     return this.#sendUpdate(client, sessionId, {
       sessionUpdate: "plan",
       entries: todos.map((todo) => ({
-        content: todo.content,
-        priority: "medium",
+        content:
+          todo.status === "in_progress" && todo.activeForm
+            ? todo.activeForm
+            : todo.content,
+        priority: todo.priority,
         status: todo.status,
       })),
     });
@@ -1174,6 +1246,8 @@ export class HoomanAcpAgent {
       streamedToolCallIds: new Set(),
       streamingToolInputJson: new Map(),
       lastStreamToolUseId: null,
+      pendingModeReapply: false,
+      pendingModelRebuild: false,
     };
   }
 

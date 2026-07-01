@@ -4,14 +4,17 @@ export const TODO_ITEMS_STATE_KEY = "todo.items";
 export const TODO_VISIBLE_STATE_KEY = "todo.visible";
 
 export const TodoStatusSchema = z.enum(["pending", "in_progress", "completed"]);
+export const TodoPrioritySchema = z.enum(["high", "medium", "low"]);
 
 export const TodoItemSchema = z.object({
   content: z.string().trim().min(1),
   status: TodoStatusSchema,
   activeForm: z.string().trim().min(1),
+  priority: TodoPrioritySchema.default("medium"),
 });
 
 export type TodoStatus = z.infer<typeof TodoStatusSchema>;
+export type TodoPriority = z.infer<typeof TodoPrioritySchema>;
 export type TodoItem = z.infer<typeof TodoItemSchema>;
 
 type AppStateLike = {

@@ -23,7 +23,8 @@ export function createTodoTools() {
       name: UPDATE_TODOS_TOOL_NAME,
       description: `Create and update a structured todo list for the current work.
 Use this when work has multiple meaningful steps and you need to track progress.
-Set items to pending/in_progress/completed as you work and keep the list current.`,
+Set items to pending/in_progress/completed as you work and keep the list current.
+Optionally set each item's priority to high, medium, or low (defaults to medium).`,
       inputSchema: UpdateTodosInputSchema,
       callback: async (
         input: z.infer<typeof UpdateTodosInputSchema>,

@@ -19,7 +19,7 @@ import type { Tool } from "@strands-agents/sdk";
 import { type Config } from "../config.js";
 import { FileMemoryStore } from "../memory/index.js";
 import { ToolBasedModelExtractor } from "../memory/model-extractor.js";
-import { modelProviders } from "../models/index.js";
+import { modelProviders, type ModelProvider } from "../models/index.js";
 import type { Manager as McpManager } from "../mcp/index.js";
 import type { System as SystemPrompt } from "../prompts/index.js";
 import { FlatFileStorage } from "../sessions/flat-file-storage.js";
@@ -92,8 +92,23 @@ export async function create(
 ): Promise<Agent> {
   const sessionId = meta.sessionId;
   const userId = meta.userId ?? sessionId;
-  const activeLlm = config.llm;
-  const llm = await modelProviders[activeLlm.provider]!();
+  // Cache every configured provider so the model can be resolved from the
+  // *current* config on demand — keeps model switches (chat `/model`, ACP
+  // `session/set_config_option`) applied to subagents, not just the main agent.
+  const providerCache = new Map<string, ModelProvider>();
+  for (const provider of new Set(
+    config.resolvedLlms.map((entry) => entry.provider),
+  )) {
+    providerCache.set(provider, await modelProviders[provider]!());
+  }
+  function createLiveModel() {
+    const current = config.llm;
+    const provider = providerCache.get(current.provider);
+    if (!provider) {
+      throw new Error(`No model provider loaded for "${current.provider}".`);
+    }
+    return provider.create(current.providerOptions, current.llmOptions);
+  }
   const ctx = createContext(sessionId);
   const {
     plugins: contextPlugins = [],
@@ -112,7 +127,7 @@ export async function create(
   }
 
   const base = await buildBaseSystemPrompt();
-  const model = llm.create(activeLlm.providerOptions, activeLlm.llmOptions);
+  const model = createLiveModel();
 
   const tools: Tool[] = [
     ...createByeTools(),
@@ -138,8 +153,7 @@ export async function create(
         parent: config.name,
         registry,
         tools,
-        createModel: () =>
-          llm.create(activeLlm.providerOptions, activeLlm.llmOptions),
+        createModel: () => createLiveModel(),
       }),
     );
   }
