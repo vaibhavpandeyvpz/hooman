@@ -23,6 +23,7 @@ type BottomChromeProps = {
   running: boolean;
   status: string;
   currentModel: string;
+  reasoningEffort?: string;
   yoloOn: boolean;
   sessionMode: SessionMode;
   elapsedLabel: string;
@@ -61,6 +62,7 @@ export function BottomChrome({
   running,
   status,
   currentModel,
+  reasoningEffort,
   yoloOn,
   sessionMode,
   elapsedLabel,
@@ -133,6 +135,7 @@ export function BottomChrome({
         running={running}
         status={status}
         currentModel={currentModel}
+        reasoningEffort={reasoningEffort}
         yoloOn={yoloOn}
         sessionMode={sessionMode}
         elapsedLabel={elapsedLabel}

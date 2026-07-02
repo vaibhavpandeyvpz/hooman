@@ -292,6 +292,17 @@ function currentModelLabel(config: Config): string {
   return active.name;
 }
 
+function currentReasoningEffort(config: Config): string | undefined {
+  const active = config.llms.find((m) => m.default) ?? config.llms[0];
+  if (!active) {
+    return undefined;
+  }
+  const resolved = config.resolveLlm(active.name);
+  const options = resolved?.providerOptions as
+    { reasoning?: { effort?: string } } | undefined;
+  return options?.reasoning?.effort;
+}
+
 function parseChatCommand(text: string): { name: string; args: string } | null {
   const trimmed = text.trim();
   if (!trimmed.startsWith("/")) {
@@ -1532,6 +1543,7 @@ export function ChatApp({
           running={running}
           status={status}
           currentModel={currentModelLabel(config)}
+          reasoningEffort={currentReasoningEffort(config)}
           yoloOn={isYoloEnabled(agent)}
           sessionMode={getModeState(agent).mode}
           elapsedLabel={elapsedLabel}

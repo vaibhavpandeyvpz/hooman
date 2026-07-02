@@ -19,6 +19,7 @@ type StatusBarProps = {
   running: boolean;
   status: string;
   currentModel: string;
+  reasoningEffort?: string;
   yoloOn: boolean;
   sessionMode: string;
   elapsedLabel: string;
@@ -46,6 +47,22 @@ function sessionModeValueColor(mode: string): string | undefined {
   return undefined;
 }
 
+/** Ink color for the reasoning effort/level token (labels stay `gray`). */
+function reasoningEffortColor(effort: string): string {
+  switch (effort.trim().toLowerCase()) {
+    case "minimal":
+      return "gray";
+    case "low":
+      return "cyan";
+    case "medium":
+      return "yellow";
+    case "high":
+      return "red";
+    default:
+      return "magenta";
+  }
+}
+
 /** Ink color for the live status token only (labels stay `gray`). */
 function statusValueColor(status: string): string {
   switch (status) {
@@ -65,6 +82,7 @@ export function StatusBar({
   running,
   status,
   currentModel,
+  reasoningEffort,
   yoloOn,
   sessionMode,
   elapsedLabel,
@@ -80,18 +98,29 @@ export function StatusBar({
       <Text>
         <Text color="gray">model: </Text>
         <Text bold>{currentModel}</Text>
-        <Text color="gray"> • status: </Text>
-        <Text color={statusValueColor(status)}>{status}</Text>
+        {reasoningEffort ? (
+          <>
+            <Text color="gray"> • effort: </Text>
+            <Text color={reasoningEffortColor(reasoningEffort)}>
+              {reasoningEffort}
+            </Text>
+          </>
+        ) : null}
         <Text color="gray"> • mode: </Text>
         <Text color={sessionModeValueColor(sessionMode)}>{sessionMode}</Text>
         <Text color="gray"> • yolo: </Text>
         <Text color={yoloOn ? "red" : "green"}>{yoloOn ? "on" : "off"}</Text>
       </Text>
-      <Text color="gray">
-        turns: {turnCount} • tokens: {formatTokenCount(usage.inputTokens)} +{" "}
-        {formatTokenCount(usage.outputTokens)} ={" "}
-        {formatTokenCount(usage.totalTokens)}
-        {running ? ` • elapsed ${elapsedLabel}` : ""}
+      <Text>
+        <Text color="gray">status: </Text>
+        <Text color={statusValueColor(status)}>{status}</Text>
+        <Text color="gray">
+          {" "}
+          • turns: {turnCount} • tokens: {formatTokenCount(usage.inputTokens)} +{" "}
+          {formatTokenCount(usage.outputTokens)} ={" "}
+          {formatTokenCount(usage.totalTokens)}
+          {running ? ` • elapsed ${elapsedLabel}` : ""}
+        </Text>
       </Text>
       <Text color="gray">
         {`mcp servers: ${manager.clients.size}`}

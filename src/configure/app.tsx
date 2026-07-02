@@ -748,9 +748,7 @@ function parseTypedFieldValue(
       if (value === "summarized" || value === "omitted") {
         return value;
       }
-      throw new Error(
-        `${definition.label} must be "summarized" or "omitted".`,
-      );
+      throw new Error(`${definition.label} must be "summarized" or "omitted".`);
     }
   }
 }
