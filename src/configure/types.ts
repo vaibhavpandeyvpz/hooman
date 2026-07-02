@@ -21,6 +21,9 @@ export type Screen =
   | { kind: "config-provider-type"; name: string }
   | { kind: "config-provider-anthropic-thinking"; name: string }
   | { kind: "config-provider-ollama-thinking"; name: string }
+  | { kind: "config-provider-openai-api"; name: string }
+  | { kind: "config-provider-openai-reasoning-effort"; name: string }
+  | { kind: "config-provider-openai-reasoning-summary"; name: string }
   | { kind: "config-provider-delete-confirm"; name: string }
   | { kind: "config-tools" }
   | { kind: "config-llms" }

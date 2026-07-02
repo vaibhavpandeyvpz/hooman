@@ -16,6 +16,9 @@ export enum LlmProvider {
 
 export type AnthropicThinking = "disabled" | "adaptive";
 export type OllamaThinking = boolean | "high" | "medium" | "low";
+export type OpenAIApi = "chat" | "responses";
+export type OpenAIReasoningEffort = "minimal" | "low" | "medium" | "high";
+export type OpenAIReasoningSummary = "auto" | "concise" | "detailed" | "none";
 
 export type LlmOptions = {
   model: string;
@@ -78,6 +81,26 @@ export type OpenAIProviderOptions = {
   apiKey?: string;
   baseURL?: string;
   headers?: Record<string, string>;
+  /**
+   * Which OpenAI-compatible API surface to use.
+   * - `responses` (default): OpenAI Responses API. Streams reasoning/thinking
+   *   (`response.reasoning_summary_text.delta`) so it shows up in the UI.
+   * - `chat`: Chat Completions. Use for OpenAI-compatible MaaS/proxies that do
+   *   not implement the Responses API. Reasoning is not surfaced in this mode.
+   */
+  api?: OpenAIApi;
+  /**
+   * Reasoning controls for the Responses API (`api: "responses"`). Ignored on
+   * the Chat Completions API.
+   * - `effort`: reasoning effort. Some models (e.g. GPT-5) only emit a reasoning
+   *   summary at `medium` or `high`; `low`/`minimal` yield no visible thinking.
+   * - `summary`: summary verbosity. Defaults to `auto`. Set to `none` to disable
+   *   summaries (e.g. for non-reasoning models that reject the `reasoning` param).
+   */
+  reasoning?: {
+    effort?: OpenAIReasoningEffort;
+    summary?: OpenAIReasoningSummary;
+  };
 };
 
 export type OpenRouterProviderOptions = {
@@ -109,6 +132,25 @@ const NonEmptyStringSchema = z.string().min(1);
 const HeadersSchema = z.record(z.string(), z.string()).optional();
 
 export const AnthropicThinkingSchema = z.enum(["disabled", "adaptive"]);
+export const OpenAIApiSchema = z.enum(["chat", "responses"]);
+export const OpenAIReasoningEffortSchema = z.enum([
+  "minimal",
+  "low",
+  "medium",
+  "high",
+]);
+export const OpenAIReasoningSummarySchema = z.enum([
+  "auto",
+  "concise",
+  "detailed",
+  "none",
+]);
+export const OpenAIReasoningSchema = z
+  .object({
+    effort: OpenAIReasoningEffortSchema.optional(),
+    summary: OpenAIReasoningSummarySchema.optional(),
+  })
+  .strict();
 export const OllamaThinkingSchema = z.union([
   z.boolean(),
   z.enum(["high", "medium", "low"]),
@@ -205,6 +247,8 @@ export const OpenAIProviderOptionsSchema = z
     apiKey: NonEmptyStringSchema.optional(),
     baseURL: NonEmptyStringSchema.optional(),
     headers: HeadersSchema,
+    api: OpenAIApiSchema.optional(),
+    reasoning: OpenAIReasoningSchema.optional(),
   })
   .strict();
 

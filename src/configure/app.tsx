@@ -266,7 +266,10 @@ type TypedFieldKind =
   | "optionalInteger"
   | "bedrockCredentials"
   | "anthropicThinking"
-  | "ollamaThinking";
+  | "ollamaThinking"
+  | "openaiApi"
+  | "openaiReasoningEffort"
+  | "openaiReasoningSummary";
 
 type TypedFieldDefinition = {
   key: string;
@@ -489,6 +492,27 @@ const PROVIDER_FIELD_DEFINITIONS: Record<
       kind: "stringRecord",
       placeholder: '{"x-my-header":"value"}',
     },
+    {
+      key: "api",
+      label: "API",
+      kind: "openaiApi",
+      placeholder: "responses",
+      note: 'Allowed: "responses" (default, streams reasoning) or "chat" (for OpenAI-compatible endpoints without the Responses API).',
+    },
+    {
+      key: "reasoningEffort",
+      label: "Reasoning effort",
+      kind: "openaiReasoningEffort",
+      placeholder: "medium",
+      note: 'Responses API only. Allowed: "minimal", "low", "medium", "high", or blank. Some models (e.g. GPT-5) only emit a reasoning summary at "medium"+.',
+    },
+    {
+      key: "reasoningSummary",
+      label: "Reasoning summary",
+      kind: "openaiReasoningSummary",
+      placeholder: "auto",
+      note: 'Responses API only. Allowed: "auto" (default), "concise", "detailed", or "none" to disable.',
+    },
   ],
   [LlmProvider.OpenRouter]: [
     {
@@ -615,6 +639,50 @@ function parseTypedFieldValue(
         return value;
       }
       return parseOptionalBoolean(value, definition.label);
+    }
+    case "openaiApi": {
+      const value = normalizeOptional(input);
+      if (value === undefined) {
+        return undefined;
+      }
+      if (value === "chat" || value === "responses") {
+        return value;
+      }
+      throw new Error(`${definition.label} must be "chat" or "responses".`);
+    }
+    case "openaiReasoningEffort": {
+      const value = normalizeOptional(input);
+      if (value === undefined) {
+        return undefined;
+      }
+      if (
+        value === "minimal" ||
+        value === "low" ||
+        value === "medium" ||
+        value === "high"
+      ) {
+        return value;
+      }
+      throw new Error(
+        `${definition.label} must be "minimal", "low", "medium", or "high".`,
+      );
+    }
+    case "openaiReasoningSummary": {
+      const value = normalizeOptional(input);
+      if (value === undefined) {
+        return undefined;
+      }
+      if (
+        value === "auto" ||
+        value === "concise" ||
+        value === "detailed" ||
+        value === "none"
+      ) {
+        return value;
+      }
+      throw new Error(
+        `${definition.label} must be "auto", "concise", "detailed", or "none".`,
+      );
     }
   }
 }
@@ -757,7 +825,10 @@ export function ConfigureApp({
       }
       if (
         screen.kind === "config-provider-anthropic-thinking" ||
-        screen.kind === "config-provider-ollama-thinking"
+        screen.kind === "config-provider-ollama-thinking" ||
+        screen.kind === "config-provider-openai-api" ||
+        screen.kind === "config-provider-openai-reasoning-effort" ||
+        screen.kind === "config-provider-openai-reasoning-summary"
       ) {
         setScreen({ kind: "config-provider-edit", name: screen.name });
         return;
@@ -1626,7 +1697,17 @@ export function ConfigureApp({
               definition,
               definition.kind === "bedrockCredentials"
                 ? providerOptions.accessKeyId && providerOptions.secretAccessKey
-                : providerOptions[definition.key],
+                : definition.kind === "openaiReasoningEffort"
+                  ? (
+                      providerOptions.reasoning as
+                        { effort?: unknown } | undefined
+                    )?.effort
+                  : definition.kind === "openaiReasoningSummary"
+                    ? (
+                        providerOptions.reasoning as
+                          { summary?: unknown } | undefined
+                      )?.summary
+                    : providerOptions[definition.key],
             )}`,
             value: () => {
               if (definition.kind === "anthropicThinking") {
@@ -1639,6 +1720,27 @@ export function ConfigureApp({
               if (definition.kind === "ollamaThinking") {
                 setScreen({
                   kind: "config-provider-ollama-thinking",
+                  name: entry.name,
+                });
+                return;
+              }
+              if (definition.kind === "openaiApi") {
+                setScreen({
+                  kind: "config-provider-openai-api",
+                  name: entry.name,
+                });
+                return;
+              }
+              if (definition.kind === "openaiReasoningEffort") {
+                setScreen({
+                  kind: "config-provider-openai-reasoning-effort",
+                  name: entry.name,
+                });
+                return;
+              }
+              if (definition.kind === "openaiReasoningSummary") {
+                setScreen({
+                  kind: "config-provider-openai-reasoning-summary",
                   name: entry.name,
                 });
                 return;
@@ -1884,6 +1986,133 @@ export function ConfigureApp({
         items={items}
       />
     );
+  };
+
+  const renderOpenAIApiMenu = () => {
+    if (screen.kind !== "config-provider-openai-api") {
+      return null;
+    }
+    const entry = config.providers.find(
+      (provider) => provider.name === screen.name,
+    );
+    if (!entry) {
+      return null;
+    }
+    const current = "api" in entry.options ? entry.options.api : undefined;
+    const items: MenuItem[] = [
+      {
+        label:
+          current === undefined
+            ? "Not set (responses) • current"
+            : "Not set (clear value)",
+        value: () => {
+          if (
+            updateConfig(
+              { providers: patchProvider(entry.name, { api: undefined }) },
+              `Cleared API for "${entry.name}".`,
+            )
+          ) {
+            setScreen({ kind: "config-provider-edit", name: entry.name });
+          }
+        },
+      },
+      ...(["responses", "chat"] as const).map((value) => ({
+        label: current === value ? `${value} • current` : value,
+        value: () => {
+          if (
+            updateConfig(
+              { providers: patchProvider(entry.name, { api: value }) },
+              `Updated API for "${entry.name}" to "${value}".`,
+            )
+          ) {
+            setScreen({ kind: "config-provider-edit", name: entry.name });
+          }
+        },
+      })),
+      {
+        label: "Back",
+        value: () =>
+          setScreen({ kind: "config-provider-edit", name: entry.name }),
+      },
+    ];
+
+    return (
+      <MenuScreen
+        title={`Choose API • ${entry.name}`}
+        description='Pick one: "responses" (default, streams reasoning) or "chat" (compatibility mode).'
+        items={items}
+      />
+    );
+  };
+
+  const renderOpenAIEnumMenu = (
+    screenKind:
+      | "config-provider-openai-reasoning-effort"
+      | "config-provider-openai-reasoning-summary",
+    subKey: "effort" | "summary",
+    title: string,
+    description: string,
+    values: readonly string[],
+    clearedLabel: string,
+  ) => {
+    if (screen.kind !== screenKind) {
+      return null;
+    }
+    const entry = config.providers.find(
+      (provider) => provider.name === screen.name,
+    );
+    if (!entry) {
+      return null;
+    }
+    const reasoning =
+      "reasoning" in entry.options
+        ? ((entry.options as Record<string, unknown>).reasoning as
+            Record<string, unknown> | undefined)
+        : undefined;
+    const current = reasoning?.[subKey];
+    // Merge into the sibling reasoning key, collapsing to `undefined` when the
+    // object would end up empty so we never persist `"reasoning": {}`.
+    const patchReasoning = (next: string | undefined) => {
+      const merged = { ...(reasoning ?? {}), [subKey]: next };
+      const hasValues = Object.values(merged).some((v) => v !== undefined);
+      return patchProvider(entry.name, {
+        reasoning: hasValues ? merged : undefined,
+      });
+    };
+    const items: MenuItem[] = [
+      {
+        label: current === undefined ? clearedLabel : "Not set (clear value)",
+        value: () => {
+          if (
+            updateConfig(
+              { providers: patchReasoning(undefined) },
+              `Cleared reasoning.${subKey} for "${entry.name}".`,
+            )
+          ) {
+            setScreen({ kind: "config-provider-edit", name: entry.name });
+          }
+        },
+      },
+      ...values.map((value) => ({
+        label: current === value ? `${value} • current` : value,
+        value: () => {
+          if (
+            updateConfig(
+              { providers: patchReasoning(value) },
+              `Updated reasoning.${subKey} for "${entry.name}" to "${value}".`,
+            )
+          ) {
+            setScreen({ kind: "config-provider-edit", name: entry.name });
+          }
+        },
+      })),
+      {
+        label: "Back",
+        value: () =>
+          setScreen({ kind: "config-provider-edit", name: entry.name }),
+      },
+    ];
+    return <MenuScreen title={title} description={description} items={items} />;
   };
 
   const renderProviderTypeMenu = () => {
@@ -2920,6 +3149,26 @@ export function ConfigureApp({
         return renderAnthropicThinkingMenu();
       case "config-provider-ollama-thinking":
         return renderOllamaThinkingMenu();
+      case "config-provider-openai-api":
+        return renderOpenAIApiMenu();
+      case "config-provider-openai-reasoning-effort":
+        return renderOpenAIEnumMenu(
+          "config-provider-openai-reasoning-effort",
+          "effort",
+          `Choose Reasoning effort • ${screen.name}`,
+          'Responses API only. Pick one: "minimal", "low", "medium", "high", or clear. GPT-5 needs "medium"+ to show thinking.',
+          ["minimal", "low", "medium", "high"],
+          "Not set (model default) • current",
+        );
+      case "config-provider-openai-reasoning-summary":
+        return renderOpenAIEnumMenu(
+          "config-provider-openai-reasoning-summary",
+          "summary",
+          `Choose Reasoning summary • ${screen.name}`,
+          'Responses API only. Pick one: "auto" (default), "concise", "detailed", or "none".',
+          ["auto", "concise", "detailed", "none"],
+          "Not set (auto) • current",
+        );
       case "config-provider-delete-confirm":
         return renderProviderDeleteConfirm();
       case "config-llms":

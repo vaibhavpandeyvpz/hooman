@@ -2,6 +2,7 @@
 
 import { readFile } from "node:fs/promises";
 import { Command, Option } from "commander";
+import { configureLogging } from "@strands-agents/sdk";
 import { bootstrap } from "./core/index.js";
 import { createMcpConfig, createMcpManager } from "./core/mcp/index.js";
 import { createToolApprovalIntervention } from "./exec/approvals.js";
@@ -495,6 +496,32 @@ program
   .action(async () => {
     await runAcpStdio();
   });
+
+// The Strands SDK's default logger uses `console.warn`/`console.error`. Ink's
+// `render` patches `console.*` (patchConsole defaults to on), so those writes
+// get captured and printed into the chat transcript. Writing straight to
+// `process.stderr` bypasses that patch, keeping SDK diagnostics out of the TUI
+// while still surfacing them on the error stream (and off stdout, which the ACP
+// stdio protocol owns).
+function writeStderr(prefix: string, args: unknown[]): void {
+  const line = args
+    .map((arg) =>
+      typeof arg === "string"
+        ? arg
+        : arg instanceof Error
+          ? (arg.stack ?? arg.message)
+          : String(arg),
+    )
+    .join(" ");
+  process.stderr.write(`${prefix} ${line}\n`);
+}
+
+configureLogging({
+  debug: () => {},
+  info: () => {},
+  warn: (...args: unknown[]) => writeStderr("[strands:warn]", args),
+  error: (...args: unknown[]) => writeStderr("[strands:error]", args),
+});
 
 const argv =
   process.argv.slice(2).length === 0 ? [...process.argv, "chat"] : process.argv;
