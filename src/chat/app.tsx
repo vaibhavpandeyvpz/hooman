@@ -96,9 +96,9 @@ function normalizePromptSubmission(
 }
 
 const INPUT_HINT =
-  "shift/meta+enter or \\+enter: newline | esc/ctrl+c: cancel or exit";
+  "shift/meta+enter or \\+enter: newline | shift+tab: cycle effort | esc/ctrl+c: cancel or exit";
 const INPUT_HINT_WITH_STEERING =
-  "enter on empty input: steer active turn with queued prompts | shift/meta+enter or \\+enter: newline | esc/ctrl+c: cancel or exit";
+  "enter on empty input: steer active turn with queued prompts | shift/meta+enter or \\+enter: newline | shift+tab: cycle effort | esc/ctrl+c: cancel or exit";
 
 const INIT_AGENTS_PROMPT = readBundledPrompt("static", "init.md");
 
@@ -301,6 +301,31 @@ function currentReasoningEffort(config: Config): string | undefined {
   const options = resolved?.providerOptions as
     { reasoning?: { effort?: string } } | undefined;
   return options?.reasoning?.effort;
+}
+
+/**
+ * Effort levels cycled by Ctrl/Cmd+,/. in chat. `undefined` is the "off"
+ * (no reasoning) rung so the shortcut can also disable thinking.
+ */
+const REASONING_EFFORT_CYCLE = [
+  undefined,
+  "minimal",
+  "low",
+  "medium",
+  "high",
+] as const;
+
+function nextReasoningEffort(
+  current: string | undefined,
+  direction: 1 | -1,
+): string | undefined {
+  const currentIndex = REASONING_EFFORT_CYCLE.indexOf(
+    (current ?? undefined) as (typeof REASONING_EFFORT_CYCLE)[number],
+  );
+  const from = currentIndex === -1 ? 0 : currentIndex;
+  const length = REASONING_EFFORT_CYCLE.length;
+  const nextIndex = (from + direction + length) % length;
+  return REASONING_EFFORT_CYCLE[nextIndex];
 }
 
 function parseChatCommand(text: string): { name: string; args: string } | null {
@@ -803,6 +828,77 @@ export function ChatApp({
       }
     },
     [agent, appendLine, config],
+  );
+
+  const cycleReasoningEffort = useCallback(
+    async (direction: 1 | -1) => {
+      if (runningRef.current) {
+        return;
+      }
+      const activeLlm =
+        config.llms.find((entry) => entry.default) ?? config.llms[0];
+      if (!activeLlm) {
+        return;
+      }
+      const providerName = activeLlm.provider;
+      const providerEntry = config.providers.find(
+        (entry) => entry.name === providerName,
+      );
+      if (!providerEntry) {
+        return;
+      }
+      const currentReasoning = (
+        providerEntry.options as {
+          reasoning?: { effort?: string } & Record<string, unknown>;
+        }
+      ).reasoning;
+      const nextEffort = nextReasoningEffort(
+        currentReasoning?.effort,
+        direction,
+      );
+      // Merge into the sibling reasoning keys, collapsing to `undefined` when the
+      // object would end up empty so we never persist `"reasoning": {}`.
+      const mergedReasoning = {
+        ...(currentReasoning ?? {}),
+        effort: nextEffort,
+      };
+      const hasValues = Object.values(mergedReasoning).some(
+        (value) => value !== undefined,
+      );
+      const nextProviders = config.providers.map((entry) =>
+        entry.name === providerName
+          ? {
+              ...entry,
+              options: {
+                ...(entry.options as Record<string, unknown>),
+                reasoning: hasValues ? mergedReasoning : undefined,
+              },
+            }
+          : entry,
+      ) as typeof config.providers;
+      const previousProviders = config.providers;
+      config.update({ providers: nextProviders });
+      try {
+        const resolved = config.llm;
+        const provider = await modelProviders[resolved.provider]!();
+        agent.model = provider.create(
+          resolved.providerOptions,
+          resolved.llmOptions,
+        );
+        bumpSessionChrome();
+      } catch (error) {
+        config.update({ providers: previousProviders });
+        bumpSessionChrome();
+        appendLine({
+          id: nowId(),
+          role: "system",
+          title: "error",
+          content: error instanceof Error ? error.message : String(error),
+          done: true,
+        });
+      }
+    },
+    [agent, appendLine, bumpSessionChrome, config],
   );
 
   const handleYoloCommand = useCallback(
@@ -1440,6 +1536,14 @@ export function ChatApp({
   useInput(
     (inputKey, key) => {
       if (isMouseInput(inputKey)) {
+        return;
+      }
+      // Shift+Tab cycles reasoning effort up (wrapping off -> minimal -> low ->
+      // medium -> high -> off). The change persists to the active model's
+      // provider config and rebuilds the live model. Ctrl/Cmd+,/. can't be
+      // detected in a terminal TUI, so Shift+Tab is used instead.
+      if (key.tab && key.shift) {
+        void cycleReasoningEffort(1);
         return;
       }
       // Scrolling is handled natively by the terminal: finished transcript
