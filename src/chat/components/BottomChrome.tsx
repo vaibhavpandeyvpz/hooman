@@ -50,6 +50,7 @@ type BottomChromeProps = {
   onApprovalDecision: (decision: ApprovalDecision) => void;
   sessionItems: Array<{ label: string; value: string }>;
   onModelSelect: (name: string) => void;
+  onEffortSelect: (value: string) => void;
   onYoloSelect: (value: string) => void;
   onModeSelect: (value: string) => void;
   onSessionSelect: (value: string) => void;
@@ -84,6 +85,7 @@ export function BottomChrome({
   slashMenu,
   onApprovalDecision,
   onModelSelect,
+  onEffortSelect,
   onYoloSelect,
   onModeSelect,
   onSessionSelect,
@@ -107,6 +109,7 @@ export function BottomChrome({
         onApprovalDecision={onApprovalDecision}
         sessionItems={sessionItems}
         onModelSelect={onModelSelect}
+        onEffortSelect={onEffortSelect}
         onYoloSelect={onYoloSelect}
         onModeSelect={onModeSelect}
         onSessionSelect={onSessionSelect}

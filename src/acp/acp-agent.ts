@@ -61,9 +61,18 @@ import { modelProviders } from "../core/models/index.js";
 import {
   buildSessionConfigOptions,
   currentModelName,
+  CONFIG_ID_EFFORT,
   CONFIG_ID_MODE,
   CONFIG_ID_MODEL,
 } from "./session-config.js";
+import {
+  activeProviderName,
+  currentReasoningEffort,
+  parseReasoningEffortArg,
+  REASONING_EFFORT_LEVELS,
+  REASONING_EFFORT_OFF,
+  withReasoningEffort,
+} from "../core/models/reasoning-effort.js";
 import {
   ACP_SLASH_COMMANDS,
   parseAcpSlashCommand,
@@ -150,6 +159,10 @@ type SessionRecord = {
   pendingModeReapply: boolean;
   /** Rebuild the model at the next turn boundary (deferred mid-turn). */
   pendingModelRebuild: boolean;
+  /** Persist this default model to shared config after a deferred rebuild. */
+  pendingPersistModel: string | null;
+  /** Persist this provider's effort to shared config after a deferred rebuild. */
+  pendingPersistEffort: { provider: string; effort: string | undefined } | null;
 };
 
 async function readAgentIdentity(): Promise<AgentIdentity> {
@@ -556,6 +569,15 @@ export class HoomanAcpAgent {
     } else if (params.configId === CONFIG_ID_MODEL) {
       await this.#applyModelChange(rec, value);
       await patchSessionMeta(this.#acpRoot, params.sessionId, { model: value });
+    } else if (params.configId === CONFIG_ID_EFFORT) {
+      const parsed = parseReasoningEffortArg(value);
+      if (!parsed) {
+        throw RequestError.invalidParams({
+          value,
+          message: `Unknown reasoning effort "${value}"`,
+        });
+      }
+      await this.#applyEffortChange(rec, parsed.value);
     } else {
       throw RequestError.invalidParams({
         configId: params.configId,
@@ -623,9 +645,101 @@ export class HoomanAcpAgent {
     });
     if (this.#isTurnActive(rec)) {
       rec.pendingModelRebuild = true;
+      rec.pendingPersistModel = match.name;
       return;
     }
     await this.#rebuildModel(rec, previous);
+    this.#persistDefaultModel(rec, match.name);
+  }
+
+  /**
+   * Persist the default-model choice to the shared on-disk config so it becomes
+   * the default for future sessions (mirrors the chat TUI's `/model`). Skips
+   * models that only exist in a project overlay.
+   */
+  #persistDefaultModel(rec: SessionRecord, modelName: string): void {
+    rec.config.persistToDisk((base) =>
+      base.llms.some((entry) => entry.name === modelName)
+        ? {
+            llms: base.llms.map((entry) => ({
+              ...entry,
+              default: entry.name === modelName,
+            })),
+          }
+        : null,
+    );
+  }
+
+  /**
+   * Persist a provider's reasoning effort to the shared on-disk config
+   * (recomputed against the base provider so its other reasoning keys stay
+   * intact). Skips providers that only exist in a project overlay.
+   */
+  #persistProviderEffort(
+    rec: SessionRecord,
+    providerName: string,
+    effort: string | undefined,
+  ): void {
+    rec.config.persistToDisk((base) =>
+      base.providers.some((entry) => entry.name === providerName)
+        ? {
+            providers: base.providers.map((entry) =>
+              entry.name === providerName
+                ? {
+                    ...entry,
+                    options: withReasoningEffort(entry.options, effort),
+                  }
+                : entry,
+            ) as typeof base.providers,
+          }
+        : null,
+    );
+  }
+
+  /**
+   * Set the reasoning effort for the session's active model provider. Flips the
+   * in-memory (ephemeral) provider option immediately, then rebuilds the live
+   * model — deferring the rebuild to the next turn boundary during a turn — and
+   * persists the change to the shared config (mirrors the chat TUI).
+   */
+  async #applyEffortChange(
+    rec: SessionRecord,
+    effort: string | undefined,
+  ): Promise<void> {
+    const providerName = activeProviderName(rec.config);
+    if (!providerName) {
+      throw RequestError.invalidParams({
+        message: "No active model provider to set reasoning effort on.",
+      });
+    }
+    const providerEntry = rec.config.providers.find(
+      (entry) => entry.name === providerName,
+    );
+    if (!providerEntry) {
+      throw RequestError.invalidParams({
+        message: `Provider "${providerName}" is not configured.`,
+      });
+    }
+    const previousProviders = rec.config.providers;
+    rec.config.update({
+      providers: rec.config.providers.map((entry) =>
+        entry.name === providerName
+          ? { ...entry, options: withReasoningEffort(entry.options, effort) }
+          : entry,
+      ) as typeof rec.config.providers,
+    });
+    if (this.#isTurnActive(rec)) {
+      rec.pendingModelRebuild = true;
+      rec.pendingPersistEffort = { provider: providerName, effort };
+      return;
+    }
+    try {
+      await this.#rebuildModel(rec);
+    } catch (error) {
+      rec.config.update({ providers: previousProviders });
+      throw error;
+    }
+    this.#persistProviderEffort(rec, providerName, effort);
   }
 
   /** Rebuild the Strands model from current config, rolling back on failure. */
@@ -663,7 +777,26 @@ export class HoomanAcpAgent {
     }
     if (rec.pendingModelRebuild) {
       rec.pendingModelRebuild = false;
-      await this.#rebuildModel(rec).catch(() => undefined);
+      const persistModel = rec.pendingPersistModel;
+      const persistEffort = rec.pendingPersistEffort;
+      rec.pendingPersistModel = null;
+      rec.pendingPersistEffort = null;
+      const rebuilt = await this.#rebuildModel(rec).then(
+        () => true,
+        () => false,
+      );
+      if (rebuilt) {
+        if (persistModel) {
+          this.#persistDefaultModel(rec, persistModel);
+        }
+        if (persistEffort) {
+          this.#persistProviderEffort(
+            rec,
+            persistEffort.provider,
+            persistEffort.effort,
+          );
+        }
+      }
     }
   }
 
@@ -682,6 +815,8 @@ export class HoomanAcpAgent {
         return this.#commandSetMode(client, sessionId, rec, command.args);
       case "model":
         return this.#commandSetModel(client, sessionId, rec, command.args);
+      case "effort":
+        return this.#commandSetEffort(client, sessionId, rec, command.args);
       case "yolo":
         return this.#commandSetYolo(sessionId, rec, command.args);
       case "compact":
@@ -757,6 +892,44 @@ export class HoomanAcpAgent {
       ...lines,
       'Use "/model <name>" to switch.',
     ].join("\n");
+  }
+
+  async #commandSetEffort(
+    client: AgentContext,
+    sessionId: string,
+    rec: SessionRecord,
+    args: string,
+  ): Promise<string> {
+    const current = currentReasoningEffort(rec.config);
+    const arg = args.trim();
+    if (!arg) {
+      return `Current reasoning effort: "${current ?? REASONING_EFFORT_OFF}". Use ${REASONING_EFFORT_LEVELS.join(
+        ", ",
+      )} or ${REASONING_EFFORT_OFF}.`;
+    }
+    const parsed = parseReasoningEffortArg(arg);
+    if (!parsed) {
+      return `Unknown effort "${arg}". Use ${REASONING_EFFORT_LEVELS.join(
+        ", ",
+      )} or ${REASONING_EFFORT_OFF}.`;
+    }
+    if (parsed.value === current) {
+      return `Reasoning effort is already "${current ?? REASONING_EFFORT_OFF}".`;
+    }
+    try {
+      await this.#applyEffortChange(rec, parsed.value);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return `Could not set reasoning effort: ${message}`;
+    }
+    await this.#sendUpdate(client, sessionId, {
+      sessionUpdate: "config_option_update",
+      configOptions: buildSessionConfigOptions(
+        rec.config,
+        resolveSessionMode(getModeState(rec.agent).mode),
+      ),
+    });
+    return `Set reasoning effort to "${parsed.value ?? REASONING_EFFORT_OFF}".`;
   }
 
   async #commandSetYolo(
@@ -1255,6 +1428,8 @@ export class HoomanAcpAgent {
       lastStreamToolUseId: null,
       pendingModeReapply: false,
       pendingModelRebuild: false,
+      pendingPersistModel: null,
+      pendingPersistEffort: null,
     };
   }
 

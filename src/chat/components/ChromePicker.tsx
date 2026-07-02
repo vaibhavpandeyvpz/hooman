@@ -1,11 +1,17 @@
 import { Text } from "ink";
 import type { Config } from "../../core/config.js";
 import { MODE_DEFINITIONS, type SessionMode } from "../../core/modes/index.js";
+import {
+  currentReasoningEffort,
+  REASONING_EFFORT_LEVELS,
+  REASONING_EFFORT_OFF,
+} from "../../core/models/reasoning-effort.js";
 import { ApprovalPrompt } from "./ApprovalPrompt.js";
 import { SelectPicker } from "./SelectPicker.js";
 import type { ApprovalDecision } from "../types.js";
 
-export type ChatPicker = null | "model" | "yolo" | "mode" | "sessions";
+export type ChatPicker =
+  null | "model" | "effort" | "yolo" | "mode" | "sessions";
 
 type ChromePickerProps = {
   config: Config;
@@ -16,6 +22,7 @@ type ChromePickerProps = {
   onApprovalDecision: (decision: ApprovalDecision) => void;
   sessionItems: Array<{ label: string; value: string }>;
   onModelSelect: (name: string) => void;
+  onEffortSelect: (value: string) => void;
   onYoloSelect: (value: string) => void;
   onModeSelect: (value: string) => void;
   onSessionSelect: (value: string) => void;
@@ -30,6 +37,7 @@ export function ChromePicker({
   onApprovalDecision,
   sessionItems,
   onModelSelect,
+  onEffortSelect,
   onYoloSelect,
   onModeSelect,
   onSessionSelect,
@@ -47,6 +55,28 @@ export function ChromePicker({
           value: entry.name,
         }))}
         onSelect={onModelSelect}
+      />
+    );
+  }
+
+  if (picker === "effort") {
+    const active = currentReasoningEffort(config);
+    return (
+      <SelectPicker
+        title="Reasoning effort"
+        items={[
+          {
+            label: `${REASONING_EFFORT_OFF} • no reasoning${
+              active === undefined ? " • current" : ""
+            }`,
+            value: REASONING_EFFORT_OFF,
+          },
+          ...REASONING_EFFORT_LEVELS.map((level) => ({
+            label: `${level}${active === level ? " • current" : ""}`,
+            value: level,
+          })),
+        ]}
+        onSelect={onEffortSelect}
       />
     );
   }

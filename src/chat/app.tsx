@@ -24,6 +24,15 @@ import {
 import type { Config } from "../core/config.js";
 import type { Manager as McpManager } from "../core/mcp/index.js";
 import { modelProviders } from "../core/models/index.js";
+import {
+  currentReasoningEffort,
+  nextReasoningEffort,
+  parseReasoningEffortArg,
+  readProviderEffort,
+  REASONING_EFFORT_LEVELS,
+  REASONING_EFFORT_OFF,
+  withReasoningEffort,
+} from "../core/models/reasoning-effort.js";
 import { formatModeNames, isKnownSessionMode } from "../core/modes/index.js";
 import type { Registry } from "../core/skills/index.js";
 import { takeFileToolDisplay } from "../core/state/file-tool-display.js";
@@ -292,64 +301,6 @@ function currentModelLabel(config: Config): string {
   return active.name;
 }
 
-function currentReasoningEffort(config: Config): string | undefined {
-  const active = config.llms.find((m) => m.default) ?? config.llms[0];
-  if (!active) {
-    return undefined;
-  }
-  const resolved = config.resolveLlm(active.name);
-  const options = resolved?.providerOptions as
-    { reasoning?: { effort?: string } } | undefined;
-  return options?.reasoning?.effort;
-}
-
-/**
- * Effort levels cycled by Ctrl/Cmd+,/. in chat. `undefined` is the "off"
- * (no reasoning) rung so the shortcut can also disable thinking.
- */
-const REASONING_EFFORT_CYCLE = [
-  undefined,
-  "minimal",
-  "low",
-  "medium",
-  "high",
-] as const;
-
-function nextReasoningEffort(
-  current: string | undefined,
-  direction: 1 | -1,
-): string | undefined {
-  const currentIndex = REASONING_EFFORT_CYCLE.indexOf(
-    (current ?? undefined) as (typeof REASONING_EFFORT_CYCLE)[number],
-  );
-  const from = currentIndex === -1 ? 0 : currentIndex;
-  const length = REASONING_EFFORT_CYCLE.length;
-  const nextIndex = (from + direction + length) % length;
-  return REASONING_EFFORT_CYCLE[nextIndex];
-}
-
-/**
- * Returns provider options with `reasoning.effort` set to `nextEffort`,
- * preserving sibling reasoning keys and collapsing to `undefined` when the
- * reasoning object would end up empty (so we never persist `"reasoning": {}`).
- */
-function withReasoningEffort(
-  options: unknown,
-  nextEffort: string | undefined,
-): Record<string, unknown> {
-  const base = (options ?? {}) as Record<string, unknown>;
-  const reasoning = base.reasoning as Record<string, unknown> | undefined;
-  const merged = { ...(reasoning ?? {}), effort: nextEffort };
-  const hasValues = Object.values(merged).some((value) => value !== undefined);
-  return { ...base, reasoning: hasValues ? merged : undefined };
-}
-
-function readProviderEffort(options: unknown): string | undefined {
-  const reasoning = (options as { reasoning?: { effort?: string } } | undefined)
-    ?.reasoning;
-  return reasoning?.effort;
-}
-
 function parseChatCommand(text: string): { name: string; args: string } | null {
   const trimmed = text.trim();
   if (!trimmed.startsWith("/")) {
@@ -432,6 +383,10 @@ const SLASH_COMMANDS = [
   {
     name: "init",
     description: "Generate or refresh AGENTS.md for this project.",
+  },
+  {
+    name: "effort",
+    description: "Pick or set the reasoning effort.",
   },
   {
     name: "mode",
@@ -865,27 +820,8 @@ export function ChatApp({
     [agent, appendLine, config],
   );
 
-  const cycleReasoningEffort = useCallback(
-    async (direction: 1 | -1) => {
-      if (runningRef.current) {
-        return;
-      }
-      const activeLlm =
-        config.llms.find((entry) => entry.default) ?? config.llms[0];
-      if (!activeLlm) {
-        return;
-      }
-      const providerName = activeLlm.provider;
-      const providerEntry = config.providers.find(
-        (entry) => entry.name === providerName,
-      );
-      if (!providerEntry) {
-        return;
-      }
-      const nextEffort = nextReasoningEffort(
-        readProviderEffort(providerEntry.options),
-        direction,
-      );
+  const applyReasoningEffort = useCallback(
+    async (nextEffort: string | undefined, providerName: string) => {
       const nextProviders = config.providers.map((entry) =>
         entry.name === providerName
           ? {
@@ -934,6 +870,80 @@ export function ChatApp({
       }
     },
     [agent, appendLine, bumpSessionChrome, config],
+  );
+
+  const cycleReasoningEffort = useCallback(
+    async (direction: 1 | -1) => {
+      if (runningRef.current) {
+        return;
+      }
+      const active =
+        config.llms.find((entry) => entry.default) ?? config.llms[0];
+      if (!active) {
+        return;
+      }
+      const providerName = active.provider;
+      const providerEntry = config.providers.find(
+        (entry) => entry.name === providerName,
+      );
+      if (!providerEntry) {
+        return;
+      }
+      const nextEffort = nextReasoningEffort(
+        readProviderEffort(providerEntry.options),
+        direction,
+      );
+      await applyReasoningEffort(nextEffort, providerName);
+    },
+    [applyReasoningEffort, config],
+  );
+
+  const handleEffortCommand = useCallback(
+    async (args: string) => {
+      if (runningRef.current) {
+        appendLine({
+          id: nowId(),
+          role: "system",
+          title: "effort",
+          content:
+            "Wait for the active turn to finish before changing reasoning effort.",
+          done: true,
+        });
+        return;
+      }
+      const active =
+        config.llms.find((entry) => entry.default) ?? config.llms[0];
+      if (!active) {
+        return;
+      }
+      const providerName = active.provider;
+      if (!config.providers.some((entry) => entry.name === providerName)) {
+        return;
+      }
+      const trimmed = args.trim();
+      if (!trimmed) {
+        setPicker("effort");
+        return;
+      }
+      const parsed = parseReasoningEffortArg(trimmed);
+      if (!parsed) {
+        appendLine({
+          id: nowId(),
+          role: "system",
+          title: "effort",
+          content: `Unknown effort "${trimmed}". Use ${REASONING_EFFORT_LEVELS.join(
+            ", ",
+          )} or ${REASONING_EFFORT_OFF}.`,
+          done: true,
+        });
+        return;
+      }
+      if (parsed.value === currentReasoningEffort(config)) {
+        return;
+      }
+      await applyReasoningEffort(parsed.value, providerName);
+    },
+    [appendLine, applyReasoningEffort, config],
   );
 
   const handleYoloCommand = useCallback(
@@ -1528,6 +1538,11 @@ export function ChatApp({
           setInput("");
           return;
         }
+        if (command.name === "effort") {
+          void handleEffortCommand(command.args);
+          setInput("");
+          return;
+        }
         if (command.name === "compact") {
           void handleCompactCommand();
           setInput("");
@@ -1558,6 +1573,7 @@ export function ChatApp({
       handleModelCommand,
       handleCompactCommand,
       handleConfigCommand,
+      handleEffortCommand,
       handleModeCommand,
       handleNewCommand,
       handleSessionsCommand,
@@ -1714,6 +1730,10 @@ export function ChatApp({
           onModelSelect={(name) => {
             setPicker(null);
             void handleModelCommand(name);
+          }}
+          onEffortSelect={(value) => {
+            setPicker(null);
+            void handleEffortCommand(value);
           }}
           onYoloSelect={(value) => {
             setPicker(null);

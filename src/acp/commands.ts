@@ -31,6 +31,11 @@ export const ACP_SLASH_COMMANDS: readonly AvailableCommand[] = [
     input: { hint: "model name (blank to list)" },
   },
   {
+    name: "effort",
+    description: "Set the reasoning effort for this session.",
+    input: { hint: "minimal | low | medium | high | off (blank to list)" },
+  },
+  {
     name: "yolo",
     description: "Auto-approve tool calls without prompting.",
     input: { hint: "on | off" },

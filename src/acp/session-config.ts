@@ -2,11 +2,18 @@ import type { SessionConfigOption } from "@agentclientprotocol/sdk";
 import type { Config } from "../core/config.js";
 import { MODE_DEFINITIONS } from "../core/modes/definitions.js";
 import type { SessionMode } from "../core/modes/schema.js";
+import {
+  currentReasoningEffort,
+  REASONING_EFFORT_LEVELS,
+  REASONING_EFFORT_OFF,
+} from "../core/models/reasoning-effort.js";
 
 /** Config option id for the session mode selector (mirrors `session/set_mode`). */
 export const CONFIG_ID_MODE = "mode";
 /** Config option id for the language-model selector. */
 export const CONFIG_ID_MODEL = "model";
+/** Config option id for the reasoning-effort selector. */
+export const CONFIG_ID_EFFORT = "effort";
 
 /** Name of the currently-active (default) named LLM, if any are configured. */
 export function currentModelName(config: Config): string | undefined {
@@ -44,6 +51,31 @@ export function buildSessionConfigOptions(
       type: "select",
       currentValue: currentModel,
       options: modelValues,
+    });
+  }
+
+  // Reasoning effort applies to the active model's provider. The `off` value
+  // maps to "no reasoning" (see reasoning-effort helpers).
+  if (modelValues.length > 0 && currentModel) {
+    options.push({
+      id: CONFIG_ID_EFFORT,
+      name: "Reasoning Effort",
+      description: "Reasoning/thinking effort for the active model",
+      category: "model",
+      type: "select",
+      currentValue: currentReasoningEffort(config) ?? REASONING_EFFORT_OFF,
+      options: [
+        {
+          value: REASONING_EFFORT_OFF,
+          name: REASONING_EFFORT_OFF,
+          description: "No reasoning",
+        },
+        ...REASONING_EFFORT_LEVELS.map((level) => ({
+          value: level,
+          name: level,
+          description: `${level} reasoning effort`,
+        })),
+      ],
     });
   }
 
