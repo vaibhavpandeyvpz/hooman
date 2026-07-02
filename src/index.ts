@@ -8,6 +8,7 @@ export { Config as HoomanConfig, LlmProvider } from "./core/config.js";
 export type {
   CompactionConfig,
   ConfigData,
+  ConfigOptions,
   LlmConfig,
   NamedLlmConfig,
   NamedProviderConfig,
@@ -17,6 +18,13 @@ export type {
   SearchConfig,
   ToolsConfig,
 } from "./core/config.js";
+export {
+  createRuntimeConfig,
+  createRuntimeMcpConfig,
+  runtimeConfigOptions,
+  runtimeConfigSources,
+} from "./core/runtime-config.js";
+export type { RuntimeConfigSources } from "./core/runtime-config.js";
 
 export {
   attachmentsPath,
@@ -50,9 +58,15 @@ export {
   isResolvedPathInsideDir,
   normalizeUserPath,
 } from "./core/utils/normalize-user-path.js";
+export {
+  candidateWalkUpPaths,
+  discoverWalkUpFiles,
+  findGitRoot,
+} from "./core/utils/discover-files.js";
 
 export { create as createAgent } from "./core/agent/index.js";
 export { applySessionMode } from "./core/agent/sync-tool-registry-mode.js";
+export { ModeAwareToolRegistry } from "./core/agent/mode-aware-tool-registry.js";
 
 export {
   HOOMAN_CHANNEL,
@@ -124,6 +138,19 @@ export {
   createWebSearchTools,
 } from "./core/tools/index.js";
 export { UPDATE_TODOS_TOOL_NAME } from "./core/tools/todo.js";
+export {
+  getTerminalBackend,
+  setTerminalBackend,
+  type TerminalBackend,
+  type TerminalRunRequest,
+  type TerminalRunResult,
+} from "./core/tools/terminal-backend.js";
+export {
+  getTextFsBackend,
+  setTextFsBackend,
+  type TextFsBackend,
+  type TextFsReadOptions,
+} from "./core/tools/text-fs-backend.js";
 
 export {
   AGENT_SKILLS_STATE_KEY,
@@ -181,6 +208,12 @@ export {
   LazySessionManager,
   type LazySessionManagerConfig,
 } from "./core/sessions/lazy-session-manager.js";
+export { TolerantFileStorage } from "./core/sessions/tolerant-file-storage.js";
+export {
+  latestCliSessionForCwd,
+  listCliSessions,
+  type CliSessionSummary,
+} from "./core/sessions/list-cli-sessions.js";
 
 export {
   SUBAGENT_TOOL_NAME_PREFIX,
@@ -203,6 +236,7 @@ export {
 export {
   INTERNAL_ALWAYS_ALLOWED as TOOL_APPROVAL_INTERNAL_ALWAYS_ALLOWED,
   isImplicitlyAllowed,
+  isToolVisible,
   planModeWriteEditRejectionMessage,
 } from "./core/state/tool-approvals.js";
 export {
@@ -211,6 +245,31 @@ export {
   type AllowlistOptions,
   type AllowlistRule,
 } from "./core/approvals/allowlist.js";
+export {
+  arityPrefix,
+  splitCommands,
+  tokenize,
+} from "./core/approvals/bash-arity.js";
+export { matchWildcard } from "./core/approvals/wildcard.js";
+export {
+  HoomanToolApprovalIntervention,
+  type HoomanToolApprovalInterventionConfig,
+  type ToolApprovalAsk,
+  type ToolApprovalDecision,
+  type ToolApprovalRequest,
+  type ToolApprovalResult,
+} from "./core/approvals/intervention.js";
+export {
+  createChannelPermissionAsk,
+  readChannelOrigin,
+  type ChannelOrigin as ToolApprovalChannelOrigin,
+} from "./core/approvals/channel-ask.js";
+export {
+  ChatTurnSteeringController,
+  ChatTurnSteeringIntervention,
+  createChatTurnSteeringIntervention,
+  type QueuedSteeringPrompt,
+} from "./core/agent/turn-steering.js";
 export {
   YOLO_STATE_KEY,
   isYoloEnabled,
@@ -222,6 +281,22 @@ export {
   setSessionMode,
   type SessionMode,
 } from "./core/state/session-mode.js";
+export {
+  DEFAULT_SESSION_MODE,
+  MODE_DEFINITIONS,
+  MODE_IDS,
+  formatModeNames,
+  getModeDefinition,
+  getModeIds,
+  getModeOptions,
+  getModeTools,
+  isKnownSessionMode,
+  isModeDefinition,
+  loadModeDefinitions,
+  type KnownSessionMode,
+  type ModeDefinition,
+} from "./core/modes/index.js";
+export type { LoadedModeDefinition } from "./core/modes/registry.js";
 export {
   TODO_ITEMS_STATE_KEY,
   TODO_VISIBLE_STATE_KEY,
