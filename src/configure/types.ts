@@ -19,10 +19,10 @@ export type Screen =
   | { kind: "config-provider-add-type"; name: string }
   | { kind: "config-provider-edit"; name: string }
   | { kind: "config-provider-type"; name: string }
-  | { kind: "config-provider-ollama-thinking"; name: string }
   | { kind: "config-provider-openai-api"; name: string }
   | { kind: "config-provider-reasoning-effort"; name: string }
   | { kind: "config-provider-reasoning-summary"; name: string }
+  | { kind: "config-provider-reasoning-display"; name: string }
   | { kind: "config-provider-delete-confirm"; name: string }
   | { kind: "config-tools" }
   | { kind: "config-llms" }

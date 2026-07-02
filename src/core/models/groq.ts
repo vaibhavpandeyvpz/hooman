@@ -17,12 +17,26 @@ export function create(
   ) as GroqProviderSettings;
   const provider =
     Object.keys(settings).length > 0 ? createGroq(settings) : groq;
+  // Groq reads `reasoning_effort`/`reasoning_format` from `providerOptions.groq`.
+  // Groq has no `minimal` level, so it maps to `low`. `reasoning_format: parsed`
+  // streams reasoning as a separate channel (surfaced as reasoningContentDelta).
+  const effort = providerOptions.reasoning?.effort;
   const config: Partial<VercelModelConfig> = {
     ...(llmOptions.temperature !== undefined
       ? { temperature: llmOptions.temperature }
       : {}),
     ...(llmOptions.maxTokens !== undefined
       ? { maxTokens: llmOptions.maxTokens }
+      : {}),
+    ...(effort
+      ? {
+          providerOptions: {
+            groq: {
+              reasoningEffort: effort === "minimal" ? "low" : effort,
+              reasoningFormat: "parsed",
+            },
+          },
+        }
       : {}),
   };
   return new VercelModel({

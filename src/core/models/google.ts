@@ -13,6 +13,11 @@ export function create(
     ...(llmOptions.maxTokens !== undefined
       ? { maxOutputTokens: llmOptions.maxTokens }
       : {}),
+    // Any effort enables Gemini thinking and streams thoughts; `thinkingBudget:
+    // -1` lets the model size the budget dynamically (no fixed budget).
+    ...(providerOptions.reasoning?.effort
+      ? { thinkingConfig: { includeThoughts: true, thinkingBudget: -1 } }
+      : {}),
   };
   return new GoogleModel({
     modelId: llmOptions.model,

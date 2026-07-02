@@ -16,12 +16,25 @@ export function create(
     }).filter((entry) => entry[1] !== undefined),
   ) as XaiProviderSettings;
   const provider = Object.keys(settings).length > 0 ? createXai(settings) : xai;
+  // xAI's chat surface only accepts `reasoning_effort` of `low`/`high`
+  // (via `providerOptions.xai`), so `minimal`/`low` -> `low`, `medium`/`high` ->
+  // `high`. Only reasoning models (e.g. grok-3-mini) honor it.
+  const effort = providerOptions.reasoning?.effort;
+  const reasoningEffort =
+    effort === undefined
+      ? undefined
+      : effort === "minimal" || effort === "low"
+        ? "low"
+        : "high";
   const config: Partial<VercelModelConfig> = {
     ...(llmOptions.temperature !== undefined
       ? { temperature: llmOptions.temperature }
       : {}),
     ...(llmOptions.maxTokens !== undefined
       ? { maxTokens: llmOptions.maxTokens }
+      : {}),
+    ...(reasoningEffort
+      ? { providerOptions: { xai: { reasoningEffort } } }
       : {}),
   };
   return new VercelModel({

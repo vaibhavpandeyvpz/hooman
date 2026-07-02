@@ -265,10 +265,10 @@ type TypedFieldKind =
   | "optionalNumber"
   | "optionalInteger"
   | "bedrockCredentials"
-  | "ollamaThinking"
   | "openaiApi"
   | "reasoningEffort"
-  | "reasoningSummary";
+  | "reasoningSummary"
+  | "reasoningDisplay";
 
 type TypedFieldDefinition = {
   key: string;
@@ -308,7 +308,14 @@ const PROVIDER_FIELD_DEFINITIONS: Record<
       label: "Reasoning effort",
       kind: "reasoningEffort",
       placeholder: "medium",
-      note: 'Enables extended thinking (thinking: { type: "enabled" }). Allowed: "minimal", "low", "medium", "high", or blank to disable.',
+      note: 'Enables extended thinking (thinking: { type: "enabled", budget_tokens }). Allowed: "minimal", "low", "medium", "high", or blank to disable. Effort maps to a budget (1024/2048/4096/8192); defaults to "medium".',
+    },
+    {
+      key: "reasoningDisplay",
+      label: "Reasoning display",
+      kind: "reasoningDisplay",
+      placeholder: "summarized",
+      note: 'For Bedrock Claude via an Anthropic-compatible proxy (Opus 4.7+ hide reasoning by default): "summarized" reveals it (switches to adaptive thinking + output_config.effort); "omitted" to hide; blank keeps the enabled+budget scheme. Do NOT set for the native Anthropic API — it rejects adaptive/display.',
     },
   ],
   [LlmProvider.Azure]: [
@@ -353,6 +360,20 @@ const PROVIDER_FIELD_DEFINITIONS: Record<
       placeholder: "false",
       note: "Allowed: yes/no/true/false. Leave blank to use the AI SDK default.",
     },
+    {
+      key: "reasoningEffort",
+      label: "Reasoning effort",
+      kind: "reasoningEffort",
+      placeholder: "medium",
+      note: 'Responses API. Allowed: "minimal", "low", "medium", "high", or blank. Only reasoning-capable deployments honor it.',
+    },
+    {
+      key: "reasoningSummary",
+      label: "Reasoning summary",
+      kind: "reasoningSummary",
+      placeholder: "auto",
+      note: 'Responses API. Allowed: "auto" (default), "concise", "detailed", or "none" to disable.',
+    },
   ],
   [LlmProvider.Bedrock]: [
     {
@@ -381,6 +402,20 @@ const PROVIDER_FIELD_DEFINITIONS: Record<
       placeholder: "...",
       sensitive: true,
     },
+    {
+      key: "reasoningEffort",
+      label: "Reasoning effort",
+      kind: "reasoningEffort",
+      placeholder: "medium",
+      note: 'Enables extended thinking on supported models (e.g. Claude). Allowed: "minimal", "low", "medium", "high", or blank. Effort maps to a thinking budget (1024/2048/4096/8192 tokens); defaults to "medium".',
+    },
+    {
+      key: "reasoningDisplay",
+      label: "Reasoning display",
+      kind: "reasoningDisplay",
+      placeholder: "summarized",
+      note: 'Newer Bedrock Claude (Opus 4.7+) hide reasoning by default. Set "summarized" to reveal it (switches to adaptive thinking + output_config.effort); "omitted" to hide; blank keeps the enabled+budget scheme.',
+    },
   ],
   [LlmProvider.Google]: [
     {
@@ -389,6 +424,13 @@ const PROVIDER_FIELD_DEFINITIONS: Record<
       kind: "string",
       placeholder: "...",
       sensitive: true,
+    },
+    {
+      key: "reasoningEffort",
+      label: "Reasoning effort",
+      kind: "reasoningEffort",
+      placeholder: "medium",
+      note: 'Enables Gemini thinking with a dynamic budget. Allowed: "minimal", "low", "medium", "high", or blank to leave at the model default.',
     },
   ],
   [LlmProvider.Groq]: [
@@ -411,6 +453,13 @@ const PROVIDER_FIELD_DEFINITIONS: Record<
       kind: "stringRecord",
       placeholder: '{"x-my-header":"value"}',
     },
+    {
+      key: "reasoningEffort",
+      label: "Reasoning effort",
+      kind: "reasoningEffort",
+      placeholder: "medium",
+      note: 'Maps to Groq reasoning_effort ("minimal" -> "low"). Allowed: "minimal", "low", "medium", "high", or blank. Only reasoning models honor it.',
+    },
   ],
   [LlmProvider.Minimax]: [
     {
@@ -431,7 +480,14 @@ const PROVIDER_FIELD_DEFINITIONS: Record<
       label: "Reasoning effort",
       kind: "reasoningEffort",
       placeholder: "medium",
-      note: 'Enables thinking (normalized to MiniMax adaptive). Allowed: "minimal", "low", "medium", "high", or blank to disable.',
+      note: 'Enables thinking (normalized to MiniMax adaptive, with budget_tokens). Allowed: "minimal", "low", "medium", "high", or blank to disable. Effort maps to a budget (1024/2048/4096/8192); defaults to "medium".',
+    },
+    {
+      key: "reasoningDisplay",
+      label: "Reasoning display",
+      kind: "reasoningDisplay",
+      placeholder: "summarized",
+      note: 'Set "summarized" to switch to adaptive thinking + output_config.effort; "omitted" to hide; blank keeps the adaptive+budget scheme.',
     },
   ],
   [LlmProvider.Moonshot]: [
@@ -455,6 +511,13 @@ const PROVIDER_FIELD_DEFINITIONS: Record<
       kind: "stringRecord",
       placeholder: '{"x-my-header":"value"}',
     },
+    {
+      key: "reasoningEffort",
+      label: "Reasoning effort",
+      kind: "reasoningEffort",
+      placeholder: "medium",
+      note: 'Enables Kimi thinking (thinking: { type: "enabled" }). Allowed: "minimal", "low", "medium", "high", or blank to disable.',
+    },
   ],
   [LlmProvider.Ollama]: [
     {
@@ -464,11 +527,11 @@ const PROVIDER_FIELD_DEFINITIONS: Record<
       placeholder: "http://127.0.0.1:11434",
     },
     {
-      key: "thinking",
-      label: "Thinking",
-      kind: "ollamaThinking",
+      key: "reasoningEffort",
+      label: "Reasoning effort",
+      kind: "reasoningEffort",
       placeholder: "medium",
-      note: 'Allowed: yes/no/true/false or "high", "medium", "low". Leave blank to clear.',
+      note: 'Enables Ollama thinking, mapped to the think level ("minimal"/"low" -> "low"). Allowed: "minimal", "low", "medium", "high", or blank to disable.',
     },
   ],
   [LlmProvider.OpenAI]: [
@@ -535,6 +598,13 @@ const PROVIDER_FIELD_DEFINITIONS: Record<
       placeholder: '{"HTTP-Referer":"https://example.com","X-Title":"Hooman"}',
       note: "Optional extra headers such as attribution metadata for OpenRouter.",
     },
+    {
+      key: "reasoningEffort",
+      label: "Reasoning effort",
+      kind: "reasoningEffort",
+      placeholder: "medium",
+      note: 'Maps to OpenRouter\'s unified reasoning: { effort }. Allowed: "minimal", "low", "medium", "high", or blank. Only reasoning models honor it.',
+    },
   ],
   [LlmProvider.Xai]: [
     {
@@ -555,6 +625,13 @@ const PROVIDER_FIELD_DEFINITIONS: Record<
       label: "Headers",
       kind: "stringRecord",
       placeholder: '{"x-my-header":"value"}',
+    },
+    {
+      key: "reasoningEffort",
+      label: "Reasoning effort",
+      kind: "reasoningEffort",
+      placeholder: "high",
+      note: 'Maps to xAI reasoning_effort (low/high; "minimal"/"low" -> "low", "medium"/"high" -> "high"). Allowed: "minimal", "low", "medium", "high", or blank. Only reasoning models (e.g. grok-3-mini) honor it.',
     },
   ],
 };
@@ -619,16 +696,6 @@ function parseTypedFieldValue(
           });
     case "bedrockCredentials":
       return undefined;
-    case "ollamaThinking": {
-      const value = normalizeOptional(input);
-      if (value === undefined) {
-        return undefined;
-      }
-      if (value === "high" || value === "medium" || value === "low") {
-        return value;
-      }
-      return parseOptionalBoolean(value, definition.label);
-    }
     case "openaiApi": {
       const value = normalizeOptional(input);
       if (value === undefined) {
@@ -671,6 +738,18 @@ function parseTypedFieldValue(
       }
       throw new Error(
         `${definition.label} must be "auto", "concise", "detailed", or "none".`,
+      );
+    }
+    case "reasoningDisplay": {
+      const value = normalizeOptional(input);
+      if (value === undefined) {
+        return undefined;
+      }
+      if (value === "summarized" || value === "omitted") {
+        return value;
+      }
+      throw new Error(
+        `${definition.label} must be "summarized" or "omitted".`,
       );
     }
   }
@@ -813,10 +892,10 @@ export function ConfigureApp({
         return;
       }
       if (
-        screen.kind === "config-provider-ollama-thinking" ||
         screen.kind === "config-provider-openai-api" ||
         screen.kind === "config-provider-reasoning-effort" ||
-        screen.kind === "config-provider-reasoning-summary"
+        screen.kind === "config-provider-reasoning-summary" ||
+        screen.kind === "config-provider-reasoning-display"
       ) {
         setScreen({ kind: "config-provider-edit", name: screen.name });
         return;
@@ -1695,16 +1774,14 @@ export function ConfigureApp({
                         providerOptions.reasoning as
                           { summary?: unknown } | undefined
                       )?.summary
-                    : providerOptions[definition.key],
+                    : definition.kind === "reasoningDisplay"
+                      ? (
+                          providerOptions.reasoning as
+                            { display?: unknown } | undefined
+                        )?.display
+                      : providerOptions[definition.key],
             )}`,
             value: () => {
-              if (definition.kind === "ollamaThinking") {
-                setScreen({
-                  kind: "config-provider-ollama-thinking",
-                  name: entry.name,
-                });
-                return;
-              }
               if (definition.kind === "openaiApi") {
                 setScreen({
                   kind: "config-provider-openai-api",
@@ -1722,6 +1799,13 @@ export function ConfigureApp({
               if (definition.kind === "reasoningSummary") {
                 setScreen({
                   kind: "config-provider-reasoning-summary",
+                  name: entry.name,
+                });
+                return;
+              }
+              if (definition.kind === "reasoningDisplay") {
+                setScreen({
+                  kind: "config-provider-reasoning-display",
                   name: entry.name,
                 });
                 return;
@@ -1840,62 +1924,6 @@ export function ConfigureApp({
     );
   };
 
-  const renderOllamaThinkingMenu = () => {
-    if (screen.kind !== "config-provider-ollama-thinking") {
-      return null;
-    }
-    const entry = config.providers.find(
-      (provider) => provider.name === screen.name,
-    );
-    if (!entry) {
-      return null;
-    }
-    const current =
-      "thinking" in entry.options ? entry.options.thinking : undefined;
-    const items: MenuItem[] = [
-      {
-        label:
-          current === undefined ? "Not set • current" : "Not set (clear value)",
-        value: () => {
-          if (
-            updateConfig(
-              { providers: patchProvider(entry.name, { thinking: undefined }) },
-              `Cleared thinking for "${entry.name}".`,
-            )
-          ) {
-            setScreen({ kind: "config-provider-edit", name: entry.name });
-          }
-        },
-      },
-      ...[false, true, "low", "medium", "high"].map((value) => ({
-        label: current === value ? `${String(value)} • current` : String(value),
-        value: () => {
-          if (
-            updateConfig(
-              { providers: patchProvider(entry.name, { thinking: value }) },
-              `Updated thinking for "${entry.name}" to "${String(value)}".`,
-            )
-          ) {
-            setScreen({ kind: "config-provider-edit", name: entry.name });
-          }
-        },
-      })),
-      {
-        label: "Back",
-        value: () =>
-          setScreen({ kind: "config-provider-edit", name: entry.name }),
-      },
-    ];
-
-    return (
-      <MenuScreen
-        title={`Choose Thinking • ${entry.name}`}
-        description='Pick one of the allowed values: clear, false, true, "low", "medium", or "high".'
-        items={items}
-      />
-    );
-  };
-
   const renderOpenAIApiMenu = () => {
     if (screen.kind !== "config-provider-openai-api") {
       return null;
@@ -1955,8 +1983,10 @@ export function ConfigureApp({
 
   const renderOpenAIEnumMenu = (
     screenKind:
-      "config-provider-reasoning-effort" | "config-provider-reasoning-summary",
-    subKey: "effort" | "summary",
+      | "config-provider-reasoning-effort"
+      | "config-provider-reasoning-summary"
+      | "config-provider-reasoning-display",
+    subKey: "effort" | "summary" | "display",
     title: string,
     description: string,
     values: readonly string[],
@@ -3052,8 +3082,6 @@ export function ConfigureApp({
         return renderProviderEditMenu();
       case "config-provider-type":
         return renderProviderTypeMenu();
-      case "config-provider-ollama-thinking":
-        return renderOllamaThinkingMenu();
       case "config-provider-openai-api":
         return renderOpenAIApiMenu();
       case "config-provider-reasoning-effort":
@@ -3073,6 +3101,15 @@ export function ConfigureApp({
           'Responses API only. Pick one: "auto" (default), "concise", "detailed", or "none".',
           ["auto", "concise", "detailed", "none"],
           "Not set (auto) • current",
+        );
+      case "config-provider-reasoning-display":
+        return renderOpenAIEnumMenu(
+          "config-provider-reasoning-display",
+          "display",
+          `Choose Reasoning display • ${screen.name}`,
+          'Bedrock Claude / MiniMax only (not native Anthropic). "summarized" reveals reasoning on newer Bedrock Claude (Opus 4.7+) and switches to adaptive thinking; "omitted" hides it. Clear to keep the enabled+budget scheme.',
+          ["summarized", "omitted"],
+          "Not set • current",
         );
       case "config-provider-delete-confirm":
         return renderProviderDeleteConfirm();

@@ -11,13 +11,15 @@ export function create(
     Number.isFinite(llmOptions.maxTokens)
       ? llmOptions.maxTokens
       : 64_000;
+  // Ollama's `think` accepts level strings on supported models. Map the shared
+  // effort onto a level (`minimal`/`low` -> `low`).
+  const effort = providerOptions.reasoning?.effort;
+  const think = effort === "minimal" ? "low" : effort;
   return new StrandsOllamaModel({
     modelId: llmOptions.model,
     maxTokens,
     ...(providerOptions.baseURL ? { host: providerOptions.baseURL } : {}),
-    ...(providerOptions.thinking !== undefined
-      ? { think: providerOptions.thinking }
-      : {}),
+    ...(think !== undefined ? { think } : {}),
     ...(llmOptions.temperature !== undefined
       ? { options: { temperature: llmOptions.temperature } }
       : {}),

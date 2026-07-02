@@ -22,12 +22,25 @@ export function create(
   ) as AzureOpenAIProviderSettings;
   const provider =
     Object.keys(settings).length > 0 ? createAzure(settings) : azure;
+  // Azure OpenAI (Responses API) reads reasoning from `providerOptions.azure`.
+  // Only reasoning-capable deployments honor these; others ignore them.
+  const azureOptions: Record<string, string> = {};
+  if (providerOptions.reasoning?.effort) {
+    azureOptions.reasoningEffort = providerOptions.reasoning.effort;
+  }
+  const summary = providerOptions.reasoning?.summary;
+  if (summary !== undefined && summary !== "none") {
+    azureOptions.reasoningSummary = summary;
+  }
   const config: Partial<VercelModelConfig> = {
     ...(llmOptions.temperature !== undefined
       ? { temperature: llmOptions.temperature }
       : {}),
     ...(llmOptions.maxTokens !== undefined
       ? { maxTokens: llmOptions.maxTokens }
+      : {}),
+    ...(Object.keys(azureOptions).length > 0
+      ? { providerOptions: { azure: azureOptions } }
       : {}),
   };
   return new VercelModel({

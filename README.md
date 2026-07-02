@@ -458,17 +458,19 @@ LLM entries reference a provider by name and carry normalized model options:
 
 Supported provider option fields:
 
-- `anthropic`: `apiKey`, optional `baseURL`, optional `headers`, optional `thinking`
-- `azure`: optional `resourceName`, optional `baseURL`, optional `apiKey`, optional `headers`, optional `apiVersion`, optional `useDeploymentBasedUrls`
-- `bedrock`: `region`, `accessKeyId`, `secretAccessKey`, optional `sessionToken`, optional `apiKey`
-- `google`: `apiKey`
-- `groq`: `apiKey`, optional `baseURL`, optional `headers`
-- `minimax`: `apiKey`, optional `headers`, optional `thinking`
-- `moonshot`: `apiKey`, optional `baseURL`, optional `headers`
-- `ollama`: optional `baseURL`, optional `thinking`
-- `openai`: `apiKey`, optional `baseURL`, optional `headers`
-- `openrouter`: `apiKey`, optional `baseURL`, optional `headers`
-- `xai`: `apiKey`, optional `baseURL`, optional `headers`
+All reasoning-capable providers share a common optional `reasoning` object (`{ effort?, summary?, display? }`). `effort` is `"minimal" | "low" | "medium" | "high"` and its presence enables thinking; Hooman translates it to each backend's native shape. `summary` (`"auto" | "concise" | "detailed" | "none"`) is only honored by the OpenAI/Azure Responses API. `display` (`"summarized" | "omitted"`) applies to Bedrock Claude / MiniMax only. See the bundled **hooman-config** skill for the exact per-provider mapping.
+
+- `anthropic`: `apiKey`, optional `baseURL`, optional `headers`, optional `reasoning`
+- `azure`: optional `resourceName`, optional `baseURL`, optional `apiKey`, optional `headers`, optional `apiVersion`, optional `useDeploymentBasedUrls`, optional `reasoning`
+- `bedrock`: `region`, `accessKeyId`, `secretAccessKey`, optional `sessionToken`, optional `apiKey`, optional `reasoning`
+- `google`: `apiKey`, optional `reasoning`
+- `groq`: `apiKey`, optional `baseURL`, optional `headers`, optional `reasoning`
+- `minimax`: `apiKey`, optional `headers`, optional `reasoning`
+- `moonshot`: `apiKey`, optional `baseURL`, optional `headers`, optional `reasoning`
+- `ollama`: optional `baseURL`, optional `reasoning`
+- `openai`: `apiKey`, optional `baseURL`, optional `headers`, optional `api` (`"responses"` (default) or `"chat"`), optional `reasoning`
+- `openrouter`: `apiKey`, optional `baseURL`, optional `headers`, optional `reasoning`
+- `xai`: `apiKey`, optional `baseURL`, optional `headers`, optional `reasoning`
 
 Normalized LLM option fields:
 
@@ -482,8 +484,10 @@ Notes:
 - Azure uses the Vercel AI SDK `@ai-sdk/azure` provider. Set the LLM `model` to your Azure deployment name, not the raw OpenAI model id.
 - Ollama maps normalized `temperature` into Ollama `options.temperature`.
 - MiniMax uses the Anthropic-compatible endpoint `https://api.minimax.io/anthropic` automatically.
-- Moonshot defaults `baseURL` to `https://api.moonshot.ai/v1` when it is omitted.
-- OpenRouter defaults `baseURL` to `https://openrouter.ai/api/v1` when it is omitted, and model names are usually provider-qualified ids such as `anthropic/claude-3.5-sonnet`.
+- Moonshot defaults `baseURL` to `https://api.moonshot.ai/v1` when it is omitted. It is served through the reasoning-aware openai-compatible adapter, so Kimi's `reasoning_content` streams as thinking — this makes it the right provider for reaching Kimi through an OpenAI-compatible proxy (e.g. LiteLLM), where the `openai` provider's Chat adapter would drop reasoning.
+- OpenRouter defaults `baseURL` to `https://openrouter.ai/api/v1` when it is omitted, and model names are usually provider-qualified ids such as `anthropic/claude-3.5-sonnet`. It also uses the openai-compatible adapter, so reasoning streams for reasoning models.
+- The `openai` provider defaults to the Responses API (`api: "responses"`), which surfaces reasoning. `api: "chat"` does NOT surface reasoning (the Chat adapter drops `reasoning_content`); route such proxies through `moonshot`/`openrouter` instead.
+- `reasoning.display` is for Bedrock Claude (Opus 4.7+ hide reasoning by default) and MiniMax; the native Anthropic API rejects it.
 - Bedrock can rely on the AWS default credential chain when explicit credentials are not provided.
 
 ## MCP Configuration

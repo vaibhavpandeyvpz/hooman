@@ -111,7 +111,7 @@ Common flags on `exec`, `chat`, and `daemon`:
 
 In-chat slash commands (interactive `chat`): `/model`, `/mode`, `/yolo`, `/init`, `/compact` (compact history now), `/new` (start a fresh session), and `/config` (launch the configuration TUI on the alternate screen, restoring chat on exit).
 
-The `/config` workflow uses menu screens where you select a field and edit just that value. Enum-like values such as provider thinking modes use pickers.
+The `/config` workflow uses menu screens where you select a field and edit just that value. Enum-like values such as the OpenAI API mode and the shared reasoning options (`effort`/`summary`/`display`) use pickers.
 
 ## Configuration layout
 
@@ -127,7 +127,7 @@ Hooman stores user data under `~/.hooman/`:
 - `sessions/` — persisted session data.
 - `acp-sessions/` — persisted ACP session metadata.
 
-Default `config.json` uses a local Ollama provider and `gemma4:e4b` as the default model. Supported providers include `anthropic`, `bedrock`, `google`, `groq`, `minimax`, `moonshot`, `ollama`, `openai`, and `xai`. See `src/core/models/index.ts` for the currently wired providers, `src/core/config.ts` for the top-level config schema, and `src/core/models/types.ts` for provider/LLM option schemas.
+Default `config.json` uses a local Ollama provider and `gemma4:e4b` as the default model. Supported providers include `anthropic`, `azure`, `bedrock`, `google`, `groq`, `minimax`, `moonshot`, `ollama`, `openai`, `openrouter`, and `xai`. See `src/core/models/index.ts` for the currently wired providers, `src/core/config.ts` for the top-level config schema, and `src/core/models/types.ts` for provider/LLM option schemas. Reasoning-capable providers share a common `reasoning: { effort?, summary?, display? }` option that each factory translates to the backend's native shape.
 
 ## Code style and conventions
 

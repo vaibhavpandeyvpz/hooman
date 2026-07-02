@@ -21,12 +21,17 @@ export function create(
   ) as MoonshotAIProviderSettings;
   const provider =
     Object.keys(settings).length > 0 ? createMoonshotAI(settings) : moonshotai;
+  // Kimi reads `thinking` from `providerOptions.moonshotai`. Any effort just
+  // enables it (`budgetTokens` is left to the model default).
   const config: Partial<VercelModelConfig> = {
     ...(llmOptions.temperature !== undefined
       ? { temperature: llmOptions.temperature }
       : {}),
     ...(llmOptions.maxTokens !== undefined
       ? { maxTokens: llmOptions.maxTokens }
+      : {}),
+    ...(providerOptions.reasoning?.effort
+      ? { providerOptions: { moonshotai: { thinking: { type: "enabled" } } } }
       : {}),
   };
   return new MoonshotModel({

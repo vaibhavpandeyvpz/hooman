@@ -14,22 +14,44 @@ export enum LlmProvider {
   Xai = "xai",
 }
 
-export type OllamaThinking = boolean | "high" | "medium" | "low";
 export type OpenAIApi = "chat" | "responses";
 export type ReasoningEffort = "minimal" | "low" | "medium" | "high";
 export type ReasoningSummary = "auto" | "concise" | "detailed" | "none";
+export type ReasoningDisplay = "summarized" | "omitted";
 
 /**
- * Common reasoning/thinking controls shared across providers.
- * - `effort`: normalized reasoning effort. Its presence enables thinking on
- *   Anthropic (`thinking: { type: "enabled" }`) and MiniMax (normalized to
- *   `thinking: { type: "adaptive" }`); OpenAI passes the level through.
- * - `summary`: reasoning summary verbosity (OpenAI Responses API only; ignored
- *   by other providers).
+ * Common reasoning/thinking controls shared across every reasoning-capable
+ * provider. Hooman translates this into each provider's native shape.
+ * - `effort`: normalized reasoning effort. Its presence enables thinking; the
+ *   level is forwarded where the backend supports effort/levels and otherwise
+ *   used only to turn thinking on (see each provider factory for the exact
+ *   mapping). Omit to leave thinking off.
+ * - `summary`: reasoning-summary verbosity. Only OpenAI/Azure Responses API
+ *   honor this; other providers ignore it.
+ * - `display`: Bedrock Claude / MiniMax only. Newer Bedrock Claude models
+ *   (Opus 4.7+) default reasoning display to omitted; set `"summarized"` to
+ *   receive the reasoning trace. Setting it switches the request to `adaptive`
+ *   thinking with `output_config.effort` (required by Opus, accepted by
+ *   Sonnet/MiniMax). Do NOT set it for the native Anthropic API
+ *   (api.anthropic.com), which only supports `thinking: { type: "enabled" }`
+ *   and rejects `adaptive`/`display`/`output_config`.
  */
 export type ReasoningOptions = {
   effort?: ReasoningEffort;
   summary?: ReasoningSummary;
+  display?: ReasoningDisplay;
+};
+
+/**
+ * Effort -> `budget_tokens` for providers that take an explicit thinking budget
+ * (Anthropic/MiniMax via the Anthropic API, Bedrock Converse). We always send a
+ * budget rather than omitting it; `medium` is the default when no effort is set.
+ */
+export const REASONING_BUDGET_TOKENS: Record<ReasoningEffort, number> = {
+  minimal: 1024,
+  low: 2048,
+  medium: 4096,
+  high: 8192,
 };
 
 export type LlmOptions = {
@@ -43,9 +65,10 @@ export type AnthropicProviderOptions = {
   baseURL?: string;
   headers?: Record<string, string>;
   /**
-   * Reasoning controls. Setting `reasoning.effort` enables extended thinking
-   * (`thinking: { type: "enabled" }`); omit to leave thinking off. `budget_tokens`
-   * is intentionally not sent (the proxy/model default is used).
+   * Reasoning controls. Providing `reasoning` enables extended thinking
+   * (`thinking: { type: "enabled", budget_tokens }`); omit `reasoning` entirely
+   * to leave thinking off. `effort` defaults to `medium` and maps to an explicit
+   * `budget_tokens` (always sent).
    */
   reasoning?: ReasoningOptions;
 };
@@ -57,6 +80,11 @@ export type AzureProviderOptions = {
   headers?: Record<string, string>;
   apiVersion?: string;
   useDeploymentBasedUrls?: boolean;
+  /**
+   * Reasoning controls (Azure OpenAI Responses API). `effort` and `summary` are
+   * forwarded to the deployment; only reasoning-capable models honor them.
+   */
+  reasoning?: ReasoningOptions;
 };
 
 export type BedrockProviderOptions = {
@@ -65,24 +93,46 @@ export type BedrockProviderOptions = {
   secretAccessKey?: string;
   sessionToken?: string;
   apiKey?: string;
+  /**
+   * Reasoning controls. Providing `reasoning` enables extended thinking on
+   * supported models (e.g. Claude), sent as `thinking: { type: "enabled",
+   * budget_tokens }`. `effort` defaults to `medium` and maps to a `budget_tokens`
+   * value (Converse requires an explicit budget); omit `reasoning` to leave
+   * thinking off.
+   */
+  reasoning?: ReasoningOptions;
 };
 
 export type GoogleProviderOptions = {
   apiKey?: string;
+  /**
+   * Reasoning controls. Setting `reasoning.effort` enables Gemini thinking
+   * (`thinkingConfig: { includeThoughts: true, thinkingBudget: -1 }` — dynamic
+   * budget); omit to leave thinking at the model default.
+   */
+  reasoning?: ReasoningOptions;
 };
 
 export type GroqProviderOptions = {
   apiKey?: string;
   baseURL?: string;
   headers?: Record<string, string>;
+  /**
+   * Reasoning controls. `reasoning.effort` maps to Groq's `reasoning_effort`
+   * (`minimal` is sent as `low`); reasoning is streamed via
+   * `reasoning_format: "parsed"`. Omit to leave reasoning at the model default.
+   */
+  reasoning?: ReasoningOptions;
 };
 
 export type MinimaxProviderOptions = {
   apiKey?: string;
   headers?: Record<string, string>;
   /**
-   * Reasoning controls. Setting `reasoning.effort` enables thinking, normalized
-   * to MiniMax's `thinking: { type: "adaptive" }`; omit to leave thinking off.
+   * Reasoning controls. Providing `reasoning` enables thinking, normalized to
+   * MiniMax's `thinking: { type: "adaptive", budget_tokens }`; omit `reasoning`
+   * to leave thinking off. `effort` defaults to `medium` and maps to an explicit
+   * `budget_tokens` (always sent).
    */
   reasoning?: ReasoningOptions;
 };
@@ -91,11 +141,21 @@ export type MoonshotProviderOptions = {
   apiKey?: string;
   baseURL?: string;
   headers?: Record<string, string>;
+  /**
+   * Reasoning controls. Setting `reasoning.effort` enables Kimi thinking
+   * (`thinking: { type: "enabled" }`); omit to leave thinking off.
+   */
+  reasoning?: ReasoningOptions;
 };
 
 export type OllamaProviderOptions = {
   baseURL?: string;
-  thinking?: OllamaThinking;
+  /**
+   * Reasoning controls. Setting `reasoning.effort` enables Ollama thinking,
+   * mapped to the `think` level (`minimal`/`low` -> `"low"`, `medium` ->
+   * `"medium"`, `high` -> `"high"`); omit to leave thinking off.
+   */
+  reasoning?: ReasoningOptions;
 };
 
 export type OpenAIProviderOptions = {
@@ -107,7 +167,11 @@ export type OpenAIProviderOptions = {
    * - `responses` (default): OpenAI Responses API. Streams reasoning/thinking
    *   (`response.reasoning_summary_text.delta`) so it shows up in the UI.
    * - `chat`: Chat Completions. Use for OpenAI-compatible MaaS/proxies that do
-   *   not implement the Responses API. Reasoning is not surfaced in this mode.
+   *   not implement the Responses API. Reasoning is NOT surfaced in this mode:
+   *   the SDK's Chat adapter drops `reasoning_content`. For a MaaS/proxy that
+   *   only exposes thinking via chat `reasoning_content` (e.g. Kimi/Moonshot),
+   *   route it through the `moonshot` or `openrouter` provider instead, which
+   *   use the reasoning-aware openai-compatible adapter.
    */
   api?: OpenAIApi;
   /**
@@ -125,12 +189,26 @@ export type OpenRouterProviderOptions = {
   apiKey?: string;
   baseURL?: string;
   headers?: Record<string, string>;
+  /**
+   * Reasoning controls. `reasoning.effort` maps to `reasoning_effort`, which
+   * OpenRouter normalizes for reasoning models. OpenRouter is served through the
+   * openai-compatible adapter (not the OpenAI Chat adapter) so `reasoning`/
+   * `reasoning_content` deltas are surfaced as thinking. Omit to leave reasoning
+   * at the default.
+   */
+  reasoning?: ReasoningOptions;
 };
 
 export type XaiProviderOptions = {
   apiKey?: string;
   baseURL?: string;
   headers?: Record<string, string>;
+  /**
+   * Reasoning controls. `reasoning.effort` maps to xAI's `reasoning_effort`
+   * (`low`/`high`; `minimal` -> `low`, `medium` -> `high`). Only reasoning
+   * models (e.g. grok-3-mini) support it. Omit to leave reasoning at the default.
+   */
+  reasoning?: ReasoningOptions;
 };
 
 export type ProviderOptions =
@@ -162,16 +240,14 @@ export const ReasoningSummarySchema = z.enum([
   "detailed",
   "none",
 ]);
+export const ReasoningDisplaySchema = z.enum(["summarized", "omitted"]);
 export const ReasoningOptionsSchema = z
   .object({
     effort: ReasoningEffortSchema.optional(),
     summary: ReasoningSummarySchema.optional(),
+    display: ReasoningDisplaySchema.optional(),
   })
   .strict();
-export const OllamaThinkingSchema = z.union([
-  z.boolean(),
-  z.enum(["high", "medium", "low"]),
-]);
 
 export const LlmOptionsSchema = z
   .object({
@@ -198,6 +274,7 @@ export const AzureProviderOptionsSchema = z
     headers: HeadersSchema,
     apiVersion: NonEmptyStringSchema.optional(),
     useDeploymentBasedUrls: z.boolean().optional(),
+    reasoning: ReasoningOptionsSchema.optional(),
   })
   .strict();
 
@@ -208,6 +285,7 @@ export const BedrockProviderOptionsSchema = z
     secretAccessKey: NonEmptyStringSchema.optional(),
     sessionToken: NonEmptyStringSchema.optional(),
     apiKey: NonEmptyStringSchema.optional(),
+    reasoning: ReasoningOptionsSchema.optional(),
   })
   .strict()
   .superRefine((value, ctx) => {
@@ -225,6 +303,7 @@ export const BedrockProviderOptionsSchema = z
 export const GoogleProviderOptionsSchema = z
   .object({
     apiKey: NonEmptyStringSchema.optional(),
+    reasoning: ReasoningOptionsSchema.optional(),
   })
   .strict();
 
@@ -233,6 +312,7 @@ export const GroqProviderOptionsSchema = z
     apiKey: NonEmptyStringSchema.optional(),
     baseURL: NonEmptyStringSchema.optional(),
     headers: HeadersSchema,
+    reasoning: ReasoningOptionsSchema.optional(),
   })
   .strict();
 
@@ -249,13 +329,14 @@ export const MoonshotProviderOptionsSchema = z
     apiKey: NonEmptyStringSchema.optional(),
     baseURL: NonEmptyStringSchema.optional(),
     headers: HeadersSchema,
+    reasoning: ReasoningOptionsSchema.optional(),
   })
   .strict();
 
 export const OllamaProviderOptionsSchema = z
   .object({
     baseURL: NonEmptyStringSchema.optional(),
-    thinking: OllamaThinkingSchema.optional(),
+    reasoning: ReasoningOptionsSchema.optional(),
   })
   .strict();
 
@@ -274,6 +355,7 @@ export const OpenRouterProviderOptionsSchema = z
     apiKey: NonEmptyStringSchema.optional(),
     baseURL: NonEmptyStringSchema.optional(),
     headers: HeadersSchema,
+    reasoning: ReasoningOptionsSchema.optional(),
   })
   .strict();
 
@@ -282,6 +364,7 @@ export const XaiProviderOptionsSchema = z
     apiKey: NonEmptyStringSchema.optional(),
     baseURL: NonEmptyStringSchema.optional(),
     headers: HeadersSchema,
+    reasoning: ReasoningOptionsSchema.optional(),
   })
   .strict();
 
