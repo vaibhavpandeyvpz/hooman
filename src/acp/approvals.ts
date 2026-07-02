@@ -2,10 +2,18 @@ import {
   type AgentContext,
   type SessionNotification,
   methods,
+  RequestError,
 } from "@agentclientprotocol/sdk";
 import { HoomanToolApprovalIntervention } from "../core/approvals/intervention.js";
 import { inferToolKind, toolDisplayTitle } from "./utils/tool-kind.js";
 import { toolCallLocationsFromInput } from "./utils/tool-locations.js";
+
+/** JSON-RPC "Request Cancelled" (-32800), sent when a request is cancelled. */
+const REQUEST_CANCELLED_CODE = -32800;
+
+function isRequestCancelled(error: unknown): boolean {
+  return error instanceof RequestError && error.code === REQUEST_CANCELLED_CODE;
+}
 
 export function createAcpToolApprovalIntervention(
   client: AgentContext,
@@ -76,44 +84,54 @@ export function createAcpToolApprovalIntervention(
         request.toolName,
         request.input,
       );
+      // Tie the permission prompt to the turn's cancel signal so `session/cancel`
+      // cascades a `$/cancel_request` to the client instead of hanging.
+      const cancellationSignal = event.agent.cancelSignal;
+      const cancelledReason = `Tool "${request.toolName}" permission request was cancelled.`;
 
-      const response = await client.request(
-        methods.client.session.requestPermission,
-        {
-          sessionId,
-          toolCall: {
-            toolCallId: event.toolUse.toolUseId,
-            title,
-            kind,
-            status: "pending",
-            rawInput: request.input,
-            ...(locations ? { locations } : {}),
+      let response;
+      try {
+        response = await client.request(
+          methods.client.session.requestPermission,
+          {
+            sessionId,
+            toolCall: {
+              toolCallId: event.toolUse.toolUseId,
+              title,
+              kind,
+              status: "pending",
+              rawInput: request.input,
+              ...(locations ? { locations } : {}),
+            },
+            options: [
+              {
+                kind: "allow_once",
+                name: "Allow once",
+                optionId: "allow_once",
+              },
+              {
+                kind: "allow_always",
+                name: "Always allow",
+                optionId: "allow_always",
+              },
+              {
+                kind: "reject_once",
+                name: "Reject",
+                optionId: "reject_once",
+              },
+            ],
           },
-          options: [
-            {
-              kind: "allow_once",
-              name: "Allow once",
-              optionId: "allow_once",
-            },
-            {
-              kind: "allow_always",
-              name: "Always allow",
-              optionId: "allow_always",
-            },
-            {
-              kind: "reject_once",
-              name: "Reject",
-              optionId: "reject_once",
-            },
-          ],
-        },
-      );
+          { cancellationSignal },
+        );
+      } catch (error) {
+        if (cancellationSignal.aborted || isRequestCancelled(error)) {
+          return { decision: "reject", reason: cancelledReason };
+        }
+        throw error;
+      }
 
       if (response.outcome.outcome === "cancelled") {
-        return {
-          decision: "reject",
-          reason: `Tool "${request.toolName}" permission request was cancelled.`,
-        };
+        return { decision: "reject", reason: cancelledReason };
       }
 
       if (response.outcome.optionId === "allow_once") {

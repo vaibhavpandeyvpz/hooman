@@ -967,6 +967,13 @@ export class HoomanAcpAgent {
           stopReason = "refusal";
         }
       }
+
+      // If cancellation was requested, report `cancelled` even when the stream
+      // happened to finish cleanly right as the signal fired (spec requires the
+      // prompt to resolve with the cancelled stop reason, not `end_turn`).
+      if (turnAbort.signal.aborted) {
+        stopReason = "cancelled";
+      }
     } finally {
       rec.turnAbort = null;
       // Apply mode/model changes requested mid-turn before releasing the gate
@@ -1308,15 +1315,21 @@ export class HoomanAcpAgent {
     sessionId: string,
     request: TerminalRunRequest,
   ): Promise<TerminalRunResult> {
-    const created = await client.request(methods.client.terminal.create, {
-      sessionId,
-      command: request.command,
-      args: request.args,
-      cwd: request.cwd,
-      ...(request.outputByteLimit !== undefined
-        ? { outputByteLimit: request.outputByteLimit }
-        : {}),
-    });
+    const created = await client.request(
+      methods.client.terminal.create,
+      {
+        sessionId,
+        command: request.command,
+        args: request.args,
+        cwd: request.cwd,
+        ...(request.outputByteLimit !== undefined
+          ? { outputByteLimit: request.outputByteLimit }
+          : {}),
+      },
+      // Cascade `$/cancel_request` if the turn is cancelled before the terminal
+      // is created; once created we explicitly kill+release below instead.
+      { cancellationSignal: request.cancelSignal },
+    );
     const terminalId = created.terminalId;
 
     try {
