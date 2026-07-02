@@ -10,10 +10,7 @@ import {
   type InterventionHandler,
 } from "@strands-agents/sdk";
 import { ContextInjector } from "@strands-agents/sdk/vended-plugins/context-injector";
-import {
-  ContextOffloader,
-  FileStorage,
-} from "@strands-agents/sdk/vended-plugins/context-offloader";
+import { ContextOffloader } from "@strands-agents/sdk/vended-plugins/context-offloader";
 import { join } from "node:path";
 import type { Tool } from "@strands-agents/sdk";
 import { type Config } from "../config.js";
@@ -24,6 +21,7 @@ import type { Manager as McpManager } from "../mcp/index.js";
 import type { System as SystemPrompt } from "../prompts/index.js";
 import { FlatFileStorage } from "../sessions/flat-file-storage.js";
 import { LazySessionManager } from "../sessions/lazy-session-manager.js";
+import { TolerantFileStorage } from "../sessions/tolerant-file-storage.js";
 import {
   createSubagentTools,
   loadSubagentRegistry,
@@ -241,7 +239,9 @@ function createOffloadingPlugins(): Plugin[] {
       renderContent: async () => `<now>${new Date().toISOString()}</now>`,
     }),
     new ContextOffloader({
-      storage: new FileStorage(join(sessionsPath(), OFFLOADED_CONTENT_DIR)),
+      storage: new TolerantFileStorage(
+        join(sessionsPath(), OFFLOADED_CONTENT_DIR),
+      ),
       maxResultTokens: OFFLOADING_MAX_RESULT_TOKENS,
       previewTokens: OFFLOADING_PREVIEW_TOKENS,
       includeRetrievalTool: true,
