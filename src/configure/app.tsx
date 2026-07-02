@@ -265,11 +265,10 @@ type TypedFieldKind =
   | "optionalNumber"
   | "optionalInteger"
   | "bedrockCredentials"
-  | "anthropicThinking"
   | "ollamaThinking"
   | "openaiApi"
-  | "openaiReasoningEffort"
-  | "openaiReasoningSummary";
+  | "reasoningEffort"
+  | "reasoningSummary";
 
 type TypedFieldDefinition = {
   key: string;
@@ -305,11 +304,11 @@ const PROVIDER_FIELD_DEFINITIONS: Record<
       placeholder: '{"x-my-header":"value"}',
     },
     {
-      key: "thinking",
-      label: "Thinking",
-      kind: "anthropicThinking",
-      placeholder: "adaptive",
-      note: 'Allowed: "disabled", "adaptive", or blank to clear.',
+      key: "reasoningEffort",
+      label: "Reasoning effort",
+      kind: "reasoningEffort",
+      placeholder: "medium",
+      note: 'Enables extended thinking (thinking: { type: "enabled" }). Allowed: "minimal", "low", "medium", "high", or blank to disable.',
     },
   ],
   [LlmProvider.Azure]: [
@@ -428,11 +427,11 @@ const PROVIDER_FIELD_DEFINITIONS: Record<
       placeholder: '{"x-my-header":"value"}',
     },
     {
-      key: "thinking",
-      label: "Thinking",
-      kind: "anthropicThinking",
-      placeholder: "adaptive",
-      note: 'Allowed: "disabled", "adaptive", or blank to clear.',
+      key: "reasoningEffort",
+      label: "Reasoning effort",
+      kind: "reasoningEffort",
+      placeholder: "medium",
+      note: 'Enables thinking (normalized to MiniMax adaptive). Allowed: "minimal", "low", "medium", "high", or blank to disable.',
     },
   ],
   [LlmProvider.Moonshot]: [
@@ -502,14 +501,14 @@ const PROVIDER_FIELD_DEFINITIONS: Record<
     {
       key: "reasoningEffort",
       label: "Reasoning effort",
-      kind: "openaiReasoningEffort",
+      kind: "reasoningEffort",
       placeholder: "medium",
       note: 'Responses API only. Allowed: "minimal", "low", "medium", "high", or blank. Some models (e.g. GPT-5) only emit a reasoning summary at "medium"+.',
     },
     {
       key: "reasoningSummary",
       label: "Reasoning summary",
-      kind: "openaiReasoningSummary",
+      kind: "reasoningSummary",
       placeholder: "auto",
       note: 'Responses API only. Allowed: "auto" (default), "concise", "detailed", or "none" to disable.',
     },
@@ -620,16 +619,6 @@ function parseTypedFieldValue(
           });
     case "bedrockCredentials":
       return undefined;
-    case "anthropicThinking": {
-      const value = normalizeOptional(input);
-      if (value === undefined) {
-        return undefined;
-      }
-      if (value === "disabled" || value === "adaptive") {
-        return value;
-      }
-      throw new Error(`${definition.label} must be "disabled" or "adaptive".`);
-    }
     case "ollamaThinking": {
       const value = normalizeOptional(input);
       if (value === undefined) {
@@ -650,7 +639,7 @@ function parseTypedFieldValue(
       }
       throw new Error(`${definition.label} must be "chat" or "responses".`);
     }
-    case "openaiReasoningEffort": {
+    case "reasoningEffort": {
       const value = normalizeOptional(input);
       if (value === undefined) {
         return undefined;
@@ -667,7 +656,7 @@ function parseTypedFieldValue(
         `${definition.label} must be "minimal", "low", "medium", or "high".`,
       );
     }
-    case "openaiReasoningSummary": {
+    case "reasoningSummary": {
       const value = normalizeOptional(input);
       if (value === undefined) {
         return undefined;
@@ -824,11 +813,10 @@ export function ConfigureApp({
         return;
       }
       if (
-        screen.kind === "config-provider-anthropic-thinking" ||
         screen.kind === "config-provider-ollama-thinking" ||
         screen.kind === "config-provider-openai-api" ||
-        screen.kind === "config-provider-openai-reasoning-effort" ||
-        screen.kind === "config-provider-openai-reasoning-summary"
+        screen.kind === "config-provider-reasoning-effort" ||
+        screen.kind === "config-provider-reasoning-summary"
       ) {
         setScreen({ kind: "config-provider-edit", name: screen.name });
         return;
@@ -1697,12 +1685,12 @@ export function ConfigureApp({
               definition,
               definition.kind === "bedrockCredentials"
                 ? providerOptions.accessKeyId && providerOptions.secretAccessKey
-                : definition.kind === "openaiReasoningEffort"
+                : definition.kind === "reasoningEffort"
                   ? (
                       providerOptions.reasoning as
                         { effort?: unknown } | undefined
                     )?.effort
-                  : definition.kind === "openaiReasoningSummary"
+                  : definition.kind === "reasoningSummary"
                     ? (
                         providerOptions.reasoning as
                           { summary?: unknown } | undefined
@@ -1710,13 +1698,6 @@ export function ConfigureApp({
                     : providerOptions[definition.key],
             )}`,
             value: () => {
-              if (definition.kind === "anthropicThinking") {
-                setScreen({
-                  kind: "config-provider-anthropic-thinking",
-                  name: entry.name,
-                });
-                return;
-              }
               if (definition.kind === "ollamaThinking") {
                 setScreen({
                   kind: "config-provider-ollama-thinking",
@@ -1731,16 +1712,16 @@ export function ConfigureApp({
                 });
                 return;
               }
-              if (definition.kind === "openaiReasoningEffort") {
+              if (definition.kind === "reasoningEffort") {
                 setScreen({
-                  kind: "config-provider-openai-reasoning-effort",
+                  kind: "config-provider-reasoning-effort",
                   name: entry.name,
                 });
                 return;
               }
-              if (definition.kind === "openaiReasoningSummary") {
+              if (definition.kind === "reasoningSummary") {
                 setScreen({
-                  kind: "config-provider-openai-reasoning-summary",
+                  kind: "config-provider-reasoning-summary",
                   name: entry.name,
                 });
                 return;
@@ -1854,79 +1835,6 @@ export function ConfigureApp({
             ? `Used by ${usageCount} model(s). Rename updates references automatically; delete is disabled while in use.`
             : "Edit shared provider settings or delete this provider."
         }
-        items={items}
-      />
-    );
-  };
-
-  const renderAnthropicThinkingMenu = () => {
-    if (screen.kind !== "config-provider-anthropic-thinking") {
-      return null;
-    }
-    const entry = config.providers.find(
-      (provider) => provider.name === screen.name,
-    );
-    if (!entry) {
-      return null;
-    }
-    const current =
-      "thinking" in entry.options ? entry.options.thinking : undefined;
-    const items: MenuItem[] = [
-      {
-        label:
-          current === undefined ? "Not set • current" : "Not set (clear value)",
-        value: () => {
-          if (
-            updateConfig(
-              { providers: patchProvider(entry.name, { thinking: undefined }) },
-              `Cleared thinking for "${entry.name}".`,
-            )
-          ) {
-            setScreen({ kind: "config-provider-edit", name: entry.name });
-          }
-        },
-      },
-      {
-        label: current === "disabled" ? "disabled • current" : "disabled",
-        value: () => {
-          if (
-            updateConfig(
-              {
-                providers: patchProvider(entry.name, { thinking: "disabled" }),
-              },
-              `Updated thinking for "${entry.name}" to "disabled".`,
-            )
-          ) {
-            setScreen({ kind: "config-provider-edit", name: entry.name });
-          }
-        },
-      },
-      {
-        label: current === "adaptive" ? "adaptive • current" : "adaptive",
-        value: () => {
-          if (
-            updateConfig(
-              {
-                providers: patchProvider(entry.name, { thinking: "adaptive" }),
-              },
-              `Updated thinking for "${entry.name}" to "adaptive".`,
-            )
-          ) {
-            setScreen({ kind: "config-provider-edit", name: entry.name });
-          }
-        },
-      },
-      {
-        label: "Back",
-        value: () =>
-          setScreen({ kind: "config-provider-edit", name: entry.name }),
-      },
-    ];
-
-    return (
-      <MenuScreen
-        title={`Choose Thinking • ${entry.name}`}
-        description='Pick one of the allowed values: "disabled", "adaptive", or clear it.'
         items={items}
       />
     );
@@ -2047,8 +1955,7 @@ export function ConfigureApp({
 
   const renderOpenAIEnumMenu = (
     screenKind:
-      | "config-provider-openai-reasoning-effort"
-      | "config-provider-openai-reasoning-summary",
+      "config-provider-reasoning-effort" | "config-provider-reasoning-summary",
     subKey: "effort" | "summary",
     title: string,
     description: string,
@@ -3145,24 +3052,22 @@ export function ConfigureApp({
         return renderProviderEditMenu();
       case "config-provider-type":
         return renderProviderTypeMenu();
-      case "config-provider-anthropic-thinking":
-        return renderAnthropicThinkingMenu();
       case "config-provider-ollama-thinking":
         return renderOllamaThinkingMenu();
       case "config-provider-openai-api":
         return renderOpenAIApiMenu();
-      case "config-provider-openai-reasoning-effort":
+      case "config-provider-reasoning-effort":
         return renderOpenAIEnumMenu(
-          "config-provider-openai-reasoning-effort",
+          "config-provider-reasoning-effort",
           "effort",
           `Choose Reasoning effort • ${screen.name}`,
-          'Responses API only. Pick one: "minimal", "low", "medium", "high", or clear. GPT-5 needs "medium"+ to show thinking.',
+          'Enables thinking/reasoning. Pick one: "minimal", "low", "medium", "high", or clear to disable. GPT-5 needs "medium"+ to show a summary.',
           ["minimal", "low", "medium", "high"],
-          "Not set (model default) • current",
+          "Not set (off) • current",
         );
-      case "config-provider-openai-reasoning-summary":
+      case "config-provider-reasoning-summary":
         return renderOpenAIEnumMenu(
-          "config-provider-openai-reasoning-summary",
+          "config-provider-reasoning-summary",
           "summary",
           `Choose Reasoning summary • ${screen.name}`,
           'Responses API only. Pick one: "auto" (default), "concise", "detailed", or "none".',

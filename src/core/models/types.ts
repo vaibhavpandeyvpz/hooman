@@ -14,11 +14,23 @@ export enum LlmProvider {
   Xai = "xai",
 }
 
-export type AnthropicThinking = "disabled" | "adaptive";
 export type OllamaThinking = boolean | "high" | "medium" | "low";
 export type OpenAIApi = "chat" | "responses";
-export type OpenAIReasoningEffort = "minimal" | "low" | "medium" | "high";
-export type OpenAIReasoningSummary = "auto" | "concise" | "detailed" | "none";
+export type ReasoningEffort = "minimal" | "low" | "medium" | "high";
+export type ReasoningSummary = "auto" | "concise" | "detailed" | "none";
+
+/**
+ * Common reasoning/thinking controls shared across providers.
+ * - `effort`: normalized reasoning effort. Its presence enables thinking on
+ *   Anthropic (`thinking: { type: "enabled" }`) and MiniMax (normalized to
+ *   `thinking: { type: "adaptive" }`); OpenAI passes the level through.
+ * - `summary`: reasoning summary verbosity (OpenAI Responses API only; ignored
+ *   by other providers).
+ */
+export type ReasoningOptions = {
+  effort?: ReasoningEffort;
+  summary?: ReasoningSummary;
+};
 
 export type LlmOptions = {
   model: string;
@@ -30,7 +42,12 @@ export type AnthropicProviderOptions = {
   apiKey?: string;
   baseURL?: string;
   headers?: Record<string, string>;
-  thinking?: AnthropicThinking;
+  /**
+   * Reasoning controls. Setting `reasoning.effort` enables extended thinking
+   * (`thinking: { type: "enabled" }`); omit to leave thinking off. `budget_tokens`
+   * is intentionally not sent (the proxy/model default is used).
+   */
+  reasoning?: ReasoningOptions;
 };
 
 export type AzureProviderOptions = {
@@ -63,7 +80,11 @@ export type GroqProviderOptions = {
 export type MinimaxProviderOptions = {
   apiKey?: string;
   headers?: Record<string, string>;
-  thinking?: AnthropicThinking;
+  /**
+   * Reasoning controls. Setting `reasoning.effort` enables thinking, normalized
+   * to MiniMax's `thinking: { type: "adaptive" }`; omit to leave thinking off.
+   */
+  reasoning?: ReasoningOptions;
 };
 
 export type MoonshotProviderOptions = {
@@ -97,10 +118,7 @@ export type OpenAIProviderOptions = {
    * - `summary`: summary verbosity. Defaults to `auto`. Set to `none` to disable
    *   summaries (e.g. for non-reasoning models that reject the `reasoning` param).
    */
-  reasoning?: {
-    effort?: OpenAIReasoningEffort;
-    summary?: OpenAIReasoningSummary;
-  };
+  reasoning?: ReasoningOptions;
 };
 
 export type OpenRouterProviderOptions = {
@@ -131,24 +149,23 @@ export type ProviderOptions =
 const NonEmptyStringSchema = z.string().min(1);
 const HeadersSchema = z.record(z.string(), z.string()).optional();
 
-export const AnthropicThinkingSchema = z.enum(["disabled", "adaptive"]);
 export const OpenAIApiSchema = z.enum(["chat", "responses"]);
-export const OpenAIReasoningEffortSchema = z.enum([
+export const ReasoningEffortSchema = z.enum([
   "minimal",
   "low",
   "medium",
   "high",
 ]);
-export const OpenAIReasoningSummarySchema = z.enum([
+export const ReasoningSummarySchema = z.enum([
   "auto",
   "concise",
   "detailed",
   "none",
 ]);
-export const OpenAIReasoningSchema = z
+export const ReasoningOptionsSchema = z
   .object({
-    effort: OpenAIReasoningEffortSchema.optional(),
-    summary: OpenAIReasoningSummarySchema.optional(),
+    effort: ReasoningEffortSchema.optional(),
+    summary: ReasoningSummarySchema.optional(),
   })
   .strict();
 export const OllamaThinkingSchema = z.union([
@@ -169,7 +186,7 @@ export const AnthropicProviderOptionsSchema = z
     apiKey: NonEmptyStringSchema.optional(),
     baseURL: NonEmptyStringSchema.optional(),
     headers: HeadersSchema,
-    thinking: AnthropicThinkingSchema.optional(),
+    reasoning: ReasoningOptionsSchema.optional(),
   })
   .strict();
 
@@ -223,7 +240,7 @@ export const MinimaxProviderOptionsSchema = z
   .object({
     apiKey: NonEmptyStringSchema.optional(),
     headers: HeadersSchema,
-    thinking: AnthropicThinkingSchema.optional(),
+    reasoning: ReasoningOptionsSchema.optional(),
   })
   .strict();
 
@@ -248,7 +265,7 @@ export const OpenAIProviderOptionsSchema = z
     baseURL: NonEmptyStringSchema.optional(),
     headers: HeadersSchema,
     api: OpenAIApiSchema.optional(),
-    reasoning: OpenAIReasoningSchema.optional(),
+    reasoning: ReasoningOptionsSchema.optional(),
   })
   .strict();
 

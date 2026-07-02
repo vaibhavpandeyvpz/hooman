@@ -12,8 +12,9 @@ export function create(
       apiKey: providerOptions.apiKey,
       baseURL: DEFAULT_BASE_URL,
       headers: providerOptions.headers,
-      thinking: providerOptions.thinking,
+      reasoning: providerOptions.reasoning,
     },
     llmOptions,
+    "adaptive",
   );
 }
