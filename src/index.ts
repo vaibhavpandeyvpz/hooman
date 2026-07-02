@@ -202,11 +202,15 @@ export {
 } from "./core/state/exit-request.js";
 export {
   INTERNAL_ALWAYS_ALLOWED as TOOL_APPROVAL_INTERNAL_ALWAYS_ALLOWED,
-  allowToolForSession,
-  getSessionAllowedTools,
-  isToolSessionAllowed,
+  isImplicitlyAllowed,
   planModeWriteEditRejectionMessage,
 } from "./core/state/tool-approvals.js";
+export {
+  Allowlist,
+  getAllowlist,
+  type AllowlistOptions,
+  type AllowlistRule,
+} from "./core/approvals/allowlist.js";
 export {
   YOLO_STATE_KEY,
   isYoloEnabled,

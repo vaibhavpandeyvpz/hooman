@@ -2,15 +2,14 @@ import {
   InterventionHandler,
   InterventionActions,
   type BeforeToolCallEvent,
-  type JSONValue,
 } from "@strands-agents/sdk";
 import {
   INTERNAL_ALWAYS_ALLOWED,
-  allowToolForSession,
-  isToolSessionAllowed,
+  isImplicitlyAllowed,
   planModeWriteEditRejectionMessage,
 } from "../state/tool-approvals.js";
 import { isYoloEnabled } from "../state/yolo.js";
+import { getAllowlist } from "./allowlist.js";
 
 const INPUT_PREVIEW_LIMIT = 1_024;
 
@@ -109,7 +108,8 @@ export class HoomanToolApprovalIntervention extends InterventionHandler {
     if (
       isYoloEnabled(event.agent) ||
       INTERNAL_ALWAYS_ALLOWED.has(toolName) ||
-      isToolSessionAllowed(event.agent, toolName, event.toolUse.input)
+      isImplicitlyAllowed(toolName, event.toolUse.input) ||
+      getAllowlist().isAllowed(toolName, event.toolUse.input)
     ) {
       await this.onApproved?.(request, event, "auto");
       return InterventionActions.proceed();
@@ -122,7 +122,7 @@ export class HoomanToolApprovalIntervention extends InterventionHandler {
       return InterventionActions.proceed();
     }
     if (result === "always") {
-      allowToolForSession(event.agent, toolName);
+      getAllowlist().allowAlways(toolName, event.toolUse.input);
       await this.onApproved?.(request, event, "always");
       return InterventionActions.proceed();
     }
@@ -144,26 +144,4 @@ export class HoomanToolApprovalIntervention extends InterventionHandler {
       prompt: `Tool "${toolName}" requires human approval. Input: ${inputPreview}`,
     };
   }
-}
-
-export function normalizeApprovalResponse(
-  response: JSONValue,
-): ToolApprovalResult {
-  if (response === true) {
-    return "allow";
-  }
-  if (typeof response === "string") {
-    const normalized = response.trim().toLowerCase();
-    if (normalized === "y" || normalized === "yes" || normalized === "allow") {
-      return "allow";
-    }
-    if (
-      normalized === "t" ||
-      normalized === "trust" ||
-      normalized === "always"
-    ) {
-      return "always";
-    }
-  }
-  return "reject";
 }

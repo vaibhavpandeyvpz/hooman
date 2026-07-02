@@ -16,8 +16,6 @@ type AgentLike = {
   appState: AppStateLike;
 };
 
-const SESSION_ALLOWED_TOOLS_KEY = "allowedTools";
-
 const READ_FILE_TOOL = "read_file";
 const READ_MULTIPLE_FILES_TOOL = "read_multiple_files";
 const WRITE_FILE_TOOL = "write_file";
@@ -62,7 +60,7 @@ function isPlainObjectRecord(value: unknown): value is Record<string, unknown> {
 
 /**
  * In session mode `plan`, block `write_file` / `edit_file` unless the target path resolves
- * under the app plans directory. Runs before session-wide “always allow” so plan boundaries
+ * under the app plans directory. Runs before any “always allow” grant so plan boundaries
  * cannot be overridden by tooling preferences.
  */
 export function planModeWriteEditRejectionMessage(
@@ -141,56 +139,19 @@ function isImplicitPathAllowed(
   return false;
 }
 
-function normalizeAllowedTools(value: unknown): string[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  const unique = new Set<string>();
-  for (const entry of value) {
-    if (typeof entry !== "string") {
-      continue;
-    }
-    const normalized = entry.trim();
-    if (!normalized) {
-      continue;
-    }
-    unique.add(normalized);
-  }
-  return [...unique];
-}
-
-export function getSessionAllowedTools(agent: AgentLike): string[] {
-  const current = normalizeAllowedTools(
-    agent.appState.get(SESSION_ALLOWED_TOOLS_KEY),
-  );
-  const raw = agent.appState.get(SESSION_ALLOWED_TOOLS_KEY);
-  if (!Array.isArray(raw) || current.length !== raw.length) {
-    agent.appState.set(SESSION_ALLOWED_TOOLS_KEY, current);
-  }
-  return current;
-}
-
 /**
- * Session-wide tool allowlist ("always allow" in UI), plus implicit allow for
- * read/write/edit when paths resolve under attachments or plans (reads), or
- * plans only (writes/edits).
+ * Implicit, always-on allow for filesystem tools whose targets stay inside
+ * trusted app-home dirs: reads under attachments or plans, writes/edits under
+ * plans. Persistent "always allow" grants are handled separately by the
+ * on-disk {@link Allowlist} (see `../approvals/allowlist.ts`).
  */
-export function isToolSessionAllowed(
-  agent: AgentLike,
+export function isImplicitlyAllowed(
   toolName: string,
   toolInput?: unknown,
 ): boolean {
-  if (getSessionAllowedTools(agent).includes(toolName)) {
-    return true;
-  }
-  if (
-    isPlainObjectRecord(toolInput) &&
-    isImplicitPathAllowed(toolName, toolInput)
-  ) {
-    return true;
-  }
-  return false;
+  return (
+    isPlainObjectRecord(toolInput) && isImplicitPathAllowed(toolName, toolInput)
+  );
 }
 
 export function isToolVisible(
@@ -210,16 +171,4 @@ export function isToolVisible(
     return visibleTools.includes(toolName);
   }
   return false;
-}
-
-export function allowToolForSession(agent: AgentLike, toolName: string): void {
-  const normalized = toolName.trim();
-  if (!normalized) {
-    return;
-  }
-  const allowed = getSessionAllowedTools(agent);
-  if (allowed.includes(normalized)) {
-    return;
-  }
-  agent.appState.set(SESSION_ALLOWED_TOOLS_KEY, [...allowed, normalized]);
 }
