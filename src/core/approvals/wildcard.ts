@@ -1,7 +1,6 @@
 /**
  * Minimal wildcard matcher used by the approval allowlist.
  *
- * Ported from the opencode/kilocode permission engines:
  * - `*` matches zero or more characters
  * - `?` matches exactly one character
  * - a trailing " *" is relaxed to "( .*)?" so a pattern like `git *` also

@@ -45,6 +45,7 @@ import {
   clearAgentSkillsPromptInjectionState,
   createAgentSkillsPlugin,
 } from "../skills/index.js";
+import { createPromptCachePlugin } from "./prompt-cache-plugin.js";
 import { ModeAwareToolRegistry } from "./mode-aware-tool-registry.js";
 import { applySessionMode } from "./sync-tool-registry-mode.js";
 import { clearTodoState } from "../state/todos.js";
@@ -117,6 +118,11 @@ export async function create(
   const prefixed = await mcp.manager.listPrefixedTools();
   const skillsPlugin = createAgentSkillsPlugin();
   const sessionModePlugin = createSessionModePromptPlugin();
+  // Insert prompt-cache breakpoints for providers that require them (Anthropic,
+  // Bedrock). `config.llm` is read per call so runtime model switches apply.
+  const promptCachePlugin = createPromptCachePlugin({
+    getProvider: () => config.llm.provider,
+  });
 
   async function buildBaseSystemPrompt(): Promise<string> {
     await system.reload();
@@ -165,7 +171,12 @@ export async function create(
       ...(meta.yolo ? { [YOLO_STATE_KEY]: true } : {}),
       ...(meta.mode ? { [MODE_STATE_KEY]: meta.mode } : {}),
     },
-    plugins: [skillsPlugin, sessionModePlugin, ...contextPlugins],
+    plugins: [
+      skillsPlugin,
+      sessionModePlugin,
+      promptCachePlugin,
+      ...contextPlugins,
+    ],
     interventions: meta.interventions ?? [],
     tools,
     printer: print,

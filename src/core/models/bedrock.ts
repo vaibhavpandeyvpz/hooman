@@ -60,6 +60,9 @@ export function create(
   return new BedrockModel({
     modelId: llmOptions.model,
     region: providerOptions.region ?? "us-west-2",
+    // Auto-inject prompt-cache points (after tools + last user message) for
+    // models that support it; a no-op on models that don't.
+    cacheConfig: { strategy: "auto" },
     ...(Object.keys(clientConfig).length > 0 ? { clientConfig } : {}),
     ...(providerOptions.apiKey !== undefined
       ? { apiKey: providerOptions.apiKey }

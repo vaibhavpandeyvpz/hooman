@@ -13,6 +13,7 @@ import {
   type AttachmentMediaBlocks,
 } from "../utils/attachments.js";
 import { getTextFsBackend, type TextFsBackend } from "./text-fs-backend.js";
+import { findReplacementSpan } from "../utils/edit-replace.js";
 import { z } from "zod";
 
 const DEFAULT_READ_LIMIT = 250;
@@ -567,39 +568,24 @@ function applyEdits(
   }> = [];
 
   for (const edit of edits) {
-    const matches = [
-      ...current.matchAll(new RegExp(escapeRegExp(edit.oldText), "g")),
-    ];
-
-    if (matches.length === 0) {
-      throw new Error(`Could not find edit target:\n${edit.oldText}`);
-    }
-    if (matches.length > 1) {
-      throw new Error(
-        `Edit target is ambiguous and appears ${matches.length} times:\n${edit.oldText}`,
-      );
-    }
-
-    const match = matches[0]!;
-    const index = match.index ?? -1;
+    // Compare against the file's normalized (LF) form so line endings never
+    // cause a spurious mismatch. The tolerant matcher returns the exact span
+    // present in the file, which we splice and diff for byte-accurate output.
+    const oldText = normalizeLineEndings(edit.oldText);
+    const newText = normalizeLineEndings(edit.newText);
+    const { index, text: matched } = findReplacementSpan(current, oldText);
     const previous = current;
     current =
-      current.slice(0, index) +
-      edit.newText +
-      current.slice(index + edit.oldText.length);
+      current.slice(0, index) + newText + current.slice(index + matched.length);
 
     replacements.push({
       index,
-      snippet: snippetAroundChange(current, index, countLines(edit.newText)),
-      hunk: buildPatchHunk(previous, edit.oldText, edit.newText, index),
+      snippet: snippetAroundChange(current, index, countLines(newText)),
+      hunk: buildPatchHunk(previous, matched, newText, index),
     });
   }
 
   return { content: current, replacements };
-}
-
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 async function walkDirectory(
@@ -930,7 +916,7 @@ export function createFilesystemTools() {
     tool({
       name: "edit_file",
       description:
-        "Apply exact text replacements to a file. Fails if any replacement target is missing or ambiguous.",
+        "Apply text replacements to a file. Prefer exact matches; whitespace, indentation, and line endings are tolerated when they don't make the target ambiguous. Fails if a target is missing or matches more than one place.",
       inputSchema: schema.editFile,
       callback: async (input, context?: ToolContext) => {
         const filePath = normalizeUserPath(input.path);

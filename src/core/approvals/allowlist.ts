@@ -143,8 +143,7 @@ function deriveProposals(tool: string, input: unknown): string[] {
  * Disk-backed, pattern-based allowlist for "always allow" tool approvals.
  *
  * Rules are keyed by tool name and matched against an argument-derived
- * resource string using {@link matchWildcard}. The design follows the
- * opencode/kilocode/Claude Code permission engines: shell commands match on a
+ * resource string using {@link matchWildcard}: shell commands match on a
  * (broadened) command prefix, filesystem tools match on resolved paths, and
  * argument-less tools are stored tool-wide (`*`).
  */

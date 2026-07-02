@@ -6,8 +6,7 @@
  * Example: approving `git log --oneline -5` proposes `git log *` because
  * `git` has an arity of 2 (the subcommand counts, flags never do).
  *
- * Dictionary ported from the opencode/kilocode permission engines. Longest
- * matching prefix wins; unlisted commands fall back to a single token.
+ * Longest matching prefix wins; unlisted commands fall back to a single token.
  */
 const ARITY: Record<string, number> = {
   cat: 1,
