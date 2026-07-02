@@ -59,6 +59,7 @@ This is the default shape Hooman writes when `~/.hooman/config.json` is missing:
     "brave": {},
     "exa": {},
     "firecrawl": {},
+    "litellm": {},
     "serper": {},
     "tavily": {}
   },
@@ -246,7 +247,7 @@ When editing `providers` or `llms`, preserve unrelated entries and API keys unle
 
 ## Search
 
-`search.provider` must be `"brave"`, `"exa"`, `"firecrawl"`, `"serper"`, or `"tavily"`.
+`search.provider` must be `"brave"`, `"exa"`, `"firecrawl"`, `"litellm"`, `"serper"`, or `"tavily"`.
 
 ```json
 {
@@ -262,6 +263,11 @@ When editing `providers` or `llms`, preserve unrelated entries and API keys unle
     "firecrawl": {
       "apiKey": "..."
     },
+    "litellm": {
+      "baseURL": "https://your-litellm-host",
+      "apiKey": "sk-...",
+      "tool": "perplexity-search"
+    },
     "serper": {
       "apiKey": "..."
     },
@@ -275,6 +281,8 @@ When editing `providers` or `llms`, preserve unrelated entries and API keys unle
 Hooman calls Exa through the official **`exa-js`** SDK ([Exa search API](https://exa.ai/docs/reference/search-api-guide-for-coding-agents)).
 
 Hooman calls Firecrawl through **`@mendable/firecrawl-js`** ([Firecrawl search API](https://docs.firecrawl.dev/api-reference/endpoint/search)).
+
+The `litellm` provider calls a [LiteLLM](https://docs.litellm.ai/docs/search/) proxy's Perplexity-compatible `POST {baseURL}/v1/search/{tool}` endpoint using the virtual key as `apiKey`. It requires `baseURL`, `apiKey`, and `tool` (the `search_tool_name` registered on the proxy). The actual upstream search provider (perplexity, tavily, exa, brave, etc.) is chosen by the proxy config, so no provider API key is stored in Hooman.
 
 Defaults: `enabled: false`, `provider: "brave"`, all provider API keys unset.
 

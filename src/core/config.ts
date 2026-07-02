@@ -15,6 +15,7 @@ const SearchProviderSchema = z.enum([
   "brave",
   "exa",
   "firecrawl",
+  "litellm",
   "serper",
   "tavily",
 ]);
@@ -45,6 +46,13 @@ const SearchPartialSchema = z.object({
   brave: z.object({ apiKey: z.string().min(1).optional() }).optional(),
   exa: z.object({ apiKey: z.string().min(1).optional() }).optional(),
   firecrawl: z.object({ apiKey: z.string().min(1).optional() }).optional(),
+  litellm: z
+    .object({
+      baseURL: z.string().min(1).optional(),
+      apiKey: z.string().min(1).optional(),
+      tool: z.string().min(1).optional(),
+    })
+    .optional(),
   serper: z.object({ apiKey: z.string().min(1).optional() }).optional(),
   tavily: z.object({ apiKey: z.string().min(1).optional() }).optional(),
 });
@@ -110,6 +118,11 @@ const ConfigSchema = z
       brave: { apiKey: input.search?.brave?.apiKey },
       exa: { apiKey: input.search?.exa?.apiKey },
       firecrawl: { apiKey: input.search?.firecrawl?.apiKey },
+      litellm: {
+        baseURL: input.search?.litellm?.baseURL,
+        apiKey: input.search?.litellm?.apiKey,
+        tool: input.search?.litellm?.tool,
+      },
       serper: { apiKey: input.search?.serper?.apiKey },
       tavily: { apiKey: input.search?.tavily?.apiKey },
     },
@@ -197,6 +210,7 @@ const defaultConfigData = (): ConfigData => ({
     brave: { apiKey: undefined },
     exa: { apiKey: undefined },
     firecrawl: { apiKey: undefined },
+    litellm: { baseURL: undefined, apiKey: undefined, tool: undefined },
     serper: { apiKey: undefined },
     tavily: { apiKey: undefined },
   },

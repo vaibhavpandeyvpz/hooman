@@ -93,7 +93,7 @@ type NormalizedResult = {
 };
 
 type NormalizedOutput = {
-  provider: "brave" | "exa" | "firecrawl" | "serper" | "tavily";
+  provider: "brave" | "exa" | "firecrawl" | "litellm" | "serper" | "tavily";
   query: string;
   results: NormalizedResult[];
   metadata: {
@@ -322,8 +322,25 @@ function normalizeFirecrawlResults(payload: unknown): NormalizedResult[] {
     .filter((item) => item.url.length > 0);
 }
 
+function normalizeLiteLLMResults(payload: unknown): NormalizedResult[] {
+  const root = payload as { results?: Array<Record<string, unknown>> };
+  if (!Array.isArray(root.results)) {
+    return [];
+  }
+  return root.results
+    .map((item) => ({
+      title: cleanString(item.title),
+      url: cleanString(item.url),
+      snippet:
+        cleanString(item.snippet) ||
+        cleanString(item.content) ||
+        cleanString(item.text),
+    }))
+    .filter((item) => item.url.length > 0);
+}
+
 function normalizedOutput(
-  provider: "brave" | "exa" | "firecrawl" | "serper" | "tavily",
+  provider: "brave" | "exa" | "firecrawl" | "litellm" | "serper" | "tavily",
   input: WebSearchInput,
   results: NormalizedResult[],
 ): NormalizedOutput {
@@ -428,6 +445,40 @@ async function searchFirecrawl(
   );
 }
 
+async function searchLiteLLM(
+  input: WebSearchInput,
+  options: { baseURL: string; apiKey: string; searchTool: string },
+  signal: AbortSignal,
+): Promise<NormalizedOutput> {
+  const base = options.baseURL.replace(/\/+$/, "");
+  const url = `${base}/v1/search/${encodeURIComponent(options.searchTool)}`;
+  const payload: Record<string, unknown> = {
+    query: input.query,
+    max_results: input.count,
+  };
+  if (input.country) {
+    payload.country = input.country.toUpperCase();
+  }
+
+  const response = await fetch(url, {
+    method: "POST",
+    signal,
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${options.apiKey}`,
+    },
+    body: JSON.stringify(payload),
+  });
+  const body = await response.text();
+  if (!response.ok) {
+    throw new Error(
+      `LiteLLM search failed (${response.status} ${response.statusText}): ${body}`,
+    );
+  }
+  const parsed = JSON.parse(body) as unknown;
+  return normalizedOutput("litellm", input, normalizeLiteLLMResults(parsed));
+}
+
 async function searchSerper(
   input: WebSearchInput,
   apiKey: string,
@@ -509,7 +560,8 @@ export function createWebSearchTools(config: Config) {
       inputSchema: InputSchema,
       callback: async (input, context?: ToolContext) => {
         const searchTimeoutMs =
-          config.search.provider === "firecrawl"
+          config.search.provider === "firecrawl" ||
+          config.search.provider === "litellm"
             ? FIRECRAWL_SEARCH_TIMEOUT_SECONDS * 1000
             : DEFAULT_TIMEOUT_SECONDS * 1000;
         const timeoutSignal = AbortSignal.timeout(searchTimeoutMs);
@@ -543,6 +595,27 @@ export function createWebSearchTools(config: Config) {
             );
           }
           return toJsonValue(await searchFirecrawl(input, apiKey, signal));
+        }
+        if (provider === "litellm") {
+          const { baseURL, apiKey, tool: searchTool } = config.search.litellm;
+          if (!baseURL) {
+            throw new Error(
+              "Search provider is litellm but search.litellm.baseURL is missing.",
+            );
+          }
+          if (!searchTool) {
+            throw new Error(
+              "Search provider is litellm but search.litellm.tool is missing.",
+            );
+          }
+          if (!apiKey) {
+            throw new Error(
+              "Search provider is litellm but search.litellm.apiKey is missing.",
+            );
+          }
+          return toJsonValue(
+            await searchLiteLLM(input, { baseURL, apiKey, searchTool }, signal),
+          );
         }
         if (provider === "serper") {
           const apiKey = config.search.serper.apiKey;

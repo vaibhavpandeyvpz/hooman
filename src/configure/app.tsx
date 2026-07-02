@@ -61,6 +61,7 @@ const SEARCH_PROVIDER_LABELS: Record<SearchProvider, string> = {
   brave: "Brave",
   exa: "Exa",
   firecrawl: "Firecrawl",
+  litellm: "LiteLLM",
   serper: "Serper",
   tavily: "Tavily",
 };
@@ -2352,29 +2353,29 @@ export function ConfigureApp({
 
   const renderSearchProviderMenu = () => {
     const items: MenuItem[] = [
-      ...(["brave", "exa", "firecrawl", "serper", "tavily"] as const).map(
-        (provider) => ({
-          label:
-            provider === configData.search.provider
-              ? `${SEARCH_PROVIDER_LABELS[provider]} • current`
-              : SEARCH_PROVIDER_LABELS[provider],
-          value: () => {
-            if (
-              updateConfig(
-                {
-                  search: {
-                    ...config.search,
-                    provider,
-                  },
+      ...(
+        ["brave", "exa", "firecrawl", "litellm", "serper", "tavily"] as const
+      ).map((provider) => ({
+        label:
+          provider === configData.search.provider
+            ? `${SEARCH_PROVIDER_LABELS[provider]} • current`
+            : SEARCH_PROVIDER_LABELS[provider],
+        value: () => {
+          if (
+            updateConfig(
+              {
+                search: {
+                  ...config.search,
+                  provider,
                 },
-                `Updated search provider to "${SEARCH_PROVIDER_LABELS[provider]}".`,
-              )
-            ) {
-              setScreen({ kind: "config-search" });
-            }
-          },
-        }),
-      ),
+              },
+              `Updated search provider to "${SEARCH_PROVIDER_LABELS[provider]}".`,
+            )
+          ) {
+            setScreen({ kind: "config-search" });
+          }
+        },
+      })),
       {
         label: "Back",
         value: () => setScreen({ kind: "config-search" }),
@@ -2393,10 +2394,78 @@ export function ConfigureApp({
   const renderSearchConfigMenu = () => {
     const activeProvider = configData.search.provider;
     const activeProviderLabel = SEARCH_PROVIDER_LABELS[activeProvider];
+    const isLiteLLM = activeProvider === "litellm";
+    const credentialLabel = isLiteLLM ? "Virtual key" : "API key";
     const apiKey = configData.search[activeProvider].apiKey;
     const redacted = compactJson(
       maskSensitiveParamsForDisplay({ apiKey: apiKey ?? "" }),
     );
+    const litellmItems: MenuItem[] = isLiteLLM
+      ? [
+          {
+            label: `Base URL • ${truncate(configData.search.litellm.baseURL ?? "(unset)", 44)}`,
+            value: () =>
+              promptValue({
+                title: "Update LiteLLM base URL",
+                label: "Base URL",
+                initialValue: configData.search.litellm.baseURL ?? "",
+                onSubmit: async (value) => {
+                  const nextBaseURL = value.trim();
+                  if (!nextBaseURL) {
+                    throw new Error("Base URL is required.");
+                  }
+                  if (
+                    updateConfig(
+                      {
+                        search: {
+                          ...config.search,
+                          litellm: {
+                            ...config.search.litellm,
+                            baseURL: nextBaseURL,
+                          },
+                        },
+                      },
+                      "Updated LiteLLM base URL.",
+                    )
+                  ) {
+                    setPrompt(null);
+                  }
+                },
+              }),
+          },
+          {
+            label: `Search tool • ${configData.search.litellm.tool ?? "(unset)"}`,
+            value: () =>
+              promptValue({
+                title: "Update LiteLLM search tool",
+                label: "Search tool name",
+                initialValue: configData.search.litellm.tool ?? "",
+                onSubmit: async (value) => {
+                  const nextSearchTool = value.trim();
+                  if (!nextSearchTool) {
+                    throw new Error("Search tool name is required.");
+                  }
+                  if (
+                    updateConfig(
+                      {
+                        search: {
+                          ...config.search,
+                          litellm: {
+                            ...config.search.litellm,
+                            tool: nextSearchTool,
+                          },
+                        },
+                      },
+                      "Updated LiteLLM search tool.",
+                    )
+                  ) {
+                    setPrompt(null);
+                  }
+                },
+              }),
+          },
+        ]
+      : [];
     const items: MenuItem[] = [
       {
         label: `Enabled • ${yesNo(configData.search.enabled)}`,
@@ -2420,17 +2489,18 @@ export function ConfigureApp({
         label: `Provider • ${activeProviderLabel}`,
         value: () => setScreen({ kind: "config-search-provider" }),
       },
+      ...litellmItems,
       {
-        label: `${activeProviderLabel} API key • ${truncate(redacted, 44)}`,
+        label: `${activeProviderLabel} ${credentialLabel.toLowerCase()} • ${truncate(redacted, 44)}`,
         value: () =>
           promptValue({
-            title: `Update ${activeProviderLabel} API key`,
-            label: "API key",
+            title: `Update ${activeProviderLabel} ${credentialLabel.toLowerCase()}`,
+            label: credentialLabel,
             initialValue: apiKey ?? "",
             onSubmit: async (value) => {
               const nextApiKey = value.trim();
               if (!nextApiKey) {
-                throw new Error("API key is required.");
+                throw new Error(`${credentialLabel} is required.`);
               }
               if (
                 updateConfig(
@@ -2443,7 +2513,7 @@ export function ConfigureApp({
                       },
                     },
                   },
-                  `Updated ${activeProviderLabel} API key.`,
+                  `Updated ${activeProviderLabel} ${credentialLabel.toLowerCase()}.`,
                 )
               ) {
                 setPrompt(null);
