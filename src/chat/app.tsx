@@ -328,6 +328,28 @@ function nextReasoningEffort(
   return REASONING_EFFORT_CYCLE[nextIndex];
 }
 
+/**
+ * Returns provider options with `reasoning.effort` set to `nextEffort`,
+ * preserving sibling reasoning keys and collapsing to `undefined` when the
+ * reasoning object would end up empty (so we never persist `"reasoning": {}`).
+ */
+function withReasoningEffort(
+  options: unknown,
+  nextEffort: string | undefined,
+): Record<string, unknown> {
+  const base = (options ?? {}) as Record<string, unknown>;
+  const reasoning = base.reasoning as Record<string, unknown> | undefined;
+  const merged = { ...(reasoning ?? {}), effort: nextEffort };
+  const hasValues = Object.values(merged).some((value) => value !== undefined);
+  return { ...base, reasoning: hasValues ? merged : undefined };
+}
+
+function readProviderEffort(options: unknown): string | undefined {
+  const reasoning = (options as { reasoning?: { effort?: string } } | undefined)
+    ?.reasoning;
+  return reasoning?.effort;
+}
+
 function parseChatCommand(text: string): { name: string; args: string } | null {
   const trimmed = text.trim();
   if (!trimmed.startsWith("/")) {
@@ -811,6 +833,19 @@ export function ChatApp({
           resolved.providerOptions,
           resolved.llmOptions,
         );
+        // Persist the default-model choice to the shared config so it survives
+        // restarts. Only applies when the model exists in the base config
+        // (overlay-only models stay session-scoped).
+        config.persistToDisk((base) =>
+          base.llms.some((entry) => entry.name === match.name)
+            ? {
+                llms: base.llms.map((entry) => ({
+                  ...entry,
+                  default: entry.name === match.name,
+                })),
+              }
+            : null,
+        );
       } catch (error) {
         config.update({
           llms: config.llms.map((entry) => ({
@@ -847,32 +882,15 @@ export function ChatApp({
       if (!providerEntry) {
         return;
       }
-      const currentReasoning = (
-        providerEntry.options as {
-          reasoning?: { effort?: string } & Record<string, unknown>;
-        }
-      ).reasoning;
       const nextEffort = nextReasoningEffort(
-        currentReasoning?.effort,
+        readProviderEffort(providerEntry.options),
         direction,
-      );
-      // Merge into the sibling reasoning keys, collapsing to `undefined` when the
-      // object would end up empty so we never persist `"reasoning": {}`.
-      const mergedReasoning = {
-        ...(currentReasoning ?? {}),
-        effort: nextEffort,
-      };
-      const hasValues = Object.values(mergedReasoning).some(
-        (value) => value !== undefined,
       );
       const nextProviders = config.providers.map((entry) =>
         entry.name === providerName
           ? {
               ...entry,
-              options: {
-                ...(entry.options as Record<string, unknown>),
-                reasoning: hasValues ? mergedReasoning : undefined,
-              },
+              options: withReasoningEffort(entry.options, nextEffort),
             }
           : entry,
       ) as typeof config.providers;
@@ -884,6 +902,23 @@ export function ChatApp({
         agent.model = provider.create(
           resolved.providerOptions,
           resolved.llmOptions,
+        );
+        // Persist the effort change to the shared config (recomputed against the
+        // base provider so its other reasoning keys stay intact). Skips when the
+        // provider only exists in a project overlay.
+        config.persistToDisk((base) =>
+          base.providers.some((entry) => entry.name === providerName)
+            ? {
+                providers: base.providers.map((entry) =>
+                  entry.name === providerName
+                    ? {
+                        ...entry,
+                        options: withReasoningEffort(entry.options, nextEffort),
+                      }
+                    : entry,
+                ) as typeof base.providers,
+              }
+            : null,
         );
         bumpSessionChrome();
       } catch (error) {

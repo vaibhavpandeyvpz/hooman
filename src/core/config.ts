@@ -303,7 +303,7 @@ export type { NamedLlmConfig, NamedProviderConfig };
 
 export class Config {
   private data!: ConfigData;
-  private readonly path: string;
+  protected readonly path: string;
   private readonly overlayPaths: string[];
 
   public constructor(path: string, options?: ConfigOptions) {
@@ -450,5 +450,25 @@ export class Config {
     if (!result.ok) {
       throw new Error(result.error);
     }
+  }
+
+  /**
+   * Durably write a change to the shared on-disk config file.
+   *
+   * `build` receives the config whose data the change should be derived from
+   * and returns the partial to persist (or `null` to skip). For a plain
+   * `Config` this applies against itself and persists normally. `SessionConfig`
+   * overrides this to write through to the shared base file (freshly loaded,
+   * without project overlays) so ephemeral session overrides — and any
+   * overlay-provided values — never leak into it.
+   */
+  public persistToDisk(
+    build: (config: Config) => Partial<ConfigData> | null,
+  ): ConfigUpdateResult {
+    const partial = build(this);
+    if (!partial) {
+      return { ok: true };
+    }
+    return this.tryUpdate(partial);
   }
 }
