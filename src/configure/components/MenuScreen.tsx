@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Box, Text, useInput } from "ink";
 import SelectInput from "ink-select-input";
 import type { MenuAction, MenuItem } from "../types.js";
@@ -25,14 +25,34 @@ export function MenuScreen({
   onShortcut,
 }: MenuScreenProps): React.JSX.Element {
   const hasHeader = Boolean(title?.trim()) || Boolean(description?.trim());
-  const keyedItems = useMemo(
-    () =>
-      items.map((item, index) => ({
-        ...item,
-        key: item.key ?? `${title ?? "menu"}:${index}:${item.label}`,
-      })),
-    [items, title],
-  );
+  // `ink-select-input` resets its highlight to index 0 whenever the items' `value`
+  // references change (it deep-compares them). Callers rebuild their item arrays
+  // (with fresh closures) on every render, so without stabilizing the `value`
+  // references, any state update — e.g. toggling an inline setting — would snap
+  // the cursor back to the first item. We key a stable wrapper by each item's key
+  // and always delegate to the latest closure.
+  const valueMapRef = useRef(new Map<string, MenuAction>());
+  const wrapperMapRef = useRef(new Map<string, MenuAction>());
+  const keyedItems = useMemo(() => {
+    const latestValues = new Map<string, MenuAction>();
+    const mapped = items.map((item, index) => {
+      const key = item.key ?? `${title ?? "menu"}:${index}:${item.label}`;
+      latestValues.set(key, item.value);
+      let wrapper = wrapperMapRef.current.get(key);
+      if (!wrapper) {
+        wrapper = () => valueMapRef.current.get(key)?.();
+        wrapperMapRef.current.set(key, wrapper);
+      }
+      return { ...item, key, value: wrapper };
+    });
+    valueMapRef.current = latestValues;
+    for (const key of [...wrapperMapRef.current.keys()]) {
+      if (!latestValues.has(key)) {
+        wrapperMapRef.current.delete(key);
+      }
+    }
+    return mapped;
+  }, [items, title]);
   const [highlightedKey, setHighlightedKey] = useState<string | undefined>(
     keyedItems[Math.max(0, Math.min(initialIndex, keyedItems.length - 1))]?.key,
   );

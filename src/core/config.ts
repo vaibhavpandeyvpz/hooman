@@ -25,6 +25,8 @@ const CompactionPartialSchema = z.object({
   keep: z.number().int().nonnegative().optional(),
 });
 
+const ReasoningDisplaySchema = z.enum(["collapsed", "full"]);
+
 const ToolTogglePartialSchema = z.object({
   enabled: z.boolean().optional(),
 });
@@ -67,6 +69,7 @@ const ToolsPartialSchema = z.object({
 });
 
 const DEFAULT_COMPACTION = { ratio: 0.75, keep: 5 } as const;
+const DEFAULT_REASONING = "collapsed" as const;
 const DEFAULT_PROMPTS = {
   behaviour: true,
   communication: true,
@@ -83,6 +86,7 @@ const ConfigSchema = z
     prompts: PromptsPartialSchema.nullish(),
     tools: ToolsPartialSchema.nullish(),
     compaction: CompactionPartialSchema.nullish(),
+    reasoning: ReasoningDisplaySchema.nullish(),
   })
   .superRefine((input, ctx) => {
     const seenProviders = new Set<string>();
@@ -147,6 +151,7 @@ const ConfigSchema = z
       ratio: input.compaction?.ratio ?? DEFAULT_COMPACTION.ratio,
       keep: input.compaction?.keep ?? DEFAULT_COMPACTION.keep,
     },
+    reasoning: input.reasoning ?? DEFAULT_REASONING,
   }));
 
 const ConfigOverlaySchema = z
@@ -158,6 +163,7 @@ const ConfigOverlaySchema = z
     prompts: PromptsPartialSchema.optional(),
     tools: ToolsPartialSchema.optional(),
     compaction: CompactionPartialSchema.optional(),
+    reasoning: ReasoningDisplaySchema.optional(),
   })
   .strict();
 
@@ -178,6 +184,7 @@ export type ResolvedNamedLlmConfig = {
   default: boolean;
 };
 export type CompactionConfig = ConfigData["compaction"];
+export type ReasoningDisplay = ConfigData["reasoning"];
 export type PromptsConfig = ConfigData["prompts"];
 export type SearchConfig = ConfigData["search"];
 export type ToolsConfig = ConfigData["tools"];
@@ -227,6 +234,7 @@ const defaultConfigData = (): ConfigData => ({
     ratio: 0.75,
     keep: 5,
   },
+  reasoning: DEFAULT_REASONING,
 });
 
 function clone<T>(value: T): T {
@@ -376,6 +384,10 @@ export class Config {
 
   get compaction(): CompactionConfig {
     return clone(this.data.compaction);
+  }
+
+  get reasoning(): ReasoningDisplay {
+    return this.data.reasoning;
   }
 
   private readJson(path: string, fallback: unknown): unknown {

@@ -844,6 +844,7 @@ export function ConfigureApp({
         prompts: config.prompts,
         tools: config.tools,
         compaction: config.compaction,
+        reasoning: config.reasoning,
       }) satisfies ConfigData,
     [config, revision],
   );
@@ -1474,6 +1475,18 @@ export function ConfigureApp({
               }
             },
           }),
+      },
+      {
+        key: "reasoning-display",
+        label: `Reasoning display • ${configData.reasoning}`,
+        value: () => {
+          const next =
+            configData.reasoning === "collapsed" ? "full" : "collapsed";
+          updateConfig(
+            { reasoning: next },
+            `Set reasoning display to "${next}".`,
+          );
+        },
       },
       {
         label: "Back",

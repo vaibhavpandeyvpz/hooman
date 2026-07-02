@@ -1,5 +1,6 @@
 import { Box, Text } from "ink";
 import { millify } from "millify";
+import type { ReasoningDisplay } from "../../core/config.js";
 import type { ChatLine } from "../types.js";
 import { ReasoningStrip } from "./ReasoningStrip.js";
 import { ThinkingStatus } from "./ThinkingStatus.js";
@@ -30,14 +31,21 @@ function formatEstimatedTokens(tokens?: number): string {
 type ThoughtEventProps = {
   line: ChatLine;
   assistantName?: string;
+  reasoningDisplay?: ReasoningDisplay;
 };
 
 export function ThoughtEvent({
   line,
   assistantName = "Assistant",
+  reasoningDisplay = "collapsed",
 }: ThoughtEventProps) {
   const durationMs =
     line.startedAt && line.finishedAt ? line.finishedAt - line.startedAt : 0;
+
+  const full = reasoningDisplay === "full";
+  // Collapsed: a 2-line tail while streaming, hidden once done.
+  // Full: the entire reasoning body streams in muted text and stays visible.
+  const showBody = full ? true : !line.done;
 
   return (
     <Box flexDirection="column" width="100%">
@@ -53,8 +61,11 @@ export function ThoughtEvent({
           <ThinkingStatus />
         )}
       </Box>
-      {!line.done ? (
-        <ReasoningStrip text={line.content} maxVisibleLines={2} />
+      {showBody ? (
+        <ReasoningStrip
+          text={line.content}
+          maxVisibleLines={full ? Number.POSITIVE_INFINITY : 2}
+        />
       ) : null}
     </Box>
   );

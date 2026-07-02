@@ -12,7 +12,9 @@ export function ReasoningStrip({
 }: ReasoningStripProps) {
   const { columns } = useWindowSize();
   const wrapped = wrapTextToLines(text, Math.max(20, columns - 6));
-  const visibleLines = wrapped.slice(-maxVisibleLines);
+  const visibleLines = Number.isFinite(maxVisibleLines)
+    ? wrapped.slice(-maxVisibleLines)
+    : wrapped;
 
   if (visibleLines.length === 0) {
     return null;

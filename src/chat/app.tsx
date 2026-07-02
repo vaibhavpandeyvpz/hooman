@@ -96,9 +96,9 @@ function normalizePromptSubmission(
 }
 
 const INPUT_HINT =
-  "shift/meta+enter or \\+enter: newline | shift+tab: cycle effort | esc/ctrl+c: cancel or exit";
+  "shift/meta+enter or \\+enter: newline | esc/ctrl+c: cancel or exit";
 const INPUT_HINT_WITH_STEERING =
-  "enter on empty input: steer active turn with queued prompts | shift/meta+enter or \\+enter: newline | shift+tab: cycle effort | esc/ctrl+c: cancel or exit";
+  "enter on empty input: steer active turn with queued prompts | shift/meta+enter or \\+enter: newline | esc/ctrl+c: cancel or exit";
 
 const INIT_AGENTS_PROMPT = readBundledPrompt("static", "init.md");
 
@@ -1661,7 +1661,11 @@ export function ChatApp({
       <Static items={committedLines}>
         {(line) => (
           <Box key={line.id} paddingX={1}>
-            <TranscriptLine line={line} assistantName={config.name} />
+            <TranscriptLine
+              line={line}
+              assistantName={config.name}
+              reasoningDisplay={config.reasoning}
+            />
           </Box>
         )}
       </Static>
@@ -1676,7 +1680,11 @@ export function ChatApp({
             <EmptyChatBanner />
           </Box>
         ) : null}
-        <LiveTranscript lines={liveLines} assistantName={config.name} />
+        <LiveTranscript
+          lines={liveLines}
+          assistantName={config.name}
+          reasoningDisplay={config.reasoning}
+        />
         <BottomChrome
           config={config}
           running={running}
