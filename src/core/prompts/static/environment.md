@@ -1,6 +1,6 @@
 ## Environment
 
-You are running in the following runtime environment:
+Runtime environment captured when this prompt was built:
 
 - Primary working directory: `{{ environment.cwd }}`
 - Platform: `{{ environment.platform }}`
@@ -9,9 +9,4 @@ You are running in the following runtime environment:
 - Is git repository: `{{ environment.isGitRepo }}`
 - Time zone: `{{ environment.timeZone }}`
 
-### How To Use This
-
-- Use this information to choose correct path handling, shell syntax, and platform-specific behavior
-- Treat this section as runtime context captured when the prompt was built
-- For precise current date/time on each model call, use the injected `<now>...</now>` ISO timestamp
-- Use `get_current_time` only when you need the current time in a specific timezone beyond the injected timestamp
+Use this to choose correct path handling, shell syntax, and platform-specific behavior. For the precise current date/time on each model call, use the injected `<now>...</now>` ISO timestamp; use `get_current_time` only when a specific timezone beyond that matters.

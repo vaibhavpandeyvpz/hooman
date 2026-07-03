@@ -135,7 +135,6 @@ export type {
 export { PrefixedMcpTool } from "./core/mcp/prefixed-mcp-tool.js";
 
 export {
-  createByeTools,
   createFetchTools,
   createFilesystemTools,
   createGrepTools,
@@ -235,13 +234,6 @@ export type {
   SubagentRegistry,
 } from "./core/subagents/index.js";
 
-export {
-  EXIT_REQUESTED_CODE,
-  EXIT_REQUESTED_STATE_KEY,
-  consumeExitRequest,
-  isExitRequested,
-  requestExit,
-} from "./core/state/exit-request.js";
 export {
   INTERNAL_ALWAYS_ALLOWED as TOOL_APPROVAL_INTERNAL_ALWAYS_ALLOWED,
   isImplicitlyAllowed,

@@ -87,10 +87,6 @@ import {
 import { runWithCwd } from "../core/utils/cwd-context.js";
 import { runWithAgentMemoryScope } from "../core/memory/index.js";
 import {
-  consumeExitRequest,
-  EXIT_REQUESTED_CODE,
-} from "../core/state/exit-request.js";
-import {
   createSessionConfig,
   type SessionConfig,
 } from "../core/session-config.js";
@@ -1181,11 +1177,6 @@ export class HoomanAcpAgent {
       } catch {
         /* ignore */
       }
-    }
-
-    if (consumeExitRequest(rec.agent)) {
-      await this.#disposeAll();
-      setTimeout(() => process.exit(EXIT_REQUESTED_CODE), 25);
     }
 
     return { stopReason };

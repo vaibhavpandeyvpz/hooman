@@ -4,7 +4,6 @@ import type { Agent } from "@strands-agents/sdk";
 import type { Config } from "../core/config.js";
 import type { Manager as McpManager } from "../core/mcp/index.js";
 import type { Registry } from "../core/skills/index.js";
-import { consumeExitRequest } from "../core/state/exit-request.js";
 import type { ChatApprovalController } from "./approvals.js";
 import type { ChatTurnSteeringController } from "./steering.js";
 import { ChatApp } from "./app.js";
@@ -23,7 +22,6 @@ type LaunchChatOptions = {
 };
 
 export type ChatResult = {
-  exitRequested: boolean;
   nextAction: "exit" | "new" | "resume" | "configure";
   resumeSessionId?: string;
 };
@@ -98,7 +96,6 @@ export async function chat(options: LaunchChatOptions): Promise<ChatResult> {
     printSessionResumeHint(options.program ?? "hooman", options.sessionId);
   }
   return {
-    exitRequested: consumeExitRequest(options.agent),
     nextAction,
     resumeSessionId,
   };

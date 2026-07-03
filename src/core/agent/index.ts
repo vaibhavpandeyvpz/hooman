@@ -27,7 +27,6 @@ import {
   loadSubagentRegistry,
 } from "../subagents/index.js";
 import {
-  createByeTools,
   createTodoTools,
   createFetchTools,
   createFilesystemTools,
@@ -134,7 +133,6 @@ export async function create(
   const model = createLiveModel();
 
   const tools: Tool[] = [
-    ...createByeTools(),
     ...createTimeTools(),
     ...(config.tools.sleep.enabled ? createSleepTools() : []),
     ...(config.tools.todo.enabled ? createTodoTools() : []),

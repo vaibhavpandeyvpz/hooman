@@ -1,6 +1,6 @@
 ---
 name: hooman-config
-description: Read and update Hooman's own config.json and instructions.md safely. Use when the user asks about Hooman config, custom instructions, model providers, LLM options, tool toggles, prompts, search, agents, compaction, or ~/.hooman config settings.
+description: Read and update Hooman's own ~/.hooman/config.json and instructions.md. Use when the user asks about Hooman's config, custom instructions, agent name, model providers, LLMs/models, API keys, reasoning options, web search settings, tool or prompt toggles, or compaction. Not for MCP servers (use hooman-mcp), channel integrations (hooman-channels), or installed skills (hooman-skills).
 ---
 
 # Hooman Config
@@ -14,6 +14,13 @@ Use this skill when the user asks you to inspect, explain, or change Hooman's ow
 - User instructions: `~/.hooman/instructions.md`.
 - This skill does not cover `mcp.json`, installed skill directories, or bundled skill files.
 
+## Reference Files
+
+Read these files (next to this SKILL.md) only when the task needs the details they cover:
+
+- `providers.md` — full `providers`/`llms` shapes, all supported provider ids, per-provider option and `reasoning` details, and worked examples. Read it before adding or changing any provider or LLM entry.
+- `search.md` — the `search` section shape, supported search providers, and per-provider notes. Read it before enabling or changing web search.
+
 ## Effective Runtime View
 
 Use `hooman config` to inspect the merged runtime `config.json` for
@@ -25,10 +32,11 @@ overlays walked from git root to the current directory). The command prints full
 
 1. Read the existing JSON first. Preserve user values, comments are not supported, and secrets such as API keys may be present.
 2. Make the smallest JSON edit that satisfies the request. Do not rewrite unrelated sections or normalize formatting beyond valid pretty JSON.
-3. `name`, `providers`, and `llms` are required. `providers` stores shared credentials/config, and `llms` must be a **non-empty array** of entries that reference provider names (see below). `search`, `prompts`, `tools`, and `compaction` are optional in input, but Hooman expands them with defaults when loading.
+3. `name`, `providers`, and `llms` are required. `providers` stores shared credentials/config, and `llms` must be a **non-empty array** of entries that reference provider names (see `providers.md`). `search`, `prompts`, `tools`, and `compaction` are optional in input, but Hooman expands them with defaults when loading.
 4. Unknown keys are unsupported and may be dropped when Hooman parses and persists the config.
 5. `tools` only manages built-in runtime toggles exposed in `config.json`.
 6. Any change to `config.json` or `instructions.md` requires restarting the running Hooman agent/session before it takes effect. In an interactive `chat` session, running the `/config` command applies this automatically: it reloads config and re-bootstraps the session on exit.
+7. When editing `providers` or `llms`, preserve unrelated entries and API keys unless the user asks to remove or replace them.
 
 ## Full Config Shape
 
@@ -85,228 +93,25 @@ This is the default shape Hooman writes when `~/.hooman/config.json` is missing:
 }
 ```
 
+Hooman fills all optional sections with defaults on load and persist, so a minimal valid config is just `name`, `providers`, and `llms`.
+
 ## Top-Level Options
 
 - `name`: non-empty display name for the agent.
-- `providers`: required reusable provider definitions. Each entry has `name`, runtime `provider`, and provider-specific `options`.
-- `llms`: required non-empty list of named LLM configs. Each entry has `name`, provider reference `provider`, model `options`, and `default`.
-- `search`: optional web search config; defaults to disabled Brave.
+- `providers`: required reusable provider definitions. Each entry has `name`, runtime `provider`, and provider-specific `options`. Supported runtime providers: `anthropic`, `azure`, `bedrock`, `google`, `groq`, `minimax`, `moonshot`, `ollama`, `openai`, `openrouter`, `xai` — details in `providers.md`.
+- `llms`: required non-empty list of named LLM configs. Each entry has `name`, provider reference `provider`, model `options` (`model`, optional `temperature`, optional `maxTokens`), and `default` (mark exactly one entry `true`). Details in `providers.md`.
+- `search`: optional web search config; defaults to disabled Brave. Details in `search.md`.
 - `prompts`: optional built-in static prompt toggles; omitted fields default to `true`. Custom user instructions live in `~/.hooman/instructions.md`.
 - `tools`: optional tool toggles and tool-specific settings.
 - `compaction`: optional context compaction settings. `ratio` must be `0..1`; `keep` must be a non-negative integer.
 
-## LLMs array
-
-Each element of `llms` has:
-
-- `name`: non-empty label for this entry.
-- `provider`: provider reference name. It must match one of the entries in top-level `providers`.
-- `options.model`: model id passed to the resolved runtime provider.
-- `options.temperature`: optional normalized temperature override.
-- `options.maxTokens`: optional normalized output token limit.
-- `default`: boolean; mark one entry `"default": true` for the active model.
-
-## Providers array
-
-Each element of `providers` has:
-
-- `name`: non-empty reference name used by `llms[].provider`.
-- `provider`: runtime provider id such as `"openai"`, `"bedrock"`, or `"ollama"`.
-- `options`: provider-specific shared settings such as API keys, base URL, headers, region, or AWS credentials.
-
-Supported `providers[].provider` values:
-
-```json
-[
-  "anthropic",
-  "azure",
-  "bedrock",
-  "google",
-  "groq",
-  "minimax",
-  "moonshot",
-  "ollama",
-  "openai",
-  "openrouter",
-  "xai"
-]
-```
-
-Common shape:
-
-```json
-{
-  "providers": [
-    {
-      "name": "Anthropic",
-      "provider": "anthropic",
-      "options": {
-        "apiKey": "..."
-      }
-    }
-  ],
-  "llms": [
-    {
-      "name": "Claude Sonnet",
-      "provider": "Anthropic",
-      "options": {
-        "model": "claude-sonnet-4-20250514",
-        "temperature": 0.2,
-        "maxTokens": 4096
-      },
-      "default": true
-    }
-  ]
-}
-```
-
-Provider notes:
-
-- `anthropic`: provider `options` support `apiKey`, optional `baseURL`, optional `headers`, and optional `reasoning` (an object with optional `effort` — `"minimal"`, `"low"`, `"medium"`, `"high"` — and optional `display` — `"summarized"` or `"omitted"`). Providing `reasoning` enables extended thinking (sent as `thinking: { type: "enabled", budget_tokens }`); `effort` defaults to `"medium"` and maps to an explicit budget (`minimal`→1024, `low`→2048, `medium`→4096, `high`→8192). When thinking is enabled Hooman drops any custom `temperature` (Anthropic requires it unset/`1`). `display` is for Bedrock Claude (via an Anthropic-compatible proxy) and MiniMax only: newer Bedrock Claude models (e.g. Opus 4.7+) hide reasoning by default and reject `type: "enabled"`, so set `display: "summarized"` to reveal reasoning — this switches the request to `thinking: { type: "adaptive", display }` with `output_config.effort` (`minimal`→`low`, else passthrough). Do NOT set `display` for the native Anthropic API (api.anthropic.com); it rejects `adaptive`/`display`/`output_config`. Omit `reasoning` to keep thinking off. LLM `options` support `model`, `temperature`, and `maxTokens`.
-- `azure`: provider `options` support optional `resourceName`, optional `baseURL`, optional `apiKey`, optional `headers`, optional `apiVersion`, optional `useDeploymentBasedUrls`, and optional `reasoning` (an object with optional `effort` — `"minimal"`, `"low"`, `"medium"`, `"high"` — and optional `summary` — `"auto"`, `"concise"`, `"detailed"`, `"none"`). `reasoning` uses the Azure OpenAI Responses API; only reasoning-capable deployments honor it. LLM `options` support `model`, `temperature`, and `maxTokens`. The `model` value should be your Azure deployment name.
-- `bedrock`: provider `options` support `region`, `accessKeyId`, `secretAccessKey`, `sessionToken`, optional `apiKey`, and optional `reasoning` (an object with optional `effort` and optional `display` — `"summarized"` or `"omitted"`). Providing `reasoning` enables extended thinking on supported models (e.g. Claude); because Bedrock's Converse API requires a budget, `effort` (default `"medium"`) maps to `budget_tokens` (`minimal`→1024, `low`→2048, `medium`→4096, `high`→8192). Ensure the LLM `maxTokens` exceeds the budget. Newer Bedrock Claude (e.g. Opus 4.7+) hide reasoning by default and reject `type: "enabled"`; set `display: "summarized"` to reveal it — this switches to `thinking: { type: "adaptive", display }` with `output_config.effort` (`minimal`→`low`, else passthrough) sent via `additionalRequestFields`. LLM `options` support `model`, `temperature`, and `maxTokens`.
-- `google`: provider `options` support `apiKey` and optional `reasoning` (an object with optional `effort`). Setting `reasoning.effort` enables Gemini thinking with a dynamic budget (`thinkingConfig: { includeThoughts: true, thinkingBudget: -1 }`). LLM `options` support `model`, `temperature`, and `maxTokens` (Hooman maps this to the Google SDK's `maxOutputTokens` internally).
-- `groq`: provider `options` support `apiKey`, optional `baseURL`, optional `headers`, and optional `reasoning` (an object with optional `effort`). `reasoning.effort` maps to Groq's `reasoning_effort` (`minimal`→`low`) and streams reasoning via `reasoning_format: "parsed"`. Only reasoning models honor it. LLM `options` support `model`, `temperature`, and `maxTokens`.
-- `minimax`: provider `options` support `apiKey`, optional `headers`, and optional `reasoning` (an object with optional `effort` — `"minimal"`, `"low"`, `"medium"`, `"high"` — and optional `display` — `"summarized"` or `"omitted"`). Providing `reasoning` enables thinking, normalized to MiniMax's `thinking: { type: "adaptive", budget_tokens }`; `effort` defaults to `"medium"` and maps to an explicit budget (`minimal`→1024, `low`→2048, `medium`→4096, `high`→8192). Setting `display` switches to `thinking: { type: "adaptive", display }` with `output_config.effort` instead of a budget. Omit `reasoning` to keep thinking off. Hooman routes this through the Anthropic-compatible MiniMax endpoint automatically.
-- `moonshot`: provider `options` support `apiKey`, optional `baseURL`, optional `headers`, and optional `reasoning` (an object with optional `effort`). Setting `reasoning.effort` enables Kimi thinking (`thinking: { type: "enabled" }`). Served through the reasoning-aware openai-compatible adapter, so Kimi's `reasoning_content` is surfaced as thinking. When `baseURL` is omitted, Hooman defaults it to `https://api.moonshot.ai/v1`. To reach Kimi through an OpenAI-compatible proxy (e.g. LiteLLM), use this provider with `baseURL` set to the proxy's `/v1` endpoint — the `openai` provider's Chat adapter would otherwise drop Kimi's reasoning.
-- `ollama`: provider `options` support optional `baseURL` and optional `reasoning` (an object with optional `effort`). Setting `reasoning.effort` enables thinking, mapped to Ollama's `think` level (`minimal`/`low`→`"low"`, `medium`→`"medium"`, `high`→`"high"`). LLM `options` support `model`, `temperature`, and `maxTokens`.
-- `openai`: provider `options` support `apiKey`, optional `baseURL`, optional `headers`, optional `api` (`"responses"` or `"chat"`, defaults to `"responses"`), and optional `reasoning` (an object with optional `effort` — `"minimal"`, `"low"`, `"medium"`, `"high"` — and optional `summary` — `"auto"` (default), `"concise"`, `"detailed"`, `"none"`). LLM `options` support `model`, `temperature`, and `maxTokens`. Use `"responses"` (the default) to surface model reasoning/thinking; set `"chat"` for OpenAI-compatible endpoints/proxies that do not implement the Responses API. Reasoning summaries stream only on the Responses API, and some models (e.g. GPT-5) require `reasoning.effort` of `"medium"` or higher to emit them; set `reasoning.summary` to `"none"` for non-reasoning models that reject the `reasoning` parameter. Note: `"chat"` mode does NOT surface reasoning (the Chat adapter drops `reasoning_content`); for a proxy that only exposes thinking via chat `reasoning_content` (e.g. Kimi/Moonshot), use the `moonshot` or `openrouter` provider instead. Also note the Responses API may return an empty reasoning item for non-OpenAI backends behind a proxy (they won't stream summary text).
-- `openrouter`: provider `options` support `apiKey`, optional `baseURL`, optional `headers`, and optional `reasoning` (an object with optional `effort`). Served through the reasoning-aware openai-compatible adapter, so `reasoning`/`reasoning_content` deltas are surfaced as thinking. `reasoning.effort` maps to `reasoning_effort`, which OpenRouter normalizes for reasoning models. LLM `options` support `model`, `temperature`, and `maxTokens`. The `model` value is usually a provider-qualified OpenRouter model id such as `anthropic/claude-3.5-sonnet`.
-- `xai`: provider `options` support `apiKey`, optional `baseURL`, optional `headers`, and optional `reasoning` (an object with optional `effort`). `reasoning.effort` maps to xAI's `reasoning_effort` (`low`/`high`; `minimal`/`low`→`low`, `medium`/`high`→`high`). Only reasoning models (e.g. grok-3-mini) honor it. LLM `options` support `model`, `temperature`, and `maxTokens`.
-
-Examples:
-
-```json
-{
-  "providers": [
-    {
-      "name": "MiniMax",
-      "provider": "minimax",
-      "options": {
-        "apiKey": "..."
-      }
-    },
-    {
-      "name": "Kimi",
-      "provider": "moonshot",
-      "options": {
-        "apiKey": "..."
-      }
-    }
-  ],
-  "llms": [
-    {
-      "name": "MiniMax M3",
-      "provider": "MiniMax",
-      "options": {
-        "model": "MiniMax-M3"
-      },
-      "default": true
-    },
-    {
-      "name": "Kimi K2.7 Code",
-      "provider": "Kimi",
-      "options": {
-        "model": "kimi-k2.7-code"
-      },
-      "default": false
-    }
-  ]
-}
-```
-
-```json
-{
-  "providers": [
-    {
-      "name": "Bedrock",
-      "provider": "bedrock",
-      "options": {
-        "region": "us-west-2",
-        "accessKeyId": "AKIA...",
-        "secretAccessKey": "...",
-        "sessionToken": "..."
-      }
-    }
-  ],
-  "llms": [
-    {
-      "name": "Claude Sonnet",
-      "provider": "Bedrock",
-      "options": {
-        "model": "anthropic.claude-sonnet-4-20250514-v1:0",
-        "temperature": 0.2,
-        "maxTokens": 4096
-      },
-      "default": true
-    }
-  ]
-}
-```
-
-When editing `providers` or `llms`, preserve unrelated entries and API keys unless the user asks to remove or replace them.
-
-## Search
-
-`search.provider` must be `"brave"`, `"exa"`, `"firecrawl"`, `"litellm"`, `"serper"`, or `"tavily"`.
-
-```json
-{
-  "search": {
-    "enabled": true,
-    "provider": "brave",
-    "brave": {
-      "apiKey": "..."
-    },
-    "exa": {
-      "apiKey": "..."
-    },
-    "firecrawl": {
-      "apiKey": "..."
-    },
-    "litellm": {
-      "baseURL": "https://your-litellm-host",
-      "apiKey": "sk-...",
-      "tool": "perplexity-search"
-    },
-    "serper": {
-      "apiKey": "..."
-    },
-    "tavily": {
-      "apiKey": "..."
-    }
-  }
-}
-```
-
-Hooman calls Exa through the official **`exa-js`** SDK ([Exa search API](https://exa.ai/docs/reference/search-api-guide-for-coding-agents)).
-
-Hooman calls Firecrawl through **`@mendable/firecrawl-js`** ([Firecrawl search API](https://docs.firecrawl.dev/api-reference/endpoint/search)).
-
-The `litellm` provider calls a [LiteLLM](https://docs.litellm.ai/docs/search/) proxy's Perplexity-compatible `POST {baseURL}/v1/search/{tool}` endpoint using the virtual key as `apiKey`. It requires `baseURL`, `apiKey`, and `tool` (the `search_tool_name` registered on the proxy). The actual upstream search provider (perplexity, tavily, exa, brave, etc.) is chosen by the proxy config, so no provider API key is stored in Hooman.
-
-Defaults: `enabled: false`, `provider: "brave"`, all provider API keys unset.
-
 ## Prompts
 
-Each prompt toggle is optional and defaults to `true`. Coding and software-engineering guidance is not a config toggle; it lives in the built-in **hooman-coding** skill and is loaded when relevant (see the system prompt skills section).
-
-```json
-{
-  "prompts": {
-    "behaviour": true,
-    "communication": true,
-    "execution": true,
-    "guardrails": true
-  }
-}
-```
-
-Set a prompt to `false` only when the user explicitly wants to omit that harness section.
+Each prompt toggle (`behaviour`, `communication`, `execution`, `guardrails`) is optional and defaults to `true`. Set one to `false` only when the user explicitly wants to omit that harness section. Coding and software-engineering guidance is not a config toggle; it lives in the built-in **hooman-coding** skill and is loaded when relevant (see the system prompt skills section).
 
 ## Tools
 
-Simple toggles:
+Simple toggles, all enabled by default:
 
 ```json
 {
@@ -321,27 +126,11 @@ Simple toggles:
 }
 ```
 
-Subagents:
-
-```json
-{
-  "tools": {
-    "subagents": {
-      "enabled": true
-    }
-  }
-}
-```
-
-Defaults: `todo`, `fetch`, `filesystem`, `shell`, `sleep`, and `subagents` enabled. MCP servers and installed skills are not controlled by these toggles; do not inspect or edit them for this skill.
-
-`subagents`: the default file Hooman writes when `config.json` is missing includes `tools.subagents.enabled: true`. If `tools` or `tools.subagents` is omitted, the merged config still defaults this toggle to enabled.
+MCP servers and installed skills are not controlled by these toggles; do not inspect or edit them for this skill.
 
 ## Instructions
 
-`~/.hooman/instructions.md` contains the user's custom instructions. Read or edit it only when the user asks about Hooman instructions, custom instructions, persistent guidance, or agent behavior that belongs outside `config.json`.
-
-Keep instruction edits focused and preserve existing wording unless the user asks for a rewrite.
+`~/.hooman/instructions.md` contains the user's custom instructions. Read or edit it only when the user asks about Hooman instructions, custom instructions, persistent guidance, or agent behavior that belongs outside `config.json`. Keep instruction edits focused and preserve existing wording unless the user asks for a rewrite.
 
 ## Compaction
 
@@ -356,30 +145,3 @@ Keep instruction edits focused and preserve existing wording unless the user ask
 
 - `ratio`: target fraction of context after compaction, from `0` to `1`.
 - `keep`: minimum number of recent turns/message groups to preserve verbatim.
-
-## Minimal Valid Config
-
-```json
-{
-  "name": "Hooman",
-  "providers": [
-    {
-      "name": "Ollama",
-      "provider": "ollama",
-      "options": {}
-    }
-  ],
-  "llms": [
-    {
-      "name": "Default",
-      "provider": "Ollama",
-      "options": {
-        "model": "gemma4:e4b"
-      },
-      "default": true
-    }
-  ]
-}
-```
-
-Hooman fills all optional sections with defaults on load and persist.

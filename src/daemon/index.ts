@@ -11,7 +11,6 @@ import type {
   ChannelSubscription,
   Manager as McpManager,
 } from "../core/mcp/index.js";
-import { consumeExitRequest } from "../core/state/exit-request.js";
 import { runWithAgentMemoryScope } from "../core/memory/index.js";
 import { attachmentPathsToPromptBlocks } from "../core/utils/attachments.js";
 import { createQueue } from "./queue.js";
@@ -81,14 +80,13 @@ async function toInvokeInput(
   return [new Message({ role: "user", content: blocks })];
 }
 
-export async function main(options: RunDaemonOptions): Promise<boolean> {
+export async function main(options: RunDaemonOptions): Promise<void> {
   const channels = [HOOMAN_CHANNEL];
   debug(`starting daemon for channel(s): ${channels.join(", ")}`);
 
   let unsubscribe = () => {};
-  let exitRequested = false;
 
-  const [queue, stop, shutdown] = await createQueue(
+  const [queue, stop] = await createQueue(
     async (message: ChannelMessage) => {
       const tag = `${message.meta.subscription.server}:${message.meta.subscription.channel}`;
       const session = resolveSessionId(message, options.session);
@@ -131,12 +129,6 @@ export async function main(options: RunDaemonOptions): Promise<boolean> {
       } catch (error) {
         const text = error instanceof Error ? error.message : String(error);
         debug(`turn failed → ${tag} session=${session} user=${user}: ${text}`);
-      } finally {
-        if (consumeExitRequest(options.agent)) {
-          exitRequested = true;
-          debug("exit requested by agent");
-          shutdown();
-        }
       }
     },
     () => unsubscribe(),
@@ -159,5 +151,4 @@ export async function main(options: RunDaemonOptions): Promise<boolean> {
   } finally {
     debug("stopping daemon");
   }
-  return exitRequested;
 }

@@ -25,10 +25,6 @@ import {
 } from "./core/memory/index.js";
 import { createSessionConfig } from "./core/session-config.js";
 import { mcpJsonPath } from "./core/utils/paths.js";
-import {
-  consumeExitRequest,
-  EXIT_REQUESTED_CODE,
-} from "./core/state/exit-request.js";
 import { getModeState, type SessionMode } from "./core/state/session-mode.js";
 import { isYoloEnabled } from "./core/state/yolo.js";
 import { formatModeNames, getModeIds } from "./core/modes/index.js";
@@ -233,10 +229,8 @@ program
       },
       true,
     );
-    let exitRequested = false;
     try {
       await runWithAgentMemoryScope(agent, () => agent.invoke(prompt));
-      exitRequested = consumeExitRequest(agent);
     } finally {
       try {
         await flushAgentMemory(agent);
@@ -245,7 +239,7 @@ program
         await manager.disconnect();
       } catch {}
     }
-    finalizeExit(exitRequested ? EXIT_REQUESTED_CODE : 0);
+    finalizeExit(0);
   });
 
 program
@@ -265,7 +259,6 @@ program
     let currentPrompt = prompt?.trim() || undefined;
     let currentYolo = Boolean(options.yolo);
     let currentMode = options.mode as SessionMode;
-    let exitRequested = false;
     while (true) {
       const approvals = new ChatApprovalController();
       const steering = new ChatTurnSteeringController();
@@ -325,7 +318,6 @@ program
           currentMode = getModeState(agent).mode;
           continue;
         }
-        exitRequested = result.exitRequested;
         break;
       } finally {
         try {
@@ -336,7 +328,7 @@ program
         } catch {}
       }
     }
-    finalizeExit(exitRequested ? EXIT_REQUESTED_CODE : 0);
+    finalizeExit(0);
   });
 
 const sessions = program
@@ -405,9 +397,8 @@ program
       },
       true,
     );
-    let exitRequested = false;
     try {
-      exitRequested = await daemon({
+      await daemon({
         agent,
         manager,
         session,
@@ -421,7 +412,7 @@ program
         await manager.disconnect();
       } catch {}
     }
-    finalizeExit(exitRequested ? EXIT_REQUESTED_CODE : 0);
+    finalizeExit(0);
   });
 
 const mcp = program

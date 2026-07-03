@@ -24,8 +24,6 @@ const STATIC_PROMPT_FILES = [
   "fetch.md",
   "web-search.md",
   "shell.md",
-  "sleep.md",
-  "bye.md",
   "daemon.md",
   "skills.md",
   "subagents.md",
@@ -79,8 +77,6 @@ export class System {
           return this.config.tools.filesystem.enabled;
         case "shell.md":
           return this.config.tools.shell.enabled;
-        case "sleep.md":
-          return this.config.tools.sleep.enabled;
         case "subagents.md":
           return this.config.tools.subagents.enabled;
         case "daemon.md":

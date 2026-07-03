@@ -19,7 +19,6 @@ const KNOWN_TOOL_KINDS = new Map<string, ToolKind>([
   ["get_file_info", "read"],
   ["shell", "execute"],
   ["sleep", "other"],
-  ["bye", "other"],
   ["fetch", "fetch"],
   ["web_search", "search"],
   ["skills", "other"],

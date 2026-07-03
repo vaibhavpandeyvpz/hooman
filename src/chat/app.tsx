@@ -40,7 +40,6 @@ import { LiveTranscript, TranscriptLine } from "./components/Transcript.js";
 import { EmptyChatBanner } from "./components/EmptyChatBanner.js";
 import type { ApprovalRequest, ChatLine } from "./types.js";
 import { getTodoViewState, type TodoViewState } from "../core/state/todos.js";
-import { isExitRequested } from "../core/state/exit-request.js";
 import {
   getModeState,
   setSessionMode,
@@ -1397,10 +1396,6 @@ export function ChatApp({
         setRunning(false);
         setTurnStartedAt(null);
         setStatus("ready");
-        if (isExitRequested(agent)) {
-          onExit();
-          exit();
-        }
       }
     },
     [
@@ -1408,11 +1403,9 @@ export function ChatApp({
       appendThoughtText,
       appendLine,
       agent,
-      exit,
       ensureAssistantLine,
       finalizeAssistantLine,
       finalizeThoughtLine,
-      onExit,
       updateLine,
     ],
   );

@@ -14,7 +14,7 @@ export function createSleepTools() {
     tool({
       name: "sleep",
       description:
-        "Wait for a specified number of seconds without using shell processes. Use when the user asks you to pause or retry after a delay.",
+        "Wait for a specified number of seconds without holding a shell process. Use when the user asks to wait, pause, or retry later, or while waiting for an external event where immediate polling would be wasteful. Choose the shortest useful delay; the wait can be cancelled by the user.",
       inputSchema: z.object({
         seconds: z.coerce
           .number()
