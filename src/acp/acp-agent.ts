@@ -32,6 +32,7 @@ import {
   type SetSessionModeRequest,
   type SetSessionModeResponse,
   type StopReason,
+  type ToolCallContent,
 } from "@agentclientprotocol/sdk";
 import {
   isModelStreamEvent,
@@ -155,6 +156,12 @@ type SessionRecord = {
   streamingToolInputJson: Map<string, string>;
   /** Latest tool use block seen in the model stream (sequential tool calls). */
   lastStreamToolUseId: string | null;
+  /**
+   * Terminal id embedded for a shell tool call routed through the client's
+   * `terminal/*` backend, keyed by `toolUseId`. Lets the completed tool-call
+   * update keep showing the live terminal instead of a JSON result blob.
+   */
+  terminalByToolCall: Map<string, string>;
   /** Re-apply the mode tool surface at the next turn boundary (deferred mid-turn). */
   pendingModeReapply: boolean;
   /** Rebuild the model at the next turn boundary (deferred mid-turn). */
@@ -1098,13 +1105,25 @@ export class HoomanAcpAgent {
                   ev.toolUse.name,
                   ev.toolUse.input,
                 );
+                // Keep the embedded terminal (retained by the client after
+                // release) as the completed content, rather than replacing the
+                // live output with a JSON result blob. The structured result
+                // still travels to the model via `rawOutput`.
+                const terminalId = rec.terminalByToolCall.get(
+                  ev.toolUse.toolUseId,
+                );
+                rec.terminalByToolCall.delete(ev.toolUse.toolUseId);
+                const content: Array<ToolCallContent> =
+                  terminalId !== undefined
+                    ? [{ type: "terminal", terminalId }]
+                    : (diff ?? toolResultToAcpContent(ev.result));
                 await this.#sendUpdate(client, params.sessionId, {
                   sessionUpdate: "tool_call_update",
                   toolCallId: ev.toolUse.toolUseId,
                   status:
                     ev.result.status === "success" ? "completed" : "failed",
                   rawOutput: ev.result.toJSON() as unknown,
-                  content: diff ?? toolResultToAcpContent(ev.result),
+                  content,
                   ...(locations ? { locations } : {}),
                 });
                 if (
@@ -1426,6 +1445,7 @@ export class HoomanAcpAgent {
       streamedToolCallIds: new Set(),
       streamingToolInputJson: new Map(),
       lastStreamToolUseId: null,
+      terminalByToolCall: new Map(),
       pendingModeReapply: false,
       pendingModelRebuild: false,
       pendingPersistModel: null,
@@ -1509,7 +1529,12 @@ export class HoomanAcpAgent {
 
     try {
       // Embed the live terminal in the tool call so the client streams output.
+      // Record it so the completed tool-call update keeps the terminal view
+      // (which the client retains after release) instead of a JSON result blob.
       if (request.toolUseId) {
+        this.#sessions
+          .get(sessionId)
+          ?.terminalByToolCall.set(request.toolUseId, terminalId);
         await this.#sendUpdate(client, sessionId, {
           sessionUpdate: "tool_call_update",
           toolCallId: request.toolUseId,
