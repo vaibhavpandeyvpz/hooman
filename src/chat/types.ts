@@ -20,9 +20,15 @@ export interface ChatLine {
 
 export type ApprovalDecision = "allow" | "reject" | "always";
 
+export interface ApprovalResolution {
+  decision: ApprovalDecision;
+  reason?: string;
+}
+
 export interface ApprovalRequest {
   id: string;
   toolName: string;
   description?: string;
   inputPreview: string;
+  preview?: string;
 }

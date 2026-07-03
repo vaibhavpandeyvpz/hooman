@@ -3,7 +3,10 @@ import {
   InterventionActions,
   type BeforeToolCallEvent,
 } from "@strands-agents/sdk";
+import fs from "node:fs/promises";
+import { getPlanState } from "../state/plan.js";
 import {
+  EXIT_PLAN_MODE_TOOL,
   INTERNAL_ALWAYS_ALLOWED,
   isImplicitlyAllowed,
   planModeWriteEditRejectionMessage,
@@ -12,6 +15,7 @@ import { isYoloEnabled } from "../state/yolo.js";
 import { getAllowlist } from "./allowlist.js";
 
 const INPUT_PREVIEW_LIMIT = 1_024;
+const PLAN_PREVIEW_MAX_BYTES = 8 * 1024;
 
 export type ToolApprovalDecision = "allow" | "always";
 
@@ -24,6 +28,12 @@ export type ToolApprovalRequest = {
   input: unknown;
   inputPreview: string;
   prompt: string;
+  /**
+   * Human-facing preview of the artifact being acted on (e.g. the drafted plan
+   * for {@link EXIT_PLAN_MODE_TOOL}). Frontends may render this above the
+   * approve/decline choices.
+   */
+  preview?: string;
 };
 
 type ToolApprovalCallbacks = {
@@ -63,6 +73,23 @@ function previewInput(input: unknown): string {
   }
 }
 
+async function readPlanPreview(
+  agent: BeforeToolCallEvent["agent"],
+): Promise<string | null> {
+  const { planFile } = getPlanState(agent);
+  if (!planFile) {
+    return null;
+  }
+  try {
+    const buf = await fs.readFile(planFile);
+    const slice = buf.subarray(0, Math.min(PLAN_PREVIEW_MAX_BYTES, buf.length));
+    const text = slice.toString("utf8").trim();
+    return text.length > 0 ? text : null;
+  } catch {
+    return null;
+  }
+}
+
 function toRejectReason(toolName: string, result: ToolApprovalResult): string {
   if (typeof result === "object" && result !== null && result.reason?.trim()) {
     return result.reason.trim();
@@ -93,7 +120,7 @@ export class HoomanToolApprovalIntervention extends InterventionHandler {
     | ReturnType<typeof InterventionActions.deny>
   > {
     const toolName = event.toolUse.name;
-    const request = this.buildRequest(event);
+    let request = this.buildRequest(event);
 
     const planReject = planModeWriteEditRejectionMessage(
       event.agent,
@@ -113,6 +140,13 @@ export class HoomanToolApprovalIntervention extends InterventionHandler {
     ) {
       await this.onApproved?.(request, event, "auto");
       return InterventionActions.proceed();
+    }
+
+    if (toolName === EXIT_PLAN_MODE_TOOL) {
+      const preview = await readPlanPreview(event.agent);
+      if (preview) {
+        request = { ...request, preview };
+      }
     }
 
     await this.onPromptStart?.(request, event);

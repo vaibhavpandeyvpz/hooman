@@ -49,9 +49,10 @@ export const INTERNAL_ALWAYS_ALLOWED = new Set([
   "get_file_info",
   "list_directory",
   "grep",
-  // Planning session (mode / plan file)
+  // Planning session: entering is safe and auto-allowed. Exiting is a proposal
+  // to leave planning and move toward implementation, so it flows through the
+  // approval prompt where the user can approve or decline (and keep refining).
   ENTER_PLAN_MODE_TOOL,
-  EXIT_PLAN_MODE_TOOL,
 ]);
 
 function isPlainObjectRecord(value: unknown): value is Record<string, unknown> {

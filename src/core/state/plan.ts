@@ -1,6 +1,12 @@
 export const PLAN_FILE_STATE_KEY = "hooman.planFile";
 export const PLAN_ENTER_REASON_STATE_KEY = "hooman.enterReason";
 export const PLAN_ENTERED_AT_STATE_KEY = "hooman.enteredAt";
+/**
+ * Last plan file used in this session. Survives {@link clearPlanState} so a
+ * later `enter_plan_mode` can reopen the same document instead of minting a new
+ * one. Only cleared when a fresh plan is explicitly requested.
+ */
+export const PLAN_LAST_FILE_STATE_KEY = "hooman.lastPlanFile";
 
 type AppStateLike = {
   get<T = unknown>(key: string): T;
@@ -60,4 +66,17 @@ export function clearPlanState(agent: AgentLike): void {
   agent.appState.set(PLAN_FILE_STATE_KEY, null);
   agent.appState.set(PLAN_ENTER_REASON_STATE_KEY, null);
   agent.appState.set(PLAN_ENTERED_AT_STATE_KEY, null);
+}
+
+export function getLastPlanFile(agent: AgentLike): string | null {
+  const raw = agent.appState.get(PLAN_LAST_FILE_STATE_KEY);
+  return typeof raw === "string" && raw.trim() ? raw.trim() : null;
+}
+
+export function setLastPlanFile(agent: AgentLike, planFile: string): void {
+  agent.appState.set(PLAN_LAST_FILE_STATE_KEY, planFile);
+}
+
+export function clearLastPlanFile(agent: AgentLike): void {
+  agent.appState.set(PLAN_LAST_FILE_STATE_KEY, null);
 }

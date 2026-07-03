@@ -1719,6 +1719,7 @@ export function ChatApp({
           todoState={todoState}
           queuedPrompts={queuedPrompts}
           pendingApproval={Boolean(pendingApproval)}
+          approvalRequest={pendingApproval}
           picker={picker}
           sessionItems={sessionItems}
           slashCommands={slashCommands}
@@ -1726,7 +1727,9 @@ export function ChatApp({
           input={input}
           inputHint={inputHint}
           slashMenu={slashMenu}
-          onApprovalDecision={(decision) => approvals.decide(decision)}
+          onApprovalDecision={(decision, reason) =>
+            approvals.decide(decision, reason)
+          }
           onModelSelect={(name) => {
             setPicker(null);
             void handleModelCommand(name);

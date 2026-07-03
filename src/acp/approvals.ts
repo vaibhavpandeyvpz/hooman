@@ -1,10 +1,12 @@
 import {
   type AgentContext,
+  type PermissionOption,
   type SessionNotification,
   methods,
   RequestError,
 } from "@agentclientprotocol/sdk";
 import { HoomanToolApprovalIntervention } from "../core/approvals/intervention.js";
+import { EXIT_PLAN_MODE_TOOL } from "../core/state/tool-approvals.js";
 import { inferToolKind, toolDisplayTitle } from "./utils/tool-kind.js";
 import { toolCallLocationsFromInput } from "./utils/tool-locations.js";
 
@@ -89,6 +91,40 @@ export function createAcpToolApprovalIntervention(
       const cancellationSignal = event.agent.cancelSignal;
       const cancelledReason = `Tool "${request.toolName}" permission request was cancelled.`;
 
+      // `exit_plan_mode` is a proposal to leave planning: framed as start/keep
+      // and declining leaves the session in plan mode to keep refining.
+      const isPlanExit = request.toolName === EXIT_PLAN_MODE_TOOL;
+      const options: PermissionOption[] = isPlanExit
+        ? [
+            {
+              kind: "allow_once" as const,
+              name: "Start implementing",
+              optionId: "allow_once",
+            },
+            {
+              kind: "reject_once" as const,
+              name: "Keep planning",
+              optionId: "reject_once",
+            },
+          ]
+        : [
+            {
+              kind: "allow_once" as const,
+              name: "Allow once",
+              optionId: "allow_once",
+            },
+            {
+              kind: "allow_always" as const,
+              name: "Always allow",
+              optionId: "allow_always",
+            },
+            {
+              kind: "reject_once" as const,
+              name: "Reject",
+              optionId: "reject_once",
+            },
+          ];
+
       let response;
       try {
         response = await client.request(
@@ -103,23 +139,7 @@ export function createAcpToolApprovalIntervention(
               rawInput: request.input,
               ...(locations ? { locations } : {}),
             },
-            options: [
-              {
-                kind: "allow_once",
-                name: "Allow once",
-                optionId: "allow_once",
-              },
-              {
-                kind: "allow_always",
-                name: "Always allow",
-                optionId: "allow_always",
-              },
-              {
-                kind: "reject_once",
-                name: "Reject",
-                optionId: "reject_once",
-              },
-            ],
+            options,
           },
           { cancellationSignal },
         );
@@ -139,6 +159,13 @@ export function createAcpToolApprovalIntervention(
       }
       if (response.outcome.optionId === "allow_always") {
         return "always";
+      }
+      if (isPlanExit) {
+        return {
+          decision: "reject",
+          reason:
+            "User chose to keep refining the plan. Stay in plan mode and update the plan file based on their feedback.",
+        };
       }
       return "reject";
     },

@@ -9,7 +9,7 @@ import { QueuedPrompts } from "./QueuedPrompts.js";
 import { SlashCommands } from "./SlashCommands.js";
 import { StatusBar } from "./StatusBar.js";
 import { TodoPanel } from "./TodoPanel.js";
-import type { ApprovalDecision } from "../types.js";
+import type { ApprovalDecision, ApprovalRequest } from "../types.js";
 import type { PromptSubmission } from "./prompt-input/hooks/usePromptInputController.js";
 import type { SlashCommandMenuProps } from "./prompt-input/hooks/usePromptInputController.js";
 
@@ -43,13 +43,14 @@ type BottomChromeProps = {
   todoState: TodoViewState;
   queuedPrompts: readonly QueuedPrompt[];
   pendingApproval: boolean;
+  approvalRequest: ApprovalRequest | null;
   picker: ChatPicker;
   slashCommands: readonly { name: string; description: string }[];
   slashHighlightIndex: number;
   input: string;
   inputHint: string;
   slashMenu?: SlashCommandMenuProps;
-  onApprovalDecision: (decision: ApprovalDecision) => void;
+  onApprovalDecision: (decision: ApprovalDecision, reason?: string) => void;
   sessionItems: Array<{ label: string; value: string }>;
   onModelSelect: (name: string) => void;
   onEffortSelect: (value: string) => void;
@@ -78,6 +79,7 @@ export function BottomChrome({
   todoState,
   queuedPrompts,
   pendingApproval,
+  approvalRequest,
   picker,
   sessionItems,
   slashCommands,
@@ -105,6 +107,7 @@ export function BottomChrome({
       <ChromePicker
         config={config}
         pendingApproval={pendingApproval}
+        approvalRequest={approvalRequest}
         picker={picker}
         yoloOn={yoloOn}
         sessionMode={sessionMode}

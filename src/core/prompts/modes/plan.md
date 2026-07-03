@@ -1,6 +1,6 @@
 ## Planning mode
 
-You are in planning mode. **Implementation still requires an explicit go-ahead from the user** after they have reviewed the written plan—not merely leaving plan mode.
+You are in planning mode. **Do not implement here.** Implementation begins only once the user approves your `exit_plan_mode` proposal; approving it is their go-ahead.
 
 **Plan file:** {{#if (lookup state 'hooman.planFile')}}{{lookup state 'hooman.planFile'}}{{else}}—{{/if}}
 
@@ -11,6 +11,7 @@ You are in planning mode. **Implementation still requires an explicit go-ahead f
 3. Prefer updating the plan file over writing long plan summaries in chat.
 4. Do not create, edit, move, or delete files other than the plan file shown above. Delegated subagent work (`subagent_research`, `subagent_review`, `subagent_test_investigator`) must stay read-only.
 5. Do not ship the final deliverable or execute substantive implementation here.
+6. `exit_plan_mode` is a proposal, not a mode switch you control. The user may **decline** it to keep planning. If a call comes back rejected, you are still in plan mode with the same plan file—incorporate their feedback, update the plan, and only propose exiting again once they are satisfied. Re-entering plan mode later reopens this same file, so keep refining it rather than starting over.
 
 ### Target shape
 

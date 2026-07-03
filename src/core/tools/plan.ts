@@ -5,7 +5,13 @@ import { tool } from "@strands-agents/sdk";
 import type { JSONValue, ToolContext } from "@strands-agents/sdk";
 import { z } from "zod";
 import { applySessionMode } from "../agent/sync-tool-registry-mode.js";
-import { clearPlanState, getPlanState, setPlanState } from "../state/plan.js";
+import {
+  clearPlanState,
+  getLastPlanFile,
+  getPlanState,
+  setLastPlanFile,
+  setPlanState,
+} from "../state/plan.js";
 import {
   clearModeToDefault,
   getModeState,
@@ -24,7 +30,22 @@ const ENTER_STUB_MD = "# Plan\n\n";
 
 const EnterPlanModeInputSchema = z.object({
   reason: z.string().trim().optional(),
+  fresh: z
+    .boolean()
+    .optional()
+    .describe(
+      "Start a brand-new plan document instead of reopening this session's most recent plan file.",
+    ),
 });
+
+async function fileExists(target: string): Promise<boolean> {
+  try {
+    const stat = await fs.stat(target);
+    return stat.isFile();
+  } catch {
+    return false;
+  }
+}
 
 const ExitPlanModeInputSchema = z.object({});
 
@@ -38,7 +59,8 @@ export function createPlanTools() {
       name: ENTER_PLAN_MODE_TOOL,
       description: `Use when you should explore and nail down an approach before making substantive edits.
 You enter a planning phase and receive one markdown plan document to fill in with your findings, trade-offs, and intended steps.
-If you are already in that phase, calling again keeps working with the same document instead of starting over.`,
+If you are already in that phase, calling again keeps working with the same document instead of starting over.
+Re-entering after leaving reopens this session's most recent plan file so you can keep refining it; pass fresh: true to start over.`,
       inputSchema: EnterPlanModeInputSchema,
       callback: async (
         input: z.infer<typeof EnterPlanModeInputSchema>,
@@ -69,8 +91,24 @@ If you are already in that phase, calling again keeps working with the same docu
 
         const dir = plansPath();
         await fs.mkdir(dir, { recursive: true });
-        const planFile = path.join(dir, `${randomUUID()}.md`);
-        await fs.writeFile(planFile, ENTER_STUB_MD, "utf8");
+
+        const lastPlanFile = getLastPlanFile(agent);
+        const reusable =
+          !input.fresh &&
+          lastPlanFile &&
+          isResolvedPathInsideDir(lastPlanFile, dir) &&
+          (await fileExists(lastPlanFile));
+
+        let planFile: string;
+        let reused: boolean;
+        if (reusable && lastPlanFile) {
+          planFile = lastPlanFile;
+          reused = true;
+        } else {
+          planFile = path.join(dir, `${randomUUID()}.md`);
+          await fs.writeFile(planFile, ENTER_STUB_MD, "utf8");
+          reused = false;
+        }
 
         if (!isResolvedPathInsideDir(planFile, dir)) {
           throw new Error(
@@ -85,12 +123,14 @@ If you are already in that phase, calling again keeps working with the same docu
           enteredAt,
           enterReason: input.reason,
         });
+        setLastPlanFile(agent, planFile);
         applySessionMode(agent);
 
         return toJsonValue({
           mode: "plan",
           plan_file: planFile,
           already_active: false,
+          reused,
           enter_reason: input.reason?.trim() || null,
           entered_at: enteredAt,
         });
@@ -99,6 +139,7 @@ If you are already in that phase, calling again keeps working with the same docu
     tool({
       name: EXIT_PLAN_MODE_TOOL,
       description: `Use when your written plan is ready and you want to leave the planning phase and move toward implementation.
+This is a proposal: the user is asked to approve it. If they decline, you stay in planning mode with the same plan file and should keep refining it based on their feedback.
 Returns a short excerpt of what you drafted so you can confirm or summarize next actions.
 Only call this after you have started planning with enter_plan_mode.`,
       inputSchema: ExitPlanModeInputSchema,
@@ -135,6 +176,7 @@ Only call this after you have started planning with enter_plan_mode.`,
           );
         }
 
+        setLastPlanFile(agent, planPath);
         clearModeToDefault(agent);
         clearPlanState(agent);
         applySessionMode(agent);

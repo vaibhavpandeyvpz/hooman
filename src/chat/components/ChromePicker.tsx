@@ -8,7 +8,7 @@ import {
 } from "../../core/models/reasoning-effort.js";
 import { ApprovalPrompt } from "./ApprovalPrompt.js";
 import { SelectPicker } from "./SelectPicker.js";
-import type { ApprovalDecision } from "../types.js";
+import type { ApprovalDecision, ApprovalRequest } from "../types.js";
 
 export type ChatPicker =
   null | "model" | "effort" | "yolo" | "mode" | "sessions";
@@ -16,10 +16,11 @@ export type ChatPicker =
 type ChromePickerProps = {
   config: Config;
   pendingApproval: boolean;
+  approvalRequest: ApprovalRequest | null;
   picker: ChatPicker;
   yoloOn: boolean;
   sessionMode: SessionMode;
-  onApprovalDecision: (decision: ApprovalDecision) => void;
+  onApprovalDecision: (decision: ApprovalDecision, reason?: string) => void;
   sessionItems: Array<{ label: string; value: string }>;
   onModelSelect: (name: string) => void;
   onEffortSelect: (value: string) => void;
@@ -31,6 +32,7 @@ type ChromePickerProps = {
 export function ChromePicker({
   config,
   pendingApproval,
+  approvalRequest,
   picker,
   yoloOn,
   sessionMode,
@@ -43,7 +45,12 @@ export function ChromePicker({
   onSessionSelect,
 }: ChromePickerProps) {
   if (pendingApproval) {
-    return <ApprovalPrompt onDecision={onApprovalDecision} />;
+    return (
+      <ApprovalPrompt
+        request={approvalRequest}
+        onDecision={onApprovalDecision}
+      />
+    );
   }
 
   if (picker === "model") {
