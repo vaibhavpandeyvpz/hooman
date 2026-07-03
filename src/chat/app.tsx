@@ -17,10 +17,7 @@ import {
   type ContentBlock,
   type Usage,
 } from "@strands-agents/sdk";
-import {
-  accumulateUsage,
-  createEmptyUsage,
-} from "../core/utils/strands-usage-accumulate.js";
+import { createEmptyUsage } from "../core/utils/strands-usage-accumulate.js";
 import type { Config } from "../core/config.js";
 import type { Manager as McpManager } from "../core/mcp/index.js";
 import { modelProviders } from "../core/models/index.js";
@@ -1332,37 +1329,42 @@ export function ChatApp({
                 }
                 if (modelEvent?.type === "modelMetadataEvent") {
                   const u = (modelEvent.usage ?? {}) as Partial<Usage>;
-                  const delta: Usage = {
-                    inputTokens: u.inputTokens ?? 0,
-                    outputTokens: u.outputTokens ?? 0,
-                    totalTokens: u.totalTokens ?? 0,
-                    ...(u.cacheReadInputTokens !== undefined && {
-                      cacheReadInputTokens: u.cacheReadInputTokens,
-                    }),
-                    ...(u.cacheWriteInputTokens !== undefined && {
-                      cacheWriteInputTokens: u.cacheWriteInputTokens,
-                    }),
-                  };
                   const metricsData = (modelEvent.metrics ?? {}) as {
                     latencyMs?: number;
                   };
                   const lat = metricsData.latencyMs ?? 0;
-                  // Sum every `modelMetadataEvent` for this chat session (Strands meter semantics). Never reset on
-                  // new prompts so the footer stays monotonic; note input totals sum per-request prompt sizes.
+                  // Cumulative billing meter: sum every request's token usage over
+                  // the session, cache reads included. Cache reads recur on every
+                  // request and are billed each time (at a reduced rate), so the
+                  // running total reflects what the session actually costs rather
+                  // than the current context-window size.
                   setUsage((prev) => {
-                    const tokens: Usage = {
-                      inputTokens: prev.inputTokens,
-                      outputTokens: prev.outputTokens,
-                      totalTokens: prev.totalTokens,
-                      ...(prev.cacheReadInputTokens !== undefined && {
-                        cacheReadInputTokens: prev.cacheReadInputTokens,
+                    const inputTokens = prev.inputTokens + (u.inputTokens ?? 0);
+                    const outputTokens =
+                      prev.outputTokens + (u.outputTokens ?? 0);
+                    const cacheRead =
+                      (prev.cacheReadInputTokens ?? 0) +
+                      (u.cacheReadInputTokens ?? 0);
+                    const cacheWrite =
+                      (prev.cacheWriteInputTokens ?? 0) +
+                      (u.cacheWriteInputTokens ?? 0);
+                    const hasCacheRead =
+                      prev.cacheReadInputTokens !== undefined ||
+                      u.cacheReadInputTokens !== undefined;
+                    const hasCacheWrite =
+                      prev.cacheWriteInputTokens !== undefined ||
+                      u.cacheWriteInputTokens !== undefined;
+                    return {
+                      inputTokens,
+                      outputTokens,
+                      totalTokens:
+                        inputTokens + cacheRead + cacheWrite + outputTokens,
+                      ...(hasCacheRead && { cacheReadInputTokens: cacheRead }),
+                      ...(hasCacheWrite && {
+                        cacheWriteInputTokens: cacheWrite,
                       }),
-                      ...(prev.cacheWriteInputTokens !== undefined && {
-                        cacheWriteInputTokens: prev.cacheWriteInputTokens,
-                      }),
+                      latencyMs: prev.latencyMs + lat,
                     };
-                    accumulateUsage(tokens, delta);
-                    return { ...tokens, latencyMs: prev.latencyMs + lat };
                   });
                 }
                 break;
