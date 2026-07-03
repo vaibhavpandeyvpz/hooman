@@ -13,8 +13,6 @@ import { createRemoteTransportIdentity } from "./identity.js";
 import { Store } from "./store.js";
 import type { McpOAuthConfig, StoredMcpOAuthEntry } from "./types.js";
 
-const DEFAULT_REDIRECT_URI = "http://127.0.0.1:19876/mcp/oauth/callback";
-
 export type ProviderOptions = {
   serverName: string;
   transport: StreamableHttp | Sse;
@@ -45,11 +43,13 @@ export class HoomanMcpOAuthProvider implements OAuthClientProvider {
   }
 
   public get redirectUrl(): string {
-    return (
-      this._redirectUrl ??
-      this.options.transport.oauth?.redirectUri ??
-      DEFAULT_REDIRECT_URI
-    );
+    const url = this._redirectUrl ?? this.options.transport.oauth?.redirectUri;
+    if (!url) {
+      throw new Error(
+        "OAuth redirect URI is not initialized. Start the authorization flow before reading redirectUrl.",
+      );
+    }
+    return url;
   }
 
   public get clientMetadata(): OAuthClientMetadata {
@@ -240,6 +240,16 @@ export class HoomanMcpOAuthProvider implements OAuthClientProvider {
 
   public oauthConfig(): McpOAuthConfig | undefined {
     return this.options.transport.oauth;
+  }
+
+  /**
+   * The redirect URI a previous dynamic client registration was bound to, if
+   * any. Reusing it keeps the authorization request consistent with what the
+   * OAuth server has on record for this client.
+   */
+  public async registeredRedirectUri(): Promise<string | undefined> {
+    const entry = await this.store.get(this.key);
+    return entry?.client?.redirectUris?.[0];
   }
 
   private async readEntry(): Promise<StoredMcpOAuthEntry | undefined> {

@@ -69,7 +69,7 @@ export class Service {
     const provider = this.getProvider(serverName, transport);
     provider.resetFlow();
 
-    const callbackServer = await this.createCallbackServer(transport);
+    const callbackServer = await this.createCallbackServer(provider, transport);
     provider.setRedirectUrl(callbackServer.redirectUri);
 
     let authorizationUrl: URL | undefined;
@@ -170,9 +170,19 @@ export class Service {
   }
 
   private async createCallbackServer(
+    provider: HoomanMcpOAuthProvider,
     transport: OAuthRemoteTransport,
   ): Promise<CallbackServer> {
-    const redirectUri = transport.oauth?.redirectUri;
+    // An explicit redirect URI always wins, then an explicit port. Otherwise
+    // reuse the redirect a prior dynamic client registration was bound to so
+    // the authorization request matches what the OAuth server has on record.
+    // With nothing to reuse (first-time registration), fall back to a random
+    // ephemeral port.
+    const redirectUri =
+      transport.oauth?.redirectUri ??
+      (transport.oauth?.callbackPort
+        ? undefined
+        : await provider.registeredRedirectUri());
     if (redirectUri) {
       const url = new URL(redirectUri);
       return startCallbackServer({
