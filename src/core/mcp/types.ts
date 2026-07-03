@@ -28,11 +28,34 @@ export const SseSchema = z.object({
   oauth: McpOAuthConfigSchema.optional(),
 });
 
-export const McpTransportSchema = z.discriminatedUnion("type", [
-  StdioSchema,
-  StreamableHttpSchema,
-  SseSchema,
-]);
+/**
+ * Infer the transport `type` when omitted so shorthand entries work:
+ * a `command` implies `stdio`, a `url` implies `streamable-http`. Entries that
+ * already declare `type` are left untouched.
+ */
+function inferTransportType(value: unknown): unknown {
+  if (
+    value === null ||
+    typeof value !== "object" ||
+    Array.isArray(value) ||
+    "type" in value
+  ) {
+    return value;
+  }
+  const record = value as Record<string, unknown>;
+  if (typeof record.command === "string") {
+    return { ...record, type: "stdio" };
+  }
+  if (typeof record.url === "string") {
+    return { ...record, type: "streamable-http" };
+  }
+  return value;
+}
+
+export const McpTransportSchema = z.preprocess(
+  inferTransportType,
+  z.discriminatedUnion("type", [StdioSchema, StreamableHttpSchema, SseSchema]),
+);
 
 export type Stdio = z.infer<typeof StdioSchema>;
 export type StreamableHttp = z.infer<typeof StreamableHttpSchema>;
