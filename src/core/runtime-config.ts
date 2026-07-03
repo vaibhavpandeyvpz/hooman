@@ -1,7 +1,7 @@
-import { basename, resolve } from "node:path";
+import { basename, join, resolve } from "node:path";
 import { Config, type ConfigOptions } from "./config.js";
 import { Config as McpConfig } from "./mcp/config.js";
-import { configJsonPath, mcpJsonPath } from "./utils/paths.js";
+import { APP_FOLDER, configJsonPath, mcpJsonPath } from "./utils/paths.js";
 import { discoverWalkUpFiles } from "./utils/discover-files.js";
 
 export type RuntimeConfigSources = {
@@ -15,7 +15,7 @@ function overlayPathsFor(
   cwd: string = process.cwd(),
 ): string[] {
   const primaryResolved = resolve(primaryPath);
-  return discoverWalkUpFiles(filename, cwd)
+  return discoverWalkUpFiles(join(APP_FOLDER, filename), cwd)
     .map((path) => resolve(path))
     .filter((path) => path !== primaryResolved);
 }

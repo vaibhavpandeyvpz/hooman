@@ -127,6 +127,17 @@ Hooman stores user data under `~/.hooman/`:
 - `sessions/` — persisted session data.
 - `acp-sessions/` — persisted ACP session metadata.
 
+### Repo-local runtime overlays
+
+At runtime, `config.json` and `mcp.json` support project-local overlays that layer on top of the home config. Overlay files live in a nested `.hooman/` directory and are discovered by walking up from the current working directory to the git root:
+
+- Primary: `~/.hooman/config.json` and `~/.hooman/mcp.json` (or `$HOOMAN_HOME/*` when `HOOMAN_HOME` is set).
+- Overlays: `.hooman/config.json` and `.hooman/mcp.json` in each directory from the git root down to the current working directory. The nearest file wins on key conflicts.
+- App config deep-merges objects and merges `providers`/`llms` by `name`; MCP config merges `mcpServers` by server name.
+- Overlays apply to the `chat`, `exec`, `daemon`, and `acp` bootstraps. The `/config` UI and `hooman mcp auth/logout/auth-status` operate on the home config only. See `src/core/runtime-config.ts` and `src/core/utils/discover-files.ts`.
+
+`AGENTS.md` instruction files are a separate mechanism and are **not** nested under `.hooman/`: they are discovered as bare `AGENTS.md` files walked from the git root down to the current directory (see `src/core/prompts/runtime.ts`).
+
 Default `config.json` uses a local Ollama provider and `gemma4:e4b` as the default model. Supported providers include `anthropic`, `azure`, `bedrock`, `google`, `groq`, `minimax`, `moonshot`, `ollama`, `openai`, `openrouter`, and `xai`. See `src/core/models/index.ts` for the currently wired providers, `src/core/config.ts` for the top-level config schema, and `src/core/models/types.ts` for provider/LLM option schemas. Reasoning-capable providers share a common `reasoning: { effort?, summary?, display? }` option that each factory translates to the backend's native shape.
 
 ## Code style and conventions

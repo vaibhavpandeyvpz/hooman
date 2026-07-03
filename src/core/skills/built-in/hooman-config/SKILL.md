@@ -17,8 +17,9 @@ Use this skill when the user asks you to inspect, explain, or change Hooman's ow
 ## Effective Runtime View
 
 Use `hooman config` to inspect the merged runtime `config.json` for
-the current working directory (home config plus repo-local overlays). The
-command prints full `config.json` shape and redacts credential-like values.
+the current working directory (home config plus repo-local `.hooman/config.json`
+overlays walked from git root to the current directory). The command prints full
+`config.json` shape and redacts credential-like values.
 
 ## Read/Write Rules
 

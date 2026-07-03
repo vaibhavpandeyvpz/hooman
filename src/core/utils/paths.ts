@@ -1,7 +1,7 @@
 import { homedir } from "os";
 import { join } from "path";
 
-const APP_FOLDER = ".hooman";
+export const APP_FOLDER = ".hooman";
 const HOOMAN_HOME_ENV = "HOOMAN_HOME";
 
 export const basePath = () => {

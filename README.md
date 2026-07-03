@@ -319,8 +319,8 @@ Important files and folders:
 At runtime, Hooman resolves configuration in this order:
 
 1. `~/.hooman/config.json` and `~/.hooman/mcp.json`
-2. `<git-root>/config.json` and `<git-root>/mcp.json` (if present)
-3. matching files in nested directories from git root to current working directory
+2. `<git-root>/.hooman/config.json` and `<git-root>/.hooman/mcp.json` (if present)
+3. matching `.hooman/config.json` and `.hooman/mcp.json` files in nested directories from git root to current working directory
 
 Nearest files win when keys overlap.
 
@@ -502,7 +502,7 @@ Detailed design notes for planned OAuth-enabled remote MCP support live in [docs
 }
 ```
 
-At runtime, project-local `mcp.json` files are merged on top of `~/.hooman/mcp.json` from git root to current directory. On name conflicts, the nearest `mcpServers.<name>` entry wins.
+At runtime, project-local `.hooman/mcp.json` files are merged on top of `~/.hooman/mcp.json` from git root to current directory. On name conflicts, the nearest `mcpServers.<name>` entry wins.
 
 ### Example stdio server
 
