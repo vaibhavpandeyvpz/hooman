@@ -38,7 +38,7 @@ function printSessionResumeHint(program: string, sessionId: string): void {
     )}`,
   );
   console.log(
-    ` ${styleText(["white", "bold"], "Resume latest in cwd:")} ${styleText(
+    ` ${styleText(["white", "bold"], "Resume latest in project:")} ${styleText(
       ["white"],
       `${exe} chat --continue`,
     )}`,

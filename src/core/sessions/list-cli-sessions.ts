@@ -1,5 +1,5 @@
 import { readdir, readFile, stat } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 import { sessionsPath } from "../utils/paths.js";
 
 const SNAPSHOT_FILE = "snapshot_latest.json";
@@ -12,8 +12,6 @@ type SnapshotMessage = {
 
 type SnapshotData = {
   messages?: unknown;
-  state?: unknown;
-  systemPrompt?: unknown;
 };
 
 type SnapshotFile = {
@@ -24,35 +22,27 @@ type SnapshotFile = {
 export type CliSessionSummary = {
   sessionId: string;
   title: string;
-  cwd: string | null;
   updatedAt: string;
   updatedAtMs: number;
   messageCount: number;
 };
 
-export async function listCliSessions(params?: {
-  cwd?: string;
-}): Promise<CliSessionSummary[]> {
+/**
+ * List saved CLI sessions for the current project. Session storage is already
+ * scoped per project (see {@link sessionsPath}), so every entry in the directory
+ * belongs to this project — no per-session working-directory filtering needed.
+ */
+export async function listCliSessions(): Promise<CliSessionSummary[]> {
   const root = sessionsPath();
   const names = await listSessionDirectoryNames(root);
-  const targetCwd = normalizePath(params?.cwd);
   const sessions: CliSessionSummary[] = [];
 
   await Promise.all(
     names.map(async (sessionId) => {
       const summary = await readSessionSummary(root, sessionId);
-      if (!summary) {
-        return;
+      if (summary) {
+        sessions.push(summary);
       }
-      if (targetCwd) {
-        if (!summary.cwd) {
-          return;
-        }
-        if (normalizePath(summary.cwd) !== targetCwd) {
-          return;
-        }
-      }
-      sessions.push(summary);
     }),
   );
 
@@ -65,10 +55,9 @@ export async function listCliSessions(params?: {
   return sessions;
 }
 
-export async function latestCliSessionForCwd(
-  cwd: string,
-): Promise<CliSessionSummary | null> {
-  const sessions = await listCliSessions({ cwd });
+/** Most recently updated session for the current project, if any. */
+export async function latestCliSession(): Promise<CliSessionSummary | null> {
+  const sessions = await listCliSessions();
   return sessions[0] ?? null;
 }
 
@@ -94,15 +83,12 @@ async function readSessionSummary(
       stat(snapshotPath),
     ]);
     const parsed = JSON.parse(raw) as SnapshotFile;
-    const data = parsed.data;
-    const messages = asMessages(data?.messages);
+    const messages = asMessages(parsed.data?.messages);
     const title = deriveSessionTitle(messages) ?? "Untitled session";
-    const cwd = deriveSessionCwd(data);
     const updatedAtDate = deriveUpdatedAt(fileStat.mtime, parsed.createdAt);
     return {
       sessionId,
       title,
-      cwd,
       updatedAt: updatedAtDate.toISOString(),
       updatedAtMs: updatedAtDate.getTime(),
       messageCount: messages.length,
@@ -163,36 +149,6 @@ function extractMessageText(content: unknown): string {
   return parts.join("\n");
 }
 
-function deriveSessionCwd(data: SnapshotData | undefined): string | null {
-  const stateCwd = extractStateCwd(data?.state);
-  if (stateCwd) {
-    return stateCwd;
-  }
-  const systemPrompt = data?.systemPrompt;
-  if (typeof systemPrompt !== "string") {
-    return null;
-  }
-  const match = systemPrompt.match(/- Primary working directory:\s*`([^`]+)`/m);
-  return match?.[1]?.trim() || null;
-}
-
-function extractStateCwd(state: unknown): string | null {
-  if (!state || typeof state !== "object") {
-    return null;
-  }
-  const values = Object.values(state as Record<string, unknown>);
-  for (const value of values) {
-    if (!value || typeof value !== "object") {
-      continue;
-    }
-    const cwd = (value as { cwd?: unknown }).cwd;
-    if (typeof cwd === "string" && cwd.trim().length > 0) {
-      return cwd;
-    }
-  }
-  return null;
-}
-
 function deriveUpdatedAt(fileMtime: Date, snapshotCreatedAt: unknown): Date {
   if (!Number.isNaN(fileMtime.getTime())) {
     return fileMtime;
@@ -204,15 +160,4 @@ function deriveUpdatedAt(fileMtime: Date, snapshotCreatedAt: unknown): Date {
     }
   }
   return new Date(0);
-}
-
-function normalizePath(value: string | undefined): string | null {
-  if (!value) {
-    return null;
-  }
-  try {
-    return resolve(value);
-  } catch {
-    return value;
-  }
 }

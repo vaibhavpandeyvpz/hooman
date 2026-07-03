@@ -290,7 +290,7 @@ hooman acp
 
 ACP notes:
 
-- ACP sessions are stored under the active Hooman data directory in `acp-sessions/`
+- ACP sessions are stored under the active project's session directory in `sessions/acp/` (see [Configuration Layout](#configuration-layout))
 - ACP loads MCP servers passed on `session/new` and `session/load`, in addition to Hooman's local `mcp.json`
 - ACP `session/new` and `session/load` support `_meta.userId`
 - session configuration includes `hooman.sessionMode` (`agent`, `plan`, or `ask`); see [Session mode](#session-mode)
@@ -311,8 +311,16 @@ Important files and folders:
 - `skills/` - installed skills
 - `bin/` - runtime-managed helper binaries (including bootstrapped `rg` for the `grep` tool when system `rg` is unavailable)
 - `cache/` - runtime caches used by tools and subsystems
-- `sessions/` - persisted session data
-- `acp-sessions/` - persisted ACP session metadata and message snapshots
+- `projects.json` - registry mapping each project root to a stable UUID
+- `projects/<uuid>/` - per-project storage, scoped to the project (git root, falling back to cwd) the session runs in:
+  - `sessions/` - persisted session data (including ACP sessions under `sessions/acp/` and offloaded tool output under `sessions/offloaded-content/`)
+  - `memory/` - durable extracted memory store
+  - `attachments/` - saved attachments (e.g. clipboard images)
+  - `plans/` - plan-mode markdown documents
+
+### Project-scoped storage
+
+`sessions`, `memory`, `attachments`, and `plans` are scoped per project rather than shared globally. On first use in a working directory, Hooman resolves the project root (the nearest git root, falling back to the cwd), mints a UUID for it, and records the mapping in `~/.hooman/projects.json`. All four folders then live under `~/.hooman/projects/<uuid>/`, so unrelated projects never see each other's sessions, memory, attachments, or plans. Config and MCP resolution are unaffected (see repo-local overlays below).
 
 ### Repo-local runtime overlays
 
@@ -403,7 +411,7 @@ The on-disk shape uses a reusable **`providers`** array plus a non-empty **`llms
 
 Tool approvals are session-scoped and are not persisted in `config.json`.
 
-Hooman enables Strands `ContextOffloader` by default with file-backed storage under `~/.hooman/sessions/offloaded-content`, so large tool results can be previewed in-context and retrieved later without bloating the active conversation window.
+Hooman enables Strands `ContextOffloader` by default with file-backed storage under the project-scoped `~/.hooman/projects/<uuid>/sessions/offloaded-content`, so large tool results can be previewed in-context and retrieved later without bloating the active conversation window.
 
 Supported `providers[].provider` values registered in this release (see `src/core/models/index.ts`):
 

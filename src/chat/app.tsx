@@ -1136,14 +1136,14 @@ export function ChatApp({
       });
       return;
     }
-    const rows = await listCliSessions({ cwd: process.cwd() });
+    const rows = await listCliSessions();
     const filtered = rows.filter((row) => row.sessionId !== sessionId);
     if (filtered.length === 0) {
       appendLine({
         id: nowId(),
         role: "system",
         title: "sessions",
-        content: "No saved sessions found for this directory.",
+        content: "No saved sessions found for this project.",
         done: true,
       });
       return;

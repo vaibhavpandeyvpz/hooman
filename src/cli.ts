@@ -33,7 +33,7 @@ import { getModeState, type SessionMode } from "./core/state/session-mode.js";
 import { isYoloEnabled } from "./core/state/yolo.js";
 import { formatModeNames, getModeIds } from "./core/modes/index.js";
 import {
-  latestCliSessionForCwd,
+  latestCliSession,
   listCliSessions,
   type CliSessionSummary,
 } from "./core/sessions/list-cli-sessions.js";
@@ -162,11 +162,10 @@ function formatSessionAge(isoTimestamp: string): string {
 }
 
 function printSessionList(rows: CliSessionSummary[]): void {
-  const headers = ["session", "updated", "cwd", "title"] as const;
+  const headers = ["session", "updated", "title"] as const;
   const tableRows = rows.map((row) => ({
     session: row.sessionId,
     updated: formatSessionAge(row.updatedAt),
-    cwd: row.cwd ?? "-",
     title: row.title,
   }));
   const widths = headers.map((header) =>
@@ -239,16 +238,11 @@ program
   .addOption(cliSessionIdOption())
   .addOption(cliSessionModeOption())
   .addOption(cliYoloOption("interactive"))
-  .option(
-    "-C, --continue",
-    "Resume the latest session in the current working directory.",
-  )
+  .option("-C, --continue", "Resume the latest session in the current project.")
   .action(async (prompt: string | undefined, options: CliChatFlags) => {
     const config = createSessionConfig();
     const pinnedSession = options.session?.trim();
-    const continuedSession = options.continue
-      ? await latestCliSessionForCwd(process.cwd())
-      : null;
+    const continuedSession = options.continue ? await latestCliSession() : null;
     let currentSessionId =
       pinnedSession || continuedSession?.sessionId || crypto.randomUUID();
     let currentPrompt = prompt?.trim() || undefined;
@@ -336,12 +330,9 @@ const sessions = program
 
 sessions
   .command("list")
-  .description("List saved sessions from local snapshot storage.")
-  .option("--cwd", "Only include sessions for the current working directory.")
-  .action(async (options: { cwd?: boolean }) => {
-    const rows = await listCliSessions({
-      cwd: options.cwd ? process.cwd() : undefined,
-    });
+  .description("List saved sessions for the current project.")
+  .action(async () => {
+    const rows = await listCliSessions();
     if (rows.length === 0) {
       console.log("No saved sessions found.");
       return;

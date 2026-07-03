@@ -33,9 +33,18 @@ export {
   instructionsMdPath,
   mcpJsonPath,
   mcpOauthJsonPath,
+  memoryPath,
+  plansPath,
   sessionsPath,
   skillsPath,
 } from "./core/utils/paths.js";
+export {
+  currentProjectRoot,
+  projectId,
+  projectPath,
+  projectRegistryPath,
+  projectsPath,
+} from "./core/utils/project-registry.js";
 export { openBrowser } from "./core/utils/browser.js";
 export {
   attachmentDiagnosticBlock,
@@ -210,7 +219,7 @@ export {
 } from "./core/sessions/lazy-session-manager.js";
 export { TolerantFileStorage } from "./core/sessions/tolerant-file-storage.js";
 export {
-  latestCliSessionForCwd,
+  latestCliSession,
   listCliSessions,
   type CliSessionSummary,
 } from "./core/sessions/list-cli-sessions.js";

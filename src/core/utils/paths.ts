@@ -1,5 +1,6 @@
 import { homedir } from "os";
 import { join } from "path";
+import { projectPath } from "./project-registry.js";
 
 export const APP_FOLDER = ".hooman";
 const HOOMAN_HOME_ENV = "HOOMAN_HOME";
@@ -23,13 +24,16 @@ export const mcpOauthJsonPath = () => join(basePath(), "mcp-oauth.json");
 
 export const allowlistJsonPath = () => join(basePath(), "allowlist.json");
 
-export const sessionsPath = () => join(basePath(), "sessions");
+// Per-project storage: scoped to the current working directory's project via a
+// UUID registry (see ./project-registry.ts), so sessions, memory, attachments,
+// and plans do not bleed across unrelated projects.
+export const sessionsPath = () => join(projectPath(), "sessions");
 
-export const memoryPath = () => join(basePath(), "memory");
+export const memoryPath = () => join(projectPath(), "memory");
 
-export const attachmentsPath = () => join(basePath(), "attachments");
+export const attachmentsPath = () => join(projectPath(), "attachments");
 
-export const plansPath = () => join(basePath(), "plans");
+export const plansPath = () => join(projectPath(), "plans");
 
 export const skillsPath = () => join(basePath(), "skills");
 
