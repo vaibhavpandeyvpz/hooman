@@ -565,6 +565,44 @@ At runtime, project-local `.hooman/mcp.json` files are merged on top of `~/.hoom
 }
 ```
 
+### How the client identity is established
+
+When authorizing a remote server, the MCP SDK needs a `client_id`. Hooman resolves one in this order:
+
+1. **Pre-registered client** — if `oauth.clientId` (and optionally `clientSecret`) is set, it is used as-is and no registration happens.
+2. **Dynamic Client Registration (DCR)** — if the auth server advertises a `registration_endpoint`, Hooman registers a client on the fly. The redirect URI it registers is reused on later authorizations (persisted in `~/.hooman/mcp-oauth.json`), so keep it stable — set `oauth.callbackPort` or `oauth.redirectUri` if a server pins the redirect.
+3. **Client ID Metadata Document (CIMD / SEP-991)** — some servers (e.g. Slack) support neither a static client nor DCR, and instead advertise `client_id_metadata_document_supported: true`. For these, the client presents an HTTPS URL that hosts a JSON metadata document; that URL becomes the `client_id`. Hooman sends `oauth.clientMetadataUrl` (falling back to a bundled default) whenever the server supports it.
+
+If a server supports none of these, authorization fails with `Incompatible auth server: does not support dynamic client registration` — supply a `clientId` or `clientMetadataUrl`.
+
+### Hosting a CIMD document (GitHub Pages)
+
+The metadata document is a static JSON file served over HTTPS. A copy ships in this repo at [`docs/oauth/client-metadata.json`](docs/oauth/client-metadata.json) and is published via GitHub Pages at `https://vaibhavpandey.com/hooman/oauth/client-metadata.json`, which is the default `clientMetadataUrl`.
+
+Requirements when hosting your own:
+
+- The URL must be **HTTPS with a non-root path** (a bare domain is rejected).
+- The document's own `client_id` field must equal the hosted URL **exactly** (self-referential).
+- `redirect_uris` must include Hooman's loopback callback path `/mcp/oauth/callback`. Per RFC 8252 the loopback port is matched flexibly, so list the port-less hosts (`http://127.0.0.1/mcp/oauth/callback` and `http://localhost/mcp/oauth/callback`).
+- `token_endpoint_auth_method` is `"none"` (public client — the document is public and holds no secrets).
+
+Override the default per server:
+
+```json
+{
+  "mcpServers": {
+    "slack": {
+      "type": "streamable-http",
+      "url": "https://mcp.slack.com/mcp",
+      "oauth": {
+        "enabled": true,
+        "clientMetadataUrl": "https://vaibhavpandey.com/hooman/oauth/client-metadata.json"
+      }
+    }
+  }
+}
+```
+
 ### Example SSE server
 
 ```json

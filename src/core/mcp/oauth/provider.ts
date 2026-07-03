@@ -13,6 +13,17 @@ import { createRemoteTransportIdentity } from "./identity.js";
 import { Store } from "./store.js";
 import type { McpOAuthConfig, StoredMcpOAuthEntry } from "./types.js";
 
+/**
+ * Hooman's hosted Client ID Metadata Document (CIMD / SEP-991). Auth servers
+ * that advertise `client_id_metadata_document_supported: true` (e.g. Slack) but
+ * do not support dynamic client registration use this URL directly as the
+ * `client_id`. The document is a static JSON file served over HTTPS whose own
+ * `client_id` field must equal this exact URL. Override per-server with
+ * `oauth.clientMetadataUrl`.
+ */
+export const DEFAULT_CLIENT_METADATA_URL =
+  "https://vaibhavpandey.com/hooman/oauth/client-metadata.json";
+
 export type ProviderOptions = {
   serverName: string;
   transport: StreamableHttp | Sse;
@@ -65,6 +76,18 @@ export class HoomanMcpOAuthProvider implements OAuthClientProvider {
         ? { scope: this.options.transport.oauth.scopes.join(" ") }
         : {}),
     };
+  }
+
+  /**
+   * URL-based client id (CIMD / SEP-991). Returned to the MCP SDK, which uses
+   * it as the `client_id` — skipping dynamic client registration — when the
+   * auth server advertises `client_id_metadata_document_supported: true`.
+   */
+  public get clientMetadataUrl(): string | undefined {
+    return (
+      this.options.transport.oauth?.clientMetadataUrl ??
+      DEFAULT_CLIENT_METADATA_URL
+    );
   }
 
   public setRedirectUrl(url: string | URL): void {

@@ -13,6 +13,7 @@ export const McpOAuthConfigSchema = z.object({
   redirectUri: z.url().optional(),
   callbackPort: z.int().min(1).max(65535).optional(),
   tokenParamName: z.string().min(1).optional(),
+  clientMetadataUrl: z.url().optional(),
 });
 
 export const StoredMcpOAuthTokensSchema = z.object({
