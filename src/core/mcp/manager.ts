@@ -91,7 +91,20 @@ export type ServerAuthStatus = {
 function isOAuthRemoteTransport(
   transport: McpTransport,
 ): transport is StreamableHttp | Sse {
-  return transport.type === "streamable-http" || transport.type === "sse";
+  if (transport.type !== "streamable-http" && transport.type !== "sse") {
+    return false;
+  }
+  // A remote server that authenticates with a static Authorization header and
+  // has no OAuth config is not an OAuth server. The SDK only invokes the OAuth
+  // flow on a 401, so such servers never store tokens — reporting them as
+  // "unauthenticated" would wrongly trip the status-bar "needs attention" flag.
+  if (transport.oauth) {
+    return true;
+  }
+  const hasAuthHeader = Object.keys(transport.headers ?? {}).some(
+    (key) => key.toLowerCase() === "authorization",
+  );
+  return !hasAuthHeader;
 }
 
 function transportFor(
