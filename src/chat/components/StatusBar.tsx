@@ -32,6 +32,8 @@ type StatusBarProps = {
     inputTokens: number;
     outputTokens: number;
     totalTokens: number;
+    cacheReadInputTokens?: number;
+    cacheWriteInputTokens?: number;
     latencyMs: number;
   };
 };
@@ -93,6 +95,20 @@ export function StatusBar({
   mcpNeedsAttention,
   usage,
 }: StatusBarProps) {
+  // Providers with prompt caching (e.g. Anthropic) report `inputTokens` as only
+  // the uncached portion and account the bulk of the prompt under cache
+  // read/write. Fold those back in so the footer reflects real input size, and
+  // recompute the total from the effective input rather than the provider total
+  // (which also excludes cache tokens).
+  const cacheInput =
+    (usage.cacheReadInputTokens ?? 0) + (usage.cacheWriteInputTokens ?? 0);
+  const effectiveTotal = usage.inputTokens + cacheInput + usage.outputTokens;
+  // Show uncached input, then the cached portion as `/<cached>` (only when the
+  // provider actually reports caching), e.g. `30/1k + 8.21k = 9.24k`.
+  const inputLabel =
+    cacheInput > 0
+      ? `${formatTokenCount(usage.inputTokens)}/${formatTokenCount(cacheInput)}`
+      : formatTokenCount(usage.inputTokens);
   return (
     <Box marginTop={1} flexDirection="column">
       <Text>
@@ -116,9 +132,9 @@ export function StatusBar({
         <Text color={statusValueColor(status)}>{status}</Text>
         <Text color="gray">
           {" "}
-          • turns: {turnCount} • tokens: {formatTokenCount(usage.inputTokens)} +{" "}
+          • turns: {turnCount} • tokens: {inputLabel} +{" "}
           {formatTokenCount(usage.outputTokens)} ={" "}
-          {formatTokenCount(usage.totalTokens)}
+          {formatTokenCount(effectiveTotal)}
           {running ? ` • elapsed ${elapsedLabel}` : ""}
         </Text>
       </Text>

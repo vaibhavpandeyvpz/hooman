@@ -36,6 +36,8 @@ type BottomChromeProps = {
     inputTokens: number;
     outputTokens: number;
     totalTokens: number;
+    cacheReadInputTokens?: number;
+    cacheWriteInputTokens?: number;
     latencyMs: number;
   };
   todoState: TodoViewState;
