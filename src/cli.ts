@@ -66,6 +66,25 @@ async function readPackageMeta(): Promise<{
 
 const packageMeta = await readPackageMeta();
 
+/**
+ * Grace period after cleanup before the process is force-exited. Long enough for
+ * buffered stdout/stderr to flush (e.g. when output is piped), short enough that
+ * exit never feels like a hang.
+ */
+const FORCE_EXIT_GRACE_MS = 250;
+
+/**
+ * Ends the CLI with the given code. Prefers a natural event-loop drain, but if
+ * lingering handles (commonly MCP HTTP/SSE keep-alive sockets or stdio children)
+ * keep the loop alive, force-exits after a short grace period so shutdown never
+ * hangs. The timer is unref'd so a clean run still exits immediately.
+ */
+function finalizeExit(code: number): void {
+  process.exitCode = code;
+  const timer = setTimeout(() => process.exit(code), FORCE_EXIT_GRACE_MS);
+  timer.unref?.();
+}
+
 function cliSessionIdOption(): Option {
   return new Option("-s, --session <id>", "Session ID to use.");
 }
@@ -226,9 +245,7 @@ program
         await manager.disconnect();
       } catch {}
     }
-    if (exitRequested) {
-      process.exit(EXIT_REQUESTED_CODE);
-    }
+    finalizeExit(exitRequested ? EXIT_REQUESTED_CODE : 0);
   });
 
 program
@@ -319,9 +336,7 @@ program
         } catch {}
       }
     }
-    if (exitRequested) {
-      process.exit(EXIT_REQUESTED_CODE);
-    }
+    finalizeExit(exitRequested ? EXIT_REQUESTED_CODE : 0);
   });
 
 const sessions = program
@@ -406,9 +421,7 @@ program
         await manager.disconnect();
       } catch {}
     }
-    if (exitRequested) {
-      process.exit(EXIT_REQUESTED_CODE);
-    }
+    finalizeExit(exitRequested ? EXIT_REQUESTED_CODE : 0);
   });
 
 const mcp = program
@@ -426,6 +439,7 @@ mcp
       console.log(`Authenticated MCP server "${serverName.trim()}".`);
     } finally {
       await manager.disconnect().catch(() => undefined);
+      finalizeExit(0);
     }
   });
 
@@ -454,6 +468,7 @@ mcp
         );
       } finally {
         await manager.disconnect().catch(() => undefined);
+        finalizeExit(0);
       }
     },
   );
@@ -476,6 +491,7 @@ mcp
       }
     } finally {
       await manager.disconnect().catch(() => undefined);
+      finalizeExit(0);
     }
   });
 

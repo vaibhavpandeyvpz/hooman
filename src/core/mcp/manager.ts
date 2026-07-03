@@ -14,6 +14,33 @@ import { normalizeAttachmentPaths } from "../utils/attachments.js";
 
 const { get } = lodash;
 
+/**
+ * Upper bound on how long a single MCP client disconnect may take before we
+ * stop waiting for it. A wedged stdio child or a hung HTTP/SSE session close
+ * must never block process shutdown.
+ */
+const DISCONNECT_TIMEOUT_MS = 3000;
+
+/**
+ * Resolves when `promise` settles or after `ms`, whichever comes first. The
+ * timer is unref'd so it can never keep the event loop alive on its own.
+ */
+function withDisconnectTimeout(
+  promise: Promise<unknown>,
+  ms: number,
+): Promise<void> {
+  return new Promise<void>((resolve) => {
+    const timer = setTimeout(resolve, ms);
+    timer.unref?.();
+    promise
+      .catch(() => undefined)
+      .finally(() => {
+        clearTimeout(timer);
+        resolve();
+      });
+  });
+}
+
 export const HOOMAN_CHANNEL = "hooman/channel";
 export const HOOMAN_CHANNEL_PERMISSION = "hooman/channel/permission";
 const HOOMAN_CHANNEL_PERMISSION_METHOD = `notifications/${HOOMAN_CHANNEL_PERMISSION}`;
@@ -217,8 +244,11 @@ export class Manager {
     if (!toClose?.size) {
       return;
     }
+    // Bound each client disconnect so a wedged transport cannot block shutdown.
     await Promise.all(
-      [...toClose.values()].map((c) => c.disconnect().catch(() => undefined)),
+      [...toClose.values()].map((c) =>
+        withDisconnectTimeout(c.disconnect(), DISCONNECT_TIMEOUT_MS),
+      ),
     );
   }
 
