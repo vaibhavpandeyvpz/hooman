@@ -12,9 +12,49 @@ import {
   readAttachmentAsBlocksOrBase64,
   type AttachmentMediaBlocks,
 } from "../utils/attachments.js";
-import { getTextFsBackend, type TextFsBackend } from "./text-fs-backend.js";
-import { findReplacementSpan } from "../utils/edit-replace.js";
+import {
+  findReplacementSpan,
+  unescapeModelText,
+} from "../utils/edit-replace.js";
 import { z } from "zod";
+
+/**
+ * Optional per-agent text filesystem backend.
+ *
+ * When an embedding host (e.g. an ACP client that advertises the `fs`
+ * capability) can read/write text files on the agent's behalf, it registers a
+ * backend here. The built-in filesystem tools then route text reads and writes
+ * through it so the agent sees unsaved editor state and the host can track
+ * modifications. When no backend is registered, the tools use local disk I/O.
+ */
+export type TextFsReadOptions = {
+  /** 1-based line to start reading from. */
+  line?: number;
+  /** Maximum number of lines to read. */
+  limit?: number;
+};
+
+export type TextFsBackend = {
+  /** Whether the host can service text reads (`fs/read_text_file`). */
+  canRead: boolean;
+  /** Whether the host can service text writes (`fs/write_text_file`). */
+  canWrite: boolean;
+  readTextFile(path: string, options?: TextFsReadOptions): Promise<string>;
+  writeTextFile(path: string, content: string): Promise<void>;
+};
+
+/** Keyed by the Strands agent instance so backends are never serialized. */
+const textFsBackends = new WeakMap<object, TextFsBackend>();
+
+export function setTextFsBackend(agent: object, backend: TextFsBackend): void {
+  textFsBackends.set(agent, backend);
+}
+
+export function getTextFsBackend(
+  agent: object | undefined,
+): TextFsBackend | undefined {
+  return agent ? textFsBackends.get(agent) : undefined;
+}
 
 const DEFAULT_READ_LIMIT = 250;
 const DEFAULT_MAX_READ_BYTES = 1024 * 1024;
@@ -56,6 +96,41 @@ const textReadState = new Map<string, TextReadState>();
 
 function toJsonValue(value: unknown): JSONValue {
   return JSON.parse(JSON.stringify(value)) as JSONValue;
+}
+
+/**
+ * Render a text read as plain text (returned to the model as a text block,
+ * not JSON). A bracketed status line is prepended only for partial reads,
+ * and file-scoped AGENTS.md instructions are appended as a bracketed trailer.
+ */
+function formatReadResult(
+  result: {
+    path: string;
+    content: string;
+    startLine: number;
+    endLine: number;
+    totalLines: number;
+    truncated: boolean;
+  },
+  agentsInstructions?: ReadTimeAgentInstructions,
+): string {
+  const parts: string[] = [];
+  const partial =
+    result.truncated ||
+    result.startLine > 1 ||
+    result.endLine < result.totalLines;
+  if (partial) {
+    parts.push(
+      `[Showing lines ${result.startLine}-${result.endLine} of ${result.totalLines}. Call read_file again with offset/limit for more.]`,
+    );
+  }
+  parts.push(result.content.length > 0 ? result.content : "[File is empty]");
+  if (agentsInstructions) {
+    parts.push(
+      `[AGENTS.md instructions for this file, from: ${agentsInstructions.loaded_paths.join(", ")}]\n${agentsInstructions.content}`,
+    );
+  }
+  return parts.join("\n\n");
 }
 
 export function clearReadTimeAgentInstructionState(agent: object): void {
@@ -572,8 +647,13 @@ function applyEdits(
     // cause a spurious mismatch. The tolerant matcher returns the exact span
     // present in the file, which we splice and diff for byte-accurate output.
     const oldText = normalizeLineEndings(edit.oldText);
-    const newText = normalizeLineEndings(edit.newText);
+    let newText = normalizeLineEndings(edit.newText);
     const { index, text: matched } = findReplacementSpan(current, oldText);
+    // If the target only matched after unescaping (the model over-escaped its
+    // JSON tool arguments), the replacement carries the same over-escaping.
+    if (matched !== oldText && matched === unescapeModelText(oldText)) {
+      newText = unescapeModelText(newText);
+    }
     const previous = current;
     current =
       current.slice(0, index) + newText + current.slice(index + matched.length);
@@ -797,12 +877,10 @@ export function createFilesystemTools() {
           filePath,
           context,
         );
-        return toJsonValue({
-          ...result,
-          ...(agentsInstructions
-            ? { agents_instructions: agentsInstructions }
-            : {}),
-        });
+        // Return plain text, not JSON: JSON-wrapping the content re-escapes
+        // quotes/newlines in the transcript, which nudges models into
+        // producing escaped edit targets that no longer match the file.
+        return formatReadResult(result, agentsInstructions);
       },
     }),
     tool({
@@ -812,7 +890,7 @@ export function createFilesystemTools() {
       inputSchema: schema.readMultipleFiles,
       callback: async (input, context?: ToolContext) => {
         const backend = getTextFsBackend(context?.agent);
-        const results = await Promise.all(
+        const sections = await Promise.all(
           input.paths.map(async (itemPath) => {
             const filePath = normalizeUserPath(itemPath);
             try {
@@ -828,25 +906,16 @@ export function createFilesystemTools() {
                 filePath,
                 context,
               );
-
-              return {
-                ok: true,
-                ...readResult,
-                ...(agentsInstructions
-                  ? { agents_instructions: agentsInstructions }
-                  : {}),
-              };
+              return `==> ${filePath} <==\n${formatReadResult(readResult, agentsInstructions)}`;
             } catch (error) {
-              return {
-                path: filePath,
-                ok: false,
-                error: error instanceof Error ? error.message : String(error),
-              };
+              return `==> ${filePath} <==\n[Error: ${error instanceof Error ? error.message : String(error)}]`;
             }
           }),
         );
 
-        return toJsonValue({ results });
+        // Plain text (head/tail-style per-file headers) for the same reason
+        // as read_file: avoid JSON-escaping file content in the transcript.
+        return sections.join("\n\n");
       },
     }),
     tool({

@@ -31,6 +31,9 @@ export const sessionsPath = () => join(projectPath(), "sessions");
 
 export const memoryPath = () => join(projectPath(), "memory");
 
+export const offloadedContentPath = () =>
+  join(projectPath(), "offloaded-content");
+
 export const attachmentsPath = () => join(projectPath(), "attachments");
 
 export const plansPath = () => join(projectPath(), "plans");

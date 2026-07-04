@@ -1,5 +1,6 @@
 import { readdir, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
+import { TITLE_STATE_KEY } from "../state/session-title.js";
 import { sessionsPath } from "../utils/paths.js";
 
 const SNAPSHOT_FILE = "snapshot_latest.json";
@@ -12,6 +13,7 @@ type SnapshotMessage = {
 
 type SnapshotData = {
   messages?: unknown;
+  state?: unknown;
 };
 
 type SnapshotFile = {
@@ -84,7 +86,12 @@ async function readSessionSummary(
     ]);
     const parsed = JSON.parse(raw) as SnapshotFile;
     const messages = asMessages(parsed.data?.messages);
-    const title = deriveSessionTitle(messages) ?? "Untitled session";
+    // Prefer the AI-generated title persisted in the snapshot's state (see
+    // cli-session-title.ts); fall back to the first user message's first line.
+    const title =
+      snapshotStateTitle(parsed.data?.state) ??
+      deriveSessionTitle(messages) ??
+      "Untitled session";
     const updatedAtDate = deriveUpdatedAt(fileStat.mtime, parsed.createdAt);
     return {
       sessionId,
@@ -96,6 +103,14 @@ async function readSessionSummary(
   } catch {
     return null;
   }
+}
+
+function snapshotStateTitle(state: unknown): string | null {
+  if (!state || typeof state !== "object" || Array.isArray(state)) {
+    return null;
+  }
+  const value = (state as Record<string, unknown>)[TITLE_STATE_KEY];
+  return typeof value === "string" && value.trim().length > 0 ? value : null;
 }
 
 function asMessages(value: unknown): SnapshotMessage[] {

@@ -2,6 +2,7 @@ import { OpenAIModel } from "@strands-agents/sdk/models/openai";
 import type { OpenAIModelOptions } from "@strands-agents/sdk/models/openai";
 import type { ClientOptions } from "openai";
 import type { LlmOptions, OpenAIProviderOptions } from "./types.js";
+import { markTotalInclusiveInputUsage } from "./usage.js";
 
 export type OpenAIModelParams = OpenAIProviderOptions & LlmOptions;
 
@@ -39,7 +40,7 @@ export function create(
     }
     return Object.keys(reasoning).length > 0 ? { reasoning } : undefined;
   })();
-  return new OpenAIModel({
+  const model = new OpenAIModel({
     api,
     modelId: llmOptions.model,
     ...(providerOptions.apiKey ? { apiKey: providerOptions.apiKey } : {}),
@@ -52,4 +53,8 @@ export function create(
       : {}),
     ...(params ? { params } : {}),
   } as OpenAIModelOptions);
+  // OpenAI reports `input_tokens` inclusive of `cached_tokens` (Responses
+  // API; the Chat Completions path reports no cache detail at all).
+  markTotalInclusiveInputUsage(model);
+  return model;
 }

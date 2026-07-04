@@ -1,0 +1,6 @@
+out/
+node_modules/
+media/chat.js
+media/chat.js.map
+media/chat.css
+*.vsix

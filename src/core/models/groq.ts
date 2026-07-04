@@ -3,6 +3,7 @@ import { VercelModel } from "@strands-agents/sdk/models/vercel";
 import type { GroqProviderSettings } from "@ai-sdk/groq";
 import type { VercelModelConfig } from "@strands-agents/sdk/models/vercel";
 import type { GroqProviderOptions, LlmOptions } from "./types.js";
+import { markTotalInclusiveInputUsage } from "./usage.js";
 
 export function create(
   providerOptions: GroqProviderOptions,
@@ -39,8 +40,11 @@ export function create(
         }
       : {}),
   };
-  return new VercelModel({
+  const model = new VercelModel({
     provider: provider(llmOptions.model),
     ...config,
   });
+  // Groq reports `prompt_tokens` inclusive of any cached tokens.
+  markTotalInclusiveInputUsage(model);
+  return model;
 }

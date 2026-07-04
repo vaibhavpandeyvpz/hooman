@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <defs>
+    <linearGradient id="body" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#22D3EE"/>
+      <stop offset="0.5" stop-color="#3B82F6"/>
+      <stop offset="1" stop-color="#6366F1"/>
+    </linearGradient>
+    <linearGradient id="face" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#E0F2FE"/>
+    </linearGradient>
+  </defs>
+  <!-- antenna -->
+  <rect x="121" y="36" width="14" height="60" rx="7" fill="url(#body)"/>
+  <circle cx="128" cy="28" r="17" fill="url(#body)"/>
+  <!-- ears -->
+  <rect x="18" y="138" width="26" height="52" rx="13" fill="url(#body)"/>
+  <rect x="212" y="138" width="26" height="52" rx="13" fill="url(#body)"/>
+  <!-- head -->
+  <rect x="40" y="88" width="176" height="152" rx="36" fill="url(#body)"/>
+  <!-- face panel -->
+  <rect x="58" y="106" width="140" height="116" rx="24" fill="url(#face)"/>
+  <!-- eyes -->
+  <rect x="85" y="142" width="22" height="44" rx="11" fill="#2563EB"/>
+  <path d="M172 148 146 164l26 16" fill="none" stroke="#2563EB" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- blush -->
+  <circle cx="83" cy="198" r="9" fill="#7DD3FC" opacity="0.8"/>
+  <circle cx="173" cy="198" r="9" fill="#7DD3FC" opacity="0.8"/>
+</svg>

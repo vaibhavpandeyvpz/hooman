@@ -12,6 +12,8 @@ import {
   type AgentConnection,
   type AgentContext,
   type CancelNotification,
+  type CloseSessionRequest,
+  type CloseSessionResponse,
   type DeleteSessionRequest,
   type FileSystemCapabilities,
   type InitializeRequest,
@@ -24,6 +26,8 @@ import {
   type NewSessionResponse,
   type PromptRequest,
   type PromptResponse,
+  type ResumeSessionRequest,
+  type ResumeSessionResponse,
   type SessionInfo,
   type SessionModeState,
   type SessionNotification,
@@ -36,11 +40,10 @@ import {
 } from "@agentclientprotocol/sdk";
 import {
   isModelStreamEvent,
-  Message,
   ModelStreamUpdateEvent,
   type Agent as StrandsAgent,
-  type MessageData,
   type StopReason as StrandsStopReason,
+  type Usage,
 } from "@strands-agents/sdk";
 import { bootstrap } from "../core/index.js";
 import { applySessionMode } from "../core/agent/sync-tool-registry-mode.js";
@@ -53,31 +56,32 @@ import {
 import { getModeState, setSessionMode } from "../core/state/session-mode.js";
 import { isYoloEnabled, setYoloEnabled } from "../core/state/yolo.js";
 import {
+  ChatTurnSteeringController,
+  createChatTurnSteeringIntervention,
+} from "../core/agent/turn-steering.js";
+import {
   getAgentConversationManager,
   getAgentSessionManager,
 } from "../core/agent/index.js";
 import { readBundledPrompt } from "../core/prompts/bundled.js";
-import { formatModeNames } from "../core/modes/definitions.js";
 import { modelProviders } from "../core/models/index.js";
+import { toAdditiveUsage } from "../core/models/usage.js";
 import {
   buildSessionConfigOptions,
   currentModelName,
   CONFIG_ID_EFFORT,
   CONFIG_ID_MODE,
   CONFIG_ID_MODEL,
+  MODE_VALUE_YOLO,
 } from "./session-config.js";
 import {
   activeProviderName,
-  currentReasoningEffort,
   parseReasoningEffortArg,
-  REASONING_EFFORT_LEVELS,
-  REASONING_EFFORT_OFF,
   withReasoningEffort,
 } from "../core/models/reasoning-effort.js";
 import {
   ACP_SLASH_COMMANDS,
   parseAcpSlashCommand,
-  parseYoloToggle,
   type ParsedSlashCommand,
 } from "./commands.js";
 import {
@@ -100,29 +104,34 @@ import { toolCallLocationsFromInput } from "./utils/tool-locations.js";
 import { takeFileToolDisplay } from "../core/state/file-tool-display.js";
 import { getTodoViewState } from "../core/state/todos.js";
 import { UPDATE_TODOS_TOOL_NAME } from "../core/tools/todo.js";
-import { setTextFsBackend } from "../core/tools/text-fs-backend.js";
+import { setAskUserBackend } from "../core/tools/ask-user.js";
+import { setTextFsBackend } from "../core/tools/filesystem.js";
 import {
   setTerminalBackend,
   type TerminalRunRequest,
   type TerminalRunResult,
-} from "../core/tools/terminal-backend.js";
+} from "../core/tools/shell.js";
 import { createAcpToolApprovalIntervention } from "./approvals.js";
+import { createAcpAskUserBackend } from "./questions.js";
 import { extractAcpClientUserId } from "./meta/user-id.js";
+import { extractAcpVscodeFlag } from "./meta/vscode.js";
 import { deriveSessionTitleFromEcho } from "./sessions/title.js";
 import { acpPromptEchoText, acpPromptToInvokeArgs } from "./prompt-invoke.js";
 import { normalizeAcpSessionMcpServers } from "./mcp-servers.js";
 import { replayConversationHistory } from "./sessions/replay.js";
 import {
-  deleteStoredSession,
-  listStoredSessionIds,
-  loadSessionMessages,
-  patchSessionMeta,
-  readSessionMeta,
-  saveSessionMessages,
-  toSessionInfo,
-  writeSessionMeta,
-  type SessionMetaFile,
+  compactSessionIndex,
+  deleteSessionEntry,
+  migrateLegacySessionStore,
+  patchSessionEntry,
+  readSessionEntry,
+  readSessionIndex,
+  touchSessionEntry,
+  writeSessionEntry,
+  type SessionIndexEntry,
 } from "./sessions/store.js";
+import { FlatFileStorage } from "../core/sessions/flat-file-storage.js";
+import { sessionsPath } from "../core/utils/paths.js";
 
 /** Max sessions returned per `session/list` page. */
 const LIST_PAGE_SIZE = 40;
@@ -146,6 +155,12 @@ type SessionRecord = {
   turnAbort: AbortController | null;
   /** Chains `prompt` turns so concurrent RPCs for the same session serialize. */
   promptExclusive: Promise<void>;
+  /**
+   * Buffers follow-up prompts sent while a turn is active so the client can
+   * "steer" the running turn (`_meta["hoomanjs/steer"]` on `session/prompt`)
+   * instead of waiting for a brand new turn.
+   */
+  steering: ChatTurnSteeringController;
   /** Tool calls that already received `tool_call` from the model stream this turn. */
   streamedToolCallIds: Set<string>;
   /** Incremental JSON fragments for `toolUseInputDelta` keyed by `toolUseId`. */
@@ -158,6 +173,8 @@ type SessionRecord = {
    * update keep showing the live terminal instead of a JSON result blob.
    */
   terminalByToolCall: Map<string, string>;
+  /** `messageId` shared by all `agent_message_chunk`/`agent_thought_chunk` updates for the in-flight assistant message. */
+  currentAssistantMessageId: string | null;
   /** Re-apply the mode tool surface at the next turn boundary (deferred mid-turn). */
   pendingModeReapply: boolean;
   /** Rebuild the model at the next turn boundary (deferred mid-turn). */
@@ -166,6 +183,12 @@ type SessionRecord = {
   pendingPersistModel: string | null;
   /** Persist this provider's effort to shared config after a deferred rebuild. */
   pendingPersistEffort: { provider: string; effort: string | undefined } | null;
+  /**
+   * Cumulative billing meter for the session: every request's token usage
+   * summed (cache reads included), mirroring the CLI TUI's `StatusBar` meter.
+   * Distinct from the context-window utilization sent as `usage_update.used`.
+   */
+  cumulativeUsage: Usage;
 };
 
 async function readAgentIdentity(): Promise<AgentIdentity> {
@@ -218,6 +241,42 @@ function decodeCursor(cursor: string): number {
   });
 }
 
+/** Zeroed `Usage` accumulator for a fresh session's cumulative billing meter. */
+function createEmptyUsage(): Usage {
+  return { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
+}
+
+/**
+ * Accumulate `source` into `target` in place, mirroring the CLI TUI's
+ * cumulative billing meter (`src/chat/app.tsx`): sum every request's token
+ * usage over the session, including cache reads/writes which recur (and are
+ * billed) on every request. `source` must already be in the additive shape
+ * (see `toAdditiveUsage`), where cache reads are not part of `inputTokens`.
+ */
+function accumulateUsage(target: Usage, source: Usage): void {
+  target.inputTokens += source.inputTokens ?? 0;
+  target.outputTokens += source.outputTokens ?? 0;
+  if (
+    source.cacheReadInputTokens !== undefined ||
+    target.cacheReadInputTokens !== undefined
+  ) {
+    target.cacheReadInputTokens =
+      (target.cacheReadInputTokens ?? 0) + (source.cacheReadInputTokens ?? 0);
+  }
+  if (
+    source.cacheWriteInputTokens !== undefined ||
+    target.cacheWriteInputTokens !== undefined
+  ) {
+    target.cacheWriteInputTokens =
+      (target.cacheWriteInputTokens ?? 0) + (source.cacheWriteInputTokens ?? 0);
+  }
+  target.totalTokens =
+    target.inputTokens +
+    target.outputTokens +
+    (target.cacheReadInputTokens ?? 0) +
+    (target.cacheWriteInputTokens ?? 0);
+}
+
 function assertAbsolutePath(value: string, field: string): void {
   const trimmed = value?.trim() ?? "";
   if (!trimmed) {
@@ -262,23 +321,25 @@ function isCancellationError(
 function toAcpStopReason(reason: StrandsStopReason): StopReason {
   switch (reason) {
     case "cancelled":
+    case "interrupt":
       return "cancelled";
     case "maxTokens":
     case "modelContextWindowExceeded":
+    case "limitOutputTokens":
+    case "limitTotalTokens":
       return "max_tokens";
+    case "limitTurns":
+      return "max_turn_requests";
     case "contentFiltered":
     case "guardrailIntervened":
       return "refusal";
     case "endTurn":
     case "toolUse":
     case "stopSequence":
+    case "pauseTurn":
     default:
       return "end_turn";
   }
-}
-
-function serializeAgentMessages(agent: StrandsAgent): MessageData[] {
-  return agent.messages.map((m) => m.toJSON());
 }
 
 /** Normalize a persisted/requested mode to a known id, else the default. */
@@ -308,6 +369,10 @@ function buildSessionModeState(currentModeId: SessionMode): SessionModeState {
 export class HoomanAcpAgent {
   readonly #identity: AgentIdentity;
   readonly #acpRoot = acpSessionsRootPath();
+  /** Strands snapshot storage root (`<project>/sessions`); message source of truth. */
+  readonly #snapshotsRoot = sessionsPath();
+  /** Resolves once the legacy store migration + index compaction have run. */
+  readonly #storeReady: Promise<void>;
   readonly #sessions = new Map<string, SessionRecord>();
   /** Connection-scoped outbound context, captured in {@link onConnect}. */
   #client: AgentContext | null = null;
@@ -319,6 +384,12 @@ export class HoomanAcpAgent {
 
   constructor(identity: AgentIdentity) {
     this.#identity = identity;
+    this.#storeReady = migrateLegacySessionStore(
+      this.#acpRoot,
+      this.#snapshotsRoot,
+    )
+      .then(() => compactSessionIndex(this.#acpRoot))
+      .catch(() => undefined);
   }
 
   /** Bind connection-scoped lifecycle: capture the client + dispose on close. */
@@ -353,7 +424,6 @@ export class HoomanAcpAgent {
         loadSession: true,
         promptCapabilities: {
           image: true,
-          audio: true,
           embeddedContext: true,
         },
         mcpCapabilities: {
@@ -363,6 +433,8 @@ export class HoomanAcpAgent {
         sessionCapabilities: {
           list: {},
           delete: {},
+          resume: {},
+          close: {},
         },
       },
     };
@@ -371,12 +443,17 @@ export class HoomanAcpAgent {
   async listSessions(
     params: ListSessionsRequest,
   ): Promise<ListSessionsResponse> {
-    const ids = await listStoredSessionIds(this.#acpRoot);
+    await this.#storeReady;
+    const entries = await readSessionIndex(this.#acpRoot);
     const sessions: SessionInfo[] = [];
-    for (const id of ids) {
-      const info = await toSessionInfo(this.#acpRoot, id);
-      if (info && (!params.cwd || info.cwd === params.cwd)) {
-        sessions.push(info);
+    for (const entry of entries.values()) {
+      if (!params.cwd || entry.cwd === params.cwd) {
+        sessions.push({
+          sessionId: entry.sessionId,
+          cwd: entry.cwd,
+          title: entry.title ?? null,
+          updatedAt: entry.updatedAt,
+        });
       }
     }
     sessions.sort((a, b) =>
@@ -393,33 +470,42 @@ export class HoomanAcpAgent {
   }
 
   async deleteSession(params: DeleteSessionRequest): Promise<void> {
+    await this.#storeReady;
     const record = this.#sessions.get(params.sessionId);
     if (record) {
       this.#sessions.delete(params.sessionId);
       record.turnAbort?.abort();
       await record.mcpDisconnect();
     }
-    await deleteStoredSession(this.#acpRoot, params.sessionId);
+    await deleteSessionEntry(this.#acpRoot, params.sessionId);
+    // Also drop the Strands snapshot (the conversation history itself).
+    await new FlatFileStorage(this.#snapshotsRoot).deleteSession({
+      sessionId: params.sessionId,
+    });
   }
 
   async newSession(params: NewSessionRequest): Promise<NewSessionResponse> {
+    await this.#storeReady;
     assertAbsolutePath(params.cwd, "cwd");
     const sessionId = crypto.randomUUID();
     const clientUserId = extractAcpClientUserId(params._meta) ?? null;
     const mcpServers = normalizeAcpSessionMcpServers(params.mcpServers);
+    const vscode = extractAcpVscodeFlag(params._meta);
 
     const mode = DEFAULT_SESSION_MODE;
     const now = new Date().toISOString();
-    const meta: SessionMetaFile = {
+    const entry: SessionIndexEntry = {
+      sessionId,
       cwd: params.cwd,
       createdAt: now,
       updatedAt: now,
       title: null,
       userId: clientUserId,
       mcpServers,
+      ...(vscode ? { vscode } : {}),
       sessionMode: mode,
     };
-    await writeSessionMeta(this.#acpRoot, sessionId, meta);
+    await writeSessionEntry(this.#acpRoot, entry);
 
     const record = await this.#bootstrapSession(
       sessionId,
@@ -427,6 +513,8 @@ export class HoomanAcpAgent {
       clientUserId ?? sessionId,
       mcpServers,
       mode,
+      undefined,
+      vscode,
     );
     this.#sessions.set(sessionId, record);
     await this.#advertiseCommands(this.#requireClient(), sessionId);
@@ -434,7 +522,11 @@ export class HoomanAcpAgent {
     return {
       sessionId,
       modes: buildSessionModeState(mode),
-      configOptions: buildSessionConfigOptions(record.config, mode),
+      configOptions: buildSessionConfigOptions(
+        record.config,
+        mode,
+        isYoloEnabled(record.agent),
+      ),
     };
   }
 
@@ -442,27 +534,110 @@ export class HoomanAcpAgent {
     params: LoadSessionRequest,
     client: AgentContext,
   ): Promise<LoadSessionResponse> {
+    const { record, mode } = await this.#reactivateSession(
+      {
+        sessionId: params.sessionId,
+        cwd: params.cwd,
+        mcpServers: params.mcpServers,
+        meta: params._meta,
+      },
+      client,
+      { replayHistory: true },
+    );
+    return {
+      modes: buildSessionModeState(mode),
+      configOptions: buildSessionConfigOptions(
+        record.config,
+        mode,
+        isYoloEnabled(record.agent),
+      ),
+    };
+  }
+
+  /**
+   * Handle `session/resume`: reactivate a persisted session's in-memory state
+   * (including its conversation history, so the turn continues correctly)
+   * without replaying that history to the client — the spec reserves the full
+   * transcript replay for `session/load`.
+   */
+  async resumeSession(
+    params: ResumeSessionRequest,
+    client: AgentContext,
+  ): Promise<ResumeSessionResponse> {
+    const { record, mode } = await this.#reactivateSession(
+      {
+        sessionId: params.sessionId,
+        cwd: params.cwd,
+        mcpServers: params.mcpServers ?? [],
+        meta: params._meta,
+      },
+      client,
+      { replayHistory: false },
+    );
+    return {
+      modes: buildSessionModeState(mode),
+      configOptions: buildSessionConfigOptions(
+        record.config,
+        mode,
+        isYoloEnabled(record.agent),
+      ),
+    };
+  }
+
+  /**
+   * Handle `session/close`: cancel any in-flight turn and free the in-memory
+   * session state, without deleting the persisted session from disk (unlike
+   * `session/delete`).
+   */
+  async closeSession(
+    params: CloseSessionRequest,
+  ): Promise<CloseSessionResponse> {
+    const record = this.#sessions.get(params.sessionId);
+    if (record) {
+      this.#sessions.delete(params.sessionId);
+      record.turnAbort?.abort();
+      await record.mcpDisconnect();
+    }
+    return {};
+  }
+
+  /** Shared setup for `session/load` and `session/resume`. */
+  async #reactivateSession(
+    params: {
+      sessionId: string;
+      cwd: string;
+      mcpServers: NewSessionRequest["mcpServers"];
+      meta: LoadSessionRequest["_meta"];
+    },
+    client: AgentContext,
+    options: { replayHistory: boolean },
+  ): Promise<{ record: SessionRecord; mode: SessionMode }> {
     if (this.#sessions.has(params.sessionId)) {
       throw RequestError.invalidParams({
         sessionId: params.sessionId,
         message: "Session is already active in this agent process.",
       });
     }
-    const existing = await readSessionMeta(this.#acpRoot, params.sessionId);
+    await this.#storeReady;
+    const existing = await readSessionEntry(this.#acpRoot, params.sessionId);
     if (!existing) {
       throw RequestError.resourceNotFound(`session:${params.sessionId}`);
     }
     assertAbsolutePath(params.cwd, "cwd");
 
-    const fromRequest = extractAcpClientUserId(params._meta);
+    const fromRequest = extractAcpClientUserId(params.meta);
     const clientUserId =
       fromRequest !== undefined ? fromRequest : (existing.userId ?? null);
     const mcpServers =
       params.mcpServers.length > 0
         ? normalizeAcpSessionMcpServers(params.mcpServers)
         : (existing.mcpServers ?? []);
+    const vscode =
+      extractAcpVscodeFlag(params.meta) || existing.vscode === true;
     const mode = resolveSessionMode(existing.sessionMode);
 
+    // Bootstrapping restores the Strands snapshot (messages + appState) during
+    // `agent.initialize()` — the snapshot is the conversation source of truth.
     const record = await this.#bootstrapSession(
       params.sessionId,
       params.cwd,
@@ -470,26 +645,34 @@ export class HoomanAcpAgent {
       mcpServers,
       mode,
       existing.model,
+      vscode,
     );
 
-    const saved = await loadSessionMessages(this.#acpRoot, params.sessionId);
-    record.agent.messages.length = 0;
-    for (const md of saved) {
-      record.agent.messages.push(Message.fromJSON(md));
+    // The snapshot restore replaces appState wholesale, so re-apply the
+    // connection-scoped values that must win over persisted state: the
+    // client's user id, and the index-persisted yolo/mode settings.
+    record.agent.appState.set("userId", clientUserId ?? params.sessionId);
+    setYoloEnabled(record.agent, existing.yolo === true);
+    if (resolveSessionMode(getModeState(record.agent).mode) !== mode) {
+      setSessionMode(record.agent, mode);
+      applySessionMode(record.agent);
     }
 
-    await replayConversationHistory(
-      client,
-      params.sessionId,
-      record.agent.messages,
-    );
+    if (options.replayHistory) {
+      await replayConversationHistory(
+        client,
+        params.sessionId,
+        record.agent.messages,
+      );
+    }
 
     this.#sessions.set(params.sessionId, record);
 
-    await patchSessionMeta(this.#acpRoot, params.sessionId, {
+    await patchSessionEntry(this.#acpRoot, params.sessionId, {
       cwd: params.cwd,
       ...(fromRequest !== undefined ? { userId: fromRequest || null } : {}),
       mcpServers,
+      ...(vscode ? { vscode } : {}),
       sessionMode: mode,
     });
 
@@ -499,10 +682,7 @@ export class HoomanAcpAgent {
       await this.#sendPlanUpdate(client, params.sessionId, record);
     }
 
-    return {
-      modes: buildSessionModeState(mode),
-      configOptions: buildSessionConfigOptions(record.config, mode),
-    };
+    return { record, mode };
   }
 
   /** Advertise the available slash commands for a freshly set-up session. */
@@ -519,6 +699,7 @@ export class HoomanAcpAgent {
    */
   async setSessionMode(
     params: SetSessionModeRequest,
+    client: AgentContext,
   ): Promise<SetSessionModeResponse> {
     const rec = this.#sessions.get(params.sessionId);
     if (!rec) {
@@ -531,9 +712,9 @@ export class HoomanAcpAgent {
       });
     }
     if (this.#transitionMode(rec, params.modeId)) {
-      await patchSessionMeta(this.#acpRoot, params.sessionId, {
-        sessionMode: params.modeId,
-      });
+      // Keep the (superseding) config-options `mode` value in sync too, since
+      // Clients may read either surface (see Session Config Options spec).
+      await this.#syncCurrentMode(client, params.sessionId, rec);
     }
     return {};
   }
@@ -544,6 +725,7 @@ export class HoomanAcpAgent {
    */
   async setSessionConfigOption(
     params: SetSessionConfigOptionRequest,
+    client: AgentContext,
   ): Promise<SetSessionConfigOptionResponse> {
     const rec = this.#sessions.get(params.sessionId);
     if (!rec) {
@@ -558,20 +740,44 @@ export class HoomanAcpAgent {
     const value = params.value;
 
     if (params.configId === CONFIG_ID_MODE) {
-      if (!isKnownSessionMode(value)) {
-        throw RequestError.invalidParams({
-          value,
-          message: `Unknown mode "${value}"`,
-        });
-      }
-      if (this.#transitionMode(rec, value)) {
-        await patchSessionMeta(this.#acpRoot, params.sessionId, {
-          sessionMode: value,
-        });
+      if (value === MODE_VALUE_YOLO) {
+        // Yolo is agent mode with auto-approval on, not a distinct SessionMode.
+        if (this.#transitionMode(rec, "agent")) {
+          // Keep the legacy `modes` surface in sync too (see Session Config
+          // Options spec: "Agents SHOULD keep both in sync").
+          await this.#syncCurrentMode(client, params.sessionId, rec);
+        }
+        if (!isYoloEnabled(rec.agent)) {
+          setYoloEnabled(rec.agent, true);
+          await patchSessionEntry(this.#acpRoot, params.sessionId, {
+            yolo: true,
+          });
+        }
+      } else {
+        if (!isKnownSessionMode(value)) {
+          throw RequestError.invalidParams({
+            value,
+            message: `Unknown mode "${value}"`,
+          });
+        }
+        if (this.#transitionMode(rec, value)) {
+          // Keep the legacy `modes` surface in sync too (see Session Config
+          // Options spec: "Agents SHOULD keep both in sync").
+          await this.#syncCurrentMode(client, params.sessionId, rec);
+        }
+        // Selecting a plain mode always turns yolo back off.
+        if (isYoloEnabled(rec.agent)) {
+          setYoloEnabled(rec.agent, false);
+          await patchSessionEntry(this.#acpRoot, params.sessionId, {
+            yolo: false,
+          });
+        }
       }
     } else if (params.configId === CONFIG_ID_MODEL) {
       await this.#applyModelChange(rec, value);
-      await patchSessionMeta(this.#acpRoot, params.sessionId, { model: value });
+      await patchSessionEntry(this.#acpRoot, params.sessionId, {
+        model: value,
+      });
     } else if (params.configId === CONFIG_ID_EFFORT) {
       const parsed = parseReasoningEffortArg(value);
       if (!parsed) {
@@ -592,6 +798,7 @@ export class HoomanAcpAgent {
       configOptions: buildSessionConfigOptions(
         rec.config,
         resolveSessionMode(getModeState(rec.agent).mode),
+        isYoloEnabled(rec.agent),
       ),
     };
   }
@@ -808,154 +1015,15 @@ export class HoomanAcpAgent {
    * stream back as an `agent_message_chunk`. `/init` is handled by the caller.
    */
   #runControlCommand(
-    client: AgentContext,
-    sessionId: string,
     rec: SessionRecord,
     command: ParsedSlashCommand,
   ): Promise<string> {
     switch (command.name) {
-      case "mode":
-        return this.#commandSetMode(client, sessionId, rec, command.args);
-      case "model":
-        return this.#commandSetModel(client, sessionId, rec, command.args);
-      case "effort":
-        return this.#commandSetEffort(client, sessionId, rec, command.args);
-      case "yolo":
-        return this.#commandSetYolo(sessionId, rec, command.args);
       case "compact":
         return this.#commandCompact(rec);
       default:
         return Promise.resolve(`Unknown command "/${command.name}".`);
     }
-  }
-
-  async #commandSetMode(
-    client: AgentContext,
-    sessionId: string,
-    rec: SessionRecord,
-    args: string,
-  ): Promise<string> {
-    const current = resolveSessionMode(getModeState(rec.agent).mode);
-    const arg = args.trim().toLowerCase();
-    if (!arg) {
-      return `Usage: /mode <${formatModeNames()}>. Current mode: "${current}".`;
-    }
-    if (!isKnownSessionMode(arg)) {
-      return `Unknown mode "${arg}". Use ${formatModeNames()}.`;
-    }
-    if (!this.#transitionMode(rec, arg)) {
-      return `Already in "${arg}" mode.`;
-    }
-    await this.#syncCurrentMode(client, sessionId, rec);
-    return `Switched session mode to "${arg}".`;
-  }
-
-  async #commandSetModel(
-    client: AgentContext,
-    sessionId: string,
-    rec: SessionRecord,
-    args: string,
-  ): Promise<string> {
-    const arg = args.trim();
-    if (!arg) {
-      return this.#listModelsText(rec);
-    }
-    if (!rec.config.llms.some((entry) => entry.name === arg)) {
-      return `Unknown model "${arg}".\n\n${this.#listModelsText(rec)}`;
-    }
-    if (arg === currentModelName(rec.config)) {
-      return `Already using model "${arg}".`;
-    }
-    try {
-      await this.#applyModelChange(rec, arg);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      return `Could not switch to model "${arg}": ${message}`;
-    }
-    await patchSessionMeta(this.#acpRoot, sessionId, { model: arg });
-    await this.#sendUpdate(client, sessionId, {
-      sessionUpdate: "config_option_update",
-      configOptions: buildSessionConfigOptions(
-        rec.config,
-        resolveSessionMode(getModeState(rec.agent).mode),
-      ),
-    });
-    return `Switched model to "${arg}".`;
-  }
-
-  #listModelsText(rec: SessionRecord): string {
-    const current = currentModelName(rec.config);
-    const lines = rec.config.llms.map((entry) => {
-      const marker = entry.name === current ? "*" : "-";
-      return `${marker} ${entry.name} (${entry.provider}/${entry.options.model})`;
-    });
-    return [
-      `Current model: ${current ?? "(none)"}`,
-      "Available models:",
-      ...lines,
-      'Use "/model <name>" to switch.',
-    ].join("\n");
-  }
-
-  async #commandSetEffort(
-    client: AgentContext,
-    sessionId: string,
-    rec: SessionRecord,
-    args: string,
-  ): Promise<string> {
-    const current = currentReasoningEffort(rec.config);
-    const arg = args.trim();
-    if (!arg) {
-      return `Current reasoning effort: "${current ?? REASONING_EFFORT_OFF}". Use ${REASONING_EFFORT_LEVELS.join(
-        ", ",
-      )} or ${REASONING_EFFORT_OFF}.`;
-    }
-    const parsed = parseReasoningEffortArg(arg);
-    if (!parsed) {
-      return `Unknown effort "${arg}". Use ${REASONING_EFFORT_LEVELS.join(
-        ", ",
-      )} or ${REASONING_EFFORT_OFF}.`;
-    }
-    if (parsed.value === current) {
-      return `Reasoning effort is already "${current ?? REASONING_EFFORT_OFF}".`;
-    }
-    try {
-      await this.#applyEffortChange(rec, parsed.value);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      return `Could not set reasoning effort: ${message}`;
-    }
-    await this.#sendUpdate(client, sessionId, {
-      sessionUpdate: "config_option_update",
-      configOptions: buildSessionConfigOptions(
-        rec.config,
-        resolveSessionMode(getModeState(rec.agent).mode),
-      ),
-    });
-    return `Set reasoning effort to "${parsed.value ?? REASONING_EFFORT_OFF}".`;
-  }
-
-  async #commandSetYolo(
-    sessionId: string,
-    rec: SessionRecord,
-    args: string,
-  ): Promise<string> {
-    const arg = args.trim();
-    if (!arg) {
-      return `Usage: /yolo <on|off>. Auto-approve is currently ${
-        isYoloEnabled(rec.agent) ? "on" : "off"
-      }.`;
-    }
-    const enabled = parseYoloToggle(arg);
-    if (enabled === undefined) {
-      return `Unknown value "${arg}". Use on or off.`;
-    }
-    if (isYoloEnabled(rec.agent) === enabled) {
-      return `Auto-approve is already ${enabled ? "on" : "off"}.`;
-    }
-    setYoloEnabled(rec.agent, enabled);
-    await patchSessionMeta(this.#acpRoot, sessionId, { yolo: enabled });
-    return `Auto-approve tools ${enabled ? "enabled" : "disabled"}.`;
   }
 
   async #commandCompact(rec: SessionRecord): Promise<string> {
@@ -997,6 +1065,33 @@ export class HoomanAcpAgent {
     }
   }
 
+  /**
+   * Queue guidance for the currently active turn via {@link ChatTurnSteeringController}
+   * rather than starting a new turn. Echoes the steered text back to the
+   * client tagged with `_meta["hoomanjs/steered"]` so it can be shown inline
+   * in the transcript. Errors (no active turn) surface as a normal RPC error.
+   */
+  async #steerActiveTurn(
+    client: AgentContext,
+    rec: SessionRecord,
+    params: PromptRequest,
+  ): Promise<PromptResponse> {
+    if (!this.#isTurnActive(rec)) {
+      throw RequestError.invalidParams({
+        message: "No active turn to steer.",
+      });
+    }
+    const text = acpPromptEchoText(params.prompt);
+    rec.steering.queue([{ text, attachments: [] }]);
+    await this.#sendUpdate(client, params.sessionId, {
+      sessionUpdate: "user_message_chunk",
+      content: { type: "text", text },
+      messageId: crypto.randomUUID(),
+      _meta: { "hoomanjs/steered": true },
+    });
+    return { stopReason: "end_turn" };
+  }
+
   /** Run one prompt turn: stream model output, tool calls, and a stop reason. */
   async prompt(params: PromptRequest): Promise<PromptResponse> {
     const rec = this.#sessions.get(params.sessionId);
@@ -1004,6 +1099,13 @@ export class HoomanAcpAgent {
       throw RequestError.invalidParams({ sessionId: params.sessionId });
     }
     const client = this.#requireClient();
+
+    // A client-side "steer" request injects guidance into the *currently
+    // running* turn (via the steering intervention) instead of queuing a
+    // brand new one. See `_meta["hoomanjs/steer"]` extensibility contract.
+    if (params._meta?.["hoomanjs/steer"] === true) {
+      return this.#steerActiveTurn(client, rec, params);
+    }
 
     // Serialize concurrent prompt turns for the same session.
     const prevExclusive = rec.promptExclusive;
@@ -1019,6 +1121,7 @@ export class HoomanAcpAgent {
     rec.streamedToolCallIds.clear();
     rec.streamingToolInputJson.clear();
     rec.lastStreamToolUseId = null;
+    rec.currentAssistantMessageId = null;
 
     let stopReason: StopReason = "end_turn";
 
@@ -1028,6 +1131,7 @@ export class HoomanAcpAgent {
         await this.#sendUpdate(client, params.sessionId, {
           sessionUpdate: "user_message_chunk",
           content: { type: "text", text: echo },
+          messageId: crypto.randomUUID(),
         });
         await this.#maybeDeriveTitle(client, params.sessionId, echo);
       }
@@ -1036,16 +1140,12 @@ export class HoomanAcpAgent {
       // (no model turn); `/init` rewrites the prompt and runs normally.
       const command = parseAcpSlashCommand(echo);
       if (command && command.name !== "init") {
-        const reply = await this.#runControlCommand(
-          client,
-          params.sessionId,
-          rec,
-          command,
-        );
+        const reply = await this.#runControlCommand(rec, command);
         if (reply) {
           await this.#sendUpdate(client, params.sessionId, {
             sessionUpdate: "agent_message_chunk",
             content: { type: "text", text: reply },
+            messageId: crypto.randomUUID(),
           });
         }
         return { stopReason: "end_turn" };
@@ -1137,6 +1237,12 @@ export class HoomanAcpAgent {
                 }
               } else if (ev.type === "agentResultEvent") {
                 stopReason = toAcpStopReason(ev.result.stopReason);
+                await this.#sendUsageUpdate(
+                  client,
+                  params.sessionId,
+                  rec,
+                  ev.result.contextSize,
+                );
               }
               iter = await stream.next();
             }
@@ -1151,6 +1257,7 @@ export class HoomanAcpAgent {
           await this.#sendUpdate(client, params.sessionId, {
             sessionUpdate: "agent_message_chunk",
             content: { type: "text", text: `\n[error] ${message}\n` },
+            messageId: this.#assistantMessageId(rec),
           });
           stopReason = "refusal";
         }
@@ -1168,18 +1275,55 @@ export class HoomanAcpAgent {
       // so the next turn sees the settled state.
       await this.#flushPendingSettings(rec);
       releaseExclusive();
+      // Conversation history is persisted by the Strands session manager
+      // (snapshot save on AfterInvocation, which fires even on error/cancel);
+      // only the index's `updatedAt` needs bumping for `session/list` order.
       try {
-        await saveSessionMessages(
-          this.#acpRoot,
-          params.sessionId,
-          serializeAgentMessages(rec.agent),
-        );
+        await touchSessionEntry(this.#acpRoot, params.sessionId);
       } catch {
         /* ignore */
       }
     }
 
     return { stopReason };
+  }
+
+  /**
+   * Emit a `usage_update` carrying the cumulative token totals for the
+   * session (mirroring the CLI TUI's `in`/`cin`/`out` billing meter) under
+   * `_meta`. Hooman's model providers don't surface a context-window size at
+   * runtime, and guessing one from the model name can't be guaranteed
+   * accurate, so `size` is left at `0` ("unknown") rather than presenting a
+   * made-up number — clients should render `_meta["hoomanjs/tokens"]`
+   * instead of a used/size percentage.
+   */
+  #sendUsageUpdate(
+    client: AgentContext,
+    sessionId: string,
+    rec: SessionRecord,
+    used: number | undefined,
+  ): Promise<void> {
+    if (used === undefined) {
+      return Promise.resolve();
+    }
+    const tokens = rec.cumulativeUsage;
+    return this.#sendUpdate(client, sessionId, {
+      sessionUpdate: "usage_update",
+      used,
+      size: 0,
+      _meta: {
+        "hoomanjs/tokens": {
+          input: tokens.inputTokens,
+          output: tokens.outputTokens,
+          ...(tokens.cacheReadInputTokens !== undefined && {
+            cacheRead: tokens.cacheReadInputTokens,
+          }),
+          ...(tokens.cacheWriteInputTokens !== undefined && {
+            cacheWrite: tokens.cacheWriteInputTokens,
+          }),
+        },
+      },
+    });
   }
 
   /**
@@ -1216,7 +1360,7 @@ export class HoomanAcpAgent {
     rec: SessionRecord,
   ): Promise<void> {
     const modeId = resolveSessionMode(getModeState(rec.agent).mode);
-    await patchSessionMeta(this.#acpRoot, sessionId, { sessionMode: modeId });
+    await patchSessionEntry(this.#acpRoot, sessionId, { sessionMode: modeId });
     await this.#sendUpdate(client, sessionId, {
       sessionUpdate: "current_mode_update",
       currentModeId: modeId,
@@ -1224,22 +1368,30 @@ export class HoomanAcpAgent {
     // Config Options supersede modes; mirror the change for config-aware clients.
     await this.#sendUpdate(client, sessionId, {
       sessionUpdate: "config_option_update",
-      configOptions: buildSessionConfigOptions(rec.config, modeId),
+      configOptions: buildSessionConfigOptions(
+        rec.config,
+        modeId,
+        isYoloEnabled(rec.agent),
+      ),
     });
   }
 
-  /** Derive + persist a title from the first meaningful prompt echo. */
+  /**
+   * Derive + persist an instant placeholder title from the first meaningful
+   * prompt echo. The session-title plugin upgrades it with an AI-generated
+   * summary once the turn runs (see `onSessionTitle` in the bootstrap meta).
+   */
   async #maybeDeriveTitle(
     client: AgentContext,
     sessionId: string,
     echo: string,
   ): Promise<void> {
-    const meta = await readSessionMeta(this.#acpRoot, sessionId);
+    const entry = await readSessionEntry(this.#acpRoot, sessionId);
     const needsTitle =
-      meta &&
-      (meta.title === undefined ||
-        meta.title === null ||
-        String(meta.title).trim() === "");
+      entry &&
+      (entry.title === undefined ||
+        entry.title === null ||
+        String(entry.title).trim() === "");
     if (!needsTitle) {
       return;
     }
@@ -1247,7 +1399,7 @@ export class HoomanAcpAgent {
     if (!title) {
       return;
     }
-    await patchSessionMeta(this.#acpRoot, sessionId, { title });
+    await patchSessionEntry(this.#acpRoot, sessionId, { title });
     await this.#sendUpdate(client, sessionId, {
       sessionUpdate: "session_info_update",
       title,
@@ -1267,6 +1419,12 @@ export class HoomanAcpAgent {
       return;
     }
     switch (inner.type) {
+      case "modelMessageStartEvent": {
+        // A new assistant message starts a fresh `messageId` shared by all of
+        // its `agent_message_chunk`/`agent_thought_chunk` updates.
+        rec.currentAssistantMessageId = crypto.randomUUID();
+        return;
+      }
       case "modelContentBlockStartEvent": {
         const start = inner.start;
         if (start?.type === "toolUseStart") {
@@ -1290,6 +1448,7 @@ export class HoomanAcpAgent {
           await this.#sendUpdate(client, sessionId, {
             sessionUpdate: "agent_message_chunk",
             content: { type: "text", text: delta.text },
+            messageId: this.#assistantMessageId(rec),
           });
           return;
         }
@@ -1298,6 +1457,7 @@ export class HoomanAcpAgent {
             await this.#sendUpdate(client, sessionId, {
               sessionUpdate: "agent_thought_chunk",
               content: { type: "text", text: delta.text },
+              messageId: this.#assistantMessageId(rec),
             });
           }
           return;
@@ -1326,8 +1486,21 @@ export class HoomanAcpAgent {
                 type: "text",
                 text: `[citations: ${n} reference(s)]\n`,
               },
+              messageId: this.#assistantMessageId(rec),
             });
           }
+        }
+        return;
+      }
+      case "modelMetadataEvent": {
+        if (inner.usage) {
+          // Providers like OpenAI/Moonshot report input inclusive of cache
+          // reads; normalize to the additive shape so `in`/`cin` don't
+          // double-count in the client's meter.
+          accumulateUsage(
+            rec.cumulativeUsage,
+            toAdditiveUsage(inner.usage, rec.agent.model),
+          );
         }
         return;
       }
@@ -1339,6 +1512,7 @@ export class HoomanAcpAgent {
           await this.#sendUpdate(client, sessionId, {
             sessionUpdate: "agent_message_chunk",
             content: { type: "text", text: replace },
+            messageId: this.#assistantMessageId(rec),
           });
         }
         return;
@@ -1346,6 +1520,14 @@ export class HoomanAcpAgent {
       default:
         return;
     }
+  }
+
+  /** Lazily assign a `messageId` for the in-flight assistant message. */
+  #assistantMessageId(rec: SessionRecord): string {
+    if (!rec.currentAssistantMessageId) {
+      rec.currentAssistantMessageId = crypto.randomUUID();
+    }
+    return rec.currentAssistantMessageId;
   }
 
   #streamToolUseIdForInputDelta(rec: SessionRecord): string | undefined {
@@ -1380,9 +1562,10 @@ export class HoomanAcpAgent {
     sessionId: string,
     cwd: string,
     userId: string,
-    mcpServers: SessionMetaFile["mcpServers"],
+    mcpServers: SessionIndexEntry["mcpServers"],
     mode: SessionMode,
     preferredModel?: string,
+    vscode = false,
   ): Promise<SessionRecord> {
     const client = this.#requireClient();
     const sessionConfig = createSessionConfig();
@@ -1398,6 +1581,7 @@ export class HoomanAcpAgent {
         })),
       });
     }
+    const steering = new ChatTurnSteeringController();
     const {
       config,
       agent,
@@ -1408,6 +1592,7 @@ export class HoomanAcpAgent {
         userId,
         sessionId,
         mode,
+        interventions: [createChatTurnSteeringIntervention(steering)],
         createInterventions: () => [
           createAcpToolApprovalIntervention(
             client,
@@ -1417,7 +1602,21 @@ export class HoomanAcpAgent {
               EMPTY_STREAMED_TOOL_CALL_IDS,
           ),
         ],
-        acp: { mcpServers: mcpServers ?? [] },
+        // The session-title plugin generated an AI title (upgrading the
+        // echo-derived placeholder): persist it and notify the client.
+        onSessionTitle: async (title) => {
+          await patchSessionEntry(this.#acpRoot, sessionId, { title });
+          await this.#sendUpdate(client, sessionId, {
+            sessionUpdate: "session_info_update",
+            title,
+            updatedAt: new Date().toISOString(),
+          });
+        },
+        acp: {
+          mcpServers: mcpServers ?? [],
+          vscode,
+          cwd,
+        },
       },
       false,
       sessionConfig,
@@ -1425,6 +1624,7 @@ export class HoomanAcpAgent {
 
     this.#registerTextFsBackend(agent, client, sessionId);
     this.#registerTerminalBackend(agent, client, sessionId);
+    setAskUserBackend(agent, createAcpAskUserBackend(client, sessionId));
 
     return {
       cwd,
@@ -1433,14 +1633,17 @@ export class HoomanAcpAgent {
       mcpDisconnect: () => manager.disconnect().catch(() => undefined),
       turnAbort: null,
       promptExclusive: Promise.resolve(),
+      steering,
       streamedToolCallIds: new Set(),
       streamingToolInputJson: new Map(),
       lastStreamToolUseId: null,
       terminalByToolCall: new Map(),
+      currentAssistantMessageId: null,
       pendingModeReapply: false,
       pendingModelRebuild: false,
       pendingPersistModel: null,
       pendingPersistEffort: null,
+      cumulativeUsage: createEmptyUsage(),
     };
   }
 
@@ -1640,6 +1843,12 @@ export function createAcpApp(agent: HoomanAcpAgent): AgentApp {
     .onRequest(methods.agent.session.load, (ctx) =>
       agent.loadSession(ctx.params, ctx.client),
     )
+    .onRequest(methods.agent.session.resume, (ctx) =>
+      agent.resumeSession(ctx.params, ctx.client),
+    )
+    .onRequest(methods.agent.session.close, (ctx) =>
+      agent.closeSession(ctx.params),
+    )
     .onRequest(methods.agent.session.list, (ctx) =>
       agent.listSessions(ctx.params),
     )
@@ -1647,10 +1856,10 @@ export function createAcpApp(agent: HoomanAcpAgent): AgentApp {
       agent.deleteSession(ctx.params),
     )
     .onRequest(methods.agent.session.setMode, (ctx) =>
-      agent.setSessionMode(ctx.params),
+      agent.setSessionMode(ctx.params, ctx.client),
     )
     .onRequest(methods.agent.session.setConfigOption, (ctx) =>
-      agent.setSessionConfigOption(ctx.params),
+      agent.setSessionConfigOption(ctx.params, ctx.client),
     )
     .onRequest(methods.agent.session.prompt, (ctx) => agent.prompt(ctx.params))
     .onNotification(methods.agent.session.cancel, (ctx) =>

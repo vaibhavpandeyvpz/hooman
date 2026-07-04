@@ -3,6 +3,7 @@ import { VercelModel } from "@strands-agents/sdk/models/vercel";
 import type { OpenAICompatibleProviderSettings } from "@ai-sdk/openai-compatible";
 import type { VercelModelConfig } from "@strands-agents/sdk/models/vercel";
 import type { LlmOptions, OpenRouterProviderOptions } from "./types.js";
+import { markTotalInclusiveInputUsage } from "./usage.js";
 
 const DEFAULT_BASE_URL = "https://openrouter.ai/api/v1";
 // `providerOptionsName` is derived from the provider name, so reasoning options
@@ -43,8 +44,11 @@ export function create(
         }
       : {}),
   };
-  return new VercelModel({
+  const model = new VercelModel({
     provider: provider(llmOptions.model),
     ...config,
   });
+  // OpenRouter reports `prompt_tokens` inclusive of `cached_tokens`.
+  markTotalInclusiveInputUsage(model);
+  return model;
 }

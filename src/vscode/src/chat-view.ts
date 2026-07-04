@@ -1,0 +1,1203 @@
+import { randomUUID } from "node:crypto";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { basename, extname, join } from "node:path";
+import * as vscode from "vscode";
+import {
+  methods,
+  type ContentBlock,
+  type RequestPermissionRequest,
+  type RequestPermissionResponse,
+  type SessionConfigOption,
+  type SessionNotification,
+  type SessionUpdate,
+  type SetSessionConfigOptionRequest,
+} from "@agentclientprotocol/sdk";
+import type { HoomanAcpClient } from "./acp-client";
+import type { EditTracker } from "./edit-tracker";
+import type { PermissionPrompts } from "./permissions";
+import type { HoomanStatusBar } from "./status-bar";
+import type {
+  AttachmentInfo,
+  CommandInfo,
+  InboundMessage,
+  OutboundMessage,
+  QueuedPromptInfo,
+} from "./shared/protocol";
+
+/**
+ * The Hooman chat panel: a plain webview view (activity bar) that talks ACP
+ * through {@link HoomanAcpClient}. Unlike the native-chat surface, this works
+ * in stable VS Code and forks — no proposed APIs, no special entitlement.
+ *
+ * The panel drives one ACP session at a time; `newChat()` and `openSession()`
+ * switch it out.
+ */
+export class HoomanChatViewProvider
+  implements vscode.WebviewViewProvider, vscode.Disposable
+{
+  static readonly viewType = "hooman.chatView";
+
+  #view: vscode.WebviewView | undefined;
+  #sessionId: string | null = null;
+  #sessionTitle = "New Chat";
+  #configOptions: SessionConfigOption[] = [];
+  #commands: CommandInfo[] = [];
+  #busy = false;
+  #statusBar: HoomanStatusBar | undefined;
+  /**
+   * Prompts submitted while a turn was already running. Runs in FIFO order,
+   * one turn at a time, after the active turn finishes — unless the user
+   * explicitly "steers" them into the active turn instead (see `#steer`).
+   */
+  #queue: QueuedPromptInfo[] = [];
+  /**
+   * `session/new` can emit notifications (e.g. `available_commands_update`)
+   * that reach this client before its JSON-RPC response does, i.e. before
+   * `#sessionId` is assigned. Buffer anything that arrives while no session
+   * is known yet and replay it once `#sessionId` is set, instead of silently
+   * dropping it.
+   */
+  #pendingUpdates: SessionNotification[] = [];
+  /**
+   * Config picks (mode/model/effort) made while `session/new` was still in
+   * flight. Keyed by configId so repeated picks keep only the latest value;
+   * applied in order once the session exists.
+   */
+  #pendingConfigOptions = new Map<
+    string,
+    { value: string | boolean; boolean: boolean }
+  >();
+  /** Whether the webview's Sessions panel is open (gates live list refreshes). */
+  #sessionsPanelOpen = false;
+  #sessionsRefreshTimer: NodeJS.Timeout | undefined;
+
+  /**
+   * Fired whenever the panel's session state may have changed: session
+   * created/switched, busy toggled, title updated, config changed, or a
+   * session deleted from the picker. The sessions view refreshes off this.
+   */
+  readonly #onDidChangeSessionState = new vscode.EventEmitter<void>();
+  readonly onDidChangeSessionState = this.#onDidChangeSessionState.event;
+
+  readonly #pendingPermissions = new Map<
+    string,
+    { resolve: (response: RequestPermissionResponse) => void }
+  >();
+  /** toolCallId → poll timer streaming live terminal output to the webview. */
+  readonly #liveTerminals = new Map<string, NodeJS.Timeout>();
+  readonly #disposables: vscode.Disposable[] = [];
+
+  constructor(
+    private readonly extensionUri: vscode.Uri,
+    private readonly client: HoomanAcpClient,
+    private readonly permissions: PermissionPrompts,
+    private readonly editTracker: EditTracker,
+    private readonly outputChannel: vscode.LogOutputChannel,
+  ) {
+    this.permissions.setInlineDelegate((sessionKey, request, cancellation) =>
+      this.#tryInlinePermission(sessionKey, request, cancellation),
+    );
+    this.#disposables.push(
+      this.client.onSessionUpdate((notification) =>
+        this.#onSessionUpdate(notification),
+      ),
+      this.client.onDidExit(() => {
+        this.#busy = false;
+        this.#stopAllTerminalPolls();
+        this.#sessionId = null;
+        this.#pendingUpdates = [];
+        this.#pendingConfigOptions.clear();
+        this.#queue = [];
+        this.#post({ type: "sessionLoading", loading: false });
+        this.#post({
+          type: "error",
+          message: "The Hooman agent process exited.",
+        });
+      }),
+      this.editTracker.onDidChangeEdits((sessionId) => {
+        if (sessionId === this.#sessionId) {
+          this.#postEdits();
+        }
+      }),
+    );
+  }
+
+  /** Attach the status bar that mirrors this panel's session state. */
+  setStatusBar(statusBar: HoomanStatusBar): void {
+    this.#statusBar = statusBar;
+    this.#syncStatus();
+  }
+
+  /** Session currently loaded in the panel, if any. */
+  get currentSessionId(): string | null {
+    return this.#sessionId;
+  }
+
+  /** Whether a turn is currently running in the panel. */
+  get isBusy(): boolean {
+    return this.#busy;
+  }
+
+  resolveWebviewView(webviewView: vscode.WebviewView): void {
+    this.#view = webviewView;
+    webviewView.title = this.#sessionTitle;
+    webviewView.webview.options = {
+      enableScripts: true,
+      localResourceRoots: [vscode.Uri.joinPath(this.extensionUri, "media")],
+    };
+    webviewView.webview.html = this.#html(webviewView.webview);
+    webviewView.webview.onDidReceiveMessage((message: InboundMessage) => {
+      void this.#onMessage(message);
+    });
+    webviewView.onDidDispose(() => {
+      this.#view = undefined;
+    });
+  }
+
+  /** Bring the chat panel into view. */
+  focus(): void {
+    if (this.#view) {
+      this.#view.show?.(false);
+    } else {
+      void vscode.commands.executeCommand("hooman.chatView.focus");
+    }
+  }
+
+  /** Start a fresh session, eagerly creating it so the pickers repopulate immediately. */
+  newChat(): void {
+    this.#stopAllTerminalPolls();
+    const previous = this.#sessionId;
+    if (previous) {
+      // Free the in-memory state for the session we're leaving (persisted
+      // data stays on disk); no need to await — the new session id is fresh.
+      void this.#closeSession(previous);
+    }
+    this.#sessionId = null;
+    this.#pendingUpdates = [];
+    this.#pendingConfigOptions.clear();
+    this.#setTitle("New Chat");
+    this.#configOptions = [];
+    this.#commands = [];
+    this.#busy = false;
+    this.#queue = [];
+    this.#post({ type: "configOptions", configOptions: [] });
+    this.#post({ type: "clear" });
+    this.#postEdits();
+    this.#postQueue();
+    this.#syncStatus();
+    void this.#ensureSession().catch((error) => {
+      this.outputChannel.warn(
+        `[chat-view] eager session creation failed: ${describe(error)}`,
+      );
+    });
+  }
+
+  /** Change a session config option (used by the status bar menu and the webview pickers). */
+  async setConfigOption(
+    configId: string,
+    value: string | boolean,
+    isBoolean: boolean,
+  ): Promise<void> {
+    await this.#setConfigOption({
+      type: "setConfigOption",
+      configId,
+      value,
+      boolean: isBoolean,
+    });
+  }
+
+  /** Load an existing ACP session into the panel, replaying its history. */
+  async openSession(
+    sessionId: string,
+    cwd: string,
+    title: string,
+  ): Promise<void> {
+    if (sessionId === this.#sessionId) {
+      this.focus();
+      return;
+    }
+    // Loading covers the whole switch: agent spawn, closing the previous
+    // session, session/load bootstrap, and the history replay stream.
+    this.#post({ type: "sessionLoading", loading: true, title });
+    try {
+      const agent = await this.client.ensureStarted();
+      this.#stopAllTerminalPolls();
+      const previous = this.#sessionId;
+      if (previous) {
+        await this.#closeSession(previous);
+      }
+      this.#pendingUpdates = [];
+      this.#pendingConfigOptions.clear();
+      this.#sessionId = sessionId;
+      this.#commands = [];
+      this.#queue = [];
+      this.#setTitle(title);
+      this.#post({ type: "clear" });
+      this.#postQueue();
+      try {
+        const response = await agent.request(methods.agent.session.load, {
+          sessionId,
+          cwd,
+          mcpServers: [],
+          // Identify as the official extension so the agent loads the local
+          // MCP config (~/.hooman/mcp.json + repo overlays) as usual.
+          _meta: { "hoomanjs/vscode": true },
+        });
+        this.#configOptions = response.configOptions ?? [];
+        this.#post({
+          type: "configOptions",
+          configOptions: this.#configOptions,
+        });
+      } catch (error) {
+        this.#post({
+          type: "error",
+          message: `Failed to load session: ${describe(error)}`,
+        });
+      }
+      this.#postEdits();
+      this.#syncStatus();
+    } finally {
+      this.#post({ type: "sessionLoading", loading: false });
+    }
+  }
+
+  /**
+   * Open the custom-rendered Sessions panel inside the webview (an overlay):
+   * grouped list of persisted sessions with the ongoing one marked
+   * (spinner while a turn runs), click-to-open, and per-row delete.
+   */
+  showSessions(): void {
+    this.focus();
+    this.#sessionsPanelOpen = true;
+    this.#post({ type: "showSessions" });
+    void this.#postSessions();
+  }
+
+  /** Fetch the persisted session list and push it to the webview panel. */
+  async #postSessions(): Promise<void> {
+    try {
+      const agent = await this.client.ensureStarted();
+      const response = await agent.request(methods.agent.session.list, {});
+      this.#post({
+        type: "sessions",
+        sessions: response.sessions.map((info) => {
+          const current = info.sessionId === this.#sessionId;
+          return {
+            sessionId: info.sessionId,
+            cwd: info.cwd,
+            title: info.title ?? info.sessionId,
+            updatedAt: info.updatedAt ?? undefined,
+            current,
+            busy: current && this.#busy,
+          };
+        }),
+      });
+    } catch (error) {
+      this.outputChannel.warn(
+        `[chat-view] failed to list sessions: ${describe(error)}`,
+      );
+    }
+  }
+
+  /** Debounced live refresh of the Sessions panel while it's open. */
+  #scheduleSessionsRefresh(): void {
+    if (!this.#sessionsPanelOpen) {
+      return;
+    }
+    if (this.#sessionsRefreshTimer) {
+      clearTimeout(this.#sessionsRefreshTimer);
+    }
+    this.#sessionsRefreshTimer = setTimeout(() => {
+      this.#sessionsRefreshTimer = undefined;
+      void this.#postSessions();
+    }, 250);
+  }
+
+  dispose(): void {
+    this.#stopAllTerminalPolls();
+    if (this.#sessionsRefreshTimer) {
+      clearTimeout(this.#sessionsRefreshTimer);
+    }
+    this.#onDidChangeSessionState.dispose();
+    this.permissions.setInlineDelegate(undefined);
+    for (const pending of this.#pendingPermissions.values()) {
+      pending.resolve({ outcome: { outcome: "cancelled" } });
+    }
+    this.#pendingPermissions.clear();
+    for (const disposable of this.#disposables) {
+      disposable.dispose();
+    }
+  }
+
+  // ---- Webview -> host ----------------------------------------------------
+
+  async #onMessage(message: InboundMessage): Promise<void> {
+    switch (message.type) {
+      case "ready":
+        this.#post({
+          type: "state",
+          configOptions: this.#configOptions,
+          commands: this.#commands,
+          busy: this.#busy,
+          queue: this.#queue,
+        });
+        this.#postEdits();
+        // Eagerly create the session so the mode/model/effort pickers are
+        // populated immediately, rather than only after the first prompt.
+        void this.#ensureSession().catch((error) => {
+          this.outputChannel.warn(
+            `[chat-view] eager session creation failed: ${describe(error)}`,
+          );
+        });
+        return;
+      case "prompt":
+        this.#submitOrQueue(message.text, message.attachments ?? []);
+        return;
+      case "pickFiles":
+        await this.#pickFiles();
+        return;
+      case "resolveDropped":
+        await this.#resolveDropped(message.uris);
+        return;
+      case "openAttachment":
+        await this.#openAttachment(message.attachment);
+        return;
+      case "cancel":
+        await this.#cancel();
+        return;
+      case "setConfigOption":
+        await this.#setConfigOption(message);
+        return;
+      case "permissionResponse": {
+        const pending = this.#pendingPermissions.get(message.requestId);
+        if (pending) {
+          this.#pendingPermissions.delete(message.requestId);
+          pending.resolve({
+            outcome: { outcome: "selected", optionId: message.optionId },
+          });
+        }
+        return;
+      }
+      case "editAction":
+        await this.#onEditAction(message);
+        return;
+      case "queueDelete":
+        this.#queue = this.#queue.filter((item) => item.id !== message.id);
+        this.#postQueue();
+        return;
+      case "queueSendNow": {
+        const index = this.#queue.findIndex((item) => item.id === message.id);
+        if (index === -1) {
+          return;
+        }
+        const [item] = this.#queue.splice(index, 1);
+        this.#postQueue();
+        void this.#steerOrRun(item.text, item.attachments ?? []);
+        return;
+      }
+      case "queueEdit": {
+        const index = this.#queue.findIndex((item) => item.id === message.id);
+        if (index === -1) {
+          return;
+        }
+        const [item] = this.#queue.splice(index, 1);
+        this.#postQueue();
+        this.#post({
+          type: "queueEditText",
+          text: item.text,
+          attachments: item.attachments,
+        });
+        return;
+      }
+      case "steerQueue":
+        await this.#steerAllQueued();
+        return;
+      case "listSessions":
+        this.#sessionsPanelOpen = true;
+        await this.#postSessions();
+        return;
+      case "sessionsClosed":
+        this.#sessionsPanelOpen = false;
+        return;
+      case "openSession":
+        await this.openSession(message.sessionId, message.cwd, message.title);
+        return;
+      case "deleteSession": {
+        const deleted = await this.deleteSession(
+          message.sessionId,
+          message.title,
+        );
+        if (deleted) {
+          await this.#postSessions();
+        }
+        return;
+      }
+      case "newChat":
+        this.newChat();
+        return;
+    }
+  }
+
+  async #onEditAction(
+    message: Extract<InboundMessage, { type: "editAction" }>,
+  ): Promise<void> {
+    if (!this.#sessionId) {
+      return;
+    }
+    try {
+      switch (message.action) {
+        case "diff":
+          if (message.path) {
+            // Falls back to opening the file when the edit is no longer
+            // tracked (already kept/undone, or from an older session).
+            const opened = await this.editTracker.openDiff(message.path);
+            if (!opened) {
+              await vscode.window.showTextDocument(
+                vscode.Uri.file(message.path),
+              );
+            }
+          }
+          return;
+        case "keep":
+          if (message.path) {
+            this.editTracker.keep(message.path);
+          }
+          return;
+        case "undo":
+          if (message.path) {
+            await this.editTracker.undo(message.path);
+          }
+          return;
+        case "keepAll":
+          this.editTracker.keepAll(this.#sessionId);
+          return;
+        case "undoAll":
+          await this.editTracker.undoAll(this.#sessionId);
+          return;
+      }
+    } catch (error) {
+      this.#post({
+        type: "error",
+        message: `Edit action failed: ${describe(error)}`,
+      });
+    }
+  }
+
+  /** Push the current pending-edit list for the active session to the webview. */
+  #postEdits(): void {
+    this.#post({
+      type: "edits",
+      edits: this.#sessionId ? this.editTracker.listFor(this.#sessionId) : [],
+    });
+  }
+
+  /** Create the ACP session if one doesn't exist yet, without starting a turn. */
+  async #ensureSession(): Promise<void> {
+    if (this.#sessionId) {
+      return;
+    }
+    const agent = await this.client.ensureStarted();
+    if (this.#sessionId) {
+      // Another caller (e.g. a concurrent prompt) won the race while we awaited.
+      return;
+    }
+    const response = await agent.request(methods.agent.session.new, {
+      cwd: defaultCwd(),
+      mcpServers: [],
+      // Identify as the official extension so the agent loads the local
+      // MCP config (~/.hooman/mcp.json + repo overlays) as usual.
+      _meta: { "hoomanjs/vscode": true },
+    });
+    this.#adoptSession(response.sessionId);
+    this.#configOptions = response.configOptions ?? [];
+    this.#post({ type: "configOptions", configOptions: this.#configOptions });
+  }
+
+  /** Assign `#sessionId` and replay any notifications buffered while it was unknown. */
+  #adoptSession(sessionId: string): void {
+    this.#sessionId = sessionId;
+    const pending = this.#pendingUpdates;
+    this.#pendingUpdates = [];
+    for (const notification of pending) {
+      if (notification.sessionId === sessionId) {
+        this.#deliverSessionUpdate(notification);
+      }
+    }
+    this.#syncStatus();
+    void this.#flushPendingConfigOptions();
+  }
+
+  /** Apply config picks that were made while session creation was in flight. */
+  async #flushPendingConfigOptions(): Promise<void> {
+    const pending = [...this.#pendingConfigOptions.entries()];
+    this.#pendingConfigOptions.clear();
+    for (const [configId, pick] of pending) {
+      await this.#setConfigOption({
+        type: "setConfigOption",
+        configId,
+        value: pick.value,
+        boolean: pick.boolean,
+      });
+    }
+  }
+
+  /**
+   * `echoLocally` is needed for turns the webview never rendered optimistically
+   * itself — i.e. anything that spent time sitting in the queue panel rather
+   * than being typed straight into the composer.
+   */
+  async #prompt(
+    text: string,
+    attachments: AttachmentInfo[] = [],
+    options?: { echoLocally?: boolean },
+  ): Promise<void> {
+    if (this.#busy) {
+      return;
+    }
+    this.#busy = true;
+    this.#syncStatus();
+    this.#post({ type: "promptStart" });
+    if (options?.echoLocally) {
+      this.#post({
+        type: "update",
+        update: {
+          sessionUpdate: "user_message_chunk",
+          content: {
+            type: "text",
+            text: echoTextWithAttachments(text, attachments),
+          },
+          messageId: randomUUID(),
+        },
+      });
+    }
+    try {
+      await this.#ensureSession();
+      if (!this.#sessionId) {
+        throw new Error("Session creation failed.");
+      }
+      const agent = await this.client.ensureStarted();
+      const result = await agent.request(methods.agent.session.prompt, {
+        sessionId: this.#sessionId,
+        prompt: await this.#buildPromptBlocks(text, attachments),
+      });
+      this.#post({ type: "promptEnd", stopReason: result.stopReason });
+    } catch (error) {
+      this.#post({ type: "error", message: describe(error) });
+    } finally {
+      this.#busy = false;
+      this.#stopAllTerminalPolls();
+      this.#syncStatus();
+      this.#processNextQueued();
+    }
+  }
+
+  async #cancel(): Promise<void> {
+    if (!this.#sessionId) {
+      return;
+    }
+    try {
+      const agent = await this.client.ensureStarted();
+      await agent.notify(methods.agent.session.cancel, {
+        sessionId: this.#sessionId,
+      });
+    } catch (error) {
+      this.outputChannel.warn(`[chat-view] cancel failed: ${describe(error)}`);
+    }
+  }
+
+  /**
+   * Free the agent's in-memory state for a session we're navigating away
+   * from (`session/close`). Persisted data stays on disk, so it can still be
+   * reopened later via `session/load`.
+   */
+  async #closeSession(sessionId: string): Promise<void> {
+    try {
+      const agent = await this.client.ensureStarted();
+      await agent.request(methods.agent.session.close, { sessionId });
+    } catch (error) {
+      this.outputChannel.warn(
+        `[chat-view] closing session ${sessionId} failed: ${describe(error)}`,
+      );
+    }
+  }
+
+  /**
+   * Delete one persisted session after a modal confirmation. Returns whether
+   * the deletion happened. When it's the session currently open in the panel,
+   * the panel resets to a fresh chat.
+   */
+  async deleteSession(sessionId: string, title: string): Promise<boolean> {
+    const confirm = await vscode.window.showWarningMessage(
+      `Delete the session "${title}"? This cannot be undone.`,
+      { modal: true },
+      "Delete",
+    );
+    if (confirm !== "Delete") {
+      return false;
+    }
+    try {
+      const agent = await this.client.ensureStarted();
+      await agent.request(methods.agent.session.delete, { sessionId });
+      if (sessionId === this.#sessionId) {
+        this.newChat();
+      } else {
+        this.#onDidChangeSessionState.fire();
+      }
+      return true;
+    } catch (error) {
+      void vscode.window.showErrorMessage(
+        `Hooman: failed to delete session: ${describe(error)}`,
+      );
+      return false;
+    }
+  }
+
+  // ---- Prompt queue & steering ---------------------------------------------
+
+  /** Route a submitted prompt: start a turn immediately, or queue it if one is already running. */
+  #submitOrQueue(text: string, attachments: AttachmentInfo[]): void {
+    const trimmed = text.trim();
+    if (!trimmed && attachments.length === 0) {
+      return;
+    }
+    if (!this.#busy) {
+      void this.#prompt(trimmed, attachments);
+      return;
+    }
+    this.#queue.push({ id: randomUUID(), text: trimmed, attachments });
+    this.#postQueue();
+  }
+
+  #postQueue(): void {
+    this.#post({ type: "queue", items: this.#queue });
+  }
+
+  /** Dequeue and run the next queued prompt once the active turn ends. */
+  #processNextQueued(): void {
+    if (this.#busy || this.#queue.length === 0) {
+      return;
+    }
+    const [next] = this.#queue.splice(0, 1);
+    this.#postQueue();
+    void this.#prompt(next.text, next.attachments ?? [], { echoLocally: true });
+  }
+
+  /** For an individual "send now": steer if a turn is active, otherwise run it as a normal turn. */
+  async #steerOrRun(
+    text: string,
+    attachments: AttachmentInfo[],
+  ): Promise<void> {
+    if (this.#busy) {
+      await this.#steer(text, attachments);
+    } else {
+      void this.#prompt(text, attachments, { echoLocally: true });
+    }
+  }
+
+  /** Drain the whole queue into the active turn's steering guidance in one shot. */
+  async #steerAllQueued(): Promise<void> {
+    if (!this.#busy || this.#queue.length === 0) {
+      return;
+    }
+    const items = this.#queue;
+    this.#queue = [];
+    this.#postQueue();
+    for (const item of items) {
+      await this.#steer(item.text, item.attachments ?? []);
+    }
+  }
+
+  /** Inject guidance into the currently running turn via `_meta["hoomanjs/steer"]`. */
+  async #steer(
+    text: string,
+    attachments: AttachmentInfo[] = [],
+  ): Promise<void> {
+    if (!this.#sessionId) {
+      return;
+    }
+    try {
+      const agent = await this.client.ensureStarted();
+      await agent.request(methods.agent.session.prompt, {
+        sessionId: this.#sessionId,
+        prompt: await this.#buildPromptBlocks(text, attachments),
+        _meta: { "hoomanjs/steer": true },
+      });
+    } catch (error) {
+      this.#post({
+        type: "error",
+        message: `Failed to steer the active turn: ${describe(error)}`,
+      });
+    }
+  }
+
+  // ---- Attachments ----------------------------------------------------------
+
+  /** Native file browser for the composer's paperclip button. */
+  async #pickFiles(): Promise<void> {
+    const uris = await vscode.window.showOpenDialog({
+      canSelectMany: true,
+      canSelectFiles: true,
+      // Works on macOS; on Windows/Linux the dialog degrades to files-only.
+      canSelectFolders: true,
+      openLabel: "Attach",
+      title: "Attach files to the prompt",
+    });
+    if (!uris?.length) {
+      return;
+    }
+    await this.#resolveDropped(uris.map((uri) => uri.toString()));
+  }
+
+  /**
+   * Resolve URIs (from the file dialog or a drop's `text/uri-list`) into
+   * attachment descriptors — stat'ing to distinguish files from folders —
+   * and hand them to the webview to stage as composer chips.
+   */
+  async #resolveDropped(uriStrings: string[]): Promise<void> {
+    const attachments: AttachmentInfo[] = [];
+    for (const raw of uriStrings) {
+      try {
+        const uri = vscode.Uri.parse(raw);
+        if (uri.scheme !== "file") {
+          continue;
+        }
+        const stat = await vscode.workspace.fs.stat(uri);
+        const isDirectory = (stat.type & vscode.FileType.Directory) !== 0;
+        const name = basename(uri.fsPath) || uri.fsPath;
+        attachments.push({
+          id: randomUUID(),
+          name,
+          kind: isDirectory
+            ? "directory"
+            : imageMimeFromPath(uri.fsPath)
+              ? "image"
+              : "file",
+          path: uri.fsPath,
+          mimeType: imageMimeFromPath(uri.fsPath) ?? undefined,
+        });
+      } catch (error) {
+        this.outputChannel.warn(
+          `[chat-view] could not resolve dropped uri ${raw}: ${describe(error)}`,
+        );
+      }
+    }
+    if (attachments.length > 0) {
+      this.#post({ type: "attachments", attachments });
+    }
+  }
+
+  /**
+   * Open/preview a clicked attachment chip: path-backed files open in an
+   * editor tab (images in the built-in image preview), folders are revealed
+   * in the Explorer, and pathless data (OS drops / pastes) is written to a
+   * temp file first so there's something on disk to open.
+   */
+  async #openAttachment(attachment: AttachmentInfo): Promise<void> {
+    try {
+      if (attachment.path) {
+        const uri = vscode.Uri.file(attachment.path);
+        if (attachment.kind === "directory") {
+          try {
+            await vscode.commands.executeCommand("revealInExplorer", uri);
+          } catch {
+            // Folder lives outside the workspace — show it in the OS file manager.
+            await vscode.commands.executeCommand("revealFileInOS", uri);
+          }
+          return;
+        }
+        await vscode.commands.executeCommand("vscode.open", uri);
+        return;
+      }
+      if (attachment.data) {
+        const dir = join(tmpdir(), "hooman-attachments");
+        await mkdir(dir, { recursive: true });
+        const path = join(dir, `${attachment.id}-${basename(attachment.name)}`);
+        await writeFile(path, Buffer.from(attachment.data, "base64"));
+        await vscode.commands.executeCommand(
+          "vscode.open",
+          vscode.Uri.file(path),
+        );
+      }
+    } catch (error) {
+      this.#post({
+        type: "error",
+        message: `Could not open ${attachment.name}: ${describe(error)}`,
+      });
+    }
+  }
+
+  /**
+   * Turn text + staged attachments into ACP prompt content blocks: images
+   * become `image` blocks (reading path-backed ones from disk), files and
+   * folders become `resource_link` blocks, and pathless non-image data
+   * becomes an embedded blob `resource`.
+   */
+  async #buildPromptBlocks(
+    text: string,
+    attachments: AttachmentInfo[],
+  ): Promise<ContentBlock[]> {
+    const blocks: ContentBlock[] = [];
+    if (text) {
+      blocks.push({ type: "text", text });
+    }
+    for (const attachment of attachments) {
+      try {
+        blocks.push(await attachmentToBlock(attachment));
+      } catch (error) {
+        this.outputChannel.warn(
+          `[chat-view] skipping attachment ${attachment.name}: ${describe(error)}`,
+        );
+      }
+    }
+    return blocks;
+  }
+
+  async #setConfigOption(
+    message: Extract<InboundMessage, { type: "setConfigOption" }>,
+  ): Promise<void> {
+    if (!this.#sessionId) {
+      // Session creation is still in flight — remember the pick and apply it
+      // once the session exists (see #adoptSession).
+      this.#pendingConfigOptions.set(message.configId, {
+        value: message.value,
+        boolean: message.boolean ?? false,
+      });
+      return;
+    }
+    try {
+      const agent = await this.client.ensureStarted();
+      const request: SetSessionConfigOptionRequest = message.boolean
+        ? {
+            sessionId: this.#sessionId,
+            configId: message.configId,
+            type: "boolean",
+            value: Boolean(message.value),
+          }
+        : {
+            sessionId: this.#sessionId,
+            configId: message.configId,
+            value: String(message.value),
+          };
+      const response = await agent.request(
+        methods.agent.session.setConfigOption,
+        request,
+      );
+      this.#configOptions = response.configOptions ?? this.#configOptions;
+      this.#post({ type: "configOptions", configOptions: this.#configOptions });
+      this.#syncStatus();
+    } catch (error) {
+      this.#post({
+        type: "error",
+        message: `Failed to set option: ${describe(error)}`,
+      });
+    }
+  }
+
+  // ---- Host -> webview ----------------------------------------------------
+
+  #onSessionUpdate(notification: SessionNotification): void {
+    if (this.#sessionId === null) {
+      // A `session/new` call is likely still in flight; buffer until it
+      // resolves and we learn (and adopt) its session id.
+      this.#pendingUpdates.push(notification);
+      return;
+    }
+    if (notification.sessionId !== this.#sessionId) {
+      return;
+    }
+    this.#deliverSessionUpdate(notification);
+  }
+
+  #deliverSessionUpdate(notification: SessionNotification): void {
+    const update = notification.update;
+    if (update.sessionUpdate === "config_option_update") {
+      this.#configOptions = update.configOptions ?? this.#configOptions;
+      this.#post({ type: "configOptions", configOptions: this.#configOptions });
+      this.#syncStatus();
+      return;
+    }
+    if (update.sessionUpdate === "available_commands_update") {
+      this.#commands = update.availableCommands ?? this.#commands;
+    }
+    if (update.sessionUpdate === "session_info_update" && update.title) {
+      this.#setTitle(update.title);
+    }
+    // During a live turn the agent echoes the prompt back as a
+    // user_message_chunk; the webview already rendered it locally on send.
+    // Only forward these during history replay (session/load) or when it's
+    // a steered follow-up (which the webview never rendered locally).
+    if (
+      update.sessionUpdate === "user_message_chunk" &&
+      this.#busy &&
+      !update._meta?.["hoomanjs/steered"]
+    ) {
+      return;
+    }
+    this.#trackLiveTerminal(update);
+    this.#post({ type: "update", update: this.#resolveToolContent(update) });
+  }
+
+  /**
+   * Stream live terminal output: while a tool call embeds an unfinished
+   * terminal, poll the captured output and push incremental tool_call_updates
+   * so the webview shows the command's output as it runs (npm install, tests,
+   * ...). The agent re-embeds the terminal in the completed/failed update,
+   * which both stops the poll and delivers the final output.
+   */
+  #trackLiveTerminal(update: SessionUpdate): void {
+    if (
+      update.sessionUpdate !== "tool_call" &&
+      update.sessionUpdate !== "tool_call_update"
+    ) {
+      return;
+    }
+    if (update.status === "completed" || update.status === "failed") {
+      this.#stopTerminalPoll(update.toolCallId);
+      return;
+    }
+    const terminal = update.content?.find((item) => item.type === "terminal");
+    if (terminal) {
+      this.#startTerminalPoll(update.toolCallId, terminal.terminalId);
+    }
+  }
+
+  #startTerminalPoll(toolCallId: string, terminalId: string): void {
+    if (this.#liveTerminals.has(toolCallId)) {
+      return;
+    }
+    let lastOutput = "";
+    const timer = setInterval(() => {
+      const output = this.client.terminal.outputText(terminalId)?.trimEnd();
+      if (!output || output === lastOutput) {
+        return;
+      }
+      lastOutput = output;
+      this.#post({
+        type: "update",
+        update: {
+          sessionUpdate: "tool_call_update",
+          toolCallId,
+          _meta: { "hoomanjs/live": true },
+          content: [
+            { type: "content", content: { type: "text", text: output } },
+          ],
+        },
+      });
+    }, 300);
+    this.#liveTerminals.set(toolCallId, timer);
+  }
+
+  #stopTerminalPoll(toolCallId: string): void {
+    const timer = this.#liveTerminals.get(toolCallId);
+    if (timer) {
+      clearInterval(timer);
+      this.#liveTerminals.delete(toolCallId);
+    }
+  }
+
+  #stopAllTerminalPolls(): void {
+    for (const timer of this.#liveTerminals.values()) {
+      clearInterval(timer);
+    }
+    this.#liveTerminals.clear();
+  }
+
+  /**
+   * Shell tool results arrive as `{type: "terminal", terminalId}` content —
+   * a reference to a terminal owned by this client. Resolve it to text so the
+   * webview can render the captured output.
+   */
+  #resolveToolContent(update: SessionUpdate): SessionUpdate {
+    if (
+      (update.sessionUpdate !== "tool_call" &&
+        update.sessionUpdate !== "tool_call_update") ||
+      !update.content?.length
+    ) {
+      return update;
+    }
+    const content = update.content.map((item) => {
+      if (item.type !== "terminal") {
+        return item;
+      }
+      const output = this.client.terminal.outputText(item.terminalId);
+      return {
+        type: "content" as const,
+        content: {
+          type: "text" as const,
+          text: output?.trimEnd() || "(no output)",
+        },
+      };
+    });
+    return { ...update, content };
+  }
+
+  #tryInlinePermission(
+    sessionKey: string,
+    request: RequestPermissionRequest,
+    cancellation: vscode.CancellationToken,
+  ): Promise<RequestPermissionResponse> | undefined {
+    if (!this.#view || sessionKey !== this.#sessionId) {
+      return undefined;
+    }
+    // Surface the panel so the user actually sees the prompt.
+    this.#view.show?.(true);
+    const requestId = randomUUID();
+    const isQuestion = request._meta?.["hoomanjs/ask_user"] === true;
+    const detail = request.toolCall.content
+      ?.map((c) =>
+        c.type === "content" && c.content.type === "text"
+          ? c.content.text
+          : undefined,
+      )
+      .find((text): text is string => Boolean(text));
+    this.#post({
+      type: "permission",
+      requestId,
+      title: request.toolCall.title ?? "Tool call",
+      detail: isQuestion
+        ? detail
+        : (detail ?? `Kind: ${request.toolCall.kind ?? "other"}`),
+      options: request.options.map((option) => ({
+        optionId: option.optionId,
+        name: option.name,
+        kind: option.kind,
+      })),
+      ...(isQuestion ? { question: true } : {}),
+    });
+    return new Promise<RequestPermissionResponse>((resolve) => {
+      this.#pendingPermissions.set(requestId, { resolve });
+      cancellation.onCancellationRequested(() => {
+        if (this.#pendingPermissions.delete(requestId)) {
+          this.#post({
+            type: "permissionResolved",
+            requestId,
+            note: "Cancelled",
+          });
+          resolve({ outcome: { outcome: "cancelled" } });
+        }
+      });
+    });
+  }
+
+  #post(message: OutboundMessage): void {
+    void this.#view?.webview.postMessage(message);
+  }
+
+  /** Session title lives in the view header (not the composer) and the status bar tooltip. */
+  #setTitle(title: string): void {
+    this.#sessionTitle = title;
+    if (this.#view) {
+      this.#view.title = title;
+    }
+    this.#syncStatus();
+  }
+
+  #syncStatus(): void {
+    this.#statusBar?.update({
+      title: this.#sessionTitle,
+      configOptions: this.#configOptions,
+      busy: this.#busy,
+    });
+    this.#onDidChangeSessionState.fire();
+    this.#scheduleSessionsRefresh();
+  }
+
+  #html(webview: vscode.Webview): string {
+    const mediaRoot = vscode.Uri.joinPath(this.extensionUri, "media");
+    const styleUri = webview.asWebviewUri(
+      vscode.Uri.joinPath(mediaRoot, "chat.css"),
+    );
+    const scriptUri = webview.asWebviewUri(
+      vscode.Uri.joinPath(mediaRoot, "chat.js"),
+    );
+    const nonce = randomUUID().replaceAll("-", "");
+    return /* html */ `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}'; img-src ${webview.cspSource} data:;">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link href="${styleUri}" rel="stylesheet">
+  <title>Hooman</title>
+</head>
+<body>
+  <div id="root"></div>
+  <script nonce="${nonce}" src="${scriptUri}"></script>
+</body>
+</html>`;
+  }
+}
+
+function defaultCwd(): string {
+  return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? process.cwd();
+}
+
+function describe(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+const IMAGE_MIME_BY_EXT: Record<string, string> = {
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".gif": "image/gif",
+  ".webp": "image/webp",
+  ".bmp": "image/bmp",
+};
+
+/** Raster-image MIME type for a path, or null when it isn't an attachable image. */
+function imageMimeFromPath(path: string): string | null {
+  return IMAGE_MIME_BY_EXT[extname(path).toLowerCase()] ?? null;
+}
+
+/** Convert one staged attachment into its ACP content block. */
+async function attachmentToBlock(
+  attachment: AttachmentInfo,
+): Promise<ContentBlock> {
+  if (attachment.kind === "image") {
+    const data =
+      attachment.data ??
+      (attachment.path
+        ? (await readFile(attachment.path)).toString("base64")
+        : undefined);
+    if (data) {
+      return {
+        type: "image",
+        data,
+        mimeType: attachment.mimeType ?? "image/png",
+      };
+    }
+  }
+  if (attachment.path) {
+    return {
+      type: "resource_link",
+      uri: vscode.Uri.file(attachment.path).toString(),
+      name: attachment.name,
+    };
+  }
+  // Pathless non-image bytes (OS drop / paste): embed the payload directly.
+  return {
+    type: "resource",
+    resource: {
+      uri: `attachment:///${encodeURIComponent(attachment.name)}`,
+      blob: attachment.data ?? "",
+      mimeType: attachment.mimeType,
+    },
+  };
+}
+
+/** Text used when the host echoes a queued prompt into the transcript itself. */
+function echoTextWithAttachments(
+  text: string,
+  attachments: AttachmentInfo[],
+): string {
+  if (attachments.length === 0) {
+    return text;
+  }
+  const names = attachments
+    .map((attachment) => `[attachment] ${attachment.name}`)
+    .join("\n");
+  return text ? `${text}\n\n${names}` : names;
+}

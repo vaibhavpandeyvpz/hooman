@@ -64,6 +64,6 @@ Command notes:
 ## Common Mistakes
 
 - Do not create a single `~/.hooman/skills/SKILL.md`; each skill needs its own folder.
-- Do not put installed Hooman skills under Cursor's `~/.cursor/skills` directory.
+- Do not put installed Hooman skills under another application's skills directory; they belong under `~/.hooman/skills`.
 - Do not edit bundled Hooman skills when the user asked to install or update a personal skill.
 - Do not assume a catalog result is installed. A skill is installed only when its folder exists under `~/.hooman/skills` with `SKILL.md`.

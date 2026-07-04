@@ -1,12 +1,14 @@
 import type { AvailableCommand } from "@agentclientprotocol/sdk";
-import { formatModeNames } from "../core/modes/definitions.js";
 
 export type ParsedSlashCommand = { name: string; args: string };
 
 /**
- * Slash commands Hooman advertises over ACP. These mirror the non-interactive
- * subset of the chat TUI's commands; UI-only ones (`/config`, `/new`,
- * `/sessions`) are intentionally omitted because the ACP client owns that UX.
+ * Slash commands Hooman advertises over ACP. Mode/model/effort/yolo are
+ * intentionally omitted: ACP-aware clients (like the VS Code webview) expose
+ * those as session config options (`session/setConfigOption`) with proper
+ * pickers instead, so they don't need a text-command surface too. UI-only
+ * ones (`/config`, `/new`, `/sessions`) are also omitted because the ACP
+ * client owns that UX.
  *
  * See https://agentclientprotocol.com/protocol/v1/slash-commands
  */
@@ -19,26 +21,6 @@ export const ACP_SLASH_COMMANDS: readonly AvailableCommand[] = [
     name: "init",
     description: "Generate or refresh AGENTS.md for this project.",
     input: { hint: "optional extra guidance" },
-  },
-  {
-    name: "mode",
-    description: `Switch session mode (${formatModeNames()}).`,
-    input: { hint: "agent | ask | plan" },
-  },
-  {
-    name: "model",
-    description: "Switch the language model for this session.",
-    input: { hint: "model name (blank to list)" },
-  },
-  {
-    name: "effort",
-    description: "Set the reasoning effort for this session.",
-    input: { hint: "minimal | low | medium | high | off (blank to list)" },
-  },
-  {
-    name: "yolo",
-    description: "Auto-approve tool calls without prompting.",
-    input: { hint: "on | off" },
   },
 ];
 

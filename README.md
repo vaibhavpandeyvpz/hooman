@@ -1,4 +1,5 @@
 <div align="center">
+  <img src=".github/logo.svg" alt="Hooman logo" width="128" />
   <h1>Hooman</h1>
   <p>
     Hooman is a hackable AI agent toolkit for local workflows. It is built with TypeScript, <a href="https://www.npmjs.com/package/@strands-agents/sdk">Strands Agents SDK</a>, and <a href="https://github.com/vadimdemedes/ink">Ink</a>.
@@ -40,6 +41,7 @@ It gives you a practical toolkit to build and run agent workflows:
 - Bundled prompt harness toggles (`behaviour`, `communication`, `execution`, `guardrails`); coding guidance ships as the built-in `hooman-coding` skill
 - Built-in read-only subagent tools (`subagent_research`, `subagent_review`, `subagent_test_investigator`)
 - Built-in `grep` tool backed by ripgrep (`rg`), with runtime bootstrap when `rg` is not available on PATH
+- Built-in `ask_user` tool: the agent can ask you a multiple-choice question mid-task and wait for the answer — inline picker in `chat`, numbered prompt in `exec`, question card in ACP clients (Zed, the VS Code extension); environments without a human (daemon, non-TTY `exec`, subagents) report "no user available" so the agent proceeds on its own
 - Toolkit-oriented architecture with configurable tools, prompts, and transports
 - Interactive terminal UI for chat and configuration
 
@@ -290,10 +292,30 @@ hooman acp
 
 ACP notes:
 
-- ACP sessions are stored under the active project's session directory in `sessions/acp/` (see [Configuration Layout](#configuration-layout))
+- ACP session metadata is indexed in the active project's `sessions/acp/sessions.jsonl`; conversation history lives in the regular per-session snapshots (see [Configuration Layout](#configuration-layout))
 - ACP loads MCP servers passed on `session/new` and `session/load`, in addition to Hooman's local `mcp.json`
 - ACP `session/new` and `session/load` support `_meta.userId`
 - session configuration includes `hooman.sessionMode` (`agent`, `plan`, or `ask`); see [Session mode](#session-mode)
+
+## VS Code Extension
+
+`src/vscode/` ships a self-contained VS Code extension (`hooman-vscode`) that bridges `hooman acp` into the editor with a **Hooman chat panel** — its own webview view in the activity bar with streaming markdown, collapsible thinking, tool-call cards, plan checklists, usage, session list/load, mode/model/effort pickers, slash-command autocomplete, and inline permission prompts. Works in **stable VS Code, Insiders, and compatible forks** — no proposed APIs and no special subscription required.
+
+It's not published to the marketplace yet. Quick start:
+
+```bash
+# from the repo root
+npm install && npm run build && npm link
+
+# from src/vscode
+cd src/vscode
+npm install && npm run compile
+code .          # open src/vscode as its own workspace, then press F5
+```
+
+Or package and install a `.vsix` into any VS Code-compatible editor: `npm run package` in `src/vscode`, then `code --install-extension hooman-vscode-<version>.vsix`.
+
+Full setup, settings, and architecture notes: [`src/vscode/README.md`](src/vscode/README.md).
 
 ## Configuration Layout
 
@@ -313,7 +335,8 @@ Important files and folders:
 - `cache/` - runtime caches used by tools and subsystems
 - `projects.json` - registry mapping each project root to a stable UUID
 - `projects/<uuid>/` - per-project storage, scoped to the project (git root, falling back to cwd) the session runs in:
-  - `sessions/` - persisted session data (including ACP sessions under `sessions/acp/` and offloaded tool output under `sessions/offloaded-content/`)
+  - `sessions/` - persisted session data (per-session snapshots and the ACP session index at `sessions/acp/sessions.jsonl`)
+  - `offloaded-content/` - offloaded tool output (large tool results retrievable via `retrieve_offloaded_content`)
   - `memory/` - durable extracted memory store
   - `attachments/` - saved attachments (e.g. clipboard images)
   - `plans/` - plan-mode markdown documents
@@ -411,7 +434,7 @@ The on-disk shape uses a reusable **`providers`** array plus a non-empty **`llms
 
 Tool approvals are session-scoped and are not persisted in `config.json`.
 
-Hooman enables Strands `ContextOffloader` by default with file-backed storage under the project-scoped `~/.hooman/projects/<uuid>/sessions/offloaded-content`, so large tool results can be previewed in-context and retrieved later without bloating the active conversation window.
+Hooman enables Strands `ContextOffloader` by default with file-backed storage under the project-scoped `~/.hooman/projects/<uuid>/offloaded-content`, so large tool results can be previewed in-context and retrieved later without bloating the active conversation window.
 
 Supported `providers[].provider` values registered in this release (see `src/core/models/index.ts`):
 

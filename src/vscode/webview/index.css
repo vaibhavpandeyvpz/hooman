@@ -1,0 +1,167 @@
+@import "tailwindcss";
+
+/*
+ * Maps Tailwind's default color/font palette onto VS Code theme tokens so
+ * utility classes (bg-background, text-foreground, border-border, ...)
+ * follow whatever theme the host editor is using, light or dark.
+ */
+@theme {
+  --font-sans: var(--vscode-font-family);
+  --font-mono: var(--vscode-editor-font-family, monospace);
+
+  --color-background: var(--vscode-sideBar-background);
+  --color-foreground: var(--vscode-foreground);
+  --color-muted: var(--vscode-descriptionForeground);
+
+  --color-border: var(--vscode-widget-border, var(--vscode-panel-border));
+  --color-panel: var(--vscode-editorWidget-background, transparent);
+
+  --color-input: var(--vscode-input-background);
+  --color-input-border: var(--vscode-input-border, transparent);
+  --color-input-foreground: var(--vscode-input-foreground);
+
+  --color-accent: var(--vscode-textLink-foreground);
+  --color-focus: var(--vscode-focusBorder);
+
+  --color-button: var(--vscode-button-background);
+  --color-button-foreground: var(--vscode-button-foreground);
+  --color-button-hover: var(--vscode-button-hoverBackground);
+  --color-button-border: var(--vscode-button-border, transparent);
+  --color-button-secondary: var(--vscode-button-secondaryBackground);
+  --color-button-secondary-foreground: var(--vscode-button-secondaryForeground);
+  --color-button-secondary-hover: var(--vscode-button-secondaryHoverBackground);
+
+  --color-success: var(--vscode-testing-iconPassed, #73c991);
+  --color-error: var(--vscode-errorForeground);
+  --color-warning: var(--vscode-inputValidation-warningBorder, #cca700);
+  --color-warning-bg: var(
+    --vscode-inputValidation-warningBackground,
+    transparent
+  );
+
+  --color-added: var(--vscode-gitDecoration-addedResourceForeground, #81b88b);
+  --color-removed: var(
+    --vscode-gitDecoration-deletedResourceForeground,
+    #c74e39
+  );
+
+  --color-code-bg: var(--vscode-textCodeBlock-background);
+
+  --color-list-active-bg: var(--vscode-list-activeSelectionBackground);
+  --color-list-active-fg: var(--vscode-list-activeSelectionForeground);
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--color-background);
+  color: var(--color-foreground);
+  font-family: var(--font-sans);
+  font-size: var(--vscode-font-size);
+}
+
+#root {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Thin, theme-matched scrollbars for transcript/panel overflow areas. */
+.scroll-thin {
+  scrollbar-width: thin;
+  scrollbar-color: var(
+      --vscode-scrollbarSlider-background,
+      rgba(128, 128, 128, 0.4)
+    )
+    transparent;
+}
+
+.scroll-thin::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.scroll-thin::-webkit-scrollbar-thumb {
+  background: var(
+    --vscode-scrollbarSlider-background,
+    rgba(128, 128, 128, 0.4)
+  );
+  border-radius: 4px;
+}
+
+.scroll-thin::-webkit-scrollbar-thumb:hover {
+  background: var(
+    --vscode-scrollbarSlider-hoverBackground,
+    rgba(128, 128, 128, 0.6)
+  );
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin-slow {
+  animation: spin 1.4s linear infinite;
+}
+
+@keyframes blip {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(0.85);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-blip {
+  animation: blip 1.1s ease-in-out infinite;
+}
+
+/* marked-rendered assistant markdown */
+.markdown-body :where(p, ul, ol, blockquote, pre, table) {
+  margin: 0.4em 0;
+}
+
+.markdown-body :where(ul, ol) {
+  padding-left: 1.4em;
+}
+
+.markdown-body pre {
+  background: var(--color-code-bg);
+  border-radius: 6px;
+  padding: 8px 10px;
+  overflow-x: auto;
+}
+
+.markdown-body code {
+  font-family: var(--font-mono);
+  font-size: 0.95em;
+}
+
+.markdown-body :not(pre) > code {
+  background: var(--color-code-bg);
+  border-radius: 3px;
+  padding: 0 4px;
+}
+
+.markdown-body a {
+  color: var(--color-accent);
+}
+
+.markdown-body > *:first-child {
+  margin-top: 0;
+}
+
+.markdown-body > *:last-child {
+  margin-bottom: 0;
+}

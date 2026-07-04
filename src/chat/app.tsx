@@ -21,6 +21,7 @@ import { createEmptyUsage } from "../core/utils/strands-usage-accumulate.js";
 import type { Config } from "../core/config.js";
 import type { Manager as McpManager } from "../core/mcp/index.js";
 import { modelProviders } from "../core/models/index.js";
+import { toAdditiveUsage } from "../core/models/usage.js";
 import {
   currentReasoningEffort,
   nextReasoningEffort,
@@ -34,6 +35,7 @@ import { formatModeNames, isKnownSessionMode } from "../core/modes/index.js";
 import type { Registry } from "../core/skills/index.js";
 import { takeFileToolDisplay } from "../core/state/file-tool-display.js";
 import { ChatApprovalController } from "./approvals.js";
+import { ChatQuestionController, type ChatQuestion } from "./questions.js";
 import { ChatTurnSteeringController } from "./steering.js";
 import { BottomChrome } from "./components/BottomChrome.js";
 import { LiveTranscript, TranscriptLine } from "./components/Transcript.js";
@@ -73,6 +75,7 @@ type ChatAppProps = {
   manager: McpManager;
   registry: Registry;
   approvals: ChatApprovalController;
+  questions: ChatQuestionController;
   steering: ChatTurnSteeringController;
   prompt?: string;
   onExit: () => void;
@@ -430,6 +433,7 @@ export function ChatApp({
   manager,
   registry,
   approvals,
+  questions,
   steering,
   prompt,
   onExit,
@@ -452,6 +456,9 @@ export function ChatApp({
   const [usage, setUsage] = useState<TurnUsageStatus>(emptyTurnUsage);
   const [pendingApproval, setPendingApproval] =
     useState<ApprovalRequest | null>(null);
+  const [pendingQuestion, setPendingQuestion] = useState<ChatQuestion | null>(
+    null,
+  );
   const [picker, setPicker] = useState<ChatPicker>(null);
   /** Forces StatusBar to re-read yolo/mode from agent when those change without a picker close or rebuild. */
   const [, setSessionChromeEpoch] = useState(0);
@@ -553,6 +560,15 @@ export function ChatApp({
       cleanupListener();
     };
   }, [approvals]);
+
+  useEffect(() => {
+    const cleanupListener = questions.subscribe(() => {
+      setPendingQuestion(questions.pending);
+    });
+    return () => {
+      cleanupListener();
+    };
+  }, [questions]);
 
   useEffect(() => {
     let active = true;
@@ -1327,7 +1343,13 @@ export function ChatApp({
                   }
                 }
                 if (modelEvent?.type === "modelMetadataEvent") {
-                  const u = (modelEvent.usage ?? {}) as Partial<Usage>;
+                  // Normalize to the additive shape first: some providers
+                  // (OpenAI, Vercel-backed) report input inclusive of cache
+                  // reads, so `in`/`cin` would double-count without it.
+                  const u = toAdditiveUsage(
+                    (modelEvent.usage ?? {}) as Partial<Usage>,
+                    agent.model,
+                  );
                   const metricsData = (modelEvent.metrics ?? {}) as {
                     latencyMs?: number;
                   };
@@ -1480,7 +1502,7 @@ export function ChatApp({
 
   const onSubmit = useCallback(
     (value: PromptSubmission) => {
-      if (pendingApproval) {
+      if (pendingApproval || pendingQuestion) {
         return;
       }
       const trimmed = value.text.trim();
@@ -1574,6 +1596,7 @@ export function ChatApp({
       handleSessionsCommand,
       handleYoloCommand,
       pendingApproval,
+      pendingQuestion,
       pushPrompt,
       steering,
     ],
@@ -1625,7 +1648,7 @@ export function ChatApp({
     },
     // Keep active while a turn runs so Esc / Ctrl+C can call `agent.cancel()`.
     // When `running` was false here, keys never reached this handler during streaming.
-    { isActive: !pendingApproval },
+    { isActive: !pendingApproval && !pendingQuestion },
   );
 
   const elapsedLabel = useMemo(() => {
@@ -1715,6 +1738,7 @@ export function ChatApp({
           queuedPrompts={queuedPrompts}
           pendingApproval={Boolean(pendingApproval)}
           approvalRequest={pendingApproval}
+          pendingQuestion={pendingQuestion}
           picker={picker}
           sessionItems={sessionItems}
           slashCommands={slashCommands}
@@ -1725,6 +1749,8 @@ export function ChatApp({
           onApprovalDecision={(decision, reason) =>
             approvals.decide(decision, reason)
           }
+          onQuestionAnswer={(answer) => questions.answer(answer)}
+          onQuestionDismiss={() => questions.dismiss()}
           onModelSelect={(name) => {
             setPicker(null);
             void handleModelCommand(name);

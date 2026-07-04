@@ -11,7 +11,6 @@ import {
 } from "@strands-agents/sdk";
 import { ContextInjector } from "@strands-agents/sdk/vended-plugins/context-injector";
 import { ContextOffloader } from "@strands-agents/sdk/vended-plugins/context-offloader";
-import { join } from "node:path";
 import type { Tool } from "@strands-agents/sdk";
 import { type Config } from "../config.js";
 import { FileMemoryStore } from "../memory/index.js";
@@ -27,6 +26,7 @@ import {
   loadSubagentRegistry,
 } from "../subagents/index.js";
 import {
+  createAskUserTools,
   createTodoTools,
   createFetchTools,
   createFilesystemTools,
@@ -45,15 +45,22 @@ import {
   createAgentSkillsPlugin,
 } from "../skills/index.js";
 import { createPromptCachePlugin } from "./prompt-cache-plugin.js";
+import {
+  createSessionTitlePlugin,
+  type SessionTitleCallback,
+} from "./session-title-plugin.js";
 import { ModeAwareToolRegistry } from "./mode-aware-tool-registry.js";
 import { applySessionMode } from "./sync-tool-registry-mode.js";
 import { clearTodoState } from "../state/todos.js";
 import { MODE_STATE_KEY, type SessionMode } from "../state/session-mode.js";
 import { YOLO_STATE_KEY } from "../state/yolo.js";
-import { memoryPath, sessionsPath } from "../utils/paths.js";
+import {
+  memoryPath,
+  offloadedContentPath,
+  sessionsPath,
+} from "../utils/paths.js";
 
 const SECTION_BREAK = "\n\n---\n\n";
-const OFFLOADED_CONTENT_DIR = "offloaded-content";
 const OFFLOADING_MAX_RESULT_TOKENS = 5_000;
 const OFFLOADING_PREVIEW_TOKENS = 2_000;
 const MEMORY_STORE_NAME = "long_term";
@@ -86,6 +93,8 @@ export async function create(
     yolo?: boolean;
     mode?: SessionMode;
     interventions?: InterventionHandler[];
+    /** Notified when the session-title plugin generates a title (e.g. ACP `session_info_update`). */
+    onSessionTitle?: SessionTitleCallback;
   },
 ): Promise<Agent> {
   const sessionId = meta.sessionId;
@@ -122,6 +131,11 @@ export async function create(
   const promptCachePlugin = createPromptCachePlugin({
     getProvider: () => config.llm.provider,
   });
+  // AI session titles from the first user prompt (staged on appState so the
+  // session manager's snapshot save persists them).
+  const sessionTitlePlugin = createSessionTitlePlugin({
+    onTitle: meta.onSessionTitle,
+  });
 
   async function buildBaseSystemPrompt(): Promise<string> {
     await system.reload();
@@ -141,6 +155,7 @@ export async function create(
     ...(config.tools.filesystem.enabled ? createGrepTools() : []),
     ...(config.tools.shell.enabled ? createShellTools() : []),
     ...(config.search.enabled ? createWebSearchTools(config) : []),
+    ...createAskUserTools(),
     ...createThinkingTools(),
     ...createPlanTools(),
     ...prefixed,
@@ -173,6 +188,7 @@ export async function create(
       skillsPlugin,
       sessionModePlugin,
       promptCachePlugin,
+      sessionTitlePlugin,
       ...contextPlugins,
     ],
     interventions: meta.interventions ?? [],
@@ -248,9 +264,7 @@ function createOffloadingPlugins(): Plugin[] {
       renderContent: async () => `<now>${new Date().toISOString()}</now>`,
     }),
     new ContextOffloader({
-      storage: new TolerantFileStorage(
-        join(sessionsPath(), OFFLOADED_CONTENT_DIR),
-      ),
+      storage: new TolerantFileStorage(offloadedContentPath()),
       maxResultTokens: OFFLOADING_MAX_RESULT_TOKENS,
       previewTokens: OFFLOADING_PREVIEW_TOKENS,
       includeRetrievalTool: true,

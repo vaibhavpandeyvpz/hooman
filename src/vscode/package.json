@@ -1,0 +1,155 @@
+{
+  "name": "hooman-vscode",
+  "displayName": "Hooman",
+  "description": "Native VS Code chat backed by Hooman's Agent Client Protocol (ACP) agent",
+  "version": "1.40.2",
+  "private": true,
+  "publisher": "vaibhavpandeyvpz",
+  "license": "MIT",
+  "icon": "media/icon.png",
+  "homepage": "https://vaibhavpandey.com/hooman/",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vaibhavpandeyvpz/hooman.git",
+    "directory": "src/vscode"
+  },
+  "bugs": {
+    "url": "https://github.com/vaibhavpandeyvpz/hooman/issues"
+  },
+  "engines": {
+    "vscode": "^1.110.0"
+  },
+  "type": "commonjs",
+  "galleryBanner": {
+    "color": "#0B1120",
+    "theme": "dark"
+  },
+  "categories": [
+    "AI",
+    "Chat"
+  ],
+  "keywords": [
+    "hooman",
+    "acp",
+    "agent-client-protocol",
+    "chat-sessions",
+    "ai"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "hooman",
+          "title": "Hooman",
+          "icon": "media/hooman.svg"
+        }
+      ]
+    },
+    "views": {
+      "hooman": [
+        {
+          "type": "webview",
+          "id": "hooman.chatView",
+          "name": "Chat",
+          "icon": "media/hooman.svg"
+        }
+      ]
+    },
+    "menus": {
+      "view/title": [
+        {
+          "command": "hooman.newChat",
+          "when": "view == hooman.chatView",
+          "group": "navigation@1"
+        },
+        {
+          "command": "hooman.pickSession",
+          "when": "view == hooman.chatView",
+          "group": "navigation@2"
+        },
+        {
+          "command": "hooman.openConfig",
+          "when": "view == hooman.chatView",
+          "group": "navigation@3"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "hooman.newChat",
+        "title": "Hooman: New Chat",
+        "icon": "$(add)"
+      },
+      {
+        "command": "hooman.pickSession",
+        "title": "Hooman: Open Session…",
+        "icon": "$(history)"
+      },
+      {
+        "command": "hooman.openConfig",
+        "title": "Hooman: Open Settings…",
+        "icon": "$(gear)"
+      },
+      {
+        "command": "hooman.deleteAllSessions",
+        "title": "Hooman: Delete All Sessions"
+      },
+      {
+        "command": "hooman.showOutput",
+        "title": "Hooman: Show Output Channel"
+      }
+    ],
+    "configuration": {
+      "title": "Hooman",
+      "properties": {
+        "hooman.acp.command": {
+          "type": "string",
+          "default": "npx",
+          "description": "Executable used to launch the Hooman ACP agent. Defaults to `npx`, which resolves `hoomanjs` without requiring a global `npm link`/install. Set to an absolute path if you'd rather point at a specific `hooman` binary."
+        },
+        "hooman.acp.args": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "hoomanjs",
+            "acp"
+          ],
+          "description": "Arguments passed to the command above."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "clean": "rm -rf ./out",
+    "vscode:prepublish": "npm run clean && npm run compile",
+    "compile": "tsc --noEmit -p ./ && node esbuild.mjs && vite build",
+    "watch": "npm run watch:tsc & npm run watch:esbuild & npm run watch:vite",
+    "watch:tsc": "tsc -watch --noEmit -p ./",
+    "watch:esbuild": "node esbuild.mjs --watch",
+    "watch:vite": "vite build --watch",
+    "typecheck": "tsc --noEmit -p ./ && tsc --noEmit -p tsconfig.webview.json",
+    "lint": "true",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@agentclientprotocol/sdk": "^1.1.0",
+    "@tailwindcss/vite": "^4.3.2",
+    "@types/node": "^24.0.0",
+    "@types/vscode": "^1.110.0",
+    "@vscode/vsce": "^3.7.1",
+    "esbuild": "^0.28.1",
+    "lucide-solid": "^1.23.0",
+    "marked": "^18.0.5",
+    "solid-js": "^1.9.14",
+    "tailwindcss": "^4.3.2",
+    "typescript": "^5.9.3",
+    "vite": "^8.1.3",
+    "vite-plugin-solid": "^2.11.12"
+  }
+}

@@ -7,8 +7,10 @@ import {
   REASONING_EFFORT_OFF,
 } from "../../core/models/reasoning-effort.js";
 import { ApprovalPrompt } from "./ApprovalPrompt.js";
+import { QuestionPrompt } from "./QuestionPrompt.js";
 import { SelectPicker } from "./SelectPicker.js";
 import type { ApprovalDecision, ApprovalRequest } from "../types.js";
+import type { ChatQuestion } from "../questions.js";
 
 export type ChatPicker =
   null | "model" | "effort" | "yolo" | "mode" | "sessions";
@@ -17,10 +19,13 @@ type ChromePickerProps = {
   config: Config;
   pendingApproval: boolean;
   approvalRequest: ApprovalRequest | null;
+  pendingQuestion: ChatQuestion | null;
   picker: ChatPicker;
   yoloOn: boolean;
   sessionMode: SessionMode;
   onApprovalDecision: (decision: ApprovalDecision, reason?: string) => void;
+  onQuestionAnswer: (answer: string) => void;
+  onQuestionDismiss: () => void;
   sessionItems: Array<{ label: string; value: string }>;
   onModelSelect: (name: string) => void;
   onEffortSelect: (value: string) => void;
@@ -33,10 +38,13 @@ export function ChromePicker({
   config,
   pendingApproval,
   approvalRequest,
+  pendingQuestion,
   picker,
   yoloOn,
   sessionMode,
   onApprovalDecision,
+  onQuestionAnswer,
+  onQuestionDismiss,
   sessionItems,
   onModelSelect,
   onEffortSelect,
@@ -49,6 +57,16 @@ export function ChromePicker({
       <ApprovalPrompt
         request={approvalRequest}
         onDecision={onApprovalDecision}
+      />
+    );
+  }
+
+  if (pendingQuestion) {
+    return (
+      <QuestionPrompt
+        question={pendingQuestion}
+        onAnswer={onQuestionAnswer}
+        onDismiss={onQuestionDismiss}
       />
     );
   }

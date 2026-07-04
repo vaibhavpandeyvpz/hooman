@@ -1,6 +1,7 @@
 import type { Agent, InterventionHandler } from "@strands-agents/sdk";
 import { Config } from "./config.js";
 import { create as createAgent } from "./agent/index.js";
+import type { SessionTitleCallback } from "./agent/session-title-plugin.js";
 import type { SessionMode } from "./state/session-mode.js";
 import {
   createMcpManager,
@@ -28,6 +29,8 @@ export type BootstrapMeta = {
   createInterventions?: (deps: {
     manager: McpConnectionManager;
   }) => InterventionHandler[];
+  /** Notified when the session-title plugin generates a title for this agent's session. */
+  onSessionTitle?: SessionTitleCallback;
   acp?: AcpMeta;
 };
 
@@ -35,6 +38,15 @@ export type BootstrapMode = "default" | "daemon" | "acp";
 
 export type AcpMeta = {
   mcpServers?: NamedMcpTransport[];
+  /**
+   * Also load the local MCP config (`~/.hooman/mcp.json` plus repo-local
+   * `.hooman/mcp.json` overlays) as usual, instead of only session-scoped
+   * servers. Enabled for trusted first-party clients (the official VS Code
+   * extension identifies itself via `_meta["hoomanjs/vscode"]`).
+   */
+  vscode?: boolean;
+  /** Session working directory used to discover repo-local MCP overlays. */
+  cwd?: string;
 };
 
 export async function bootstrap(
@@ -48,10 +60,14 @@ export async function bootstrap(
   mcp: { config: McpServersConfig; manager: McpConnectionManager };
   registry: Registry;
 }> {
-  const mcpConfig = createRuntimeMcpConfig();
+  const mcpConfig = createRuntimeMcpConfig(meta.acp?.cwd);
+  // In ACP mode MCP servers are session-scoped (supplied by the client) and
+  // the local mcp.json is skipped — unless the client is a trusted first-party
+  // surface that asked for the regular local config to load as well.
+  const skipLocalMcpConfig = mode === "acp" && meta.acp?.vscode !== true;
   const mcpManager = createMcpManager(
     mcpConfig,
-    mode === "acp",
+    skipLocalMcpConfig,
     meta.acp?.mcpServers ?? [],
   );
   const mcp = { config: mcpConfig, manager: mcpManager };
@@ -67,6 +83,7 @@ export async function bootstrap(
     yolo: meta?.yolo,
     mode: meta?.mode,
     interventions,
+    onSessionTitle: meta?.onSessionTitle,
   });
   return { config, agent, mcp, registry };
 }

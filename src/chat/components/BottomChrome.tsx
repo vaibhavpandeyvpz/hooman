@@ -10,6 +10,7 @@ import { SlashCommands } from "./SlashCommands.js";
 import { StatusBar } from "./StatusBar.js";
 import { TodoPanel } from "./TodoPanel.js";
 import type { ApprovalDecision, ApprovalRequest } from "../types.js";
+import type { ChatQuestion } from "../questions.js";
 import type { PromptSubmission } from "./prompt-input/hooks/usePromptInputController.js";
 import type { SlashCommandMenuProps } from "./prompt-input/hooks/usePromptInputController.js";
 
@@ -44,6 +45,7 @@ type BottomChromeProps = {
   queuedPrompts: readonly QueuedPrompt[];
   pendingApproval: boolean;
   approvalRequest: ApprovalRequest | null;
+  pendingQuestion: ChatQuestion | null;
   picker: ChatPicker;
   slashCommands: readonly { name: string; description: string }[];
   slashHighlightIndex: number;
@@ -51,6 +53,8 @@ type BottomChromeProps = {
   inputHint: string;
   slashMenu?: SlashCommandMenuProps;
   onApprovalDecision: (decision: ApprovalDecision, reason?: string) => void;
+  onQuestionAnswer: (answer: string) => void;
+  onQuestionDismiss: () => void;
   sessionItems: Array<{ label: string; value: string }>;
   onModelSelect: (name: string) => void;
   onEffortSelect: (value: string) => void;
@@ -80,6 +84,7 @@ export function BottomChrome({
   queuedPrompts,
   pendingApproval,
   approvalRequest,
+  pendingQuestion,
   picker,
   sessionItems,
   slashCommands,
@@ -88,6 +93,8 @@ export function BottomChrome({
   inputHint,
   slashMenu,
   onApprovalDecision,
+  onQuestionAnswer,
+  onQuestionDismiss,
   onModelSelect,
   onEffortSelect,
   onYoloSelect,
@@ -108,10 +115,13 @@ export function BottomChrome({
         config={config}
         pendingApproval={pendingApproval}
         approvalRequest={approvalRequest}
+        pendingQuestion={pendingQuestion}
         picker={picker}
         yoloOn={yoloOn}
         sessionMode={sessionMode}
         onApprovalDecision={onApprovalDecision}
+        onQuestionAnswer={onQuestionAnswer}
+        onQuestionDismiss={onQuestionDismiss}
         sessionItems={sessionItems}
         onModelSelect={onModelSelect}
         onEffortSelect={onEffortSelect}
@@ -120,14 +130,14 @@ export function BottomChrome({
         onSessionSelect={onSessionSelect}
       />
 
-      {!pendingApproval && !picker ? (
+      {!pendingApproval && !pendingQuestion && !picker ? (
         <SlashCommands
           items={slashCommands}
           highlightIndex={slashHighlightIndex}
         />
       ) : null}
 
-      {!pendingApproval && !picker ? (
+      {!pendingApproval && !pendingQuestion && !picker ? (
         <Composer
           input={input}
           running={running}

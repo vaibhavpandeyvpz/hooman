@@ -12,6 +12,15 @@ import {
   createChatApprovalIntervention,
 } from "./chat/approvals.js";
 import {
+  ChatQuestionController,
+  createChatAskUserBackend,
+} from "./chat/questions.js";
+import { setAskUserBackend } from "./core/tools/ask-user.js";
+import {
+  canPromptForQuestion,
+  createExecAskUserBackend,
+} from "./exec/questions.js";
+import {
   ChatTurnSteeringController,
   createChatTurnSteeringIntervention,
 } from "./chat/steering.js";
@@ -229,6 +238,9 @@ program
       },
       true,
     );
+    if (canPromptForQuestion()) {
+      setAskUserBackend(agent, createExecAskUserBackend());
+    }
     try {
       await runWithAgentMemoryScope(agent, () => agent.invoke(prompt));
     } finally {
@@ -261,6 +273,7 @@ program
     let currentMode = options.mode as SessionMode;
     while (true) {
       const approvals = new ChatApprovalController();
+      const questions = new ChatQuestionController();
       const steering = new ChatTurnSteeringController();
       const {
         agent,
@@ -281,6 +294,7 @@ program
         false,
         config,
       );
+      setAskUserBackend(agent, createChatAskUserBackend(questions));
 
       try {
         const result = await chat({
@@ -291,6 +305,7 @@ program
           sessionId: currentSessionId,
           prompt: currentPrompt,
           approvals,
+          questions,
           steering,
           program: packageMeta.name,
         });

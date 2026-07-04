@@ -1,3 +1,4 @@
+export { createAskUserTools } from "./ask-user.js";
 export { createPlanTools } from "./plan.js";
 export {
   createFilesystemTools,

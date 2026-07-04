@@ -150,6 +150,32 @@ const whitespaceNormalized: Replacer = function* (content, find) {
       yield block;
     }
   }
+
+  // Single-line target: also match as a substring within a line, locating the
+  // span via a whitespace-tolerant regex built from the find's words.
+  if (findLines.length === 1) {
+    for (const line of contentLines) {
+      if (
+        collapse(line) === normalizedFind ||
+        !collapse(line).includes(normalizedFind)
+      ) {
+        continue;
+      }
+      const words = find.trim().split(/\s+/);
+      if (words.length === 0) continue;
+      const pattern = words
+        .map((word) => word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+        .join("\\s+");
+      try {
+        const match = line.match(new RegExp(pattern));
+        if (match) {
+          yield match[0];
+        }
+      } catch {
+        // Invalid regex from pathological input; skip.
+      }
+    }
+  }
 };
 
 /**
@@ -212,36 +238,106 @@ const blockAnchor: Replacer = function* (content, find) {
   }
 };
 
-/** Interpret backslash escapes (\n, \t, \", ...) the model may have emitted. */
-const escapeNormalized: Replacer = function* (content, find) {
-  const unescape = (text: string): string =>
-    text.replace(/\\([ntr'"`$\\\n])/g, (match, char: string) => {
-      switch (char) {
-        case "n":
-          return "\n";
-        case "t":
-          return "\t";
-        case "r":
-          return "\r";
-        case "'":
-          return "'";
-        case '"':
-          return '"';
-        case "`":
-          return "`";
-        case "$":
-          return "$";
-        case "\\":
-        case "\n":
-          return char === "\\" ? "\\" : "\n";
-        default:
-          return match;
-      }
-    });
+/**
+ * Interpret backslash escapes (\n, \t, \", ...) the model may have emitted.
+ * `\\+` collapses over-escaping (e.g. `\\\\n` from double JSON-encoding), a
+ * common normalization for this failure mode.
+ */
+export function unescapeModelText(text: string): string {
+  return text.replace(/\\+(n|t|r|'|"|`|\$|\\|\n)/g, (match, char: string) => {
+    switch (char) {
+      case "n":
+        return "\n";
+      case "t":
+        return "\t";
+      case "r":
+        return "\r";
+      case "'":
+        return "'";
+      case '"':
+        return '"';
+      case "`":
+        return "`";
+      case "$":
+        return "$";
+      case "\\":
+        return "\\";
+      case "\n":
+        return "\n";
+      default:
+        return match;
+    }
+  });
+}
 
-  const unescapedFind = unescape(find);
+/**
+ * The model over-escaped the target (mangled JSON encoding of its tool
+ * arguments) while the file has the plain text. The caller should apply the
+ * same unescaping to the replacement text when this strategy matched (see
+ * {@link unescapeModelText}); the model over-escapes both sides together.
+ */
+const escapeNormalized: Replacer = function* (content, find) {
+  const unescapedFind = unescapeModelText(find);
   if (unescapedFind !== find && content.includes(unescapedFind)) {
     yield unescapedFind;
+  }
+};
+
+/**
+ * Normalize typographic punctuation (curly quotes, dashes, ellipsis,
+ * non-breaking spaces) before comparing. Prose files routinely contain smart
+ * punctuation while the model reproduces the ASCII form, and vice versa.
+ */
+function normalizePunctuation(text: string): string {
+  return text
+    .replace(/[\u2018\u2019\u201A\u201B]/g, "'")
+    .replace(/[\u201C\u201D\u201E\u201F]/g, '"')
+    .replace(/[\u2010-\u2015\u2212]/g, "-")
+    .replace(/\u2026/g, "...")
+    .replace(/[\u00A0\u2000-\u200B\u202F\u3000]/g, " ");
+}
+
+const punctuationNormalized: Replacer = function* (content, find) {
+  const normalizedFind = normalizePunctuation(find);
+  const contentLines = content.split("\n");
+  const findLines = find.split("\n");
+
+  for (let i = 0; i <= contentLines.length - findLines.length; i += 1) {
+    const block = joinLineRange(
+      content,
+      contentLines,
+      i,
+      i + findLines.length - 1,
+    );
+    if (block !== find && normalizePunctuation(block) === normalizedFind) {
+      yield block;
+    }
+  }
+};
+
+/** Match after trimming leading/trailing whitespace off the whole target. */
+const trimmedBoundary: Replacer = function* (content, find) {
+  const trimmedFind = find.trim();
+  if (trimmedFind === find || trimmedFind.length === 0) {
+    return;
+  }
+
+  if (content.includes(trimmedFind)) {
+    yield trimmedFind;
+  }
+
+  const contentLines = content.split("\n");
+  const findLines = find.split("\n");
+  for (let i = 0; i <= contentLines.length - findLines.length; i += 1) {
+    const block = joinLineRange(
+      content,
+      contentLines,
+      i,
+      i + findLines.length - 1,
+    );
+    if (block.trim() === trimmedFind) {
+      yield block;
+    }
   }
 };
 
@@ -250,8 +346,10 @@ const REPLACERS: Replacer[] = [
   lineTrimmed,
   indentationFlexible,
   whitespaceNormalized,
-  blockAnchor,
+  trimmedBoundary,
+  punctuationNormalized,
   escapeNormalized,
+  blockAnchor,
 ];
 
 /**

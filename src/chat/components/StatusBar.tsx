@@ -95,9 +95,9 @@ export function StatusBar({
   mcpNeedsAttention,
   usage,
 }: StatusBarProps) {
-  // Cumulative billing meter. Providers with prompt caching (e.g. Anthropic)
-  // report `inputTokens` as only the uncached portion and account the bulk of
-  // the prompt under cache read/write, so surface cached input (`cin`)
+  // Cumulative billing meter. Usage is normalized to the additive shape
+  // before accumulation (see src/core/models/usage.ts): `inputTokens` is only
+  // the uncached portion and cached input (`cin`, read + write) is surfaced
   // separately — but only when the provider actually reports caching.
   const cacheInput =
     (usage.cacheReadInputTokens ?? 0) + (usage.cacheWriteInputTokens ?? 0);

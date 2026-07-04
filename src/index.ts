@@ -34,6 +34,7 @@ export {
   mcpJsonPath,
   mcpOauthJsonPath,
   memoryPath,
+  offloadedContentPath,
   plansPath,
   sessionsPath,
   skillsPath,
@@ -135,6 +136,7 @@ export type {
 export { PrefixedMcpTool } from "./core/mcp/prefixed-mcp-tool.js";
 
 export {
+  createAskUserTools,
   createFetchTools,
   createFilesystemTools,
   createGrepTools,
@@ -147,18 +149,26 @@ export {
 } from "./core/tools/index.js";
 export { UPDATE_TODOS_TOOL_NAME } from "./core/tools/todo.js";
 export {
+  ASK_USER_TOOL_NAME,
+  getAskUserBackend,
+  setAskUserBackend,
+  type AskUserBackend,
+  type AskUserRequest,
+  type AskUserResponse,
+} from "./core/tools/ask-user.js";
+export {
   getTerminalBackend,
   setTerminalBackend,
   type TerminalBackend,
   type TerminalRunRequest,
   type TerminalRunResult,
-} from "./core/tools/terminal-backend.js";
+} from "./core/tools/shell.js";
 export {
   getTextFsBackend,
   setTextFsBackend,
   type TextFsBackend,
   type TextFsReadOptions,
-} from "./core/tools/text-fs-backend.js";
+} from "./core/tools/filesystem.js";
 
 export {
   AGENT_SKILLS_STATE_KEY,

@@ -3,6 +3,7 @@ import { VercelModel } from "@strands-agents/sdk/models/vercel";
 import type { XaiProviderSettings } from "@ai-sdk/xai";
 import type { VercelModelConfig } from "@strands-agents/sdk/models/vercel";
 import type { LlmOptions, XaiProviderOptions } from "./types.js";
+import { markTotalInclusiveInputUsage } from "./usage.js";
 
 export function create(
   providerOptions: XaiProviderOptions,
@@ -37,8 +38,11 @@ export function create(
       ? { providerOptions: { xai: { reasoningEffort } } }
       : {}),
   };
-  return new VercelModel({
+  const model = new VercelModel({
     provider: provider(llmOptions.model),
     ...config,
   });
+  // xAI reports `prompt_tokens` inclusive of `cached_tokens`.
+  markTotalInclusiveInputUsage(model);
+  return model;
 }

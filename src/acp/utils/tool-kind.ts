@@ -30,6 +30,7 @@ const KNOWN_TOOL_KINDS = new Map<string, ToolKind>([
   ["subagent_review", "other"],
   ["subagent_test_investigator", "other"],
   ["update_todos", "other"],
+  ["ask_user", "other"],
   ["get_current_time", "other"],
   ["convert_time", "other"],
   [ENTER_PLAN_MODE_TOOL, "switch_mode"],

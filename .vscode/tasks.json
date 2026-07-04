@@ -1,0 +1,66 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "type": "npm",
+      "script": "watch:tsc",
+      "path": "src/vscode",
+      "label": "watch:tsc",
+      "problemMatcher": "$tsc-watch",
+      "isBackground": true,
+      "presentation": { "reveal": "never", "group": "watch" }
+    },
+    {
+      "type": "npm",
+      "script": "watch:esbuild",
+      "path": "src/vscode",
+      "label": "watch:esbuild",
+      "problemMatcher": {
+        "owner": "esbuild",
+        "fileLocation": "absolute",
+        "pattern": {
+          "regexp": "^> (.*):(\\d+):(\\d+): error: (.*)$",
+          "file": 1,
+          "line": 2,
+          "column": 3,
+          "message": 4
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "^\\[watch\\] build started$",
+          "endsPattern": "^\\[watch\\] build finished$"
+        }
+      },
+      "isBackground": true,
+      "presentation": { "reveal": "never", "group": "watch" }
+    },
+    {
+      "type": "npm",
+      "script": "watch:vite",
+      "path": "src/vscode",
+      "label": "watch:vite",
+      "problemMatcher": {
+        "owner": "vite",
+        "fileLocation": "absolute",
+        "pattern": {
+          "regexp": "^ERROR:\\s+(.*)$",
+          "message": 1
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "^build started\\.\\.\\.",
+          "endsPattern": "^built in \\d+m?s\\.?"
+        }
+      },
+      "isBackground": true,
+      "presentation": { "reveal": "never", "group": "watch" }
+    },
+    {
+      "label": "watch",
+      "dependsOn": ["watch:tsc", "watch:esbuild", "watch:vite"],
+      "dependsOrder": "parallel",
+      "problemMatcher": [],
+      "group": { "kind": "build", "isDefault": true }
+    }
+  ]
+}

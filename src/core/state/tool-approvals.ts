@@ -22,6 +22,7 @@ const WRITE_FILE_TOOL = "write_file";
 const EDIT_FILE_TOOL = "edit_file";
 export const ENTER_PLAN_MODE_TOOL = "enter_plan_mode";
 export const EXIT_PLAN_MODE_TOOL = "exit_plan_mode";
+const ASK_USER_TOOL = "ask_user";
 
 export const INTERNAL_ALWAYS_ALLOWED = new Set([
   // Strands / runtime
@@ -39,6 +40,8 @@ export const INTERNAL_ALWAYS_ALLOWED = new Set([
   "subagent_test_investigator",
   // Sleep
   "sleep",
+  // Asking the user a question IS the interaction — no separate approval gate.
+  ASK_USER_TOOL,
   // Time
   "convert_time",
   "get_current_time",

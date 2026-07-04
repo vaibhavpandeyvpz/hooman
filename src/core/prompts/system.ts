@@ -20,6 +20,7 @@ const STATIC_PROMPT_FILES = [
   "environment.md",
   "todo.md",
   "thinking.md",
+  "ask-user.md",
   "filesystem.md",
   "fetch.md",
   "web-search.md",
@@ -81,6 +82,10 @@ export class System {
           return this.config.tools.subagents.enabled;
         case "daemon.md":
           return this.mode === "daemon";
+        // Daemon jobs have no interactive user; the tool would only report
+        // "no user available", so don't advertise it in the prompt.
+        case "ask-user.md":
+          return this.mode !== "daemon";
         default:
           return true;
       }
