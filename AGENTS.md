@@ -162,7 +162,7 @@ At runtime, `config.json` and `mcp.json` support project-local overlays that lay
 
 `AGENTS.md` instruction files are a separate mechanism and are **not** nested under `.hooman/`: they are discovered as bare `AGENTS.md` files walked from the git root down to the current directory (see `src/core/prompts/runtime.ts`).
 
-Default `config.json` uses a local Ollama provider and `gemma4:e4b` as the default model. Supported providers include `anthropic`, `azure`, `bedrock`, `google`, `groq`, `minimax`, `moonshot`, `ollama`, `openai`, `openrouter`, and `xai`. See `src/core/models/index.ts` for the currently wired providers, `src/core/config.ts` for the top-level config schema, and `src/core/models/types.ts` for provider/LLM option schemas. Reasoning-capable providers share a common `reasoning: { effort?, summary?, display? }` option that each factory translates to the backend's native shape.
+Default `config.json` uses a local Ollama provider and `gemma4:e4b` as the default model. Supported providers include `anthropic`, `azure`, `bedrock`, `google`, `groq`, `minimax`, `moonshot`, `ollama`, `openai`, `openrouter`, and `xai`. See `src/core/models/index.ts` for the currently wired providers, `src/core/config.ts` for the top-level config schema, and `src/core/models/types.ts` for provider/LLM option schemas. Reasoning-capable providers share a common `reasoning: { effort?, summary?, display? }` option that each factory translates to the backend's native shape. The `minimax` factory is served through the AI SDK Anthropic adapter (`@ai-sdk/anthropic` via the Strands `VercelModel`, default `baseURL` `https://api.minimax.io/anthropic`, overridable) rather than the native Strands `AnthropicModel`, because it reads token usage from the stream's final `message_delta` — MiniMax reports `input_tokens: 0` in `message_start`, which the native model trusts.
 
 ### Model billing metadata (context window + session cost)
 
@@ -178,6 +178,7 @@ Each `llms` entry may carry an optional `billing` block (`src/core/models/types.
 - **Imports:** prefer explicit named imports; internal imports always include the `.js` extension.
 - **State:** session-scoped agent state is stored on the Strands `appState` object; see `src/core/state/`.
 - **Prompts:** static prompts are Markdown files loaded at runtime; bundled assets are copied to `dist/` by the post-build script.
+- **Prompt-cache stability:** requests must stay byte-stable across turns so provider prefix caching works (explicit Anthropic/Bedrock breakpoints via `src/core/agent/prompt-cache-plugin.ts`, implicit prefix caching on MiniMax). The system prompt renders a session-stable date & time (`System.builtAt` → `environment.datetime` in `environment.md`; `get_current_time` covers precise needs) — do not add per-request dynamic content to the system prompt or fold ephemeral per-turn content into conversation history.
 - **Skills:** each skill is a folder containing a `SKILL.md` with YAML frontmatter. The built-in skills live under `src/core/skills/built-in/` and are packaged into `dist/`.
 
 ## Security and operational notes

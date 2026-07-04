@@ -69,7 +69,7 @@ export function createTimeTools() {
     tool({
       name: "get_current_time",
       description:
-        "Get the current time in a specific timezone. Prefer the injected <now> timestamp for the default current time; use this when timezone-specific current time is needed.",
+        "Get the current time, optionally in a specific timezone. The system prompt only carries the session-start date & time, so use this whenever the precise current time matters.",
       inputSchema: z.object({
         timezone: z
           .string()

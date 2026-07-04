@@ -45,7 +45,7 @@ All reasoning-capable providers share a common optional `reasoning` object: `{ e
 | `bedrock`    | `region`, `accessKeyId`, `secretAccessKey`, optional `sessionToken`, optional `apiKey`, optional `reasoning`                                                       |
 | `google`     | `apiKey`, optional `reasoning`                                                                                                                                     |
 | `groq`       | `apiKey`, optional `baseURL`, optional `headers`, optional `reasoning`                                                                                             |
-| `minimax`    | `apiKey`, optional `headers`, optional `reasoning`                                                                                                                 |
+| `minimax`    | `apiKey`, optional `baseURL`, optional `headers`, optional `reasoning`                                                                                             |
 | `moonshot`   | `apiKey`, optional `baseURL`, optional `headers`, optional `reasoning`                                                                                             |
 | `ollama`     | optional `baseURL`, optional `reasoning`                                                                                                                           |
 | `openai`     | `apiKey`, optional `baseURL`, optional `headers`, optional `api` (`"responses"` default or `"chat"`), optional `reasoning`                                         |
@@ -59,7 +59,7 @@ Normalized LLM option fields: `model`, optional `temperature`, optional `maxToke
 - Google maps normalized `maxTokens` to the SDK's `maxOutputTokens` internally.
 - Azure uses the Vercel AI SDK `@ai-sdk/azure` provider. Set the LLM `model` to your Azure **deployment name**, not the raw OpenAI model id.
 - Ollama maps normalized `temperature` into Ollama `options.temperature`.
-- MiniMax uses the Anthropic-compatible endpoint `https://api.minimax.io/anthropic` automatically.
+- MiniMax defaults `baseURL` to the Anthropic-compatible endpoint `https://api.minimax.io/anthropic`; override it to reach MiniMax through a gateway (e.g. LiteLLM). It's served through the AI SDK Anthropic adapter, which reads token usage from the stream's final `message_delta` — required because MiniMax reports `input_tokens: 0` in `message_start`.
 - Moonshot defaults `baseURL` to `https://api.moonshot.ai/v1` when omitted. It's served through the reasoning-aware openai-compatible adapter, so Kimi's `reasoning_content` streams as thinking — the right provider for reaching Kimi through an OpenAI-compatible proxy (e.g. LiteLLM), where the `openai` provider's Chat adapter would drop reasoning.
 - OpenRouter defaults `baseURL` to `https://openrouter.ai/api/v1` when omitted; model names are usually provider-qualified ids such as `anthropic/claude-3.5-sonnet`. It also uses the openai-compatible adapter, so reasoning streams for reasoning models.
 - The `openai` provider defaults to the Responses API (`api: "responses"`), which surfaces reasoning. `api: "chat"` does **not** surface reasoning — route such proxies through `moonshot`/`openrouter` instead.

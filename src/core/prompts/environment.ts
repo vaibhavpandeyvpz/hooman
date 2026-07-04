@@ -13,6 +13,7 @@ type EnvironmentPromptContext = {
   shell: string;
   isGitRepo: boolean;
   timeZone: string;
+  datetime: string;
 };
 
 function detectPlatform(): string {
@@ -55,7 +56,23 @@ function detectTimeZone(): string {
   return Intl.DateTimeFormat().resolvedOptions().timeZone || "unknown";
 }
 
-export function getEnvironmentPromptContext(): EnvironmentPromptContext {
+/** Human-readable local date & time, e.g. "Saturday, July 4, 2026, 2:25 PM". */
+export function formatPromptDateTime(date: Date): string {
+  return new Intl.DateTimeFormat("en-US", {
+    dateStyle: "full",
+    timeStyle: "short",
+  }).format(date);
+}
+
+/**
+ * Environment facts rendered into the system prompt. `at` is the moment the
+ * prompt is considered built; callers that rebuild the prompt during a session
+ * must pass a stable value so the rendered prefix stays byte-identical across
+ * turns (a changing prefix defeats provider prompt caching).
+ */
+export function getEnvironmentPromptContext(
+  at: Date = new Date(),
+): EnvironmentPromptContext {
   const cwd = process.cwd();
   return {
     cwd,
@@ -64,5 +81,6 @@ export function getEnvironmentPromptContext(): EnvironmentPromptContext {
     shell: detectShell(),
     isGitRepo: detectGitRepo(cwd),
     timeZone: detectTimeZone(),
+    datetime: formatPromptDateTime(at),
   };
 }

@@ -51,6 +51,12 @@ export class System {
   private readonly path: string;
   private readonly config: Config;
   private readonly mode: SystemMode;
+  /**
+   * Captured once per instance so every `reload()` in a session renders the
+   * same date/time — a per-turn timestamp would change the prompt prefix on
+   * every request and defeat provider prompt caching.
+   */
+  private readonly builtAt = new Date();
   private data = "";
   private sourceFingerprint = "";
   private compiledTemplate: ReturnType<typeof compile> | null = null;
@@ -187,7 +193,7 @@ export class System {
     return {
       name: this.config.name,
       llm: this.config.llm,
-      environment: getEnvironmentPromptContext(),
+      environment: getEnvironmentPromptContext(this.builtAt),
       compaction: this.config.compaction,
       mode: this.mode,
     };

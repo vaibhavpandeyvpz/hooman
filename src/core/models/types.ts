@@ -44,8 +44,8 @@ export type ReasoningOptions = {
 
 /**
  * Effort -> `budget_tokens` for providers that take an explicit thinking budget
- * (Anthropic/MiniMax via the Anthropic API, Bedrock Converse). We always send a
- * budget rather than omitting it; `medium` is the default when no effort is set.
+ * (the native Anthropic API, Bedrock Converse). We always send a budget rather
+ * than omitting it; `medium` is the default when no effort is set.
  */
 export const REASONING_BUDGET_TOKENS: Record<ReasoningEffort, number> = {
   minimal: 1024,
@@ -153,10 +153,10 @@ export type MinimaxProviderOptions = {
   baseURL?: string;
   headers?: Record<string, string>;
   /**
-   * Reasoning controls. Providing `reasoning` enables thinking, normalized to
-   * MiniMax's `thinking: { type: "adaptive", budget_tokens }`; omit `reasoning`
-   * to leave thinking off. `effort` defaults to `medium` and maps to an explicit
-   * `budget_tokens` (always sent).
+   * Reasoning controls. Providing `reasoning` enables MiniMax's adaptive
+   * thinking (`thinking: { type: "adaptive" }` with `output_config.effort`);
+   * omit `reasoning` to leave thinking at the model default. `effort` defaults
+   * to `medium` (`minimal` maps to `low`); `display` is forwarded when set.
    */
   reasoning?: ReasoningOptions;
 };

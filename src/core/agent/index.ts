@@ -9,7 +9,6 @@ import {
   type Plugin,
   type InterventionHandler,
 } from "@strands-agents/sdk";
-import { ContextInjector } from "@strands-agents/sdk/vended-plugins/context-injector";
 import { ContextOffloader } from "@strands-agents/sdk/vended-plugins/context-offloader";
 import type { Tool } from "@strands-agents/sdk";
 import { type Config } from "../config.js";
@@ -258,11 +257,6 @@ export function createContext(sessionId?: string): {
 
 function createOffloadingPlugins(): Plugin[] {
   return [
-    new ContextInjector({
-      name: "hooman:clock",
-      trigger: "userTurn",
-      renderContent: async () => `<now>${new Date().toISOString()}</now>`,
-    }),
     new ContextOffloader({
       storage: new TolerantFileStorage(offloadedContentPath()),
       maxResultTokens: OFFLOADING_MAX_RESULT_TOKENS,

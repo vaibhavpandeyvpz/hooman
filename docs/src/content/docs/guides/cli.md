@@ -42,7 +42,7 @@ hooman chat --mode ask
 The status bar under the composer has three rows:
 
 - model / effort / mode / yolo
-- a usage row — `context: N% (used/size)`, cumulative `tokens` (`in`/`cin`/`out`), and session `cost: $…` — each segment only appears once it has data (context and cost require resolvable [billing metadata](/hooman/guides/providers/#billing-metadata))
+- a usage row — `context: N% (used/size)`, the latest request's `tokens` (`in`/`cin`/`out`), and cumulative session `cost: $…` — each segment only appears once it has data (context and cost require resolvable [billing metadata](/hooman/guides/providers/#billing-metadata))
 - an mcp/tools/skills row, with a live `elapsed` timer while a turn runs
 
 ### Chat commands

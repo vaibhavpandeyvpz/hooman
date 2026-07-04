@@ -8,5 +8,6 @@ Runtime environment captured when this prompt was built:
 - OS version: `{{ environment.osVersion }}`
 - Is git repository: `{{ environment.isGitRepo }}`
 - Time zone: `{{ environment.timeZone }}`
+- Date & time at session start: `{{ environment.datetime }}`
 
-Use this to choose correct path handling, shell syntax, and platform-specific behavior. For the precise current date/time on each model call, use the injected `<now>...</now>` ISO timestamp; use `get_current_time` only when a specific timezone beyond that matters.
+Use this to choose correct path handling, shell syntax, and platform-specific behavior. The date & time above is from session start and goes stale in long sessions; use `get_current_time` whenever the precise current time matters.

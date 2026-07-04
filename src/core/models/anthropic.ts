@@ -10,9 +10,10 @@ import { REASONING_BUDGET_TOKENS } from "./types.js";
 export type AnthropicModelParams = AnthropicProviderOptions & LlmOptions;
 
 /**
- * Anthropic-compatible thinking `type`. Real Claude uses `enabled`; MiniMax's
- * Anthropic-compatible API uses `adaptive`. In the `enabled` path we always send
- * an explicit `budget_tokens` derived from the effort (defaulting to `medium`).
+ * Anthropic-compatible thinking `type`. Real Claude uses `enabled`; some
+ * Anthropic-compatible backends use `adaptive`. In the `enabled` path we always
+ * send an explicit `budget_tokens` derived from the effort (defaulting to
+ * `medium`).
  */
 export type ThinkingType = "enabled" | "adaptive";
 

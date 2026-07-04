@@ -38,7 +38,7 @@ const CACHEABLE_BLOCK_TYPES: ReadonlySet<string> = new Set([
  * immediately follows a cacheable block. hooman otherwise sends a plain string
  * system prompt with no breakpoints, so nothing is ever cached on those
  * providers. This plugin runs at {@link InvokeModelStage.Input} — after skills
- * / session-mode injection and after the clock context injector — and appends:
+ * / session-mode injection — and appends:
  *
  * - one cache point at the end of the system prompt (caches the stable
  *   `tools → system` prefix), and

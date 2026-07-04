@@ -27,7 +27,7 @@ Each turn ends with a `usage_update` carrying:
 
 - `used` / `size` — context-window utilization (`size` is `0` when the model's billing metadata can't be resolved)
 - `cost` — cumulative session cost (omitted when unresolved)
-- cumulative token totals under `_meta["hoomanjs/tokens"]`
+- the latest request's token totals under `_meta["hoomanjs/tokens"]`
 
 `size` and `cost` come from the model's [billing metadata](/hooman/guides/providers/#billing-metadata) (models.dev-backed). A model switch pushes a fresh `usage_update` immediately so clients can rescale right away.
 

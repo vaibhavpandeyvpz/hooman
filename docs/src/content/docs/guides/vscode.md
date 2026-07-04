@@ -21,7 +21,7 @@ Install it from the **[VS Code Marketplace](https://marketplace.visualstudio.com
 - **Pill pickers** in the composer for mode (Agent / Plan / Ask / Yolo), model, and reasoning effort, plus `/` slash-command autocomplete (`/compact`, `/init`).
 - **Inline permission prompts**: the agent asks before running destructive tools; approve or reject right in the panel (Yolo mode auto-approves).
 - **Status bar item** showing the current model and mode, with a spinner while a turn runs and a quick menu for all session controls.
-- **Token-usage footer** with cumulative input / cached / output token totals for the session, plus a context-window gauge and cumulative session cost — see [Billing metadata](/hooman/guides/providers/#billing-metadata).
+- **Token-usage footer** with the latest request's input / cached / output token counts, plus a context-window gauge and cumulative session cost — see [Billing metadata](/hooman/guides/providers/#billing-metadata).
 
 ## Quick start
 
