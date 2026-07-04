@@ -2,7 +2,7 @@
 
 All notable changes to the Hooman VS Code extension are documented in this file.
 
-## [1.40.2]
+## [1.41.0]
 
 - Initial public release: a self-contained chat panel in the activity bar, backed by `hooman acp`.
 - Streaming markdown, collapsible thinking, tool-call cards, pinned Plan/Changes/Queued panels, and a token-usage footer.
