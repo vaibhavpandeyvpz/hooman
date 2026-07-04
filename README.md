@@ -42,6 +42,7 @@ It gives you a practical toolkit to build and run agent workflows:
 - Built-in read-only subagent tools (`subagent_research`, `subagent_review`, `subagent_test_investigator`)
 - Built-in `grep` tool backed by ripgrep (`rg`), with runtime bootstrap when `rg` is not available on PATH
 - Built-in `ask_user` tool: the agent can ask you a multiple-choice question mid-task and wait for the answer — inline picker in `chat`, numbered prompt in `exec`, question card in ACP clients (Zed, the VS Code extension); environments without a human (daemon, non-TTY `exec`, subagents) report "no user available" so the agent proceeds on its own
+- Context-window utilization and session-cost tracking backed by [models.dev](https://models.dev) (daily-cached catalog, optional per-model `billing` overrides) — shown in the chat status bar, the VS Code extension footer, and sent to ACP clients via `usage_update`
 - Toolkit-oriented architecture with configurable tools, prompts, and transports
 - Interactive terminal UI for chat and configuration
 
@@ -183,16 +184,20 @@ Start in ask mode:
 hooman chat --mode ask
 ```
 
+The status bar under the composer shows the active model, effort, mode, and yolo state; a usage row with `context: N% (used/size)`, cumulative `tokens` (`in`/`cin`/`out`), and session `cost: $…` (each segment appears once it has data — context and cost require resolvable billing metadata, see the [`billing` block](#provider-notes)); and an mcp/tools/skills row with a live `elapsed` timer while a turn runs.
+
 ### Chat commands
 
 Inside an interactive `chat` session, type `/` to discover slash commands:
 
 - `/model` - pick or set the chat model for this session.
+- `/effort` - pick or set the reasoning effort for the active model's provider (`off`, `minimal`, `low`, `medium`, `high`); Shift+Tab cycles it.
 - `/mode` - switch the session mode (`agent`, `ask`, `plan`); see [Session mode](#session-mode).
 - `/yolo` - toggle auto-approve of tool calls (`on` / `off`).
 - `/init` - generate or refresh `AGENTS.md` for the current project.
 - `/compact` - compact the conversation history now and persist the result.
 - `/new` - start a fresh chat session.
+- `/sessions` - browse and resume saved sessions.
 - `/config` - launch the configuration workflow (see below).
 
 ### Session mode
@@ -296,6 +301,7 @@ ACP notes:
 - ACP loads MCP servers passed on `session/new` and `session/load`, in addition to Hooman's local `mcp.json`
 - ACP `session/new` and `session/load` support `_meta.userId`
 - session configuration includes `hooman.sessionMode` (`agent`, `plan`, or `ask`); see [Session mode](#session-mode)
+- each turn ends with a `usage_update` carrying context-window utilization (`used`/`size`), cumulative session `cost`, and cumulative token totals under `_meta["hoomanjs/tokens"]` — `size` and `cost` come from the model's [`billing` metadata](#provider-notes) (models.dev-backed) and are omitted (`size: 0`, no `cost`) when unresolved; a model switch pushes a fresh `usage_update` so clients can rescale immediately
 
 ## VS Code Extension
 

@@ -126,7 +126,9 @@ Common flags on `exec`, `chat`, and `daemon`:
 - `--yolo` — auto-approve all tool calls.
 - `--debug` (daemon only) — log raw MCP channel payloads.
 
-In-chat slash commands (interactive `chat`): `/model`, `/mode`, `/yolo`, `/init`, `/compact` (compact history now), `/new` (start a fresh session), and `/config` (launch the configuration TUI on the alternate screen, restoring chat on exit).
+In-chat slash commands (interactive `chat`): `/model`, `/effort` (pick/set reasoning effort; Shift+Tab cycles it), `/mode`, `/yolo`, `/init`, `/compact` (compact history now), `/new` (start a fresh session), `/sessions` (browse and resume saved sessions), and `/config` (launch the configuration TUI on the alternate screen, restoring chat on exit).
+
+The chat status bar has three rows: model/effort/mode/yolo; a usage row of `context: N% (used/size) • tokens: … • cost: $…` segments that each stay hidden until they have data (the row collapses when empty); and the mcp/tools/skills row, which appends a live `• elapsed MM:SS` timer while a turn runs.
 
 The `/config` workflow uses menu screens where you select a field and edit just that value. Enum-like values such as the OpenAI API mode and the shared reasoning options (`effort`/`summary`/`display`) use pickers.
 
