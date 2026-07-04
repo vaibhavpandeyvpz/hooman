@@ -110,17 +110,19 @@ export function StatusBar({
 }: StatusBarProps) {
   // Cumulative billing meter. Usage is normalized to the additive shape
   // before accumulation (see src/core/models/usage.ts): `inputTokens` is only
-  // the uncached portion and cached input (`cin`, read + write) is surfaced
-  // separately — but only when the provider actually reports caching.
+  // the uncached portion, with cached input (read + write) folded into the
+  // same segment as `uncached/cached in` — the cached part shows only when
+  // the provider actually reports caching.
   const cacheInput =
     (usage.cacheReadInputTokens ?? 0) + (usage.cacheWriteInputTokens ?? 0);
+  const inputLabel =
+    cacheInput > 0
+      ? `${formatTokenCount(usage.inputTokens)}/${formatTokenCount(cacheInput)} in`
+      : `${formatTokenCount(usage.inputTokens)} in`;
   const tokensLabel = [
-    `${formatTokenCount(usage.inputTokens)} in`,
-    cacheInput > 0 ? `${formatTokenCount(cacheInput)} cin` : null,
+    inputLabel,
     `${formatTokenCount(usage.outputTokens)} out`,
-  ]
-    .filter(Boolean)
-    .join(", ");
+  ].join(", ");
   const hasTokens = usage.inputTokens + cacheInput + usage.outputTokens > 0;
   // Context-window utilization + session cost, resolved from the model's
   // `billing` config / the models.dev catalog. Hidden when unresolved.
