@@ -7,17 +7,17 @@ Hooman stores its data under `~/.hooman/` (or `$HOOMAN_HOME` when set).
 
 ## Layout
 
-| Path | Purpose |
-| --- | --- |
-| `config.json` | App name, reusable provider configs, model configs, tool flags, and compaction. |
-| `instructions.md` | System instructions used to build the agent prompt. |
-| `mcp.json` | MCP server definitions. |
-| `mcp-oauth.json` | Stored OAuth credentials for remote MCP servers. |
-| `skills/` | Installed [skills](/hooman/guides/skills/). |
-| `bin/` | Runtime-managed helper binaries (including bootstrapped `rg` for the `grep` tool when system `rg` is unavailable). |
-| `cache/` | Runtime caches used by tools and subsystems. |
-| `projects.json` | Registry mapping each project root to a stable UUID. |
-| `projects/<uuid>/` | Per-project storage, scoped to the project (git root, falling back to cwd) the session runs in. |
+| Path               | Purpose                                                                                                            |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------ |
+| `config.json`      | App name, reusable provider configs, model configs, tool flags, and compaction.                                    |
+| `instructions.md`  | System instructions used to build the agent prompt.                                                                |
+| `mcp.json`         | MCP server definitions.                                                                                            |
+| `mcp-oauth.json`   | Stored OAuth credentials for remote MCP servers.                                                                   |
+| `skills/`          | Installed [skills](/hooman/guides/skills/).                                                                        |
+| `bin/`             | Runtime-managed helper binaries (including bootstrapped `rg` for the `grep` tool when system `rg` is unavailable). |
+| `cache/`           | Runtime caches used by tools and subsystems.                                                                       |
+| `projects.json`    | Registry mapping each project root to a stable UUID.                                                               |
+| `projects/<uuid>/` | Per-project storage, scoped to the project (git root, falling back to cwd) the session runs in.                    |
 
 Inside each `projects/<uuid>/` directory:
 

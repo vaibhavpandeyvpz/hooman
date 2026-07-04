@@ -46,10 +46,10 @@ Install it from the **[VS Code Marketplace](https://marketplace.visualstudio.com
 
 By default the extension runs the agent through `npx`, resolving [`hoomanjs`](https://www.npmjs.com/package/hoomanjs) on demand. If you'd rather pin a specific binary or a local build:
 
-| Setting | Default | Purpose |
-| --- | --- | --- |
-| `hooman.acp.command` | `npx` | Executable used to launch the agent. |
-| `hooman.acp.args` | `["hoomanjs", "acp"]` | Arguments passed to the command above. |
+| Setting              | Default               | Purpose                                |
+| -------------------- | --------------------- | -------------------------------------- |
+| `hooman.acp.command` | `npx`                 | Executable used to launch the agent.   |
+| `hooman.acp.args`    | `["hoomanjs", "acp"]` | Arguments passed to the command above. |
 
 ```json
 {

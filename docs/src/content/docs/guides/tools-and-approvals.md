@@ -15,12 +15,12 @@ description: Built-in tools, the ask_user flow, subagents, and the tool approval
 
 `ask_user` is approval-exempt — the question itself is the interaction, so it never goes through the tool-approval flow below.
 
-| Surface | Presentation |
-| --- | --- |
-| `chat` | Inline picker in the composer chrome, with free-text answer and dismiss. |
-| `exec` | Numbered readline prompt when a TTY is present. |
-| ACP clients (Zed, the VS Code extension) | A question-styled permission card whose options are the answer choices plus Dismiss. |
-| `daemon`, non-TTY `exec`, subagents | No user available — the tool returns `no_user_available` and the agent proceeds on its own judgement. |
+| Surface                                  | Presentation                                                                                          |
+| ---------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `chat`                                   | Inline picker in the composer chrome, with free-text answer and dismiss.                              |
+| `exec`                                   | Numbered readline prompt when a TTY is present.                                                       |
+| ACP clients (Zed, the VS Code extension) | A question-styled permission card whose options are the answer choices plus Dismiss.                  |
+| `daemon`, non-TTY `exec`, subagents      | No user available — the tool returns `no_user_available` and the agent proceeds on its own judgement. |
 
 Dismissals return `dismissed` rather than an error.
 

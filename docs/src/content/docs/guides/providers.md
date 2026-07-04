@@ -38,19 +38,19 @@ All reasoning-capable providers share a common optional `reasoning` object: `{ e
 - `summary` (`"auto" | "concise" | "detailed" | "none"`) is only honored by the OpenAI/Azure Responses API.
 - `display` (`"summarized" | "omitted"`) applies to Bedrock Claude / MiniMax only.
 
-| Provider | Option fields |
-| --- | --- |
-| `anthropic` | `apiKey`, optional `baseURL`, optional `headers`, optional `reasoning` |
-| `azure` | optional `resourceName`, optional `baseURL`, optional `apiKey`, optional `headers`, optional `apiVersion`, optional `useDeploymentBasedUrls`, optional `reasoning` |
-| `bedrock` | `region`, `accessKeyId`, `secretAccessKey`, optional `sessionToken`, optional `apiKey`, optional `reasoning` |
-| `google` | `apiKey`, optional `reasoning` |
-| `groq` | `apiKey`, optional `baseURL`, optional `headers`, optional `reasoning` |
-| `minimax` | `apiKey`, optional `headers`, optional `reasoning` |
-| `moonshot` | `apiKey`, optional `baseURL`, optional `headers`, optional `reasoning` |
-| `ollama` | optional `baseURL`, optional `reasoning` |
-| `openai` | `apiKey`, optional `baseURL`, optional `headers`, optional `api` (`"responses"` default or `"chat"`), optional `reasoning` |
-| `openrouter` | `apiKey`, optional `baseURL`, optional `headers`, optional `reasoning` |
-| `xai` | `apiKey`, optional `baseURL`, optional `headers`, optional `reasoning` |
+| Provider     | Option fields                                                                                                                                                      |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `anthropic`  | `apiKey`, optional `baseURL`, optional `headers`, optional `reasoning`                                                                                             |
+| `azure`      | optional `resourceName`, optional `baseURL`, optional `apiKey`, optional `headers`, optional `apiVersion`, optional `useDeploymentBasedUrls`, optional `reasoning` |
+| `bedrock`    | `region`, `accessKeyId`, `secretAccessKey`, optional `sessionToken`, optional `apiKey`, optional `reasoning`                                                       |
+| `google`     | `apiKey`, optional `reasoning`                                                                                                                                     |
+| `groq`       | `apiKey`, optional `baseURL`, optional `headers`, optional `reasoning`                                                                                             |
+| `minimax`    | `apiKey`, optional `headers`, optional `reasoning`                                                                                                                 |
+| `moonshot`   | `apiKey`, optional `baseURL`, optional `headers`, optional `reasoning`                                                                                             |
+| `ollama`     | optional `baseURL`, optional `reasoning`                                                                                                                           |
+| `openai`     | `apiKey`, optional `baseURL`, optional `headers`, optional `api` (`"responses"` default or `"chat"`), optional `reasoning`                                         |
+| `openrouter` | `apiKey`, optional `baseURL`, optional `headers`, optional `reasoning`                                                                                             |
+| `xai`        | `apiKey`, optional `baseURL`, optional `headers`, optional `reasoning`                                                                                             |
 
 Normalized LLM option fields: `model`, optional `temperature`, optional `maxTokens`.
 

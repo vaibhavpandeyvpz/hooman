@@ -23,8 +23,16 @@ export default defineConfig({
         themes: ["github-dark-default"],
       },
       social: [
-        { icon: "github", label: "GitHub", href: "https://github.com/vaibhavpandeyvpz/hooman" },
-        { icon: "seti:npm", label: "npm", href: "https://www.npmjs.com/package/hoomanjs" },
+        {
+          icon: "github",
+          label: "GitHub",
+          href: "https://github.com/vaibhavpandeyvpz/hooman",
+        },
+        {
+          icon: "seti:npm",
+          label: "npm",
+          href: "https://www.npmjs.com/package/hoomanjs",
+        },
       ],
       editLink: {
         baseUrl: "https://github.com/vaibhavpandeyvpz/hooman/edit/main/docs/",

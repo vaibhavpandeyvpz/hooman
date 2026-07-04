@@ -4,11 +4,12 @@ import { formatCostUsd, formatCount } from "../lib/format";
 import { state } from "../store";
 
 /**
- * Mirrors the CLI TUI's `in`/`cin`/`out` billing meter. The agent normalizes
- * usage to the additive shape before accumulating (providers disagree on
- * whether input includes cache reads), so `input` here is always only the
- * uncached portion and cached input (`cin`) is surfaced separately,
- * combining read + write.
+ * Mirrors the CLI TUI's per-turn `in`/`cin`/`out` token meter: the latest
+ * request's tokens, not a session running total (the context gauge already
+ * reflects overall window usage). The agent normalizes usage to the additive
+ * shape (providers disagree on whether input includes cache reads), so `input`
+ * here is always only the uncached portion and cached input (`cin`) is
+ * surfaced separately, combining read + write.
  *
  * When the agent resolved the model's billing metadata (config `billing`
  * block / models.dev), the right side adds a context-window gauge

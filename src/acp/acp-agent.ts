@@ -190,11 +190,11 @@ type SessionRecord = {
   /** Persist this provider's effort to shared config after a deferred rebuild. */
   pendingPersistEffort: { provider: string; effort: string | undefined } | null;
   /**
-   * Cumulative billing meter for the session: every request's token usage
-   * summed (cache reads included), mirroring the CLI TUI's `StatusBar` meter.
+   * Latest request's token usage (additive shape), mirroring the CLI TUI's
+   * `StatusBar` meter which reports "this turn" rather than a session total.
    * Distinct from the context-window utilization sent as `usage_update.used`.
    */
-  cumulativeUsage: Usage;
+  lastTurnUsage: Usage;
   /**
    * Billing metadata for the active model (config `billing` merged with the
    * models.dev catalog), re-resolved on model rebuilds. `null` when nothing
@@ -262,40 +262,34 @@ function decodeCursor(cursor: string): number {
   });
 }
 
-/** Zeroed `Usage` accumulator for a fresh session's cumulative billing meter. */
+/** Zeroed `Usage` for a fresh session's per-turn token meter. */
 function createEmptyUsage(): Usage {
   return { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
 }
 
 /**
- * Accumulate `source` into `target` in place, mirroring the CLI TUI's
- * cumulative billing meter (`src/chat/app.tsx`): sum every request's token
- * usage over the session, including cache reads/writes which recur (and are
- * billed) on every request. `source` must already be in the additive shape
- * (see `toAdditiveUsage`), where cache reads are not part of `inputTokens`.
+ * Build the per-turn token meter from a single request's usage, mirroring the
+ * CLI TUI (`src/chat/app.tsx`): report just the latest request's tokens rather
+ * than a session running total — the context gauge already reflects overall
+ * window consumption. `source` must already be in the additive shape (see
+ * `toAdditiveUsage`), where cache reads are not part of `inputTokens`.
  */
-function accumulateUsage(target: Usage, source: Usage): void {
-  target.inputTokens += source.inputTokens ?? 0;
-  target.outputTokens += source.outputTokens ?? 0;
-  if (
-    source.cacheReadInputTokens !== undefined ||
-    target.cacheReadInputTokens !== undefined
-  ) {
-    target.cacheReadInputTokens =
-      (target.cacheReadInputTokens ?? 0) + (source.cacheReadInputTokens ?? 0);
-  }
-  if (
-    source.cacheWriteInputTokens !== undefined ||
-    target.cacheWriteInputTokens !== undefined
-  ) {
-    target.cacheWriteInputTokens =
-      (target.cacheWriteInputTokens ?? 0) + (source.cacheWriteInputTokens ?? 0);
-  }
-  target.totalTokens =
-    target.inputTokens +
-    target.outputTokens +
-    (target.cacheReadInputTokens ?? 0) +
-    (target.cacheWriteInputTokens ?? 0);
+function lastTurnUsage(source: Usage): Usage {
+  const inputTokens = source.inputTokens ?? 0;
+  const outputTokens = source.outputTokens ?? 0;
+  const cacheRead = source.cacheReadInputTokens ?? 0;
+  const cacheWrite = source.cacheWriteInputTokens ?? 0;
+  return {
+    inputTokens,
+    outputTokens,
+    totalTokens: inputTokens + outputTokens + cacheRead + cacheWrite,
+    ...(source.cacheReadInputTokens !== undefined && {
+      cacheReadInputTokens: cacheRead,
+    }),
+    ...(source.cacheWriteInputTokens !== undefined && {
+      cacheWriteInputTokens: cacheWrite,
+    }),
+  };
 }
 
 function assertAbsolutePath(value: string, field: string): void {
@@ -1347,8 +1341,8 @@ export class HoomanAcpAgent {
    *   clients should not render a used/size percentage.
    * - `cost`: cumulative session USD, only while every priced request had
    *   resolved rates — otherwise omitted rather than reporting a lowball.
-   * - `_meta["hoomanjs/tokens"]`: cumulative token totals for the session
-   *   (mirroring the CLI TUI's `in`/`cin`/`out` billing meter).
+   * - `_meta["hoomanjs/tokens"]`: the latest request's token totals
+   *   (mirroring the CLI TUI's per-turn `in`/`cin`/`out` meter).
    */
   #sendUsageUpdate(
     client: AgentContext,
@@ -1360,7 +1354,7 @@ export class HoomanAcpAgent {
     if (contextUsed === undefined) {
       return Promise.resolve();
     }
-    const tokens = rec.cumulativeUsage;
+    const tokens = rec.lastTurnUsage;
     const includeCost = rec.billing?.costs !== undefined && !rec.costUnpriced;
     return this.#sendUpdate(client, sessionId, {
       sessionUpdate: "usage_update",
@@ -1556,7 +1550,7 @@ export class HoomanAcpAgent {
           // reads; normalize to the additive shape so `in`/`cin` don't
           // double-count in the client's meter.
           const additive = toAdditiveUsage(inner.usage, rec.agent.model);
-          accumulateUsage(rec.cumulativeUsage, additive);
+          rec.lastTurnUsage = lastTurnUsage(additive);
           rec.lastContextTokens = contextTokensFromUsage(additive);
           // Session cost accrues per request at the rates of the model that
           // served it; once a request with usage runs unpriced, the total is
@@ -1719,7 +1713,7 @@ export class HoomanAcpAgent {
       pendingModelRebuild: false,
       pendingPersistModel: null,
       pendingPersistEffort: null,
-      cumulativeUsage: createEmptyUsage(),
+      lastTurnUsage: createEmptyUsage(),
       billing,
       cumulativeCostUsd: 0,
       costUnpriced: false,

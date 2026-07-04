@@ -108,11 +108,11 @@ export function StatusBar({
   contextUsage,
   costUsd,
 }: StatusBarProps) {
-  // Cumulative billing meter. Usage is normalized to the additive shape
-  // before accumulation (see src/core/models/usage.ts): `inputTokens` is only
-  // the uncached portion, with cached input (read + write) folded into the
-  // same segment as `uncached/cached in` — the cached part shows only when
-  // the provider actually reports caching.
+  // Latest-request token meter. Usage is normalized to the additive shape
+  // (see src/core/models/usage.ts): `inputTokens` is only the uncached portion,
+  // with cached input (read + write) folded into the same segment as
+  // `uncached/cached in` — the cached part shows only when the provider
+  // actually reports caching.
   const cacheInput =
     (usage.cacheReadInputTokens ?? 0) + (usage.cacheWriteInputTokens ?? 0);
   const inputLabel =

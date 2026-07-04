@@ -150,6 +150,7 @@ export type GroqProviderOptions = {
 
 export type MinimaxProviderOptions = {
   apiKey?: string;
+  baseURL?: string;
   headers?: Record<string, string>;
   /**
    * Reasoning controls. Providing `reasoning` enables thinking, normalized to
@@ -358,6 +359,7 @@ export const GroqProviderOptionsSchema = z
 export const MinimaxProviderOptionsSchema = z
   .object({
     apiKey: NonEmptyStringSchema.optional(),
+    baseURL: NonEmptyStringSchema.optional(),
     headers: HeadersSchema,
     reasoning: ReasoningOptionsSchema.optional(),
   })

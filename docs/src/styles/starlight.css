@@ -32,5 +32,6 @@ a:not(.sl-badge) {
 }
 
 code {
-  font-family: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  font-family:
+    "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
 }

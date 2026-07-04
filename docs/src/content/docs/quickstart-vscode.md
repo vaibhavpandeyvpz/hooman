@@ -33,6 +33,7 @@ code --install-extension VPZ.hooman-vscode
    - run `npx hoomanjs` in a terminal and use the [`/config`](/hooman/guides/cli/#config) workflow.
 
    See [Configuration](/hooman/guides/configuration/) and [Providers & Models](/hooman/guides/providers/) for the full schema.
+
 3. Explore the panel: streaming markdown, tool-call cards, a pinned **Changes** panel with diff/keep/undo, plan checklists, and slash commands.
 
 ## Next steps

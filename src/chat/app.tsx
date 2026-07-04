@@ -1386,38 +1386,26 @@ export function ChatApp({
                     latencyMs?: number;
                   };
                   const lat = metricsData.latencyMs ?? 0;
-                  // Cumulative billing meter: sum every request's token usage over
-                  // the session, cache reads included. Cache reads recur on every
-                  // request and are billed each time (at a reduced rate), so the
-                  // running total reflects what the session actually costs rather
-                  // than the current context-window size.
-                  setUsage((prev) => {
-                    const inputTokens = prev.inputTokens + (u.inputTokens ?? 0);
-                    const outputTokens =
-                      prev.outputTokens + (u.outputTokens ?? 0);
-                    const cacheRead =
-                      (prev.cacheReadInputTokens ?? 0) +
-                      (u.cacheReadInputTokens ?? 0);
-                    const cacheWrite =
-                      (prev.cacheWriteInputTokens ?? 0) +
-                      (u.cacheWriteInputTokens ?? 0);
-                    const hasCacheRead =
-                      prev.cacheReadInputTokens !== undefined ||
-                      u.cacheReadInputTokens !== undefined;
-                    const hasCacheWrite =
-                      prev.cacheWriteInputTokens !== undefined ||
-                      u.cacheWriteInputTokens !== undefined;
-                    return {
-                      inputTokens,
-                      outputTokens,
-                      totalTokens:
-                        inputTokens + cacheRead + cacheWrite + outputTokens,
-                      ...(hasCacheRead && { cacheReadInputTokens: cacheRead }),
-                      ...(hasCacheWrite && {
-                        cacheWriteInputTokens: cacheWrite,
-                      }),
-                      latencyMs: prev.latencyMs + lat,
-                    };
+                  // Per-request token meter: show the latest request's usage
+                  // (uncached input, cached input, output) rather than a session
+                  // running total — the context gauge already reflects overall
+                  // window consumption, so the token row reports "this turn".
+                  const inputTokens = u.inputTokens ?? 0;
+                  const outputTokens = u.outputTokens ?? 0;
+                  const cacheRead = u.cacheReadInputTokens ?? 0;
+                  const cacheWrite = u.cacheWriteInputTokens ?? 0;
+                  const hasCacheRead = u.cacheReadInputTokens !== undefined;
+                  const hasCacheWrite = u.cacheWriteInputTokens !== undefined;
+                  setUsage({
+                    inputTokens,
+                    outputTokens,
+                    totalTokens:
+                      inputTokens + cacheRead + cacheWrite + outputTokens,
+                    ...(hasCacheRead && { cacheReadInputTokens: cacheRead }),
+                    ...(hasCacheWrite && {
+                      cacheWriteInputTokens: cacheWrite,
+                    }),
+                    latencyMs: lat,
                   });
                   // Session cost accrues per request at the current model's
                   // resolved rates; once a request runs unpriced the total is

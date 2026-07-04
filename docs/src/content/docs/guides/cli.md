@@ -49,17 +49,17 @@ The status bar under the composer has three rows:
 
 Type `/` inside a chat session to discover slash commands:
 
-| Command      | Purpose                                                                          |
-| ------------ | --------------------------------------------------------------------------------- |
-| `/model`     | Pick or set the chat model for this session.                                      |
-| `/effort`    | Pick or set reasoning effort (`off`, `minimal`, `low`, `medium`, `high`); Shift+Tab cycles it. |
-| `/mode`      | Switch session mode (`agent`, `ask`, `plan`); see [Session mode](#session-mode).   |
-| `/yolo`      | Toggle auto-approve of tool calls (`on` / `off`).                                  |
-| `/init`      | Generate or refresh `AGENTS.md` for the current project.                          |
-| `/compact`   | Compact the conversation history now and persist the result.                      |
-| `/new`       | Start a fresh chat session.                                                        |
-| `/sessions`  | Browse and resume saved sessions.                                                  |
-| `/config`    | Launch the [configuration workflow](#config).                                     |
+| Command     | Purpose                                                                                        |
+| ----------- | ---------------------------------------------------------------------------------------------- |
+| `/model`    | Pick or set the chat model for this session.                                                   |
+| `/effort`   | Pick or set reasoning effort (`off`, `minimal`, `low`, `medium`, `high`); Shift+Tab cycles it. |
+| `/mode`     | Switch session mode (`agent`, `ask`, `plan`); see [Session mode](#session-mode).               |
+| `/yolo`     | Toggle auto-approve of tool calls (`on` / `off`).                                              |
+| `/init`     | Generate or refresh `AGENTS.md` for the current project.                                       |
+| `/compact`  | Compact the conversation history now and persist the result.                                   |
+| `/new`      | Start a fresh chat session.                                                                    |
+| `/sessions` | Browse and resume saved sessions.                                                              |
+| `/config`   | Launch the [configuration workflow](#config).                                                  |
 
 ## `hooman exec`
 
