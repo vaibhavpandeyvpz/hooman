@@ -1,3 +1,4 @@
+import { Fragment, type ReactNode } from "react";
 import { Box, Text } from "ink";
 import { millify } from "millify";
 import type { Manager as McpManager } from "../../core/mcp/index.js";
@@ -15,15 +16,38 @@ function formatTokenCount(n: number): string {
   return millify(Math.round(n), TOKEN_MILLIFY_OPTS);
 }
 
+/** "$0.0451" under a dollar, "$1.23" under a hundred, whole dollars beyond. */
+function formatCostUsd(amount: number): string {
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return "$0.00";
+  }
+  if (amount < 1) {
+    return `$${amount.toFixed(4)}`;
+  }
+  if (amount < 100) {
+    return `$${amount.toFixed(2)}`;
+  }
+  return `$${Math.round(amount)}`;
+}
+
+/** Color the context-utilization percentage as it approaches the window limit. */
+function contextUsageColor(ratio: number): string {
+  if (ratio >= 0.9) {
+    return "red";
+  }
+  if (ratio >= 0.7) {
+    return "yellow";
+  }
+  return "green";
+}
+
 type StatusBarProps = {
   running: boolean;
-  status: string;
   currentModel: string;
   reasoningEffort?: string;
   yoloOn: boolean;
   sessionMode: string;
   elapsedLabel: string;
-  turnCount: number;
   totalTools: number;
   skillsFound: number;
   manager: McpManager;
@@ -36,6 +60,10 @@ type StatusBarProps = {
     cacheWriteInputTokens?: number;
     latencyMs: number;
   };
+  /** Context-window utilization; only set when the window size was resolved. */
+  contextUsage?: { used: number; size: number };
+  /** Cumulative session cost in USD; only set when pricing was resolved. */
+  costUsd?: number;
 };
 
 function sessionModeValueColor(mode: string): string | undefined {
@@ -65,35 +93,20 @@ function reasoningEffortColor(effort: string): string {
   }
 }
 
-/** Ink color for the live status token only (labels stay `gray`). */
-function statusValueColor(status: string): string {
-  switch (status) {
-    case "ready":
-      return "green";
-    case "thinking":
-    case "streaming":
-    case "running tool":
-    case "cancel requested":
-      return "yellow";
-    default:
-      return "gray";
-  }
-}
-
 export function StatusBar({
   running,
-  status,
   currentModel,
   reasoningEffort,
   yoloOn,
   sessionMode,
   elapsedLabel,
-  turnCount,
   totalTools,
   skillsFound,
   manager,
   mcpNeedsAttention,
   usage,
+  contextUsage,
+  costUsd,
 }: StatusBarProps) {
   // Cumulative billing meter. Usage is normalized to the additive shape
   // before accumulation (see src/core/models/usage.ts): `inputTokens` is only
@@ -108,6 +121,39 @@ export function StatusBar({
   ]
     .filter(Boolean)
     .join(", ");
+  const hasTokens = usage.inputTokens + cacheInput + usage.outputTokens > 0;
+  // Context-window utilization + session cost, resolved from the model's
+  // `billing` config / the models.dev catalog. Hidden when unresolved.
+  const contextRatio =
+    contextUsage && contextUsage.size > 0
+      ? contextUsage.used / contextUsage.size
+      : null;
+  // Middle row: context • tokens • cost (each hidden until it has data).
+  // The row collapses when empty.
+  const usageSegments: ReactNode[] = [];
+  if (contextUsage && contextRatio !== null) {
+    usageSegments.push(
+      <Fragment>
+        <Text color="gray">context: </Text>
+        <Text color={contextUsageColor(contextRatio)}>
+          {Math.min(100, Math.round(contextRatio * 100))}%
+        </Text>
+        <Text color="gray">
+          {" "}
+          ({formatTokenCount(contextUsage.used)}/
+          {formatTokenCount(contextUsage.size)})
+        </Text>
+      </Fragment>,
+    );
+  }
+  if (hasTokens) {
+    usageSegments.push(<Text color="gray">tokens: {tokensLabel}</Text>);
+  }
+  if (costUsd !== undefined) {
+    usageSegments.push(
+      <Text color="gray">cost: {formatCostUsd(costUsd)}</Text>,
+    );
+  }
   return (
     <Box marginTop={1} flexDirection="column">
       <Text>
@@ -126,21 +172,23 @@ export function StatusBar({
         <Text color="gray"> • yolo: </Text>
         <Text color={yoloOn ? "red" : "green"}>{yoloOn ? "on" : "off"}</Text>
       </Text>
-      <Text>
-        <Text color="gray">status: </Text>
-        <Text color={statusValueColor(status)}>{status}</Text>
-        <Text color="gray">
-          {" "}
-          • turns: {turnCount} • tokens: {tokensLabel}
-          {running ? ` • elapsed ${elapsedLabel}` : ""}
+      {usageSegments.length > 0 ? (
+        <Text>
+          {usageSegments.map((segment, index) => (
+            <Fragment key={index}>
+              {index > 0 ? <Text color="gray"> • </Text> : null}
+              {segment}
+            </Fragment>
+          ))}
         </Text>
-      </Text>
+      ) : null}
       <Text color="gray">
         {`mcp servers: ${manager.clients.size}`}
         {mcpNeedsAttention ? (
           <Text color="yellow"> (needs attention)</Text>
         ) : null}
         {` • tools: ${totalTools} • skills: ${skillsFound}`}
+        {running ? ` • elapsed ${elapsedLabel}` : ""}
       </Text>
     </Box>
   );

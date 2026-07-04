@@ -60,6 +60,29 @@ export type LlmOptions = {
   maxTokens?: number;
 };
 
+/**
+ * Per-million-token USD prices for a model. `cache/m` is the cached-input
+ * (cache read) price; cache writes are billed at the `input/m` rate when only
+ * these config-provided prices are available.
+ */
+export type LlmBillingCosts = {
+  "input/m": number;
+  "cache/m"?: number;
+  "output/m": number;
+};
+
+/**
+ * Optional billing metadata on a named LLM. `name` is the model identifier
+ * used to look the model up on models.dev (defaults to `options.model` when
+ * `billing` is omitted entirely); `context`/`costs` override whatever the
+ * models.dev catalog resolves.
+ */
+export type LlmBilling = {
+  name: string;
+  context?: number;
+  costs?: LlmBillingCosts;
+};
+
 export type AnthropicProviderOptions = {
   apiKey?: string;
   baseURL?: string;
@@ -254,6 +277,22 @@ export const LlmOptionsSchema = z
     model: NonEmptyStringSchema,
     temperature: z.number().finite().optional(),
     maxTokens: z.number().int().positive().optional(),
+  })
+  .strict();
+
+export const LlmBillingCostsSchema = z
+  .object({
+    "input/m": z.number().nonnegative(),
+    "cache/m": z.number().nonnegative().optional(),
+    "output/m": z.number().nonnegative(),
+  })
+  .strict();
+
+export const LlmBillingSchema = z
+  .object({
+    name: NonEmptyStringSchema,
+    context: z.number().int().positive().optional(),
+    costs: LlmBillingCostsSchema.optional(),
   })
   .strict();
 
@@ -467,6 +506,7 @@ export const NamedLlmConfigSchema = z
     name: NonEmptyStringSchema,
     provider: NonEmptyStringSchema,
     options: LlmOptionsSchema,
+    billing: LlmBillingSchema.nullish(),
     default: z.boolean().default(false),
   })
   .strict();

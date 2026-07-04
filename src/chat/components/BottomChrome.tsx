@@ -22,13 +22,11 @@ type QueuedPrompt = {
 type BottomChromeProps = {
   config: Config;
   running: boolean;
-  status: string;
   currentModel: string;
   reasoningEffort?: string;
   yoloOn: boolean;
   sessionMode: SessionMode;
   elapsedLabel: string;
-  turnCount: number;
   totalTools: number;
   skillsFound: number;
   manager: McpManager;
@@ -41,6 +39,10 @@ type BottomChromeProps = {
     cacheWriteInputTokens?: number;
     latencyMs: number;
   };
+  /** Context-window utilization; only set when the window size was resolved. */
+  contextUsage?: { used: number; size: number };
+  /** Cumulative session cost in USD; only set when pricing was resolved. */
+  costUsd?: number;
   todoState: TodoViewState;
   queuedPrompts: readonly QueuedPrompt[];
   pendingApproval: boolean;
@@ -68,18 +70,18 @@ type BottomChromeProps = {
 export function BottomChrome({
   config,
   running,
-  status,
   currentModel,
   reasoningEffort,
   yoloOn,
   sessionMode,
   elapsedLabel,
-  turnCount,
   totalTools,
   skillsFound,
   manager,
   mcpNeedsAttention,
   usage,
+  contextUsage,
+  costUsd,
   todoState,
   queuedPrompts,
   pendingApproval,
@@ -151,18 +153,18 @@ export function BottomChrome({
 
       <StatusBar
         running={running}
-        status={status}
         currentModel={currentModel}
         reasoningEffort={reasoningEffort}
         yoloOn={yoloOn}
         sessionMode={sessionMode}
         elapsedLabel={elapsedLabel}
-        turnCount={turnCount}
         totalTools={totalTools}
         skillsFound={skillsFound}
         manager={manager}
         mcpNeedsAttention={mcpNeedsAttention}
         usage={usage}
+        contextUsage={contextUsage}
+        costUsd={costUsd}
       />
     </Box>
   );

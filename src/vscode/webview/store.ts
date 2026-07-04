@@ -7,6 +7,8 @@ import type {
 import type {
   AttachmentInfo,
   CommandInfo,
+  ContextUsageInfo,
+  CostInfo,
   EditInfo,
   OutboundMessage,
   PermissionOptionInfo,
@@ -68,6 +70,10 @@ interface State {
   plan: PlanEntry[];
   edits: EditInfo[];
   usage: TokenTotals | null;
+  /** Context-window utilization; null until the agent reports a resolved window size. */
+  context: ContextUsageInfo | null;
+  /** Cumulative session cost; null while pricing is unresolved. */
+  cost: CostInfo | null;
   queue: QueuedPromptInfo[];
   /** Text handed back from a queued item picked for editing; the composer consumes and clears it. */
   editDraft: string | null;
@@ -91,6 +97,8 @@ const [state, setState] = createStore<State>({
   plan: [],
   edits: [],
   usage: null,
+  context: null,
+  cost: null,
   queue: [],
   editDraft: null,
   attachments: [],
@@ -436,6 +444,18 @@ function handleSessionUpdate(update: SessionUpdatePayload): void {
       if (tokens) {
         setState("usage", tokens);
       }
+      // `size: 0` means the context window could not be resolved (no billing
+      // config and no models.dev hit) — show nothing rather than a made-up %.
+      setState(
+        "context",
+        update.size > 0 ? { used: update.used, size: update.size } : null,
+      );
+      setState(
+        "cost",
+        update.cost
+          ? { amount: update.cost.amount, currency: update.cost.currency }
+          : null,
+      );
       break;
     }
     case "available_commands_update":
@@ -493,6 +513,8 @@ function clearChat(): void {
     plan: [],
     edits: [],
     usage: null,
+    context: null,
+    cost: null,
     queue: [],
     editDraft: null,
     attachments: [],

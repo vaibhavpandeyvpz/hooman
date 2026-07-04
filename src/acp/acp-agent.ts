@@ -67,6 +67,12 @@ import { readBundledPrompt } from "../core/prompts/bundled.js";
 import { modelProviders } from "../core/models/index.js";
 import { toAdditiveUsage } from "../core/models/usage.js";
 import {
+  computeUsageCostUsd,
+  contextTokensFromUsage,
+  resolveLlmBilling,
+  type ResolvedLlmBilling,
+} from "../core/utils/billing.js";
+import {
   buildSessionConfigOptions,
   currentModelName,
   CONFIG_ID_EFFORT,
@@ -78,7 +84,7 @@ import {
   activeProviderName,
   parseReasoningEffortArg,
   withReasoningEffort,
-} from "../core/models/reasoning-effort.js";
+} from "../core/utils/reasoning-effort.js";
 import {
   ACP_SLASH_COMMANDS,
   parseAcpSlashCommand,
@@ -189,6 +195,21 @@ type SessionRecord = {
    * Distinct from the context-window utilization sent as `usage_update.used`.
    */
   cumulativeUsage: Usage;
+  /**
+   * Billing metadata for the active model (config `billing` merged with the
+   * models.dev catalog), re-resolved on model rebuilds. `null` when nothing
+   * could be resolved — context size and cost are then not reported.
+   */
+  billing: ResolvedLlmBilling | null;
+  /** Cumulative session cost in USD, accumulated per request at that request's model rates. */
+  cumulativeCostUsd: number;
+  /**
+   * Set once any request with token usage ran without resolved pricing; the
+   * session total would be incomplete, so cost reporting stops for good.
+   */
+  costUnpriced: boolean;
+  /** Context tokens of the latest request (additive prompt total), for `usage_update.used`. */
+  lastContextTokens: number | undefined;
 };
 
 async function readAgentIdentity(): Promise<AgentIdentity> {
@@ -778,6 +799,20 @@ export class HoomanAcpAgent {
       await patchSessionEntry(this.#acpRoot, params.sessionId, {
         model: value,
       });
+      // The conversation (and thus the context tokens in use) carries over to
+      // the new model, so rescale the client's context gauge against the new
+      // window immediately instead of leaving the old one up until the next
+      // turn ends. Skipped mid-turn: the rebuild (and billing re-resolution)
+      // is deferred to the turn boundary, and the running turn's own
+      // `usage_update` is still correctly priced against the old model.
+      if (!this.#isTurnActive(rec)) {
+        await this.#sendUsageUpdate(
+          this.#requireClient(),
+          params.sessionId,
+          rec,
+          undefined,
+        );
+      }
     } else if (params.configId === CONFIG_ID_EFFORT) {
       const parsed = parseReasoningEffortArg(value);
       if (!parsed) {
@@ -961,6 +996,10 @@ export class HoomanAcpAgent {
         resolved.providerOptions,
         resolved.llmOptions,
       );
+      rec.billing = await resolveLlmBilling(
+        resolved.billing,
+        resolved.llmOptions.model,
+      ).catch(() => null);
     } catch (error) {
       if (previous) {
         rec.config.update({
@@ -980,7 +1019,11 @@ export class HoomanAcpAgent {
    * Apply settings changes deferred during a turn (mode tool-surface + model
    * rebuild). Runs at the turn boundary before the next turn may start.
    */
-  async #flushPendingSettings(rec: SessionRecord): Promise<void> {
+  async #flushPendingSettings(
+    rec: SessionRecord,
+    client: AgentContext,
+    sessionId: string,
+  ): Promise<void> {
     if (rec.pendingModeReapply) {
       rec.pendingModeReapply = false;
       applySessionMode(rec.agent);
@@ -1006,6 +1049,13 @@ export class HoomanAcpAgent {
             persistEffort.effort,
           );
         }
+        // The rebuild re-resolved billing; rescale the client's context gauge
+        // against the new model's window (the turn's earlier `usage_update`
+        // carried the previous model's size). Best-effort: the turn result
+        // must not fail over a lost notification.
+        await this.#sendUsageUpdate(client, sessionId, rec, undefined).catch(
+          () => undefined,
+        );
       }
     }
   }
@@ -1273,7 +1323,7 @@ export class HoomanAcpAgent {
       rec.turnAbort = null;
       // Apply mode/model changes requested mid-turn before releasing the gate
       // so the next turn sees the settled state.
-      await this.#flushPendingSettings(rec);
+      await this.#flushPendingSettings(rec, client, params.sessionId);
       releaseExclusive();
       // Conversation history is persisted by the Strands session manager
       // (snapshot save on AfterInvocation, which fires even on error/cancel);
@@ -1289,13 +1339,16 @@ export class HoomanAcpAgent {
   }
 
   /**
-   * Emit a `usage_update` carrying the cumulative token totals for the
-   * session (mirroring the CLI TUI's `in`/`cin`/`out` billing meter) under
-   * `_meta`. Hooman's model providers don't surface a context-window size at
-   * runtime, and guessing one from the model name can't be guaranteed
-   * accurate, so `size` is left at `0` ("unknown") rather than presenting a
-   * made-up number — clients should render `_meta["hoomanjs/tokens"]`
-   * instead of a used/size percentage.
+   * Emit a `usage_update` at the end of a turn:
+   * - `used`: context tokens of the latest request (additive prompt total,
+   *   so cache reads/writes count regardless of provider reporting style).
+   * - `size`: the context window resolved from the model's `billing` config /
+   *   the models.dev catalog; `0` ("unknown") when unresolved, in which case
+   *   clients should not render a used/size percentage.
+   * - `cost`: cumulative session USD, only while every priced request had
+   *   resolved rates — otherwise omitted rather than reporting a lowball.
+   * - `_meta["hoomanjs/tokens"]`: cumulative token totals for the session
+   *   (mirroring the CLI TUI's `in`/`cin`/`out` billing meter).
    */
   #sendUsageUpdate(
     client: AgentContext,
@@ -1303,14 +1356,19 @@ export class HoomanAcpAgent {
     rec: SessionRecord,
     used: number | undefined,
   ): Promise<void> {
-    if (used === undefined) {
+    const contextUsed = rec.lastContextTokens ?? used;
+    if (contextUsed === undefined) {
       return Promise.resolve();
     }
     const tokens = rec.cumulativeUsage;
+    const includeCost = rec.billing?.costs !== undefined && !rec.costUnpriced;
     return this.#sendUpdate(client, sessionId, {
       sessionUpdate: "usage_update",
-      used,
-      size: 0,
+      used: contextUsed,
+      size: rec.billing?.context ?? 0,
+      ...(includeCost && {
+        cost: { amount: rec.cumulativeCostUsd, currency: "USD" },
+      }),
       _meta: {
         "hoomanjs/tokens": {
           input: tokens.inputTokens,
@@ -1497,10 +1555,22 @@ export class HoomanAcpAgent {
           // Providers like OpenAI/Moonshot report input inclusive of cache
           // reads; normalize to the additive shape so `in`/`cin` don't
           // double-count in the client's meter.
-          accumulateUsage(
-            rec.cumulativeUsage,
-            toAdditiveUsage(inner.usage, rec.agent.model),
-          );
+          const additive = toAdditiveUsage(inner.usage, rec.agent.model);
+          accumulateUsage(rec.cumulativeUsage, additive);
+          rec.lastContextTokens = contextTokensFromUsage(additive);
+          // Session cost accrues per request at the rates of the model that
+          // served it; once a request with usage runs unpriced, the total is
+          // incomplete and cost reporting stops for the session.
+          if ((additive.totalTokens ?? 0) > 0) {
+            if (rec.billing?.costs) {
+              rec.cumulativeCostUsd += computeUsageCostUsd(
+                additive,
+                rec.billing.costs,
+              );
+            } else {
+              rec.costUnpriced = true;
+            }
+          }
         }
         return;
       }
@@ -1626,6 +1696,12 @@ export class HoomanAcpAgent {
     this.#registerTerminalBackend(agent, client, sessionId);
     setAskUserBackend(agent, createAcpAskUserBackend(client, sessionId));
 
+    const activeLlm = (config as SessionConfig).llm;
+    const billing = await resolveLlmBilling(
+      activeLlm.billing,
+      activeLlm.llmOptions.model,
+    ).catch(() => null);
+
     return {
       cwd,
       agent,
@@ -1644,6 +1720,10 @@ export class HoomanAcpAgent {
       pendingPersistModel: null,
       pendingPersistEffort: null,
       cumulativeUsage: createEmptyUsage(),
+      billing,
+      cumulativeCostUsd: 0,
+      costUnpriced: false,
+      lastContextTokens: undefined,
     };
   }
 

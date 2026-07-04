@@ -23,6 +23,12 @@ import type { Manager as McpManager } from "../core/mcp/index.js";
 import { modelProviders } from "../core/models/index.js";
 import { toAdditiveUsage } from "../core/models/usage.js";
 import {
+  computeUsageCostUsd,
+  contextTokensFromUsage,
+  resolveLlmBilling,
+  type ResolvedLlmBilling,
+} from "../core/utils/billing.js";
+import {
   currentReasoningEffort,
   nextReasoningEffort,
   parseReasoningEffortArg,
@@ -30,7 +36,7 @@ import {
   REASONING_EFFORT_LEVELS,
   REASONING_EFFORT_OFF,
   withReasoningEffort,
-} from "../core/models/reasoning-effort.js";
+} from "../core/utils/reasoning-effort.js";
 import { formatModeNames, isKnownSessionMode } from "../core/modes/index.js";
 import type { Registry } from "../core/skills/index.js";
 import { takeFileToolDisplay } from "../core/state/file-tool-display.js";
@@ -67,6 +73,18 @@ type TurnUsageStatus = Usage & { latencyMs: number };
 function emptyTurnUsage(): TurnUsageStatus {
   return { ...createEmptyUsage(), latencyMs: 0 };
 }
+
+/**
+ * Session billing meter: cumulative USD cost (accrued per request at the
+ * rates of the model that served it) and the latest request's context tokens.
+ * `unpriced` flips once a request with usage ran without resolved pricing —
+ * the total would be incomplete, so cost display stops for the session.
+ */
+type BillingMeter = {
+  costUsd: number;
+  unpriced: boolean;
+  contextUsed?: number;
+};
 
 type ChatAppProps = {
   agent: Agent;
@@ -445,15 +463,33 @@ export function ChatApp({
   const windowSize = useWindowSize();
   const [input, setInput] = useState("");
   const [running, setRunning] = useState(false);
-  const [status, setStatus] = useState("ready");
   const [lines, setLines] = useState<ChatLine[]>(() =>
     buildInitialTranscript(agent.messages),
   );
-  const [turnCount, setTurnCount] = useState(0);
   const [skillsFound, setSkillsFound] = useState(0);
   const [turnStartedAt, setTurnStartedAt] = useState<number | null>(null);
   const [turnElapsedMs, setTurnElapsedMs] = useState(0);
   const [usage, setUsage] = useState<TurnUsageStatus>(emptyTurnUsage);
+  const [billing, setBilling] = useState<ResolvedLlmBilling | null>(null);
+  const [billingMeter, setBillingMeter] = useState<BillingMeter>({
+    costUsd: 0,
+    unpriced: false,
+  });
+  const billingRef = useRef<ResolvedLlmBilling | null>(null);
+  // Resolve billing metadata (config `billing` block merged with the daily
+  // models.dev catalog cache) for the active model; re-run on model switches.
+  const refreshBilling = useCallback(() => {
+    const resolved = config.llm;
+    void resolveLlmBilling(resolved.billing, resolved.llmOptions.model)
+      .catch(() => null)
+      .then((next) => {
+        billingRef.current = next;
+        setBilling(next);
+      });
+  }, [config]);
+  useEffect(() => {
+    refreshBilling();
+  }, [refreshBilling]);
   const [pendingApproval, setPendingApproval] =
     useState<ApprovalRequest | null>(null);
   const [pendingQuestion, setPendingQuestion] = useState<ChatQuestion | null>(
@@ -813,6 +849,7 @@ export function ChatApp({
               }
             : null,
         );
+        refreshBilling();
       } catch (error) {
         config.update({
           llms: config.llms.map((entry) => ({
@@ -829,7 +866,7 @@ export function ChatApp({
         });
       }
     },
-    [agent, appendLine, config],
+    [agent, appendLine, config, refreshBilling],
   );
 
   const applyReasoningEffort = useCallback(
@@ -1202,9 +1239,7 @@ export function ChatApp({
 
       runningRef.current = true;
       setRunning(true);
-      setStatus("thinking");
       setTurnStartedAt(Date.now());
-      setTurnCount((value) => value + 1);
       appendLine({
         id: nowId(),
         role: "user",
@@ -1314,7 +1349,6 @@ export function ChatApp({
                 break;
               }
               case "toolStreamUpdateEvent":
-                setStatus("running tool");
                 break;
               case "modelStreamUpdateEvent": {
                 const modelEvent = (
@@ -1333,11 +1367,9 @@ export function ChatApp({
                     }
                   ).delta;
                   if (delta?.type === "reasoningContentDelta" && delta.text) {
-                    setStatus("thinking");
                     appendThoughtText(delta.text);
                   } else if (delta?.type === "textDelta" && delta.text) {
                     finalizeThoughtLine();
-                    setStatus("streaming");
                     ensureAssistantLine();
                     appendAssistantText(delta.text);
                   }
@@ -1387,6 +1419,21 @@ export function ChatApp({
                       latencyMs: prev.latencyMs + lat,
                     };
                   });
+                  // Session cost accrues per request at the current model's
+                  // resolved rates; once a request runs unpriced the total is
+                  // incomplete and the cost display stops for the session.
+                  const rates = billingRef.current;
+                  const contextUsed = contextTokensFromUsage(u);
+                  const hasTokens = contextUsed + (u.outputTokens ?? 0) > 0;
+                  if (hasTokens) {
+                    setBillingMeter((prev) => ({
+                      costUsd: rates?.costs
+                        ? prev.costUsd + computeUsageCostUsd(u, rates.costs)
+                        : prev.costUsd,
+                      unpriced: prev.unpriced || !rates?.costs,
+                      contextUsed,
+                    }));
+                  }
                 }
                 break;
               }
@@ -1417,7 +1464,6 @@ export function ChatApp({
         runningRef.current = false;
         setRunning(false);
         setTurnStartedAt(null);
-        setStatus("ready");
       }
     },
     [
@@ -1621,7 +1667,6 @@ export function ChatApp({
       if (key.ctrl && inputKey.toLowerCase() === "c") {
         if (runningRef.current) {
           agent.cancel();
-          setStatus("cancel requested");
           return;
         }
         if (picker) {
@@ -1639,7 +1684,6 @@ export function ChatApp({
         }
         if (runningRef.current) {
           agent.cancel();
-          setStatus("cancel requested");
           return;
         }
         onExit();
@@ -1722,18 +1766,29 @@ export function ChatApp({
         <BottomChrome
           config={config}
           running={running}
-          status={status}
           currentModel={currentModelLabel(config)}
           reasoningEffort={currentReasoningEffort(config)}
           yoloOn={isYoloEnabled(agent)}
           sessionMode={getModeState(agent).mode}
           elapsedLabel={elapsedLabel}
-          turnCount={turnCount}
           totalTools={totalTools}
           skillsFound={skillsFound}
           manager={manager}
           mcpNeedsAttention={mcpNeedsAttention}
           usage={usage}
+          contextUsage={
+            billing?.context !== undefined &&
+            billingMeter.contextUsed !== undefined
+              ? { used: billingMeter.contextUsed, size: billing.context }
+              : undefined
+          }
+          costUsd={
+            billing?.costs !== undefined &&
+            !billingMeter.unpriced &&
+            billingMeter.contextUsed !== undefined
+              ? billingMeter.costUsd
+              : undefined
+          }
           todoState={todoState}
           queuedPrompts={queuedPrompts}
           pendingApproval={Boolean(pendingApproval)}

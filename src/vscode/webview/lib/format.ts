@@ -20,6 +20,20 @@ export function formatCount(value: number): string {
   return String(value);
 }
 
+/** "$0.0451" under a dollar, "$1.23" under a hundred, whole dollars beyond (mirrors the CLI TUI). */
+export function formatCostUsd(amount: number): string {
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return "$0.00";
+  }
+  if (amount < 1) {
+    return `$${amount.toFixed(4)}`;
+  }
+  if (amount < 100) {
+    return `$${amount.toFixed(2)}`;
+  }
+  return `$${Math.round(amount)}`;
+}
+
 /** "12s", "1m 05s" — elapsed duration for the busy timer / thought summary. */
 export function formatDuration(ms: number): string {
   const totalSeconds = Math.max(0, Math.round(ms / 1000));

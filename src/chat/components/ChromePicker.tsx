@@ -5,7 +5,7 @@ import {
   currentReasoningEffort,
   REASONING_EFFORT_LEVELS,
   REASONING_EFFORT_OFF,
-} from "../../core/models/reasoning-effort.js";
+} from "../../core/utils/reasoning-effort.js";
 import { ApprovalPrompt } from "./ApprovalPrompt.js";
 import { QuestionPrompt } from "./QuestionPrompt.js";
 import { SelectPicker } from "./SelectPicker.js";

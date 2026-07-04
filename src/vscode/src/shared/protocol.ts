@@ -40,6 +40,22 @@ export interface TokenTotals {
 }
 
 /**
+ * Context-window utilization from `usage_update`: tokens currently in context
+ * vs. the window size resolved from the model's billing config / models.dev
+ * (the agent sends `size: 0` when unresolved, in which case this stays unset).
+ */
+export interface ContextUsageInfo {
+  used: number;
+  size: number;
+}
+
+/** Cumulative session cost from `usage_update.cost` (omitted when pricing was unresolved). */
+export interface CostInfo {
+  amount: number;
+  currency: string;
+}
+
+/**
  * A file, folder, or in-memory image staged for (or sent with) a prompt.
  * Path-backed attachments come from the native file dialog or drags that
  * carry a `text/uri-list` (VS Code explorer); data-backed ones come from OS

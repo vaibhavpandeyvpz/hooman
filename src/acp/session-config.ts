@@ -6,7 +6,7 @@ import {
   currentReasoningEffort,
   REASONING_EFFORT_LEVELS,
   REASONING_EFFORT_OFF,
-} from "../core/models/reasoning-effort.js";
+} from "../core/utils/reasoning-effort.js";
 
 /** Config option id for the session mode selector (mirrors `session/set_mode`). */
 export const CONFIG_ID_MODE = "mode";

@@ -509,6 +509,24 @@ Normalized LLM option fields:
 - optional `temperature`
 - optional `maxTokens`
 
+Each LLM entry may also carry an optional **`billing`** block used to display context-window utilization and cumulative session cost (in the chat TUI status bar and the VS Code extension footer, and sent to ACP clients via `usage_update`):
+
+```json
+{
+  "name": "Haiku 4.5",
+  "provider": "LiteLLM Anthropic",
+  "billing": {
+    "name": "claude-haiku-4.5",
+    "context": 200000,
+    "costs": { "input/m": 1, "cache/m": 0.1, "output/m": 5 }
+  },
+  "options": { "model": "claude-haiku-4.5" },
+  "default": true
+}
+```
+
+`billing.name` is required when the block is present and is the identifier looked up in the [models.dev](https://models.dev) catalog (cached under `~/.hooman/cache/` and refreshed at most once daily); when `billing` is omitted, `options.model` is used as the lookup name. `context` (window size in tokens) and `costs` (USD per million tokens; `"cache/m"` prices cached-input reads) override whatever models.dev resolves. If neither the config nor models.dev yields the data, context usage and cost are simply not shown.
+
 Notes:
 
 - Google maps normalized `maxTokens` to the SDK's `maxOutputTokens` internally.

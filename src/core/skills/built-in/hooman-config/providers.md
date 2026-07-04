@@ -12,6 +12,23 @@ Each element of `llms` has:
 - `options.temperature`: optional normalized temperature override.
 - `options.maxTokens`: optional normalized output token limit.
 - `default`: boolean; mark one entry `"default": true` for the active model.
+- `billing`: optional billing metadata used for context-window utilization and session-cost display. When present, `billing.name` is required — the model identifier looked up on models.dev (defaults to `options.model` when `billing` is omitted). Optional overrides: `billing.context` (context window size in tokens) and `billing.costs` (USD per million tokens: required `"input/m"` and `"output/m"`, optional `"cache/m"` for cached-input reads). Anything not provided is resolved from the models.dev catalog; when neither source resolves, context usage and cost are simply not shown.
+
+Example `billing` block:
+
+```json
+{
+  "name": "Haiku 4.5",
+  "provider": "LiteLLM Anthropic",
+  "billing": {
+    "name": "claude-haiku-4.5",
+    "context": 200000,
+    "costs": { "input/m": 1, "cache/m": 0.1, "output/m": 5 }
+  },
+  "options": { "model": "claude-haiku-4.5" },
+  "default": true
+}
+```
 
 ## Providers array
 
