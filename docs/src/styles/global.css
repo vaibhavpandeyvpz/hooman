@@ -1,0 +1,101 @@
+@import "tailwindcss";
+@import "./tokens.css";
+
+@theme inline {
+  --color-hooman-cyan: var(--hooman-cyan);
+  --color-hooman-blue: var(--hooman-blue);
+  --color-hooman-indigo: var(--hooman-indigo);
+  --color-hooman-primary: var(--hooman-primary);
+  --color-hooman-face: var(--hooman-face);
+  --color-hooman-blush: var(--hooman-blush);
+
+  --color-ink-950: var(--hooman-ink-950);
+  --color-ink-900: var(--hooman-ink-900);
+  --color-ink-800: var(--hooman-ink-800);
+  --color-ink-700: var(--hooman-ink-700);
+  --color-ink-600: var(--hooman-ink-600);
+  --color-ink-500: var(--hooman-ink-500);
+
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+
+  --animate-float: float 6s ease-in-out infinite;
+  --animate-shimmer: shimmer 6s ease-in-out infinite;
+  --animate-blink: blink 1.05s step-end infinite;
+}
+
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes shimmer {
+  0%,
+  100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+@keyframes blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: var(--hooman-ink-950);
+}
+
+.gradient-text {
+  background-image: linear-gradient(
+    100deg,
+    var(--hooman-cyan),
+    var(--hooman-blue) 45%,
+    var(--hooman-indigo)
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: var(--animate-shimmer);
+}
+
+.reveal {
+  opacity: 0;
+  transform: translateY(16px);
+  transition:
+    opacity 0.6s ease,
+    transform 0.6s ease;
+}
+
+.reveal.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}

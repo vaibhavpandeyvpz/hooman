@@ -1,0 +1,39 @@
+---
+import BrandIcon from "./BrandIcon.astro";
+
+const providers = [
+  { slug: "anthropic", label: "Anthropic" },
+  { slug: "openai", label: "OpenAI" },
+  { slug: "google", label: "Google" },
+  { slug: "ollama", label: "Ollama" },
+  { slug: "amazonwebservices", label: "Bedrock" },
+  { slug: "microsoftazure", label: "Azure" },
+  { slug: "groq", label: "Groq" },
+  { slug: "openrouter", label: "OpenRouter" },
+  { slug: "x", label: "xAI" },
+  { slug: "moonshot", label: "Moonshot" },
+  { slug: "minimax", label: "MiniMax" },
+];
+---
+
+<section id="providers" class="relative py-24 sm:py-32">
+  <div class="mx-auto max-w-6xl px-6">
+    <div class="reveal-target mx-auto max-w-2xl text-center">
+      <h2 class="text-3xl font-bold tracking-tight text-white sm:text-4xl">Bring your own model</h2>
+      <p class="mt-4 text-lg text-slate-400">
+        Eleven providers wired in today, normalized behind a single reasoning-aware configuration shape.
+      </p>
+    </div>
+
+    <div class="reveal-target mt-16 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+      {
+        providers.map((p) => (
+          <div class="flex flex-col items-center gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-6 text-slate-300 transition hover:border-white/20 hover:text-white">
+            <BrandIcon slug={p.slug} class="h-7 w-7" />
+            <span class="text-xs font-medium">{p.label}</span>
+          </div>
+        ))
+      }
+    </div>
+  </div>
+</section>

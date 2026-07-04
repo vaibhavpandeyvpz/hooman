@@ -1,0 +1,36 @@
+@import "./tokens.css";
+
+:root {
+  --sl-color-accent-low: #0f2942;
+  --sl-color-accent: var(--hooman-primary);
+  --sl-color-accent-high: var(--hooman-face);
+  --sl-color-white: #ffffff;
+  --sl-color-gray-1: #eef2f9;
+  --sl-color-gray-2: #c4cddb;
+  --sl-color-gray-3: #8b96ab;
+  --sl-color-gray-4: #5c6884;
+  --sl-color-gray-5: #333f5c;
+  --sl-color-gray-6: #1c2438;
+  --sl-color-black: var(--hooman-ink-950);
+  --sl-color-bg-nav: var(--hooman-ink-900);
+  --sl-color-bg-sidebar: var(--hooman-ink-900);
+  --sl-font: "Inter", ui-sans-serif, system-ui, sans-serif;
+}
+
+:root[data-theme="light"] {
+  --sl-color-accent-low: var(--hooman-face);
+  --sl-color-accent: var(--hooman-primary);
+  --sl-color-accent-high: #0a3a80;
+}
+
+a:not(.sl-badge) {
+  transition: color 0.15s ease;
+}
+
+.site-title img {
+  filter: drop-shadow(0 0 10px rgba(59, 130, 246, 0.45));
+}
+
+code {
+  font-family: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}

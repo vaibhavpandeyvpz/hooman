@@ -1,0 +1,61 @@
+---
+const base = import.meta.env.BASE_URL;
+
+const features = [
+  {
+    title: "Chat, exec, daemon, ACP",
+    description: "A stateful chat TUI, one-shot exec, a channel-driven daemon, and an ACP agent — same core, four surfaces.",
+    href: `${base}/guides/cli/`,
+  },
+  {
+    title: "MCP + OAuth",
+    description: "stdio, streamable-http, and sse servers, with DCR and CIMD OAuth flows for remote servers that need auth.",
+    href: `${base}/guides/mcp/`,
+  },
+  {
+    title: "Skills",
+    description: "Bundled built-in skills plus a local ~/.hooman/skills catalog the agent activates on demand.",
+    href: `${base}/guides/skills/`,
+  },
+  {
+    title: "Subagents",
+    description: "Built-in read-only subagent tools for research, review, and test investigation without derailing the main thread.",
+    href: `${base}/guides/tools-and-approvals/`,
+  },
+  {
+    title: "Tool approvals",
+    description: "Every destructive tool call is approved by default — chat, exec, and ACP each render an approval prompt; --yolo skips it.",
+    href: `${base}/guides/tools-and-approvals/`,
+  },
+  {
+    title: "Cost & context tracking",
+    description: "Context-window utilization and cumulative session cost, backed by the models.dev catalog, shown live in every surface.",
+    href: `${base}/guides/providers/`,
+  },
+];
+---
+
+<section id="features" class="relative py-24 sm:py-32">
+  <div class="mx-auto max-w-6xl px-6">
+    <div class="reveal-target mx-auto max-w-2xl text-center">
+      <h2 class="text-3xl font-bold tracking-tight text-white sm:text-4xl">Everything an agent toolkit needs</h2>
+      <p class="mt-4 text-lg text-slate-400">Toolkit-oriented architecture: configurable tools, prompts, and transports.</p>
+    </div>
+
+    <div class="mt-16 grid grid-cols-1 gap-px overflow-hidden rounded-2xl border border-white/10 bg-white/10 sm:grid-cols-2 lg:grid-cols-3">
+      {
+        features.map((f, i) => (
+          <a
+            href={f.href}
+            class="reveal-target group relative bg-ink-950 p-8 transition hover:bg-white/[0.04]"
+            style={`transition-delay: ${(i % 3) * 80}ms`}
+          >
+            <div class="h-1.5 w-8 rounded-full bg-gradient-to-r from-hooman-cyan to-hooman-indigo opacity-70" />
+            <h3 class="mt-5 text-lg font-semibold text-white">{f.title}</h3>
+            <p class="mt-2.5 text-sm leading-relaxed text-slate-400">{f.description}</p>
+          </a>
+        ))
+      }
+    </div>
+  </div>
+</section>

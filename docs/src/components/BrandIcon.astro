@@ -1,0 +1,56 @@
+---
+interface Props {
+  slug: string;
+  class?: string;
+}
+
+const { slug, class: className = "" } = Astro.props;
+
+// Statically resolved by Vite at build time (works identically in dev and
+// production prerender, unlike a runtime fs lookup relative to import.meta.url).
+const svgModules = import.meta.glob("../assets/logos/*.svg", {
+  eager: true,
+  query: "?raw",
+  import: "default",
+}) as Record<string, string>;
+
+const pngModules = import.meta.glob("../assets/logos/*.png", {
+  eager: true,
+  query: "?url",
+  import: "default",
+}) as Record<string, string>;
+
+const svg = svgModules[`../assets/logos/${slug}.svg`] ?? null;
+const pngUrl = !svg ? (pngModules[`../assets/logos/${slug}.png`] ?? null) : null;
+---
+
+{
+  svg ? (
+    <span class={`brand-icon inline-flex ${className}`} set:html={svg} />
+  ) : pngUrl ? (
+    <span class={`brand-icon brand-icon-raster inline-flex ${className}`}>
+      <img src={pngUrl} alt={`${slug} logo`} />
+    </span>
+  ) : (
+    <span class={`brand-icon inline-flex items-center justify-center font-mono text-[0.6em] font-bold uppercase ${className}`}>
+      {slug.slice(0, 2)}
+    </span>
+  )
+}
+
+<style is:global>
+  .brand-icon svg {
+    width: 100%;
+    height: 100%;
+    fill: currentColor;
+  }
+
+  .brand-icon-raster img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    /* source glyphs are black-on-transparent; invert so they read on dark surfaces */
+    filter: invert(1);
+    opacity: 0.92;
+  }
+</style>
