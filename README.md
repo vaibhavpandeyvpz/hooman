@@ -39,10 +39,10 @@ Or install globally (`npm i -g hoomanjs`), or via Bun (`bunx hoomanjs`). Then ru
 
 ## Features
 
-- Multiple LLM providers: `anthropic`, `azure`, `bedrock`, `google`, `groq`, `minimax`, `moonshot`, `ollama`, `openai`, `openrouter`, `xai` — see [Providers & Models](https://vaibhavpandey.com/hooman/guides/providers/)
+- Multiple LLM providers: `anthropic`, `azure`, `bedrock`, `google`, `groq`, `minimax`, `moonshot`, `ollama`, `openai`, `openrouter`, `xai` — see [Models](https://vaibhavpandey.com/hooman/guides/configuration/models/)
 - MCP server support (`stdio`, `streamable-http`, `sse`) with OAuth (DCR + CIMD) and channel-driven automation via `hooman daemon` — see [MCP](https://vaibhavpandey.com/hooman/guides/mcp/)
 - Runtime [Skills](https://vaibhavpandey.com/hooman/guides/skills/): bundled built-ins plus a local `~/.hooman/skills` catalog
-- Built-in read-only subagents, a ripgrep-backed `grep` tool, and an `ask_user` tool for mid-task questions — see [Tools & Approvals](https://vaibhavpandey.com/hooman/guides/tools-and-approvals/)
+- Built-in read-only subagents, a ripgrep-backed `grep` tool, and an `ask_user` tool for mid-task questions — see [Tools](https://vaibhavpandey.com/hooman/guides/tools/)
 - Context-window utilization and session-cost tracking backed by [models.dev](https://models.dev), shown live in every surface
 - Interactive terminal UI for chat and configuration, plus a native [VS Code chat panel](https://vaibhavpandey.com/hooman/guides/vscode/)
 

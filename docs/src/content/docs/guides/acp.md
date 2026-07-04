@@ -29,11 +29,11 @@ Each turn ends with a `usage_update` carrying:
 - `cost` — cumulative session cost (omitted when unresolved)
 - the latest request's token totals under `_meta["hoomanjs/tokens"]`
 
-`size` and `cost` come from the model's [billing metadata](/hooman/guides/providers/#billing-metadata) (models.dev-backed). A model switch pushes a fresh `usage_update` immediately so clients can rescale right away.
+`size` and `cost` come from the model's [billing metadata](/hooman/guides/configuration/models/#billing-metadata) (models.dev-backed). A model switch pushes a fresh `usage_update` immediately so clients can rescale right away.
 
 ## Ask-user questions
 
-The built-in `ask_user` tool is presented as a `session/request_permission` request whose options are the answer choices plus Dismiss, tagged `_meta["hoomanjs/ask_user"]` so clients like the VS Code extension can render a question-styled card instead of the generic shield permission card. See [Tools & Approvals](/hooman/guides/tools-and-approvals/#ask_user-across-surfaces).
+The built-in `ask_user` tool is presented as a `session/request_permission` request whose options are the answer choices plus Dismiss, tagged `_meta["hoomanjs/ask_user"]` so clients like the VS Code extension can render a question-styled card instead of the generic shield permission card. See [Tools](/hooman/guides/tools/#across-surfaces).
 
 ## Building an ACP client
 

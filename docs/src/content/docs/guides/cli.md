@@ -42,7 +42,7 @@ hooman chat --mode ask
 The status bar under the composer has three rows:
 
 - model / effort / mode / yolo
-- a usage row — `context: N% (used/size)`, the latest request's `tokens` (`in`/`cin`/`out`), and cumulative session `cost: $…` — each segment only appears once it has data (context and cost require resolvable [billing metadata](/hooman/guides/providers/#billing-metadata))
+- a usage row — `context: N% (used/size)`, the latest request's `tokens` (`in`/`cin`/`out`), and cumulative session `cost: $…` — each segment only appears once it has data (context and cost require resolvable [billing metadata](/hooman/guides/configuration/models/#billing-metadata))
 - an mcp/tools/skills row, with a live `elapsed` timer while a turn runs
 
 ### Chat commands
@@ -89,7 +89,7 @@ hooman exec "Map the architecture" --mode ask
 
 ## `hooman daemon`
 
-Run a long-lived daemon that **always** subscribes to MCP servers advertising the `hooman/channel` capability and feeds each received notification into the agent as a queued prompt. See [MCP channels](/hooman/guides/mcp/#channels-and-automation) for the full automation model.
+Run a long-lived daemon that **always** subscribes to MCP servers advertising the `hooman/channel` capability and feeds each received notification into the agent as a queued prompt. See [MCP Channels](/hooman/guides/mcp/channels/) for the full automation model.
 
 ```bash
 hooman daemon
@@ -135,9 +135,9 @@ hooman config
 
 Runtime tool and prompt switches, controlled from `config.json` (see [Configuration](/hooman/guides/configuration/)):
 
-- `search.enabled`, `search.provider` (`brave`, `exa`, `firecrawl`, `serper`, or `tavily`), plus a per-provider `apiKey`
-- `prompts.behaviour`, `prompts.communication`, `prompts.execution`, `prompts.guardrails`
-- `tools.todo.enabled`, `tools.fetch.enabled`, `tools.filesystem.enabled`, `tools.shell.enabled`, `tools.sleep.enabled`, `tools.subagents.enabled`
+- `search.enabled`, `search.provider` (`brave`, `exa`, `firecrawl`, `litellm`, `serper`, or `tavily`), plus per-provider options — see [Search](/hooman/guides/configuration/search/)
+- `prompts.behaviour`, `prompts.communication`, `prompts.execution`, `prompts.guardrails` — see [Prompts](/hooman/guides/configuration/prompts/)
+- `tools.todo.enabled`, `tools.fetch.enabled`, `tools.filesystem.enabled`, `tools.shell.enabled`, `tools.sleep.enabled`, `tools.subagents.enabled` — see [Tools](/hooman/guides/configuration/tools/)
 
 ## `/config`
 

@@ -9,7 +9,7 @@
   </p>
 </div>
 
-Hooman adds a chat panel to your activity bar, powered by the [Hooman CLI](https://www.npmjs.com/package/hoomanjs)'s Agent Client Protocol ([ACP](https://agentclientprotocol.com)) agent. Bring your own provider — Anthropic, OpenAI, Google, Ollama, OpenRouter, and [more](https://vaibhavpandey.com/hooman/guides/providers/) — and let the agent read, edit, and run things in your workspace while you review and approve each step.
+Hooman adds a chat panel to your activity bar, powered by the [Hooman CLI](https://www.npmjs.com/package/hoomanjs)'s Agent Client Protocol ([ACP](https://agentclientprotocol.com)) agent. Bring your own provider — Anthropic, OpenAI, Google, Ollama, OpenRouter, and [more](https://vaibhavpandey.com/hooman/guides/configuration/models/) — and let the agent read, edit, and run things in your workspace while you review and approve each step.
 
 - Works in **stable VS Code, VS Code Insiders, and VS Code-compatible forks**.
 - **No special subscription**, no proposed APIs, no gating of any kind.

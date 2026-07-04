@@ -28,6 +28,7 @@ import { configure } from "./configure/index.js";
 import { runAcpStdio } from "./acp/index.js";
 import { main as daemon } from "./daemon/index.js";
 import { createDaemonApprovalIntervention } from "./daemon/approvals.js";
+import { createDaemonAskUserBackend } from "./daemon/questions.js";
 import {
   flushAgentMemory,
   runWithAgentMemoryScope,
@@ -412,6 +413,7 @@ program
       },
       true,
     );
+    setAskUserBackend(agent, createDaemonAskUserBackend(manager, agent));
     try {
       await daemon({
         agent,

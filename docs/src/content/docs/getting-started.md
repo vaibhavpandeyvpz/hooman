@@ -23,7 +23,7 @@ Everything — configuration, API keys, sessions, skills — lives in a single `
 ## Requirements
 
 - [Node.js](https://nodejs.org) `>= 24` or [Bun](https://bun.sh) `>= 1.1`
-- Credentials or a local runtime for whichever LLM provider you choose — see [Providers & Models](/hooman/guides/providers/)
+- Credentials or a local runtime for whichever LLM provider you choose — see [Models](/hooman/guides/configuration/models/)
 
 By default Hooman is configured for a local [Ollama](https://ollama.com) instance running `gemma4:e4b`, so it works out of the box without any API keys — swap in a hosted provider whenever you're ready.
 

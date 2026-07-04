@@ -1,5 +1,5 @@
 ---
-title: VS Code Extension
+title: VS Code
 description: The hooman-vscode chat panel — features, quick start, settings, and development.
 ---
 
@@ -21,7 +21,7 @@ Install it from the **[VS Code Marketplace](https://marketplace.visualstudio.com
 - **Pill pickers** in the composer for mode (Agent / Plan / Ask / Yolo), model, and reasoning effort, plus `/` slash-command autocomplete (`/compact`, `/init`).
 - **Inline permission prompts**: the agent asks before running destructive tools; approve or reject right in the panel (Yolo mode auto-approves).
 - **Status bar item** showing the current model and mode, with a spinner while a turn runs and a quick menu for all session controls.
-- **Token-usage footer** with the latest request's input / cached / output token counts, plus a context-window gauge and cumulative session cost — see [Billing metadata](/hooman/guides/providers/#billing-metadata).
+- **Token-usage footer** with the latest request's input / cached / output token counts, plus a context-window gauge and cumulative session cost — see [Billing metadata](/hooman/guides/configuration/models/#billing-metadata).
 
 ## Quick start
 
@@ -32,7 +32,7 @@ Install it from the **[VS Code Marketplace](https://marketplace.visualstudio.com
    - click **Open Settings…** (gear icon in the panel title bar) to edit `~/.hooman/config.json` directly, or
    - run `npx hoomanjs` in a terminal and use the [`/config`](/hooman/guides/cli/#config) workflow.
 
-   See [Configuration](/hooman/guides/configuration/) and [Providers & Models](/hooman/guides/providers/) for the full schema.
+   See [Configuration](/hooman/guides/configuration/) and [Models](/hooman/guides/configuration/models/) for the full schema.
 
 ## Commands
 

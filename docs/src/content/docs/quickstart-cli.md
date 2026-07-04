@@ -48,7 +48,7 @@ hooman
 2. Run `/config` inside the chat to pick your LLM provider and model, and to manage MCP servers and skills.
 3. Use `hooman exec "your prompt"` for one-off tasks once you're set up.
 
-By default Hooman is configured for a local [Ollama](https://ollama.com) instance running `gemma4:e4b`, so it works out of the box without any API keys — swap in a hosted provider whenever you're ready. See [Providers & Models](/hooman/guides/providers/) for the full list and configuration shape.
+By default Hooman is configured for a local [Ollama](https://ollama.com) instance running `gemma4:e4b`, so it works out of the box without any API keys — swap in a hosted provider whenever you're ready. See [Models](/hooman/guides/configuration/models/) for the full list and configuration shape.
 
 ## Run from source
 
@@ -73,5 +73,5 @@ hooman --help
 
 - [CLI reference](/hooman/guides/cli/) — every command, flag, and in-chat slash command.
 - [Configuration](/hooman/guides/configuration/) — `~/.hooman` layout and repo-local overlays.
-- [Providers & Models](/hooman/guides/providers/) — connect Anthropic, OpenAI, Google, Ollama, and more.
+- [Models](/hooman/guides/configuration/models/) — connect Anthropic, OpenAI, Google, Ollama, and more.
 - [VS Code quickstart](/hooman/quickstart-vscode/) — prefer a chat panel in your editor instead?

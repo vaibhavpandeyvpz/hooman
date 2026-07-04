@@ -34,7 +34,13 @@ export type AskUserResponse =
       /** One of {@link AskUserRequest.options} or free text typed by the user. */
       answer: string;
     }
-  | { kind: "dismissed" };
+  | { kind: "dismissed" }
+  /**
+   * The backend exists but could not reach a user for this particular call
+   * (e.g. a channel job whose originating server does not relay questions).
+   * Reported to the model the same as having no backend at all.
+   */
+  | { kind: "unavailable" };
 
 export type AskUserBackend = {
   ask(request: AskUserRequest): Promise<AskUserResponse>;
@@ -82,13 +88,15 @@ export function createAskUserTools() {
           ),
       }),
       callback: async (input, context?: ToolContext) => {
-        const backend = getAskUserBackend(context?.agent);
-        if (!backend) {
-          return toJsonValue({
+        const noUserAvailable = () =>
+          toJsonValue({
             status: "no_user_available",
             message:
               "No interactive user is available to answer questions in this environment. Proceed with your best judgement and state the assumption you made.",
           });
+        const backend = getAskUserBackend(context?.agent);
+        if (!backend) {
+          return noUserAvailable();
         }
         const response = await backend.ask({
           question: input.question,
@@ -96,6 +104,9 @@ export function createAskUserTools() {
           toolUseId: context?.toolUse.toolUseId,
           signal: context?.agent.cancelSignal,
         });
+        if (response.kind === "unavailable") {
+          return noUserAvailable();
+        }
         if (response.kind === "dismissed") {
           return toJsonValue({
             status: "dismissed",

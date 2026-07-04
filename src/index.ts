@@ -80,6 +80,7 @@ export { ModeAwareToolRegistry } from "./core/agent/mode-aware-tool-registry.js"
 
 export {
   HOOMAN_CHANNEL,
+  HOOMAN_CHANNEL_ASK,
   HOOMAN_CHANNEL_PERMISSION,
   Manager as McpManager,
   createMcpConfig,
@@ -88,6 +89,7 @@ export {
   createMcpOAuthStore,
 } from "./core/mcp/index.js";
 export type {
+  ChannelAskOutcome,
   ChannelMessage,
   ChannelPermissionBehavior,
   ChannelSubscription,

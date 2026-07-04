@@ -44,6 +44,8 @@ function withDisconnectTimeout(
 export const HOOMAN_CHANNEL = "hooman/channel";
 export const HOOMAN_CHANNEL_PERMISSION = "hooman/channel/permission";
 const HOOMAN_CHANNEL_PERMISSION_METHOD = `notifications/${HOOMAN_CHANNEL_PERMISSION}`;
+export const HOOMAN_CHANNEL_ASK = "hooman/channel/ask";
+const HOOMAN_CHANNEL_ASK_METHOD = `notifications/${HOOMAN_CHANNEL_ASK}`;
 
 export type ChannelMessageMeta = {
   subscription: ChannelSubscription;
@@ -76,6 +78,20 @@ type ChannelPermissionRequest = {
   tool: string;
   description: string;
   preview: string;
+  source?: string;
+  user?: string;
+  session?: string;
+  thread?: string;
+};
+
+export type ChannelAskOutcome =
+  | { kind: "answered"; answer: string }
+  | { kind: "dismissed" };
+
+type ChannelAskRequest = {
+  requestId: string;
+  question: string;
+  options: string[];
   source?: string;
   user?: string;
   session?: string;
@@ -197,6 +213,16 @@ export class Manager {
       timer: ReturnType<typeof setTimeout>;
     }
   >();
+  private readonly asks = new Map<
+    string,
+    {
+      resolve: (outcome: ChannelAskOutcome) => void;
+      reject: (reason: Error) => void;
+      timer: ReturnType<typeof setTimeout>;
+      /** Answer choices offered, for mapping an `option_id` reply to its label. */
+      options: string[];
+    }
+  >();
 
   public constructor(
     private readonly config: Config,
@@ -252,6 +278,11 @@ export class Manager {
       pending.reject(new Error(`Pending permission "${key}" cancelled.`));
     }
     this.permissions.clear();
+    for (const [key, pending] of this.asks.entries()) {
+      clearTimeout(pending.timer);
+      pending.reject(new Error(`Pending question "${key}" cancelled.`));
+    }
+    this.asks.clear();
     const toClose = this.instances;
     this.instances = null;
     if (!toClose?.size) {
@@ -432,10 +463,15 @@ export class Manager {
       const user = readIdentityPath(experimental, "hooman/user");
       const session = readIdentityPath(experimental, "hooman/session");
       const thread = readIdentityPath(experimental, "hooman/thread");
-      const supportsPermission =
-        Boolean(get(experimental, [HOOMAN_CHANNEL_PERMISSION])) &&
+      const canHandleNotifications =
         typeof (client.client as { setNotificationHandler?: unknown })
           .setNotificationHandler === "function";
+      const supportsPermission =
+        Boolean(get(experimental, [HOOMAN_CHANNEL_PERMISSION])) &&
+        canHandleNotifications;
+      const supportsAsk =
+        Boolean(get(experimental, [HOOMAN_CHANNEL_ASK])) &&
+        canHandleNotifications;
 
       if (supportsPermission) {
         const schema = z.object({
@@ -464,6 +500,64 @@ export class Manager {
           this.permissions.delete(key);
           clearTimeout(pending.timer);
           pending.resolve(behavior);
+        };
+        client.client.setNotificationHandler(schema, handler);
+        unsubs.push(() => {
+          client.client.setNotificationHandler(schema, () => {});
+        });
+      }
+
+      if (supportsAsk) {
+        const schema = z.object({
+          method: z.literal(HOOMAN_CHANNEL_ASK_METHOD),
+          params: z.object({
+            request_id: z.string().min(1),
+            option_id: z.string().optional(),
+            answer: z.string().optional(),
+            dismissed: z.boolean().optional(),
+          }),
+        });
+        const handler = (notification: {
+          params?: {
+            request_id?: string;
+            option_id?: string;
+            answer?: string;
+            dismissed?: boolean;
+          };
+        }) => {
+          const requestId = notification.params?.request_id?.trim();
+          if (!requestId) {
+            return;
+          }
+          const key = `${server}:${requestId}`;
+          const pending = this.asks.get(key);
+          if (!pending) {
+            return;
+          }
+          this.asks.delete(key);
+          clearTimeout(pending.timer);
+          if (notification.params?.dismissed) {
+            pending.resolve({ kind: "dismissed" });
+            return;
+          }
+          const optionId = notification.params?.option_id?.trim();
+          if (optionId) {
+            const index = Number.parseInt(
+              optionId.replace("answer_", ""),
+              10,
+            );
+            const label = pending.options[index];
+            if (label !== undefined) {
+              pending.resolve({ kind: "answered", answer: label });
+              return;
+            }
+          }
+          const answer = notification.params?.answer?.trim();
+          if (answer) {
+            pending.resolve({ kind: "answered", answer });
+          } else {
+            pending.resolve({ kind: "dismissed" });
+          }
         };
         client.client.setNotificationHandler(schema, handler);
         unsubs.push(() => {
@@ -624,6 +718,133 @@ export class Manager {
         this.permissions.delete(key);
       }
       throw error;
+    }
+  }
+
+  public async supportsChannelAsk(server: string): Promise<boolean> {
+    if (this.instances === null) {
+      this.reload();
+    }
+    const client = this.instances!.get(server);
+    if (!client) {
+      return false;
+    }
+    const connected = await client
+      .connect()
+      .then(() => true)
+      .catch(() => false);
+    if (!connected) {
+      return false;
+    }
+    const experimental =
+      client.client.getServerCapabilities()?.experimental ?? {};
+    return Boolean(get(experimental, [HOOMAN_CHANNEL_ASK]));
+  }
+
+  /**
+   * Relays an `ask_user` question to the channel's MCP server over the
+   * `hooman/channel/ask` capability and waits for the user's answer (or a
+   * dismissal) to come back as a `notifications/hooman/channel/ask`
+   * notification. Mirrors {@link requestChannelPermission}.
+   */
+  public async requestChannelAsk(
+    server: string,
+    request: ChannelAskRequest,
+    options: { timeoutMs?: number; signal?: AbortSignal } = {},
+  ): Promise<ChannelAskOutcome> {
+    const timeoutMs = options.timeoutMs ?? 120_000;
+    if (this.instances === null) {
+      this.reload();
+    }
+    const client = this.instances!.get(server);
+    if (!client) {
+      throw new Error(`MCP server "${server}" is not connected.`);
+    }
+    await client.connect();
+    const experimental =
+      client.client.getServerCapabilities()?.experimental ?? {};
+    if (!Object.hasOwn(experimental, HOOMAN_CHANNEL_ASK)) {
+      throw new Error(
+        `MCP server "${server}" does not support ${HOOMAN_CHANNEL_ASK}.`,
+      );
+    }
+
+    const requestId = request.requestId.trim();
+    if (!requestId) {
+      throw new Error("requestId is required.");
+    }
+    const key = `${server}:${requestId}`;
+    if (this.asks.has(key)) {
+      throw new Error(`Ask request "${requestId}" is already pending.`);
+    }
+
+    let onAbort: (() => void) | undefined;
+    const response = new Promise<ChannelAskOutcome>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        this.asks.delete(key);
+        reject(
+          new Error(`Ask request "${requestId}" timed out after ${timeoutMs}ms.`),
+        );
+      }, timeoutMs);
+      this.asks.set(key, {
+        resolve,
+        reject,
+        timer,
+        options: [...request.options],
+      });
+      if (options.signal) {
+        onAbort = () => {
+          const pending = this.asks.get(key);
+          if (!pending) {
+            return;
+          }
+          this.asks.delete(key);
+          clearTimeout(pending.timer);
+          // Cancelled turn: treat as a dismissal, not an error.
+          pending.resolve({ kind: "dismissed" });
+        };
+        options.signal.addEventListener("abort", onAbort, { once: true });
+      }
+    });
+
+    try {
+      const sender = client.client as {
+        notification?: (payload: unknown) => Promise<void>;
+      };
+      if (typeof sender.notification !== "function") {
+        throw new Error(
+          `MCP client for "${server}" cannot send notifications.`,
+        );
+      }
+      await sender.notification({
+        method: "notifications/hooman/channel/ask_request",
+        params: {
+          request_id: requestId,
+          question: request.question,
+          options: request.options.map((option, index) => ({
+            id: `answer_${index}`,
+            label: option,
+          })),
+          meta: {
+            ...(request.source ? { source: request.source } : {}),
+            ...(request.user ? { user: request.user } : {}),
+            ...(request.session ? { session: request.session } : {}),
+            ...(request.thread ? { thread: request.thread } : {}),
+          },
+        },
+      });
+      return await response;
+    } catch (error) {
+      const pending = this.asks.get(key);
+      if (pending) {
+        clearTimeout(pending.timer);
+        this.asks.delete(key);
+      }
+      throw error;
+    } finally {
+      if (onAbort) {
+        options.signal?.removeEventListener("abort", onAbort);
+      }
     }
   }
 
