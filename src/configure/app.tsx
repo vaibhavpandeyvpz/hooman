@@ -198,6 +198,7 @@ const SUPPORTED_PROVIDER_TYPES = [
   LlmProvider.Bedrock,
   LlmProvider.Google,
   LlmProvider.Groq,
+  LlmProvider.LlamaCpp,
   LlmProvider.Minimax,
   LlmProvider.Moonshot,
   LlmProvider.Ollama,
@@ -215,6 +216,7 @@ const DEFAULT_MODEL_BY_PROVIDER: Record<
   [LlmProvider.Bedrock]: "anthropic.claude-sonnet-4-6",
   [LlmProvider.Google]: "gemini-2.5-flash",
   [LlmProvider.Groq]: "openai/gpt-oss-20b",
+  [LlmProvider.LlamaCpp]: "Qwen/Qwen3-1.7B-GGUF:Q8_0",
   [LlmProvider.Minimax]: "MiniMax-M3",
   [LlmProvider.Moonshot]: "kimi-k2.7-code",
   [LlmProvider.Ollama]: "gemma4:e4b",
@@ -242,6 +244,8 @@ function providerOptionsTemplate(
     case LlmProvider.Google:
       return {};
     case LlmProvider.Groq:
+      return {};
+    case LlmProvider.LlamaCpp:
       return {};
     case LlmProvider.Minimax:
       return {};
@@ -459,6 +463,30 @@ const PROVIDER_FIELD_DEFINITIONS: Record<
       kind: "reasoningEffort",
       placeholder: "medium",
       note: 'Maps to Groq reasoning_effort ("minimal" -> "low"). Allowed: "minimal", "low", "medium", "high", or blank. Only reasoning models honor it.',
+    },
+  ],
+  [LlmProvider.LlamaCpp]: [
+    {
+      key: "hfToken",
+      label: "Hugging Face token",
+      kind: "string",
+      placeholder: "hf_...",
+      sensitive: true,
+      note: "Optional; used to download gated/private GGUF repos from the Hugging Face Hub. Falls back to the HF_TOKEN env var.",
+    },
+    {
+      key: "contextSize",
+      label: "Context size",
+      kind: "optionalInteger",
+      placeholder: "8192",
+      note: "Context size in tokens. Leave blank to let node-llama-cpp adapt it to the model and available memory.",
+    },
+    {
+      key: "reasoningEffort",
+      label: "Reasoning effort",
+      kind: "reasoningEffort",
+      placeholder: "medium",
+      note: 'Enables thinking on reasoning-capable GGUFs (Qwen3, Gemma 4, gpt-oss) and caps thought tokens (1024/2048/4096/8192). Allowed: "minimal", "low", "medium", "high", or blank to disable thinking.',
     },
   ],
   [LlmProvider.Minimax]: [
@@ -989,10 +1017,10 @@ export function ConfigureApp({
 
   const addLlm = useCallback(
     (name: string) => {
-      const providerName = config.providers[0]?.name ?? "Ollama";
+      const providerName = config.providers[0]?.name ?? "llama.cpp";
       const providerType =
         config.providers.find((provider) => provider.name === providerName)
-          ?.provider ?? LlmProvider.Ollama;
+          ?.provider ?? LlmProvider.LlamaCpp;
       return [
         ...config.llms,
         {

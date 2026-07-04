@@ -28,7 +28,7 @@ Install it from the **[VS Code Marketplace](https://marketplace.visualstudio.com
 1. Install [Node.js](https://nodejs.org) `>= 24` (`npx` ships with it — that's all the extension needs).
 2. Install the extension from the [Marketplace](https://marketplace.visualstudio.com/items?itemName=VPZ.hooman-vscode).
 3. Click the **Hooman icon in the activity bar** and send a prompt. The extension launches the agent via `npx hoomanjs acp`, downloading the CLI on first use — no separate install step.
-4. Pick your provider and model. Out of the box, Hooman is configured for a local [Ollama](https://ollama.com) instance. To use a hosted provider instead, either:
+4. Pick your provider and model. Out of the box, Hooman runs a local Qwen3 model via [llama.cpp](/hooman/guides/configuration/models/llama-cpp/) (downloaded from the Hugging Face Hub on first use), with Gemma 4 preconfigured as an alternative. To use a hosted provider instead, either:
    - click **Open Settings…** (gear icon in the panel title bar) to edit `~/.hooman/config.json` directly, or
    - run `npx hoomanjs` in a terminal and use the [`/config`](/hooman/guides/cli/#config) workflow.
 

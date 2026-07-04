@@ -14,6 +14,7 @@ Hooman's `config.json` splits model configuration into two arrays: reusable `pro
 | [Bedrock](/hooman/guides/configuration/models/bedrock/)       | `bedrock`    |
 | [Google](/hooman/guides/configuration/models/google/)         | `google`     |
 | [Groq](/hooman/guides/configuration/models/groq/)             | `groq`       |
+| [llama.cpp](/hooman/guides/configuration/models/llama-cpp/)   | `llama-cpp`  |
 | [MiniMax](/hooman/guides/configuration/models/minimax/)       | `minimax`    |
 | [Moonshot](/hooman/guides/configuration/models/moonshot/)     | `moonshot`   |
 | [Ollama](/hooman/guides/configuration/models/ollama/)         | `ollama`     |
@@ -70,7 +71,7 @@ Each LLM entry may carry an optional `billing` block used to display context-win
 
 - `billing.name` is required when the block is present, and is the identifier looked up in the [models.dev](https://models.dev) catalog (cached under `~/.hooman/cache/`, refreshed at most once daily). When `billing` is omitted, `options.model` is used as the lookup name.
 - `context` (window size in tokens) and `costs` (USD per million tokens; `"cache/m"` prices cached-input reads) override whatever models.dev resolves.
-- If neither the config nor models.dev yields the data, context usage and cost are simply not shown (this is the default for local models like Ollama).
+- If neither the config nor models.dev yields the data, context usage and cost are simply not shown (this is the default for local models like llama.cpp or Ollama).
 
 Resolution merges config-provided fields over the models.dev catalog: model ids are matched with separator normalization plus boundary containment (so `claude-haiku-4.5`, `anthropic/claude-sonnet-4-5`, and Bedrock's region-prefixed ids all resolve), preferring the provider whose id equals the model's canonical lab. Per-request cost is computed from additive-shape usage and accumulated at the rates of the model that served each request; once a request with usage runs unpriced, cost reporting stops for the session rather than under-reporting.
 

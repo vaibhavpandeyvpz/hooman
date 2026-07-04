@@ -48,7 +48,7 @@ hooman
 2. Run `/config` inside the chat to pick your LLM provider and model, and to manage MCP servers and skills.
 3. Use `hooman exec "your prompt"` for one-off tasks once you're set up.
 
-By default Hooman is configured for a local [Ollama](https://ollama.com) instance running `gemma4:e4b`, so it works out of the box without any API keys — swap in a hosted provider whenever you're ready. See [Models](/hooman/guides/configuration/models/) for the full list and configuration shape.
+By default Hooman runs [Qwen3 1.7B](https://huggingface.co/Qwen/Qwen3-1.7B-GGUF) locally via [llama.cpp](/hooman/guides/configuration/models/llama-cpp/), with [Gemma 4 E2B](https://huggingface.co/unsloth/gemma-4-E2B-it-GGUF) preconfigured alongside it, so it works out of the box without any API keys — the default model (~1.8 GB) downloads from the Hugging Face Hub on first use. Swap in a hosted provider whenever you're ready. See [Models](/hooman/guides/configuration/models/) for the full list and configuration shape.
 
 ## Run from source
 

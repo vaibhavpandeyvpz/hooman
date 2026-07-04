@@ -14,6 +14,7 @@ export const modelProviders: Record<string, () => Promise<ModelProvider>> = {
   bedrock: () => import("./bedrock.js"),
   google: () => import("./google.js"),
   groq: () => import("./groq.js"),
+  "llama-cpp": () => import("./llama-cpp/index.js"),
   minimax: () => import("./minimax.js"),
   moonshot: () => import("./moonshot.js"),
   ollama: () => import("./ollama/index.js"),

@@ -78,6 +78,10 @@ export default defineConfig({
                     },
                     { label: "Groq", slug: "guides/configuration/models/groq" },
                     {
+                      label: "llama.cpp",
+                      slug: "guides/configuration/models/llama-cpp",
+                    },
+                    {
                       label: "MiniMax",
                       slug: "guides/configuration/models/minimax",
                     },

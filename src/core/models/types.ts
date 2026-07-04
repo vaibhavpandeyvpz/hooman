@@ -6,6 +6,7 @@ export enum LlmProvider {
   Bedrock = "bedrock",
   Google = "google",
   Groq = "groq",
+  LlamaCpp = "llama-cpp",
   Minimax = "minimax",
   Moonshot = "moonshot",
   Ollama = "ollama",
@@ -148,6 +149,33 @@ export type GroqProviderOptions = {
   reasoning?: ReasoningOptions;
 };
 
+export type LlamaCppProviderOptions = {
+  /**
+   * Hugging Face access token used when downloading GGUF weights from the Hub
+   * (gated/private repos). Falls back to the `HF_TOKEN` env var when unset.
+   */
+  hfToken?: string;
+  /**
+   * GPU backend forwarded to node-llama-cpp's `getLlama` (default `"auto"`).
+   * Set `false` to force CPU-only inference.
+   */
+  gpu?: "auto" | "metal" | "cuda" | "vulkan" | false;
+  /**
+   * Context size in tokens for the llama.cpp context. When omitted,
+   * node-llama-cpp adapts it to the model's training context and free memory.
+   */
+  contextSize?: number;
+  /**
+   * Reasoning controls. Providing `reasoning` enables thinking: the chat
+   * template is configured to allow thought segments (Qwen `thoughts: "auto"`,
+   * Gemma 4 `reasoning: true`, gpt-oss/Harmony native reasoning-effort) and
+   * `effort` caps thought tokens via node-llama-cpp's thought budget
+   * (1024/2048/4096/8192, default `medium`). Omit `reasoning` to disable
+   * thinking (templates discourage thoughts, thought budget forced to 0).
+   */
+  reasoning?: ReasoningOptions;
+};
+
 export type MinimaxProviderOptions = {
   apiKey?: string;
   baseURL?: string;
@@ -241,6 +269,7 @@ export type ProviderOptions =
   | BedrockProviderOptions
   | GoogleProviderOptions
   | GroqProviderOptions
+  | LlamaCppProviderOptions
   | MinimaxProviderOptions
   | MoonshotProviderOptions
   | OllamaProviderOptions
@@ -356,6 +385,17 @@ export const GroqProviderOptionsSchema = z
   })
   .strict();
 
+export const LlamaCppProviderOptionsSchema = z
+  .object({
+    hfToken: NonEmptyStringSchema.optional(),
+    gpu: z
+      .union([z.enum(["auto", "metal", "cuda", "vulkan"]), z.literal(false)])
+      .optional(),
+    contextSize: z.number().int().positive().optional(),
+    reasoning: ReasoningOptionsSchema.optional(),
+  })
+  .strict();
+
 export const MinimaxProviderOptionsSchema = z
   .object({
     apiKey: NonEmptyStringSchema.optional(),
@@ -415,6 +455,7 @@ export const ProviderOptionsSchemas = {
   [LlmProvider.Bedrock]: BedrockProviderOptionsSchema,
   [LlmProvider.Google]: GoogleProviderOptionsSchema,
   [LlmProvider.Groq]: GroqProviderOptionsSchema,
+  [LlmProvider.LlamaCpp]: LlamaCppProviderOptionsSchema,
   [LlmProvider.Minimax]: MinimaxProviderOptionsSchema,
   [LlmProvider.Moonshot]: MoonshotProviderOptionsSchema,
   [LlmProvider.Ollama]: OllamaProviderOptionsSchema,
@@ -457,6 +498,13 @@ export const NamedProviderConfigSchema = z.discriminatedUnion("provider", [
       name: NonEmptyStringSchema,
       provider: z.literal(LlmProvider.Groq),
       options: GroqProviderOptionsSchema,
+    })
+    .strict(),
+  z
+    .object({
+      name: NonEmptyStringSchema,
+      provider: z.literal(LlmProvider.LlamaCpp),
+      options: LlamaCppProviderOptionsSchema,
     })
     .strict(),
   z

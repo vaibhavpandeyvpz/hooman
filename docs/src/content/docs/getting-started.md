@@ -25,7 +25,7 @@ Everything — configuration, API keys, sessions, skills — lives in a single `
 - [Node.js](https://nodejs.org) `>= 24` or [Bun](https://bun.sh) `>= 1.1`
 - Credentials or a local runtime for whichever LLM provider you choose — see [Models](/hooman/guides/configuration/models/)
 
-By default Hooman is configured for a local [Ollama](https://ollama.com) instance running `gemma4:e4b`, so it works out of the box without any API keys — swap in a hosted provider whenever you're ready.
+By default Hooman runs [Qwen3 1.7B](https://huggingface.co/Qwen/Qwen3-1.7B-GGUF) locally via [llama.cpp](/hooman/guides/configuration/models/llama-cpp/), with [Gemma 4 E2B](https://huggingface.co/unsloth/gemma-4-E2B-it-GGUF) preconfigured alongside it, so it works out of the box without any API keys — models download from the Hugging Face Hub on first use. Swap in a hosted provider whenever you're ready.
 
 ## What's next
 

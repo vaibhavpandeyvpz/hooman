@@ -85,8 +85,7 @@ type ChannelPermissionRequest = {
 };
 
 export type ChannelAskOutcome =
-  | { kind: "answered"; answer: string }
-  | { kind: "dismissed" };
+  { kind: "answered"; answer: string } | { kind: "dismissed" };
 
 type ChannelAskRequest = {
   requestId: string;
@@ -542,10 +541,7 @@ export class Manager {
           }
           const optionId = notification.params?.option_id?.trim();
           if (optionId) {
-            const index = Number.parseInt(
-              optionId.replace("answer_", ""),
-              10,
-            );
+            const index = Number.parseInt(optionId.replace("answer_", ""), 10);
             const label = pending.options[index];
             if (label !== undefined) {
               pending.resolve({ kind: "answered", answer: label });
@@ -783,7 +779,9 @@ export class Manager {
       const timer = setTimeout(() => {
         this.asks.delete(key);
         reject(
-          new Error(`Ask request "${requestId}" timed out after ${timeoutMs}ms.`),
+          new Error(
+            `Ask request "${requestId}" timed out after ${timeoutMs}ms.`,
+          ),
         );
       }, timeoutMs);
       this.asks.set(key, {

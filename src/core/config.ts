@@ -199,19 +199,27 @@ const defaultConfigData = (): ConfigData => ({
   name: "Hooman",
   providers: [
     {
-      name: "Ollama",
-      provider: LlmProvider.Ollama,
+      name: "llama.cpp",
+      provider: LlmProvider.LlamaCpp,
       options: {},
     },
   ],
   llms: [
     {
-      name: "Default",
-      provider: "Ollama",
+      name: "Qwen3 1.7B",
+      provider: "llama.cpp",
       options: {
-        model: "gemma4:e4b",
+        model: "Qwen/Qwen3-1.7B-GGUF:Q8_0",
       },
       default: true,
+    },
+    {
+      name: "Gemma 4 E2B",
+      provider: "llama.cpp",
+      options: {
+        model: "unsloth/gemma-4-E2B-it-GGUF:Q8_0",
+      },
+      default: false,
     },
   ],
   search: {

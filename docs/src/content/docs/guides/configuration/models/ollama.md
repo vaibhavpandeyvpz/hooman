@@ -3,7 +3,7 @@ title: Ollama
 description: Configure the ollama provider — options, reasoning, and example configs.
 ---
 
-Runtime provider id: `ollama`. Talks to a local (or remote) Ollama instance. This is Hooman's default out-of-the-box provider — no API key required.
+Runtime provider id: `ollama`. Talks to a local (or remote) Ollama instance — no API key required.
 
 ## Provider options
 
@@ -20,7 +20,7 @@ Setting `reasoning.effort` enables Ollama thinking, mapped to the `think` level 
 
 ## Example configs
 
-Default local instance (matches the out-of-the-box `config.json`):
+Local instance with the default Ollama endpoint:
 
 ```json
 {
