@@ -4,7 +4,7 @@
   "description": "Native VS Code chat backed by Hooman's Agent Client Protocol (ACP) agent",
   "version": "1.41.0",
   "private": true,
-  "publisher": "vaibhavpandeyvpz",
+  "publisher": "VPZ",
   "license": "MIT",
   "icon": "media/icon.png",
   "homepage": "https://vaibhavpandey.com/hooman/",
