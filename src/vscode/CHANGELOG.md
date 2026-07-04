@@ -2,6 +2,12 @@
 
 All notable changes to the Hooman VS Code extension are documented in this file.
 
+## [1.41.1]
+
+- Fix the publisher ID so the extension can be published to the VS Code Marketplace.
+- Fix token usage reporting for MiniMax models in the usage footer.
+- Fix a prompt-cache invalidation issue that could bust the Anthropic/Bedrock prefix cache on every turn.
+
 ## [1.41.0]
 
 - Initial public release: a self-contained chat panel in the activity bar, backed by `hooman acp`.
