@@ -2,6 +2,11 @@
 
 All notable changes to the Hooman VS Code extension are documented in this file.
 
+## [1.42.1]
+
+- Fix session cost in the usage footer for local llama.cpp/Ollama models: local inference is free, so catalog prices for the hosted API of the same model id are no longer applied — only the context-window gauge shows for these providers now.
+- The bundled llama.cpp models (Qwen3 1.7B, Qwen3.5 0.8B, Gemma 4 E2B) now default to GPU-accelerated inference (Metal/CUDA/Vulkan, auto-detected) and are pinned to their full training context windows out of the box.
+
 ## [1.42.0]
 
 - Add a model download strip above the composer: live progress (bar, percent, transferred/total size, speed, ETA — per shard for sharded GGUFs) while a local llama.cpp model downloads its weights on first use, fed by a new `_hoomanjs/model_download` ACP notification.
