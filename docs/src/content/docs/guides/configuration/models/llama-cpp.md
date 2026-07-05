@@ -3,7 +3,7 @@ title: llama.cpp
 description: Configure the llama-cpp provider — in-process GGUF inference via node-llama-cpp, with models fetched from the Hugging Face Hub.
 ---
 
-Runtime provider id: `llama-cpp`. Runs GGUF models in-process via [node-llama-cpp](https://node-llama-cpp.withcat.ai/) — no separate server required. This is Hooman's default out-of-the-box provider: a fresh `config.json` ships two model presets — `Qwen/Qwen3-1.7B-GGUF:Q8_0` (the default) and `unsloth/gemma-4-E2B-it-GGUF:Q8_0` — so the first turn works with no API keys or local runtime setup. Weights are downloaded from the Hugging Face Hub (via `@huggingface/hub`) into `~/.hooman/cache/huggingface` on first use and reused afterwards.
+Runtime provider id: `llama-cpp`. Runs GGUF models in-process via [node-llama-cpp](https://node-llama-cpp.withcat.ai/) — no separate server required. This is Hooman's default out-of-the-box provider: a fresh `config.json` ships three model presets — `Qwen/Qwen3-1.7B-GGUF:Q8_0` (the default), `unsloth/Qwen3.5-0.8B-MTP-GGUF:Q8_0`, and `unsloth/gemma-4-E2B-it-GGUF:Q8_0` — so the first turn works with no API keys or local runtime setup. Weights are downloaded from the Hugging Face Hub (via `@huggingface/hub`) into `~/.hooman/cache/huggingface` on first use and reused afterwards.
 
 ## Provider options
 
@@ -31,7 +31,7 @@ Providing `reasoning` enables thinking on reasoning-capable GGUFs: the chat temp
 
 ## Example configs
 
-Default models from the Hub (matches the out-of-the-box `config.json` — Qwen3 is the active default, Gemma 4 ships alongside it):
+Default models from the Hub (matches the out-of-the-box `config.json` — Qwen3 is the active default, Qwen3.5 and Gemma 4 ship alongside it):
 
 ```json
 {
@@ -50,6 +50,14 @@ Default models from the Hub (matches the out-of-the-box `config.json` — Qwen3 
       "model": "Qwen/Qwen3-1.7B-GGUF:Q8_0"
     },
     "default": true
+  },
+  {
+    "name": "Qwen3.5 0.8B",
+    "provider": "llama.cpp",
+    "options": {
+      "model": "unsloth/Qwen3.5-0.8B-MTP-GGUF:Q8_0"
+    },
+    "default": false
   },
   {
     "name": "Gemma 4 E2B",
@@ -91,4 +99,4 @@ Gated repo with a pinned quant file and CPU-only inference:
 }
 ```
 
-First use of a Hub model downloads the weights, which can take a while for large files; subsequent runs load from the cache.
+First use of a Hub model downloads the weights, which can take a while for large files; subsequent runs load from the cache. Downloads report live progress — percent, transferred/total size, speed, and ETA — on every surface: a progress bar above the composer in `chat`, a progress line on stderr in `exec` and `daemon`, and a download strip in the [VS Code extension](/hooman/guides/vscode/). Sharded GGUFs report per-shard progress.

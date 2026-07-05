@@ -22,13 +22,14 @@ Install it from the **[VS Code Marketplace](https://marketplace.visualstudio.com
 - **Inline permission prompts**: the agent asks before running destructive tools; approve or reject right in the panel (Yolo mode auto-approves).
 - **Status bar item** showing the current model and mode, with a spinner while a turn runs and a quick menu for all session controls.
 - **Token-usage footer** with the latest request's input / cached / output token counts, plus a context-window gauge and cumulative session cost — see [Billing metadata](/hooman/guides/configuration/models/#billing-metadata).
+- **Model download strip**: when a local [llama.cpp](/hooman/guides/configuration/models/llama-cpp/) model downloads its weights on first use, a progress strip shows percent, size, speed, and ETA above the composer.
 
 ## Quick start
 
 1. Install [Node.js](https://nodejs.org) `>= 24` (`npx` ships with it — that's all the extension needs).
 2. Install the extension from the [Marketplace](https://marketplace.visualstudio.com/items?itemName=VPZ.hooman-vscode).
 3. Click the **Hooman icon in the activity bar** and send a prompt. The extension launches the agent via `npx hoomanjs acp`, downloading the CLI on first use — no separate install step.
-4. Pick your provider and model. Out of the box, Hooman runs a local Qwen3 model via [llama.cpp](/hooman/guides/configuration/models/llama-cpp/) (downloaded from the Hugging Face Hub on first use), with Gemma 4 preconfigured as an alternative. To use a hosted provider instead, either:
+4. Pick your provider and model. Out of the box, Hooman runs a local Qwen3 model via [llama.cpp](/hooman/guides/configuration/models/llama-cpp/) (downloaded from the Hugging Face Hub on first use), with Qwen3.5 and Gemma 4 preconfigured as alternatives. To use a hosted provider instead, either:
    - click **Open Settings…** (gear icon in the panel title bar) to edit `~/.hooman/config.json` directly, or
    - run `npx hoomanjs` in a terminal and use the [`/config`](/hooman/guides/cli/#config) workflow.
 

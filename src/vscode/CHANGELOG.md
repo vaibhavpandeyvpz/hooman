@@ -2,6 +2,10 @@
 
 All notable changes to the Hooman VS Code extension are documented in this file.
 
+## [Unreleased]
+
+- Add a model download strip: live progress (percent, size, speed, ETA) while a local llama.cpp model downloads its GGUF weights on first use.
+
 ## [1.41.1]
 
 - Fix the publisher ID so the extension can be published to the VS Code Marketplace.

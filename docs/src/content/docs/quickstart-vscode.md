@@ -28,7 +28,7 @@ code --install-extension VPZ.hooman-vscode
 ## First run
 
 1. Click the **Hooman icon** in the activity bar and send a prompt. The extension spawns `npx hoomanjs acp` for you — no separate CLI install required.
-2. Pick your provider and model. Out of the box, Hooman runs a local Qwen3 model via [llama.cpp](/hooman/guides/configuration/models/llama-cpp/) (downloaded from the Hugging Face Hub on first use), with Gemma 4 preconfigured as an alternative. To use a hosted provider instead:
+2. Pick your provider and model. Out of the box, Hooman runs a local Qwen3 model via [llama.cpp](/hooman/guides/configuration/models/llama-cpp/) (downloaded from the Hugging Face Hub on first use, with a live progress strip in the panel), with Qwen3.5 and Gemma 4 preconfigured as alternatives. To use a hosted provider instead:
    - click **Open Settings…** (gear icon in the panel title bar) to edit `~/.hooman/config.json` directly, or
    - run `npx hoomanjs` in a terminal and use the [`/config`](/hooman/guides/cli/#config) workflow.
 
