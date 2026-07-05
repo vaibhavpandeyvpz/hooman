@@ -2,9 +2,11 @@
 
 All notable changes to the Hooman VS Code extension are documented in this file.
 
-## [Unreleased]
+## [1.42.0]
 
-- Add a model download strip: live progress (percent, size, speed, ETA) while a local llama.cpp model downloads its GGUF weights on first use.
+- Add a model download strip above the composer: live progress (bar, percent, transferred/total size, speed, ETA — per shard for sharded GGUFs) while a local llama.cpp model downloads its weights on first use, fed by a new `_hoomanjs/model_download` ACP notification.
+- The bundled agent now ships a local `llama-cpp` provider that runs GGUF models in-process via node-llama-cpp — the new out-of-the-box default, with Qwen3 1.7B (default), Qwen3.5 0.8B, and Gemma 4 E2B presets downloaded from the Hugging Face Hub on first use. No API keys needed for the first prompt.
+- Harden the agent's stdio discipline in ACP mode: all stray console/SDK logging is routed away from stdout so library chatter can't corrupt the JSON-RPC channel.
 
 ## [1.41.1]
 
