@@ -1,5 +1,5 @@
 /**
- * Inline copy of `media/hooman.svg`: rendered as JSX (not an `<img>`) so
+ * Inline copy of `media/icon.svg`: rendered as JSX (not an `<img>`) so
  * `currentColor` inherits the theme's foreground/accent instead of defaulting
  * to black inside an image document.
  */

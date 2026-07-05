@@ -7,7 +7,6 @@ tsconfig.webview.json
 vite.config.ts
 esbuild.mjs
 package-lock.json
-media/screenshot.png
 .gitignore
 **/*.map
 **/.eslintrc.json

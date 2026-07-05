@@ -5,7 +5,7 @@
     Chat with <a href="https://github.com/vaibhavpandeyvpz/hooman">Hooman</a> — a hackable, local-first AI agent — without leaving your editor.
   </p>
   <p>
-    <img src="https://raw.githubusercontent.com/vaibhavpandeyvpz/hooman/main/src/vscode/media/screenshot.png" alt="Hooman chat panel in VS Code" width="480" />
+    <img src="https://raw.githubusercontent.com/vaibhavpandeyvpz/hooman/main/docs/src/assets/screenshots-hero.png" alt="Hooman chat panel in VS Code" width="480" />
   </p>
 </div>
 

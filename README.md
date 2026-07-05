@@ -1,5 +1,5 @@
 <div align="center">
-  <img src=".github/logo.svg" alt="Hooman logo" width="128" />
+  <img src="docs/src/assets/logo.svg" alt="Hooman logo" width="128" />
   <h1>Hooman</h1>
   <p>
     Hooman is a hackable, local-first AI agent toolkit for local workflows. It is built with TypeScript, <a href="https://www.npmjs.com/package/@strands-agents/sdk">Strands Agents SDK</a>, and <a href="https://github.com/vadimdemedes/ink">Ink</a>.
@@ -13,7 +13,7 @@
     <a href="https://github.com/vaibhavpandeyvpz/hooman/commits/main"><img src="https://img.shields.io/github/last-commit/vaibhavpandeyvpz/hooman" alt="GitHub last commit" /></a>
   </p>
   <p>
-    <img src=".github/screenshot.png" alt="Hooman screenshot" />
+    <img src="docs/src/assets/screenshots-hero.png" alt="Hooman screenshot" />
   </p>
   <p>
     <strong><a href="https://vaibhavpandey.com/hooman/">Website</a></strong> ·

@@ -1,6 +1,7 @@
 ---
 import BrandIcon from "./BrandIcon.astro";
 import { Image } from "astro:assets";
+import cliScreenshot from "../assets/screenshot-cli.png";
 import vscodeScreenshot from "../assets/screenshot-vscode.png";
 
 const base = import.meta.env.BASE_URL;
@@ -32,6 +33,25 @@ const surfaces = [
   },
 ];
 
+const cliHighlights = [
+  {
+    title: "Stateful TUI, right in your terminal",
+    description: "An Ink-powered chat with a live status bar for model, effort, mode, and yolo.",
+  },
+  {
+    title: "Slash commands",
+    description: "/model, /mode, /effort, /sessions, /compact, and /config without leaving the prompt.",
+  },
+  {
+    title: "Context & cost at a glance",
+    description: "A usage row surfaces context-window %, token counts, and running session cost.",
+  },
+  {
+    title: "One-shot & automation",
+    description: "hooman exec for scripts and CI, hooman daemon for channel-driven automation.",
+  },
+];
+
 const vscodeHighlights = {
   left: [
     {
@@ -49,8 +69,8 @@ const vscodeHighlights = {
       description: "Per-file diffs with one-click keep or undo, backed by pre-edit baselines.",
     },
     {
-      title: "Plan checklists & slash commands",
-      description: "Pinned plan tracking plus /model, /mode, /sessions, and more without leaving the panel.",
+      title: "Plan checklists & quick pickers",
+      description: "Pinned plan tracking plus pill pickers for model/mode/effort, and /compact, /init commands.",
     },
   ],
 };
@@ -88,6 +108,25 @@ const vscodeHighlights = {
     </div>
 
     <div class="reveal-target relative mt-16 overflow-hidden rounded-2xl border border-white/10 bg-black/40 px-6 py-12 sm:px-10 lg:px-12">
+      <Image
+        src={cliScreenshot}
+        alt="Hooman running in the terminal"
+        class="mx-auto h-auto w-full max-w-2xl rounded-lg shadow-2xl shadow-black/60"
+      />
+
+      <div class="mx-auto mt-10 grid max-w-4xl grid-cols-1 gap-8 sm:grid-cols-2">
+        {
+          cliHighlights.map((h) => (
+            <div>
+              <p class="font-medium text-white">{h.title}</p>
+              <p class="mt-1 text-sm leading-relaxed text-slate-400">{h.description}</p>
+            </div>
+          ))
+        }
+      </div>
+    </div>
+
+    <div class="reveal-target relative mt-8 overflow-hidden rounded-2xl border border-white/10 bg-black/40 px-6 py-12 sm:px-10 lg:px-12">
       <div class="grid items-center gap-10 lg:grid-cols-[1fr_auto_1fr] lg:gap-8">
         <ul class="space-y-6 lg:text-right">
           {
