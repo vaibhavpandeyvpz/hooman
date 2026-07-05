@@ -1020,6 +1020,7 @@ export class HoomanAcpAgent {
       rec.billing = await resolveLlmBilling(
         resolved.billing,
         resolved.llmOptions.model,
+        resolved.provider,
       ).catch(() => null);
     } catch (error) {
       if (previous) {
@@ -1721,6 +1722,7 @@ export class HoomanAcpAgent {
     const billing = await resolveLlmBilling(
       activeLlm.billing,
       activeLlm.llmOptions.model,
+      activeLlm.provider,
     ).catch(() => null);
 
     return {

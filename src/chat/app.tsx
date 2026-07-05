@@ -484,7 +484,11 @@ export function ChatApp({
   // models.dev catalog cache) for the active model; re-run on model switches.
   const refreshBilling = useCallback(() => {
     const resolved = config.llm;
-    void resolveLlmBilling(resolved.billing, resolved.llmOptions.model)
+    void resolveLlmBilling(
+      resolved.billing,
+      resolved.llmOptions.model,
+      resolved.provider,
+    )
       .catch(() => null)
       .then((next) => {
         billingRef.current = next;

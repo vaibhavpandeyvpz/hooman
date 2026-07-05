@@ -1,6 +1,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { cachePath } from "./paths.js";
+import { LlmProvider } from "../models/types.js";
 import type { LlmBilling } from "../models/types.js";
 
 /**
@@ -327,26 +328,45 @@ function configCostsToResolved(
 }
 
 /**
+ * Providers that run inference locally: their token usage costs nothing, so
+ * catalog prices (which belong to the hosted API serving the same model)
+ * must never be applied to them.
+ */
+const LOCAL_PROVIDERS: ReadonlySet<LlmProvider> = new Set([
+  LlmProvider.LlamaCpp,
+  LlmProvider.Ollama,
+]);
+
+/**
  * Resolve billing metadata for a model: config-provided `billing` fields win,
  * anything missing is filled from the models.dev catalog, and the billing
  * name defaults to the raw model id when no `billing` block is configured.
  * Returns `null` when neither source yields a context size nor prices — in
  * that case nothing billing-related should be reported or displayed.
+ *
+ * When `provider` is a local provider (llama.cpp, Ollama), catalog costs are
+ * discarded — the catalog prices the hosted API for the same model id, not
+ * the free local inference — so only the context window resolves (config
+ * `billing.costs`, if explicitly set, is still honored).
  */
 export async function resolveLlmBilling(
   billing: LlmBilling | null | undefined,
   modelId: string,
+  provider?: LlmProvider,
 ): Promise<ResolvedLlmBilling | null> {
   const name = billing?.name ?? modelId;
+  const isLocal = provider !== undefined && LOCAL_PROVIDERS.has(provider);
   let context = billing?.context;
   let costs = billing?.costs ? configCostsToResolved(billing.costs) : undefined;
 
-  if (context === undefined || costs === undefined) {
+  if (context === undefined || (costs === undefined && !isLocal)) {
     const catalog = await loadCatalog();
     const fromCatalog = catalog ? lookupInCatalog(catalog, name) : null;
     if (fromCatalog) {
       context ??= fromCatalog.context;
-      costs ??= fromCatalog.costs;
+      if (!isLocal) {
+        costs ??= fromCatalog.costs;
+      }
     }
   }
 
