@@ -86,6 +86,10 @@ export default defineConfig({
                       slug: "guides/configuration/models/minimax",
                     },
                     {
+                      label: "MLX",
+                      slug: "guides/configuration/models/mlx",
+                    },
+                    {
                       label: "Moonshot",
                       slug: "guides/configuration/models/moonshot",
                     },

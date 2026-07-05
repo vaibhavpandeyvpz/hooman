@@ -16,6 +16,7 @@ export const modelProviders: Record<string, () => Promise<ModelProvider>> = {
   groq: () => import("./groq.js"),
   "llama-cpp": () => import("./llama-cpp/index.js"),
   minimax: () => import("./minimax.js"),
+  mlx: () => import("./mlx/index.js"),
   moonshot: () => import("./moonshot.js"),
   ollama: () => import("./ollama/index.js"),
   openai: () => import("./openai.js"),

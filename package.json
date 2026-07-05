@@ -81,6 +81,7 @@
     "@google/genai": "^2.10.0",
     "@huggingface/hub": "^2.13.2",
     "@mendable/firecrawl-js": "^4.21.0",
+    "@mlx-node/lm": "^0.0.7",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@mozilla/readability": "^0.6.0",
     "@strands-agents/sdk": "^1.7.0",

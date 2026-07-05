@@ -50,6 +50,11 @@ This is the default shape Hooman writes when `~/.hooman/config.json` is missing:
       "name": "llama.cpp",
       "provider": "llama-cpp",
       "options": {}
+    },
+    {
+      "name": "mlx",
+      "provider": "mlx",
+      "options": {}
     }
   ],
   "llms": [
@@ -77,6 +82,14 @@ This is the default shape Hooman writes when `~/.hooman/config.json` is missing:
       "options": {
         "model": "unsloth/gemma-4-E2B-it-GGUF:Q8_0",
         "context": 131072
+      },
+      "default": false
+    },
+    {
+      "name": "Qwen3 0.6B (MLX)",
+      "provider": "mlx",
+      "options": {
+        "model": "mlx-community/Qwen3-0.6B-bf16"
       },
       "default": false
     }
@@ -117,7 +130,7 @@ Hooman fills all optional sections with defaults on load and persist, so a minim
 ## Top-Level Options
 
 - `name`: non-empty display name for the agent.
-- `providers`: required reusable provider definitions. Each entry has `name`, runtime `provider`, and provider-specific `options`. Supported runtime providers: `anthropic`, `azure`, `bedrock`, `google`, `groq`, `llama-cpp`, `minimax`, `moonshot`, `ollama`, `openai`, `openrouter`, `xai` — details in `providers.md`.
+- `providers`: required reusable provider definitions. Each entry has `name`, runtime `provider`, and provider-specific `options`. Supported runtime providers: `anthropic`, `azure`, `bedrock`, `google`, `groq`, `llama-cpp`, `minimax`, `mlx`, `moonshot`, `ollama`, `openai`, `openrouter`, `xai` — details in `providers.md`.
 - `llms`: required non-empty list of named LLM configs. Each entry has `name`, provider reference `provider`, model `options` (`model`, optional `temperature`, optional `maxTokens`, optional `context` — llama-cpp only), and `default` (mark exactly one entry `true`). Details in `providers.md`.
 - `search`: optional web search config; defaults to disabled Brave. Details in `search.md`.
 - `prompts`: optional built-in static prompt toggles; omitted fields default to `true`. Custom user instructions live in `~/.hooman/instructions.md`.

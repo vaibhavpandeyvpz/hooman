@@ -203,6 +203,11 @@ const defaultConfigData = (): ConfigData => ({
       provider: LlmProvider.LlamaCpp,
       options: {},
     },
+    {
+      name: "mlx",
+      provider: LlmProvider.Mlx,
+      options: {},
+    },
   ],
   llms: [
     {
@@ -233,6 +238,18 @@ const defaultConfigData = (): ConfigData => ({
       options: {
         model: "unsloth/gemma-4-E2B-it-GGUF:Q8_0",
         context: 131072,
+      },
+      default: false,
+    },
+    {
+      // Apple Silicon + macOS 26+ only (prebuilt @mlx-node binaries); other
+      // platforms fail at load time if this entry is selected. Must stay a
+      // bf16 repo: mlx-community's uniform 4-bit quants don't load in
+      // @mlx-node/lm (see src/core/models/mlx/).
+      name: "Qwen3 0.6B (MLX)",
+      provider: "mlx",
+      options: {
+        model: "mlx-community/Qwen3-0.6B-bf16",
       },
       default: false,
     },

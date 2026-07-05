@@ -200,6 +200,7 @@ const SUPPORTED_PROVIDER_TYPES = [
   LlmProvider.Groq,
   LlmProvider.LlamaCpp,
   LlmProvider.Minimax,
+  LlmProvider.Mlx,
   LlmProvider.Moonshot,
   LlmProvider.Ollama,
   LlmProvider.OpenAI,
@@ -218,6 +219,7 @@ const DEFAULT_MODEL_BY_PROVIDER: Record<
   [LlmProvider.Groq]: "openai/gpt-oss-20b",
   [LlmProvider.LlamaCpp]: "Qwen/Qwen3-1.7B-GGUF:Q8_0",
   [LlmProvider.Minimax]: "MiniMax-M3",
+  [LlmProvider.Mlx]: "mlx-community/Qwen3-0.6B-bf16",
   [LlmProvider.Moonshot]: "kimi-k2.7-code",
   [LlmProvider.Ollama]: "gemma4:e4b",
   [LlmProvider.OpenAI]: "gpt-5.5",
@@ -248,6 +250,8 @@ function providerOptionsTemplate(
     case LlmProvider.LlamaCpp:
       return {};
     case LlmProvider.Minimax:
+      return {};
+    case LlmProvider.Mlx:
       return {};
     case LlmProvider.Moonshot:
       return {};
@@ -516,6 +520,23 @@ const PROVIDER_FIELD_DEFINITIONS: Record<
       kind: "reasoningDisplay",
       placeholder: "summarized",
       note: 'Set "summarized" to switch to adaptive thinking + output_config.effort; "omitted" to hide; blank keeps the adaptive+budget scheme.',
+    },
+  ],
+  [LlmProvider.Mlx]: [
+    {
+      key: "hfToken",
+      label: "Hugging Face token",
+      kind: "string",
+      placeholder: "hf_...",
+      sensitive: true,
+      note: "Optional; used to download gated/private MLX repos from the Hugging Face Hub. Falls back to the HF_TOKEN env var.",
+    },
+    {
+      key: "reasoningEffort",
+      label: "Reasoning effort",
+      kind: "reasoningEffort",
+      placeholder: "medium",
+      note: 'Enables thinking on reasoning-capable MLX models (Qwen3/3.5) and caps thought tokens (1024/2048/4096/8192). Allowed: "minimal", "low", "medium", "high", or blank to disable thinking.',
     },
   ],
   [LlmProvider.Moonshot]: [

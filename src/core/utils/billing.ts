@@ -334,6 +334,7 @@ function configCostsToResolved(
  */
 const LOCAL_PROVIDERS: ReadonlySet<LlmProvider> = new Set([
   LlmProvider.LlamaCpp,
+  LlmProvider.Mlx,
   LlmProvider.Ollama,
 ]);
 

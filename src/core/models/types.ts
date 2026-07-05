@@ -8,6 +8,7 @@ export enum LlmProvider {
   Groq = "groq",
   LlamaCpp = "llama-cpp",
   Minimax = "minimax",
+  Mlx = "mlx",
   Moonshot = "moonshot",
   Ollama = "ollama",
   OpenAI = "openai",
@@ -196,6 +197,23 @@ export type MinimaxProviderOptions = {
   reasoning?: ReasoningOptions;
 };
 
+export type MlxProviderOptions = {
+  /**
+   * Hugging Face access token used when downloading MLX-format weights from
+   * the Hub (gated/private repos). Falls back to the `HF_TOKEN` env var when
+   * unset.
+   */
+  hfToken?: string;
+  /**
+   * Reasoning controls. Providing `reasoning` enables thinking: the model
+   * thinks naturally and `effort` caps thought tokens via the runtime's
+   * thinking-token budget (1024/2048/4096/8192, default `medium`). Omit
+   * `reasoning` to disable thinking (the chat template closes the think block
+   * immediately and reasoning content is dropped).
+   */
+  reasoning?: ReasoningOptions;
+};
+
 export type MoonshotProviderOptions = {
   apiKey?: string;
   baseURL?: string;
@@ -278,6 +296,7 @@ export type ProviderOptions =
   | GroqProviderOptions
   | LlamaCppProviderOptions
   | MinimaxProviderOptions
+  | MlxProviderOptions
   | MoonshotProviderOptions
   | OllamaProviderOptions
   | OpenAIProviderOptions
@@ -429,6 +448,13 @@ export const MinimaxProviderOptionsSchema = z
   })
   .strict();
 
+export const MlxProviderOptionsSchema = z
+  .object({
+    hfToken: NonEmptyStringSchema.optional(),
+    reasoning: ReasoningOptionsSchema.optional(),
+  })
+  .strict();
+
 export const MoonshotProviderOptionsSchema = z
   .object({
     apiKey: NonEmptyStringSchema.optional(),
@@ -481,6 +507,7 @@ export const ProviderOptionsSchemas = {
   [LlmProvider.Groq]: GroqProviderOptionsSchema,
   [LlmProvider.LlamaCpp]: LlamaCppProviderOptionsSchema,
   [LlmProvider.Minimax]: MinimaxProviderOptionsSchema,
+  [LlmProvider.Mlx]: MlxProviderOptionsSchema,
   [LlmProvider.Moonshot]: MoonshotProviderOptionsSchema,
   [LlmProvider.Ollama]: OllamaProviderOptionsSchema,
   [LlmProvider.OpenAI]: OpenAIProviderOptionsSchema,
@@ -536,6 +563,13 @@ export const NamedProviderConfigSchema = z.discriminatedUnion("provider", [
       name: NonEmptyStringSchema,
       provider: z.literal(LlmProvider.Minimax),
       options: MinimaxProviderOptionsSchema,
+    })
+    .strict(),
+  z
+    .object({
+      name: NonEmptyStringSchema,
+      provider: z.literal(LlmProvider.Mlx),
+      options: MlxProviderOptionsSchema,
     })
     .strict(),
   z
