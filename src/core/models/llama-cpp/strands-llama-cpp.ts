@@ -45,7 +45,7 @@ export interface LlamaCppModelConfig extends BaseModelConfig {
   /** GPU backend forwarded to `getLlama` (default `"auto"`). `false` = CPU only. */
   gpu?: "auto" | "metal" | "cuda" | "vulkan" | false;
   /** Context size in tokens (default: adapted to the model and free VRAM/RAM). */
-  contextSize?: number;
+  context?: number;
   /**
    * Thinking controls. Presence enables reasoning: the resolved chat wrapper is
    * configured to allow thought segments (Qwen `thoughts: "auto"`, Gemma 4
@@ -236,7 +236,7 @@ export class StrandsLlamaCppModel extends Model<LlamaCppModelConfig> {
 
   updateConfig(modelConfig: LlamaCppModelConfig): void {
     const chatKey = (c: LlamaCppModelConfig) =>
-      JSON.stringify([c.modelId, c.gpu, c.contextSize, c.reasoning ?? null]);
+      JSON.stringify([c.modelId, c.gpu, c.context, c.reasoning ?? null]);
     const before = chatKey(this.config);
     this.config = { ...this.config, ...modelConfig };
     if (chatKey(this.config) !== before) {
@@ -281,8 +281,8 @@ export class StrandsLlamaCppModel extends Model<LlamaCppModelConfig> {
     }
     const model = await modelPromise;
     this.context = await model.createContext({
-      ...(this.config.contextSize !== undefined
-        ? { contextSize: this.config.contextSize }
+      ...(this.config.context !== undefined
+        ? { contextSize: this.config.context }
         : {}),
     });
     // Reasoning on/off lives in the chat template, so resolve the wrapper

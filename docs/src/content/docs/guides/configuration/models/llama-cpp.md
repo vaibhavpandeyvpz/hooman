@@ -7,12 +7,12 @@ Runtime provider id: `llama-cpp`. Runs GGUF models in-process via [node-llama-cp
 
 ## Provider options
 
-| Field         | Type              | Notes                                                                                                        |
-| ------------- | ----------------- | ------------------------------------------------------------------------------------------------------------ |
-| `hfToken`     | string            | Optional. Hugging Face access token for gated/private repos. Falls back to the `HF_TOKEN` env var.           |
-| `gpu`         | string or `false` | Optional. `"auto"` (default), `"metal"`, `"cuda"`, `"vulkan"`, or `false` for CPU-only inference.            |
-| `contextSize` | number            | Optional. Context size in tokens; defaults to adapting to the model's training context and available memory. |
-| `reasoning`   | object            | Optional. See [Reasoning](/hooman/guides/configuration/models/#reasoning-options).                           |
+| Field       | Type              | Notes                                                                                                                                                                            |
+| ----------- | ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `hfToken`   | string            | Optional. Hugging Face access token for gated/private repos. Falls back to the `HF_TOKEN` env var.                                                                               |
+| `gpu`       | string or `false` | Optional. `"auto"` (the default when unset), `"metal"`, `"cuda"`, `"vulkan"`, or `false` for CPU-only inference.                                                                 |
+| `context`   | number            | Optional. Context size in tokens. A per-LLM `options.context` overrides it; when both are absent, node-llama-cpp adapts it to the model's training context and available memory. |
+| `reasoning` | object            | Optional. See [Reasoning](/hooman/guides/configuration/models/#reasoning-options).                                                                                               |
 
 ## Model spec
 
@@ -47,7 +47,8 @@ Default models from the Hub (matches the out-of-the-box `config.json` — Qwen3 
     "name": "Qwen3 1.7B",
     "provider": "llama.cpp",
     "options": {
-      "model": "Qwen/Qwen3-1.7B-GGUF:Q8_0"
+      "model": "Qwen/Qwen3-1.7B-GGUF:Q8_0",
+      "context": 32768
     },
     "default": true
   },
@@ -55,7 +56,8 @@ Default models from the Hub (matches the out-of-the-box `config.json` — Qwen3 
     "name": "Qwen3.5 0.8B",
     "provider": "llama.cpp",
     "options": {
-      "model": "unsloth/Qwen3.5-0.8B-MTP-GGUF:Q8_0"
+      "model": "unsloth/Qwen3.5-0.8B-MTP-GGUF:Q8_0",
+      "context": 262144
     },
     "default": false
   },
@@ -63,12 +65,15 @@ Default models from the Hub (matches the out-of-the-box `config.json` — Qwen3 
     "name": "Gemma 4 E2B",
     "provider": "llama.cpp",
     "options": {
-      "model": "unsloth/gemma-4-E2B-it-GGUF:Q8_0"
+      "model": "unsloth/gemma-4-E2B-it-GGUF:Q8_0",
+      "context": 131072
     },
     "default": false
   }
 ]
 ```
+
+Each preset pins `options.context` to the model's full training window (32K for Qwen3 1.7B, 256K for Qwen3.5 0.8B, 128K for Gemma 4 E2B). The per-LLM `context` is specific to this provider and overrides the provider-level `context`.
 
 :::note
 Google's official `google/gemma-4-E2B-it-qat-q4_0-gguf` GGUF currently ships a malformed metadata entry (an empty key) that llama.cpp's parser rejects (`GGML_ASSERT(!key.empty())`), crashing the process on load — use the unsloth conversion above instead.
@@ -83,7 +88,7 @@ Gated repo with a pinned quant file and CPU-only inference:
   "options": {
     "hfToken": "hf_...",
     "gpu": false,
-    "contextSize": 8192
+    "context": 8192
   }
 }
 ```

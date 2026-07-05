@@ -57,7 +57,8 @@ This is the default shape Hooman writes when `~/.hooman/config.json` is missing:
       "name": "Qwen3 1.7B",
       "provider": "llama.cpp",
       "options": {
-        "model": "Qwen/Qwen3-1.7B-GGUF:Q8_0"
+        "model": "Qwen/Qwen3-1.7B-GGUF:Q8_0",
+        "context": 32768
       },
       "default": true
     },
@@ -65,7 +66,8 @@ This is the default shape Hooman writes when `~/.hooman/config.json` is missing:
       "name": "Qwen3.5 0.8B",
       "provider": "llama.cpp",
       "options": {
-        "model": "unsloth/Qwen3.5-0.8B-MTP-GGUF:Q8_0"
+        "model": "unsloth/Qwen3.5-0.8B-MTP-GGUF:Q8_0",
+        "context": 262144
       },
       "default": false
     },
@@ -73,7 +75,8 @@ This is the default shape Hooman writes when `~/.hooman/config.json` is missing:
       "name": "Gemma 4 E2B",
       "provider": "llama.cpp",
       "options": {
-        "model": "unsloth/gemma-4-E2B-it-GGUF:Q8_0"
+        "model": "unsloth/gemma-4-E2B-it-GGUF:Q8_0",
+        "context": 131072
       },
       "default": false
     }
@@ -114,8 +117,8 @@ Hooman fills all optional sections with defaults on load and persist, so a minim
 ## Top-Level Options
 
 - `name`: non-empty display name for the agent.
-- `providers`: required reusable provider definitions. Each entry has `name`, runtime `provider`, and provider-specific `options`. Supported runtime providers: `anthropic`, `azure`, `bedrock`, `google`, `groq`, `minimax`, `moonshot`, `ollama`, `openai`, `openrouter`, `xai` — details in `providers.md`.
-- `llms`: required non-empty list of named LLM configs. Each entry has `name`, provider reference `provider`, model `options` (`model`, optional `temperature`, optional `maxTokens`), and `default` (mark exactly one entry `true`). Details in `providers.md`.
+- `providers`: required reusable provider definitions. Each entry has `name`, runtime `provider`, and provider-specific `options`. Supported runtime providers: `anthropic`, `azure`, `bedrock`, `google`, `groq`, `llama-cpp`, `minimax`, `moonshot`, `ollama`, `openai`, `openrouter`, `xai` — details in `providers.md`.
+- `llms`: required non-empty list of named LLM configs. Each entry has `name`, provider reference `provider`, model `options` (`model`, optional `temperature`, optional `maxTokens`, optional `context` — llama-cpp only), and `default` (mark exactly one entry `true`). Details in `providers.md`.
 - `search`: optional web search config; defaults to disabled Brave. Details in `search.md`.
 - `prompts`: optional built-in static prompt toggles; omitted fields default to `true`. Custom user instructions live in `~/.hooman/instructions.md`.
 - `tools`: optional tool toggles and tool-specific settings.

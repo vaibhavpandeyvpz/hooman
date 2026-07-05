@@ -210,6 +210,7 @@ const defaultConfigData = (): ConfigData => ({
       provider: "llama.cpp",
       options: {
         model: "Qwen/Qwen3-1.7B-GGUF:Q8_0",
+        context: 32768,
       },
       default: true,
     },
@@ -218,6 +219,7 @@ const defaultConfigData = (): ConfigData => ({
       provider: "llama.cpp",
       options: {
         model: "unsloth/Qwen3.5-0.8B-MTP-GGUF:Q8_0",
+        context: 262144,
       },
       default: false,
     },
@@ -230,6 +232,7 @@ const defaultConfigData = (): ConfigData => ({
       provider: "llama.cpp",
       options: {
         model: "unsloth/gemma-4-E2B-it-GGUF:Q8_0",
+        context: 131072,
       },
       default: false,
     },

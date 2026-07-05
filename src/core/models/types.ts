@@ -59,6 +59,12 @@ export type LlmOptions = {
   model: string;
   temperature?: number;
   maxTokens?: number;
+  /**
+   * Context size in tokens for this model. Only honored by the `llama-cpp`
+   * provider (overrides the provider-level `context`); other providers
+   * ignore it.
+   */
+  context?: number;
 };
 
 /**
@@ -156,15 +162,16 @@ export type LlamaCppProviderOptions = {
    */
   hfToken?: string;
   /**
-   * GPU backend forwarded to node-llama-cpp's `getLlama` (default `"auto"`).
-   * Set `false` to force CPU-only inference.
+   * GPU backend forwarded to node-llama-cpp's `getLlama`. Defaults to
+   * `"auto"` when unset. Set `false` to force CPU-only inference.
    */
   gpu?: "auto" | "metal" | "cuda" | "vulkan" | false;
   /**
-   * Context size in tokens for the llama.cpp context. When omitted,
+   * Context size in tokens for the llama.cpp context. Per-LLM
+   * `options.context` takes precedence; when both are omitted,
    * node-llama-cpp adapts it to the model's training context and free memory.
    */
-  contextSize?: number;
+  context?: number;
   /**
    * Reasoning controls. Providing `reasoning` enables thinking: the chat
    * template is configured to allow thought segments (Qwen `thoughts: "auto"`,
@@ -307,6 +314,7 @@ export const LlmOptionsSchema = z
     model: NonEmptyStringSchema,
     temperature: z.number().finite().optional(),
     maxTokens: z.number().int().positive().optional(),
+    context: z.number().int().positive().optional(),
   })
   .strict();
 
@@ -385,16 +393,32 @@ export const GroqProviderOptionsSchema = z
   })
   .strict();
 
-export const LlamaCppProviderOptionsSchema = z
-  .object({
-    hfToken: NonEmptyStringSchema.optional(),
-    gpu: z
-      .union([z.enum(["auto", "metal", "cuda", "vulkan"]), z.literal(false)])
-      .optional(),
-    contextSize: z.number().int().positive().optional(),
-    reasoning: ReasoningOptionsSchema.optional(),
-  })
-  .strict();
+export const LlamaCppProviderOptionsSchema = z.preprocess(
+  // Legacy alias: `contextSize` was renamed to `context`.
+  (value) => {
+    if (
+      typeof value === "object" &&
+      value !== null &&
+      !Array.isArray(value) &&
+      "contextSize" in value &&
+      !("context" in value)
+    ) {
+      const { contextSize, ...rest } = value as Record<string, unknown>;
+      return { ...rest, context: contextSize };
+    }
+    return value;
+  },
+  z
+    .object({
+      hfToken: NonEmptyStringSchema.optional(),
+      gpu: z
+        .union([z.enum(["auto", "metal", "cuda", "vulkan"]), z.literal(false)])
+        .optional(),
+      context: z.number().int().positive().optional(),
+      reasoning: ReasoningOptionsSchema.optional(),
+    })
+    .strict(),
+);
 
 export const MinimaxProviderOptionsSchema = z
   .object({

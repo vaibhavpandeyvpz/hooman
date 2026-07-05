@@ -18,13 +18,13 @@ export function create(
   // (wrappers discourage thoughts, thought budget forced to 0).
   const reasoning = providerOptions.reasoning;
   const effort = reasoning?.effort;
+  // Per-LLM `context` wins over the provider-level default.
+  const context = llmOptions.context ?? providerOptions.context;
   return new StrandsLlamaCppModel({
     modelId: llmOptions.model,
     ...(providerOptions.hfToken ? { hfToken: providerOptions.hfToken } : {}),
-    ...(providerOptions.gpu !== undefined ? { gpu: providerOptions.gpu } : {}),
-    ...(providerOptions.contextSize !== undefined
-      ? { contextSize: providerOptions.contextSize }
-      : {}),
+    gpu: providerOptions.gpu ?? "auto",
+    ...(context !== undefined ? { context } : {}),
     ...(reasoning !== undefined
       ? {
           reasoning: { ...(effort !== undefined ? { effort } : {}) },

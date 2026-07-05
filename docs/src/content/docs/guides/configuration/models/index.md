@@ -47,7 +47,7 @@ Hooman's `config.json` splits model configuration into two arrays: reusable `pro
 }
 ```
 
-Every `llms` entry, regardless of provider, carries the same normalized `options` shape: `model` (required), optional `temperature`, optional `maxTokens` (Google maps this to the SDK's `maxOutputTokens`).
+Every `llms` entry, regardless of provider, carries the same normalized `options` shape: `model` (required), optional `temperature`, optional `maxTokens` (Google maps this to the SDK's `maxOutputTokens`), and optional `context` (context size in tokens — only honored by the [llama.cpp provider](/hooman/guides/configuration/models/llama-cpp/), where it overrides the provider-level `context`; other providers ignore it).
 
 All reasoning-capable providers additionally share a common optional `reasoning` object on the **provider** `options`: `{ effort?, summary?, display? }`. `effort` (`"minimal" | "low" | "medium" | "high"`) enables thinking; `summary` (OpenAI/Azure Responses API only) controls summary verbosity; `display` (Bedrock Claude / MiniMax only) controls whether the reasoning trace is returned. Each provider page documents its exact mapping.
 

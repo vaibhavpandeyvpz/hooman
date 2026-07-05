@@ -475,11 +475,11 @@ const PROVIDER_FIELD_DEFINITIONS: Record<
       note: "Optional; used to download gated/private GGUF repos from the Hugging Face Hub. Falls back to the HF_TOKEN env var.",
     },
     {
-      key: "contextSize",
+      key: "context",
       label: "Context size",
       kind: "optionalInteger",
       placeholder: "8192",
-      note: "Context size in tokens. Leave blank to let node-llama-cpp adapt it to the model and available memory.",
+      note: "Context size in tokens (per-LLM `context` overrides this). Leave blank to let node-llama-cpp adapt it to the model and available memory.",
     },
     {
       key: "reasoningEffort",
@@ -678,6 +678,13 @@ const LLM_FIELD_DEFINITIONS: TypedFieldDefinition[] = [
     kind: "optionalInteger",
     placeholder: "4096",
     note: "Leave blank to clear.",
+  },
+  {
+    key: "context",
+    label: "Context size",
+    kind: "optionalInteger",
+    placeholder: "32768",
+    note: "Context size in tokens; only honored by the llama-cpp provider (overrides its provider-level `context`). Leave blank to clear.",
   },
 ];
 
