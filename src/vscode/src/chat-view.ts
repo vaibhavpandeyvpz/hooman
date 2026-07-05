@@ -102,6 +102,19 @@ export class HoomanChatViewProvider
       this.client.onSessionUpdate((notification) =>
         this.#onSessionUpdate(notification),
       ),
+      this.client.onModelDownload((notification) => {
+        if (notification.sessionId !== this.#sessionId) {
+          return;
+        }
+        const { sessionId, ...download } = notification;
+        void sessionId;
+        // A finished or failed download clears the progress strip; errors
+        // surface through the turn's own error reporting.
+        this.#post({
+          type: "download",
+          download: download.status === "downloading" ? download : null,
+        });
+      }),
       this.client.onDidExit(() => {
         this.#busy = false;
         this.#stopAllTerminalPolls();

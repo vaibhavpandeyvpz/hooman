@@ -14,6 +14,7 @@ import {
 import { FsBackend } from "./fs-backend";
 import { TerminalBackend } from "./terminal-backend";
 import { PermissionPrompts } from "./permissions";
+import type { ModelDownloadNotification } from "./shared/protocol";
 
 /** `../package.json` relative to the compiled `out/acp-client.js`, i.e. this sub-package's manifest. */
 const EXTENSION_VERSION = (require("../package.json") as { version: string })
@@ -41,6 +42,11 @@ export class HoomanAcpClient implements vscode.Disposable {
 
   readonly #onSessionUpdate = new vscode.EventEmitter<SessionNotification>();
   readonly onSessionUpdate = this.#onSessionUpdate.event;
+
+  /** Custom `_hoomanjs/model_download` notifications (model weights download progress). */
+  readonly #onModelDownload =
+    new vscode.EventEmitter<ModelDownloadNotification>();
+  readonly onModelDownload = this.#onModelDownload.event;
 
   readonly #onDidExit = new vscode.EventEmitter<void>();
   readonly onDidExit = this.#onDidExit.event;
@@ -138,7 +144,14 @@ export class HoomanAcpClient implements vscode.Disposable {
       })
       .onNotification(methods.client.session.update, (ctx) => {
         this.#onSessionUpdate.fire(ctx.params);
-      });
+      })
+      .onNotification(
+        "_hoomanjs/model_download",
+        (params) => params as ModelDownloadNotification,
+        (ctx) => {
+          this.#onModelDownload.fire(ctx.params);
+        },
+      );
 
     this.#connection = clientApp.connect(stream);
     const agent = this.#connection.agent;
@@ -160,6 +173,7 @@ export class HoomanAcpClient implements vscode.Disposable {
   dispose(): void {
     this.terminal.dispose();
     this.#onSessionUpdate.dispose();
+    this.#onModelDownload.dispose();
     this.#onDidExit.dispose();
     if (this.#process && !this.#process.killed) {
       this.#process.kill();

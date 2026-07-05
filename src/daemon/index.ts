@@ -12,6 +12,10 @@ import type {
   Manager as McpManager,
 } from "../core/mcp/index.js";
 import { runWithAgentMemoryScope } from "../core/memory/index.js";
+import {
+  createModelDownloadLogger,
+  subscribeModelDownloadProgress,
+} from "../core/models/download-progress.js";
 import { attachmentPathsToPromptBlocks } from "../core/utils/attachments.js";
 import { createQueue } from "./queue.js";
 
@@ -84,6 +88,12 @@ export async function main(options: RunDaemonOptions): Promise<void> {
   const channels = [HOOMAN_CHANNEL];
   debug(`starting daemon for channel(s): ${channels.join(", ")}`);
 
+  // Model weights download progress (llama.cpp GGUF fetch on first use):
+  // live single-line updates on a TTY, coarse `[daemon]` log lines otherwise.
+  const stopDownloadProgress = subscribeModelDownloadProgress(
+    createModelDownloadLogger({ stream: stderr, prefix: "[daemon] " }),
+  );
+
   let unsubscribe = () => {};
 
   const [queue, stop] = await createQueue(
@@ -149,6 +159,7 @@ export async function main(options: RunDaemonOptions): Promise<void> {
   try {
     await stop();
   } finally {
+    stopDownloadProgress();
     debug("stopping daemon");
   }
 }

@@ -4,6 +4,7 @@ import EditsPanel from "./components/EditsPanel";
 import QueuePanel from "./components/QueuePanel";
 import SessionsPanel from "./components/SessionsPanel";
 import LoadingOverlay from "./components/LoadingOverlay";
+import DownloadStrip from "./components/DownloadStrip";
 import StatusStrip from "./components/StatusStrip";
 import UsageFooter from "./components/UsageFooter";
 import Composer from "./components/Composer";
@@ -15,6 +16,7 @@ export default function App() {
       <PlanPanel />
       <EditsPanel />
       <QueuePanel />
+      <DownloadStrip />
       <StatusStrip />
       <UsageFooter />
       <Composer />

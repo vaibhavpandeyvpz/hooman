@@ -10,6 +10,7 @@ import type {
   ContextUsageInfo,
   CostInfo,
   EditInfo,
+  ModelDownloadInfo,
   OutboundMessage,
   PermissionOptionInfo,
   QueuedPromptInfo,
@@ -74,6 +75,8 @@ interface State {
   context: ContextUsageInfo | null;
   /** Cumulative session cost; null while pricing is unresolved. */
   cost: CostInfo | null;
+  /** Live model-weights download (llama.cpp GGUF fetch); null when idle. */
+  download: ModelDownloadInfo | null;
   queue: QueuedPromptInfo[];
   /** Text handed back from a queued item picked for editing; the composer consumes and clears it. */
   editDraft: string | null;
@@ -99,6 +102,7 @@ const [state, setState] = createStore<State>({
   usage: null,
   context: null,
   cost: null,
+  download: null,
   queue: [],
   editDraft: null,
   attachments: [],
@@ -515,6 +519,7 @@ function clearChat(): void {
     usage: null,
     context: null,
     cost: null,
+    download: null,
     queue: [],
     editDraft: null,
     attachments: [],
@@ -551,7 +556,11 @@ onHostMessage((msg) => {
         busy: false,
         promptStartedAt: null,
         activity: { type: "idle" },
+        download: null,
       });
+      break;
+    case "download":
+      setState("download", msg.download);
       break;
     case "permission":
       showPermission(msg);
@@ -600,6 +609,7 @@ onHostMessage((msg) => {
         busy: false,
         promptStartedAt: null,
         activity: { type: "idle" },
+        download: null,
       });
       break;
     default:

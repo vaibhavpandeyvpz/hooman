@@ -65,6 +65,10 @@ import {
 } from "../core/agent/index.js";
 import { readBundledPrompt } from "../core/prompts/bundled.js";
 import { modelProviders } from "../core/models/index.js";
+import {
+  subscribeModelDownloadProgress,
+  type ModelDownloadProgress,
+} from "../core/models/download-progress.js";
 import { toAdditiveUsage } from "../core/models/usage.js";
 import {
   computeUsageCostUsd,
@@ -405,6 +409,29 @@ export class HoomanAcpAgent {
     )
       .then(() => compactSessionIndex(this.#acpRoot))
       .catch(() => undefined);
+    // Model weights download progress (llama.cpp GGUF fetched on first use,
+    // which happens lazily inside a prompt turn's model init): forward to the
+    // client as a custom `_hoomanjs/model_download` notification, attributed
+    // to whichever session(s) have an active turn. Clients that don't know
+    // the method ignore it per JSON-RPC; the VS Code extension renders it as
+    // a progress strip. Lives for the process, like the agent itself.
+    subscribeModelDownloadProgress((progress) => {
+      const client = this.#client;
+      if (!client) {
+        return;
+      }
+      for (const [sessionId, rec] of this.#sessions) {
+        if (!this.#isTurnActive(rec)) {
+          continue;
+        }
+        void client
+          .notify<ModelDownloadProgress & { sessionId: string }>(
+            "_hoomanjs/model_download",
+            { sessionId, ...progress },
+          )
+          .catch(() => undefined);
+      }
+    });
   }
 
   /** Bind connection-scoped lifecycle: capture the client + dispose on close. */

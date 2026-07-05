@@ -62,6 +62,14 @@ This is the default shape Hooman writes when `~/.hooman/config.json` is missing:
       "default": true
     },
     {
+      "name": "Qwen3.5 0.8B",
+      "provider": "llama.cpp",
+      "options": {
+        "model": "unsloth/Qwen3.5-0.8B-MTP-GGUF:Q8_0"
+      },
+      "default": false
+    },
+    {
       "name": "Gemma 4 E2B",
       "provider": "llama.cpp",
       "options": {

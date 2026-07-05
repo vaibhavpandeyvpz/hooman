@@ -3,8 +3,10 @@ import type { Manager as McpManager } from "../../core/mcp/index.js";
 import type { TodoViewState } from "../../core/state/todos.js";
 import type { Config } from "../../core/config.js";
 import type { SessionMode } from "../../core/state/session-mode.js";
+import type { ModelDownloadProgress } from "../../core/models/download-progress.js";
 import { Composer } from "./Composer.js";
 import { ChromePicker, type ChatPicker } from "./ChromePicker.js";
+import { DownloadPanel } from "./DownloadPanel.js";
 import { QueuedPrompts } from "./QueuedPrompts.js";
 import { SlashCommands } from "./SlashCommands.js";
 import { StatusBar } from "./StatusBar.js";
@@ -43,6 +45,8 @@ type BottomChromeProps = {
   contextUsage?: { used: number; size: number };
   /** Cumulative session cost in USD; only set when pricing was resolved. */
   costUsd?: number;
+  /** In-flight model weights download (llama.cpp GGUF fetch), if any. */
+  downloadProgress: ModelDownloadProgress | null;
   todoState: TodoViewState;
   queuedPrompts: readonly QueuedPrompt[];
   pendingApproval: boolean;
@@ -82,6 +86,7 @@ export function BottomChrome({
   usage,
   contextUsage,
   costUsd,
+  downloadProgress,
   todoState,
   queuedPrompts,
   pendingApproval,
@@ -150,6 +155,8 @@ export function BottomChrome({
           slashMenu={slashMenu}
         />
       ) : null}
+
+      {downloadProgress ? <DownloadPanel progress={downloadProgress} /> : null}
 
       <StatusBar
         running={running}

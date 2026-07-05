@@ -56,6 +56,31 @@ export interface CostInfo {
 }
 
 /**
+ * Live model-weights download progress (llama.cpp GGUF fetched from the
+ * Hugging Face Hub on first use), forwarded by the agent as a custom
+ * `_hoomanjs/model_download` notification during a prompt turn.
+ */
+export interface ModelDownloadInfo {
+  status: "downloading" | "done" | "error";
+  /** Configured model spec, e.g. `Qwen/Qwen3-1.7B-GGUF:Q8_0`. */
+  model: string;
+  /** Basename of the file being downloaded. */
+  file: string;
+  /** Set for sharded GGUFs (downloaded and reported one at a time). */
+  shard?: { index: number; total: number };
+  receivedBytes: number;
+  totalBytes?: number;
+  bytesPerSecond?: number;
+  etaSeconds?: number;
+  error?: string;
+}
+
+/** `_hoomanjs/model_download` notification params: progress plus the owning session. */
+export interface ModelDownloadNotification extends ModelDownloadInfo {
+  sessionId: string;
+}
+
+/**
  * A file, folder, or in-memory image staged for (or sent with) a prompt.
  * Path-backed attachments come from the native file dialog or drags that
  * carry a `text/uri-list` (VS Code explorer); data-backed ones come from OS
@@ -152,6 +177,7 @@ export type OutboundMessage =
   | { type: "queue"; items: QueuedPromptInfo[] }
   | { type: "queueEditText"; text: string; attachments?: AttachmentInfo[] }
   | { type: "attachments"; attachments: AttachmentInfo[] }
+  | { type: "download"; download: ModelDownloadInfo | null }
   | { type: "sessions"; sessions: SessionRowInfo[] }
   | { type: "showSessions" }
   | { type: "sessionLoading"; loading: boolean; title?: string }

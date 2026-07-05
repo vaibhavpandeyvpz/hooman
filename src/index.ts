@@ -195,6 +195,20 @@ export type { SystemMode } from "./core/prompts/system.js";
 export { modelProviders } from "./core/models/index.js";
 export type { ModelProvider } from "./core/models/index.js";
 export {
+  createModelDownloadLogger,
+  downloadRatio,
+  formatBytes,
+  formatBytesPerSecond,
+  formatEtaSeconds,
+  formatModelDownloadLine,
+  renderDownloadBar,
+  subscribeModelDownloadProgress,
+} from "./core/models/download-progress.js";
+export type {
+  ModelDownloadProgress,
+  ModelDownloadProgressListener,
+} from "./core/models/download-progress.js";
+export {
   create as createAnthropicModelProvider,
   type AnthropicModelParams,
 } from "./core/models/anthropic.js";

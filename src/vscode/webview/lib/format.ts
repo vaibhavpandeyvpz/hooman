@@ -53,6 +53,36 @@ export function formatClock(ms: number): string {
   return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 }
 
+const BYTE_UNITS = ["B", "KB", "MB", "GB", "TB"] as const;
+
+/** "512 B", "1.5 MB", "1.71 GB" — human-readable byte size (mirrors the CLI's download meter). */
+export function formatBytes(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes < 0) {
+    return "0 B";
+  }
+  let value = bytes;
+  let unit = 0;
+  while (value >= 1024 && unit < BYTE_UNITS.length - 1) {
+    value /= 1024;
+    unit += 1;
+  }
+  const digits = unit === 0 ? 0 : value >= 100 ? 0 : value >= 10 ? 1 : 2;
+  return `${value.toFixed(digits)} ${BYTE_UNITS[unit]}`;
+}
+
+/** "45s", "01:23", "1:02:03" — remaining-time estimate for the download strip. */
+export function formatEtaSeconds(seconds: number): string {
+  const total = Math.max(0, Math.round(seconds));
+  if (total < 60) {
+    return `${total}s`;
+  }
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const secs = total % 60;
+  const mmss = `${String(minutes).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+  return hours > 0 ? `${hours}:${mmss}` : mmss;
+}
+
 /** Rough token estimate for reasoning text the model doesn't report usage for, same heuristic as the CLI TUI (chars / 4). */
 export function estimateTokens(text: string): number {
   return Math.max(0, Math.round(text.length / 4));

@@ -2,7 +2,6 @@
 
 import { readFile } from "node:fs/promises";
 import { Command, Option } from "commander";
-import { configureLogging } from "@strands-agents/sdk";
 import { bootstrap } from "./core/index.js";
 import { createMcpConfig, createMcpManager } from "./core/mcp/index.js";
 import { createToolApprovalIntervention } from "./exec/approvals.js";
@@ -44,6 +43,15 @@ import {
   type CliSessionSummary,
 } from "./core/sessions/list-cli-sessions.js";
 import { createRuntimeConfig } from "./core/runtime-config.js";
+import {
+  createModelDownloadLogger,
+  subscribeModelDownloadProgress,
+} from "./core/models/download-progress.js";
+import {
+  patchSdkLogger,
+  quietChatLogs,
+  redirectLogs,
+} from "./core/utils/logging.js";
 
 async function readPackageMeta(): Promise<{
   name: string;
@@ -224,6 +232,9 @@ program
   .addOption(cliSessionModeOption())
   .addOption(cliYoloOption("interactive"))
   .action(async (prompt: string, options: CliAgentBootstrapFlags) => {
+    // Keep third-party `console.*` chatter (e.g. the Hugging Face Hub's
+    // "Downloading …" lines) off stdout, which carries the agent output.
+    redirectLogs();
     const sessionId = options.session?.trim() || crypto.randomUUID();
     const {
       agent,
@@ -242,9 +253,15 @@ program
     if (canPromptForQuestion()) {
       setAskUserBackend(agent, createExecAskUserBackend());
     }
+    // Model weights download progress (llama.cpp GGUF fetch on first use):
+    // live single-line updates on a TTY, coarse log lines when piped.
+    const stopDownloadProgress = subscribeModelDownloadProgress(
+      createModelDownloadLogger({ stream: process.stderr }),
+    );
     try {
       await runWithAgentMemoryScope(agent, () => agent.invoke(prompt));
     } finally {
+      stopDownloadProgress();
       try {
         await flushAgentMemory(agent);
       } catch {}
@@ -264,6 +281,9 @@ program
   .addOption(cliYoloOption("interactive"))
   .option("-C, --continue", "Resume the latest session in the current project.")
   .action(async (prompt: string | undefined, options: CliChatFlags) => {
+    // Ink owns stdout: drop console/SDK chatter instead of redirecting it —
+    // raw stderr writes would garble the live frame (see quietChatLogs).
+    quietChatLogs();
     const config = createSessionConfig();
     const pinnedSession = options.session?.trim();
     const continuedSession = options.continue ? await latestCliSession() : null;
@@ -396,6 +416,8 @@ program
     "Log each MCP channel notification payload to the console.",
   )
   .action(async (options: CliAgentBootstrapFlags & { debug?: boolean }) => {
+    // Same as `exec`: console chatter joins the daemon's stderr diagnostics.
+    redirectLogs();
     const session = options.session?.trim();
     const {
       agent,
@@ -509,34 +531,16 @@ program
     "Run as an Agent Client Protocol (ACP) agent on stdio for ACP-compatible clients.",
   )
   .action(async () => {
+    // stdout *is* the JSON-RPC channel: any stray `console.*` write would
+    // corrupt the protocol stream, so everything goes to stderr.
+    redirectLogs();
     await runAcpStdio();
   });
 
-// The Strands SDK's default logger uses `console.warn`/`console.error`. Ink's
-// `render` patches `console.*` (patchConsole defaults to on), so those writes
-// get captured and printed into the chat transcript. Writing straight to
-// `process.stderr` bypasses that patch, keeping SDK diagnostics out of the TUI
-// while still surfacing them on the error stream (and off stdout, which the ACP
-// stdio protocol owns).
-function writeStderr(prefix: string, args: unknown[]): void {
-  const line = args
-    .map((arg) =>
-      typeof arg === "string"
-        ? arg
-        : arg instanceof Error
-          ? (arg.stack ?? arg.message)
-          : String(arg),
-    )
-    .join(" ");
-  process.stderr.write(`${prefix} ${line}\n`);
-}
-
-configureLogging({
-  debug: () => {},
-  info: () => {},
-  warn: (...args: unknown[]) => writeStderr("[strands:warn]", args),
-  error: (...args: unknown[]) => writeStderr("[strands:error]", args),
-});
+// Default Strands SDK logger for every command (warn+ on stderr); the
+// commands above additionally re-route or silence global `console` output
+// per surface — utility commands (sessions/config/mcp) keep stdout intact.
+patchSdkLogger();
 
 const argv =
   process.argv.slice(2).length === 0 ? [...process.argv, "chat"] : process.argv;

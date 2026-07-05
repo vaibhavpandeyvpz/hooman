@@ -214,6 +214,18 @@ const defaultConfigData = (): ConfigData => ({
       default: true,
     },
     {
+      name: "Qwen3.5 0.8B",
+      provider: "llama.cpp",
+      options: {
+        model: "unsloth/Qwen3.5-0.8B-MTP-GGUF:Q8_0",
+      },
+      default: false,
+    },
+    {
+      // The unsloth conversion, not Google's official
+      // `google/gemma-4-E2B-it-qat-q4_0-gguf`: that GGUF ships a malformed
+      // metadata entry (empty key) that llama.cpp's parser rejects with
+      // `GGML_ASSERT(!key.empty())`, aborting the process.
       name: "Gemma 4 E2B",
       provider: "llama.cpp",
       options: {

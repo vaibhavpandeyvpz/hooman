@@ -21,6 +21,10 @@ import { createEmptyUsage } from "../core/utils/strands-usage-accumulate.js";
 import type { Config } from "../core/config.js";
 import type { Manager as McpManager } from "../core/mcp/index.js";
 import { modelProviders } from "../core/models/index.js";
+import {
+  subscribeModelDownloadProgress,
+  type ModelDownloadProgress,
+} from "../core/models/download-progress.js";
 import { toAdditiveUsage } from "../core/models/usage.js";
 import {
   computeUsageCostUsd,
@@ -510,6 +514,15 @@ export function ChatApp({
   const [todoState, setTodoState] = useState<TodoViewState>(() =>
     getTodoViewState(agent),
   );
+  // In-flight model weights download (llama.cpp GGUF fetched from the Hugging
+  // Face Hub on first use); rendered as a transient progress row in the chrome.
+  const [downloadProgress, setDownloadProgress] =
+    useState<ModelDownloadProgress | null>(null);
+  useEffect(() => {
+    return subscribeModelDownloadProgress((progress) => {
+      setDownloadProgress(progress.status === "downloading" ? progress : null);
+    });
+  }, []);
   const mountedRef = useRef(true);
   const runningRef = useRef(false);
   const assistantLineIdRef = useRef<string | null>(null);
@@ -1777,6 +1790,7 @@ export function ChatApp({
               ? billingMeter.costUsd
               : undefined
           }
+          downloadProgress={downloadProgress}
           todoState={todoState}
           queuedPrompts={queuedPrompts}
           pendingApproval={Boolean(pendingApproval)}
