@@ -26,7 +26,7 @@ function expandHome(p: string): string {
  * repo designation. Accepted shapes (an optional `hf:` prefix is stripped):
  * - `/abs/path/model.gguf`, `./rel/model.gguf`, `~/models/model.gguf`
  * - `owner/repo` (the repo's GGUF file is auto-detected)
- * - `owner/repo:Q8_0` (pick the variant matching a quant tag, llama.cpp style)
+ * - `owner/repo:Q4_K_M` (pick the variant matching a quant tag, llama.cpp style)
  * - `owner/repo/path/to/file.gguf` (pin an exact file, e.g. a quant variant)
  */
 export function parseModelSpec(model: string): ParsedModelSpec {
@@ -94,7 +94,7 @@ function quantRank(filePath: string): number {
  * Auto-detect the GGUF file to use in a Hugging Face repo. Ignores `mmproj`
  * projector and `mtp` (multi-token-prediction) companion files; for sharded
  * models returns the first shard (its siblings are downloaded alongside it).
- * With a `quant` tag (e.g. `Q8_0` from `owner/repo:Q8_0`) only files whose
+ * With a `quant` tag (e.g. `Q4_K_M` from `owner/repo:Q4_K_M`) only files whose
  * name contains that tag are considered. Otherwise, when several distinct
  * GGUF variants exist, common quantizations are preferred (Q4_K_M first) and
  * ties break alphabetically — pin `owner/repo/file.gguf` to override.

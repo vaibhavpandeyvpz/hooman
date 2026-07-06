@@ -59,55 +59,37 @@ This is the default shape Hooman writes when `~/.hooman/config.json` is missing:
   ],
   "llms": [
     {
-      "name": "Qwen3 1.7B",
+      "name": "Gemma 4 E2B (llama.cpp)",
       "provider": "llama.cpp",
       "options": {
-        "model": "Qwen/Qwen3-1.7B-GGUF:Q8_0",
-        "context": 32768
-      },
-      "default": true
-    },
-    {
-      "name": "Qwen3.5 0.8B",
-      "provider": "llama.cpp",
-      "options": {
-        "model": "unsloth/Qwen3.5-0.8B-MTP-GGUF:Q8_0",
-        "context": 262144
-      },
-      "default": false
-    },
-    {
-      "name": "Gemma 4 E2B",
-      "provider": "llama.cpp",
-      "options": {
-        "model": "unsloth/gemma-4-E2B-it-GGUF:Q8_0",
+        "model": "unsloth/gemma-4-E2B-it-GGUF:Q4_K_M",
         "context": 131072
       },
       "default": false
     },
     {
-      "name": "Qwen3.5 9B (MLX)",
-      "provider": "mlx",
+      "name": "Qwen3.5 2B (llama.cpp)",
+      "provider": "llama.cpp",
       "options": {
-        "model": "mlx-community/Qwen3.5-9B-OptiQ-4bit",
+        "model": "unsloth/Qwen3.5-2B-MTP-GGUF:Q4_K_M",
         "context": 262144
       },
       "default": false
     },
     {
-      "name": "Nemotron 3 Nano 4B (MLX)",
+      "name": "Gemma 4 E2B (MLX)",
       "provider": "mlx",
       "options": {
-        "model": "mlx-community/NVIDIA-Nemotron-3-Nano-4B-OptiQ-4bit",
-        "context": 262144
+        "model": "mlx-community/gemma-4-e2b-it-OptiQ-4bit",
+        "context": 131072
       },
       "default": false
     },
     {
-      "name": "Gemma 4 12B (MLX)",
+      "name": "Qwen3.5 2B (MLX)",
       "provider": "mlx",
       "options": {
-        "model": "mlx-community/gemma-4-12B-it-qat-OptiQ-4bit",
+        "model": "mlx-community/Qwen3.5-2B-OptiQ-4bit",
         "context": 262144
       },
       "default": false

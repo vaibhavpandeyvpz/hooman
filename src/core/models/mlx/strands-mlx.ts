@@ -202,8 +202,7 @@ function strandsMessagesToHistory(
           const target =
             last?.role === "user" && last.toolCalls === undefined
               ? last
-              : (history.push({ role: "user", content: "" }),
-                history.at(-1)!);
+              : (history.push({ role: "user", content: "" }), history.at(-1)!);
           target.images = [...(target.images ?? []), Buffer.from(source.bytes)];
           continue;
         }
@@ -240,9 +239,7 @@ function strandsToolsToDefinitions(
 }
 
 type StreamQueueItem =
-  | { token: JsToken }
-  | { result: JsGenerateResult }
-  | { error: unknown };
+  { token: JsToken } | { result: JsGenerateResult } | { error: unknown };
 
 /** Strands {@link Model} backed by in-process Apple MLX via `mlex.js`. */
 export class StrandsMlxModel extends Model<MlxModelConfig> {
@@ -326,7 +323,8 @@ export class StrandsMlxModel extends Model<MlxModelConfig> {
         : {}),
       ...(this.config.topP !== undefined ? { topP: this.config.topP } : {}),
       ...(tools ? { tools } : {}),
-      ...(this.config.promptCache === undefined || this.config.promptCache === false
+      ...(this.config.promptCache === undefined ||
+      this.config.promptCache === false
         ? { promptCache: false }
         : {}),
       // Presence of `reasoning` opts into thinking with a token budget;

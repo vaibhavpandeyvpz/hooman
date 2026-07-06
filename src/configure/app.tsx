@@ -217,9 +217,9 @@ const DEFAULT_MODEL_BY_PROVIDER: Record<
   [LlmProvider.Bedrock]: "anthropic.claude-sonnet-4-6",
   [LlmProvider.Google]: "gemini-2.5-flash",
   [LlmProvider.Groq]: "openai/gpt-oss-20b",
-  [LlmProvider.LlamaCpp]: "Qwen/Qwen3-1.7B-GGUF:Q8_0",
+  [LlmProvider.LlamaCpp]: "unsloth/gemma-4-E2B-it-GGUF:Q4_K_M",
   [LlmProvider.Minimax]: "MiniMax-M3",
-  [LlmProvider.Mlx]: "mlx-community/Qwen3.5-9B-OptiQ-4bit",
+  [LlmProvider.Mlx]: "mlx-community/gemma-4-e2b-it-OptiQ-4bit",
   [LlmProvider.Moonshot]: "kimi-k2.7-code",
   [LlmProvider.Ollama]: "gemma4:e4b",
   [LlmProvider.OpenAI]: "gpt-5.5",
@@ -2262,7 +2262,10 @@ export function ConfigureApp({
               `${enabled ? "Disabled" : "Enabled"} prompt cache for "${entry.name}".`,
             )
           ) {
-            setScreen({ kind: "config-provider-prompt-cache", name: entry.name });
+            setScreen({
+              kind: "config-provider-prompt-cache",
+              name: entry.name,
+            });
           }
         },
       },

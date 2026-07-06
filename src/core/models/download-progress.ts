@@ -11,9 +11,9 @@
 
 export type ModelDownloadProgress = {
   status: "downloading" | "done" | "error";
-  /** Configured model spec, e.g. `Qwen/Qwen3-1.7B-GGUF:Q8_0`. */
+  /** Configured model spec, e.g. `unsloth/gemma-4-E2B-it-GGUF:Q4_K_M`. */
   model: string;
-  /** Basename of the file being downloaded, e.g. `Qwen3-1.7B-Q8_0.gguf`. */
+  /** Basename of the file being downloaded, e.g. `gemma-4-E2B-it-Q4_K_M.gguf`. */
   file: string;
   /** Set for sharded GGUFs (each shard is downloaded and reported in turn). */
   shard?: { index: number; total: number };

@@ -64,7 +64,7 @@ export interface CostInfo {
  */
 export interface ModelDownloadInfo {
   status: "downloading" | "done" | "error";
-  /** Configured model spec, e.g. `Qwen/Qwen3-1.7B-GGUF:Q8_0`. */
+  /** Configured model spec, e.g. `unsloth/gemma-4-E2B-it-GGUF:Q4_K_M`. */
   model: string;
   /** Basename of the file being downloaded. */
   file: string;

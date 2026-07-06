@@ -3,7 +3,7 @@ title: MLX
 description: Configure the mlx provider — in-process Apple MLX inference via mlex.js, with MLX-format models fetched from the Hugging Face Hub.
 ---
 
-Runtime provider id: `mlx`. Runs MLX-format models in-process on Apple Silicon via [mlex.js](https://github.com/vaibhavpandeyvpz/mlex) (Metal GPU) — no separate server required. A fresh `config.json` ships an `mlx` provider entry with three presets — `Qwen3.5 9B (MLX)` ([mlx-community/Qwen3.5-9B-OptiQ-4bit](https://huggingface.co/mlx-community/Qwen3.5-9B-OptiQ-4bit)), `Nemotron 3 Nano 4B (MLX)` ([mlx-community/NVIDIA-Nemotron-3-Nano-4B-OptiQ-4bit](https://huggingface.co/mlx-community/NVIDIA-Nemotron-3-Nano-4B-OptiQ-4bit)), and `Gemma 4 12B (MLX)` ([mlx-community/gemma-4-12B-it-qat-OptiQ-4bit](https://huggingface.co/mlx-community/gemma-4-12B-it-qat-OptiQ-4bit)) — alongside the default [llama.cpp](/hooman/guides/configuration/models/llama-cpp/) presets. Weights are downloaded from the Hugging Face Hub (via `@huggingface/hub`) into `~/.hooman/cache/huggingface` on first use and reused afterwards.
+Runtime provider id: `mlx`. Runs MLX-format models in-process on Apple Silicon via [mlex.js](https://github.com/vaibhavpandeyvpz/mlex) (Metal GPU) — no separate server required. A fresh `config.json` ships an `mlx` provider entry with two presets — `Gemma 4 E2B (MLX)` ([mlx-community/gemma-4-e2b-it-OptiQ-4bit](https://huggingface.co/mlx-community/gemma-4-e2b-it-OptiQ-4bit)) and `Qwen3.5 2B (MLX)` ([mlx-community/Qwen3.5-2B-OptiQ-4bit](https://huggingface.co/mlx-community/Qwen3.5-2B-OptiQ-4bit)) — alongside the bundled [llama.cpp](/hooman/guides/configuration/models/llama-cpp/) presets `unsloth/gemma-4-E2B-it-GGUF:Q4_K_M` and `unsloth/Qwen3.5-2B-MTP-GGUF:Q4_K_M`. Both MLX presets are small enough for fast prefill on CPU-bound agent turns (large system prompt + tool schemas); bigger MLX checkpoints work but prefill noticeably slower. Weights are downloaded from the Hugging Face Hub (via `@huggingface/hub`) into `~/.hooman/cache/huggingface` on first use and reused afterwards.
 
 :::note
 Apple Silicon only. The prebuilt `mlex.js` binaries additionally require **macOS 26 or newer** — on older macOS or non-Mac platforms the provider fails at load time with a native-module error.
@@ -13,14 +13,14 @@ Apple Silicon only. The prebuilt `mlex.js` binaries additionally require **macOS
 
 `mlex.js` implements a fixed set of architectures, detected from the repo's `config.json` `model_type`:
 
-| Architecture      | `model_type`                                  | Notes                                                            |
-| ----------------- | --------------------------------------------- | ---------------------------------------------------------------- |
-| Qwen2 / Qwen2.5   | `qwen2`, `llama`                              | Also covers MiniCPM5 and similar vanilla-GQA checkpoints         |
-| Qwen3             | `qwen3`                                       | Dense                                                            |
-| Qwen3.5 / 3.6     | `qwen3_5`, `qwen3_5_moe` (+ `_text` variants) | Dense and MoE, GatedDeltaNet hybrid                              |
-| Gemma 4           | `gemma4`, `gemma4_text`                       | Text-only and multi-modal (vision/audio) variants                |
-| Nemotron 3 (H)    | `nemotron_h`                                  | Hybrid Mamba2/attention                                          |
-| DharaAR           | `dhara_ar`                                    | Canon-conv LLaMA3-style GQA                                      |
+| Architecture    | `model_type`                                  | Notes                                                    |
+| --------------- | --------------------------------------------- | -------------------------------------------------------- |
+| Qwen2 / Qwen2.5 | `qwen2`, `llama`                              | Also covers MiniCPM5 and similar vanilla-GQA checkpoints |
+| Qwen3           | `qwen3`                                       | Dense                                                    |
+| Qwen3.5 / 3.6   | `qwen3_5`, `qwen3_5_moe` (+ `_text` variants) | Dense and MoE, GatedDeltaNet hybrid                      |
+| Gemma 4         | `gemma4`, `gemma4_text`                       | Text-only and multi-modal (vision/audio) variants        |
+| Nemotron 3 (H)  | `nemotron_h`                                  | Hybrid Mamba2/attention                                  |
+| DharaAR         | `dhara_ar`                                    | Canon-conv LLaMA3-style GQA                              |
 
 Any quantization scheme MLX ships loads across all of these: dense **bf16/fp16**, **affine 2–8 bit** at any group size (mlx-community's standard `-4bit`/`-8bit` conversions), **mxfp4/mxfp8/nvfp4**, and mixed per-layer precision recipes such as **OptiQ** or **Google QAT** exports. The repo must be in MLX format — safetensors weights plus `config.json`/tokenizer files, e.g. [mlx-community](https://huggingface.co/mlx-community) conversions.
 
@@ -28,12 +28,12 @@ Multi-modal Gemma 4 checkpoints accept image input; images attached to the conve
 
 ## Provider options
 
-| Field                           | Type                                             | Notes                                                                                                                                                                                        |
-| -------------------------------- | ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `hfToken`                        | string                                           | Optional. Hugging Face access token for gated/private repos. Falls back to the `HF_TOKEN` env var.                                                                                             |
-| `context`                        | number                                           | Optional. Declared context window in tokens (per-LLM `options.context` overrides it). MLX allocates KV state dynamically, so this feeds the context-usage gauge rather than sizing memory.     |
-| `promptCache`                     | `{ minTokens?, maxEntries?, ttl? }` \| `false` \| `null` | Optional. Sizes and gates mlex's internal prompt-cache pool, applied once when the model loads. See below.                                                                            |
-| `reasoning`                       | object                                            | Optional. See [Reasoning](#reasoning).                                                                                                                                                          |
+| Field         | Type                                                     | Notes                                                                                                                                                                                      |
+| ------------- | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `hfToken`     | string                                                   | Optional. Hugging Face access token for gated/private repos. Falls back to the `HF_TOKEN` env var.                                                                                         |
+| `context`     | number                                                   | Optional. Declared context window in tokens (per-LLM `options.context` overrides it). MLX allocates KV state dynamically, so this feeds the context-usage gauge rather than sizing memory. |
+| `promptCache` | `{ minTokens?, maxEntries?, ttl? }` \| `false` \| `null` | Optional. Sizes and gates mlex's internal prompt-cache pool, applied once when the model loads. See below.                                                                                 |
+| `reasoning`   | object                                                   | Optional. See [Reasoning](#reasoning).                                                                                                                                                     |
 
 `promptCache` being `undefined` (the default when omitted), `null`, or `false` disables caching entirely — every turn is a fully cold generate call. An object — even `{}` — enables it, using mlex's own pool defaults (16 entries, 300s TTL, 8-token minimum) for any field left unset:
 
@@ -47,7 +47,7 @@ These are forwarded to `MlexModel.load`'s pool-sizing argument, so they take eff
 
 The LLM entry's `options.model` accepts:
 
-- `owner/repo` — a Hugging Face repo in MLX format (e.g. `mlx-community/Qwen3.5-9B-OptiQ-4bit`). All model files (config, safetensors shards, tokenizer assets) are downloaded, pinned to one revision.
+- `owner/repo` — a Hugging Face repo in MLX format (e.g. `mlx-community/Qwen3.5-2B-OptiQ-4bit`). All model files (config, safetensors shards, tokenizer assets) are downloaded, pinned to one revision.
 - A local MLX model directory (absolute, `./relative`, or `~/`-prefixed) containing `config.json` and safetensors weights.
 
 An optional `hf:` prefix is accepted and stripped.
@@ -64,7 +64,7 @@ Tools are declared with their standard JSON Schema parameters — no schema conv
 
 ## Example configs
 
-Out-of-the-box preset (matches the default `config.json` — the llama.cpp Qwen3 1.7B entry stays the active default):
+Out-of-the-box presets (matches the default `config.json`):
 
 ```json
 {
@@ -79,28 +79,19 @@ Out-of-the-box preset (matches the default `config.json` — the llama.cpp Qwen3
 ```json
 [
   {
-    "name": "Qwen3.5 9B (MLX)",
+    "name": "Gemma 4 E2B (MLX)",
     "provider": "mlx",
     "options": {
-      "model": "mlx-community/Qwen3.5-9B-OptiQ-4bit",
-      "context": 262144
+      "model": "mlx-community/gemma-4-e2b-it-OptiQ-4bit",
+      "context": 131072
     },
     "default": false
   },
   {
-    "name": "Nemotron 3 Nano 4B (MLX)",
+    "name": "Qwen3.5 2B (MLX)",
     "provider": "mlx",
     "options": {
-      "model": "mlx-community/NVIDIA-Nemotron-3-Nano-4B-OptiQ-4bit",
-      "context": 262144
-    },
-    "default": false
-  },
-  {
-    "name": "Gemma 4 12B (MLX)",
-    "provider": "mlx",
-    "options": {
-      "model": "mlx-community/gemma-4-12B-it-qat-OptiQ-4bit",
+      "model": "mlx-community/Qwen3.5-2B-OptiQ-4bit",
       "context": 262144
     },
     "default": false

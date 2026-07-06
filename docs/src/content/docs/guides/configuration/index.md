@@ -31,18 +31,18 @@ A minimal valid `config.json` needs `name`, `providers`, and a non-empty `llms` 
   ],
   "llms": [
     {
-      "name": "Qwen3 1.7B",
+      "name": "Gemma 4 E2B (llama.cpp)",
       "provider": "llama.cpp",
       "options": {
-        "model": "Qwen/Qwen3-1.7B-GGUF:Q8_0"
+        "model": "unsloth/gemma-4-E2B-it-GGUF:Q4_K_M"
       },
-      "default": true
+      "default": false
     },
     {
-      "name": "Gemma 4 E2B",
+      "name": "Qwen3.5 2B (llama.cpp)",
       "provider": "llama.cpp",
       "options": {
-        "model": "unsloth/gemma-4-E2B-it-GGUF:Q8_0"
+        "model": "unsloth/Qwen3.5-2B-MTP-GGUF:Q4_K_M"
       },
       "default": false
     }
