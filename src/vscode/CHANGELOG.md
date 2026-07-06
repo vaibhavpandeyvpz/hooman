@@ -2,7 +2,7 @@
 
 All notable changes to the Hooman VS Code extension are documented in this file.
 
-## [1.43.0]
+## [1.43.1]
 
 - Add a bundled local `mlx` provider for Apple Silicon on macOS 26+: the extension's packaged agent now ships MLX presets for Qwen3.5 9B, Nemotron 3 Nano 4B, and Gemma 4 12B, downloaded from the Hugging Face Hub on first use and run in-process via Metal.
 - Show output tokens per second in the usage footer for the latest request, alongside the existing input, cache, output, context-window, and session-cost meters.

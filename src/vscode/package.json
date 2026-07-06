@@ -2,7 +2,7 @@
   "name": "hooman-vscode",
   "displayName": "Hooman",
   "description": "Native VS Code chat backed by Hooman's Agent Client Protocol (ACP) agent",
-  "version": "1.43.0",
+  "version": "1.43.1",
   "private": true,
   "publisher": "VPZ",
   "license": "MIT",
