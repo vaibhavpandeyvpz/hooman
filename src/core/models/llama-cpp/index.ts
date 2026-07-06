@@ -25,6 +25,9 @@ export function create(
     ...(providerOptions.hfToken ? { hfToken: providerOptions.hfToken } : {}),
     gpu: providerOptions.gpu ?? "auto",
     ...(context !== undefined ? { context } : {}),
+    ...(providerOptions.promptCache !== undefined
+      ? { promptCache: providerOptions.promptCache }
+      : {}),
     ...(reasoning !== undefined
       ? {
           reasoning: { ...(effort !== undefined ? { effort } : {}) },

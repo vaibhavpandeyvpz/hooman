@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0.21 -0.077 1200 400" role="img" aria-label="MLX">
+  <defs>
+    <clipPath id="mlx-clip-ml"><path d="M 13,0 H 283 V 139.71875 H 13 Z" /></clipPath>
+    <clipPath id="mlx-clip-x"><path d="M 296,0 H 427 V 139.71875 H 296 Z" /></clipPath>
+  </defs>
+  <g transform="matrix(2.8628942,0,0,2.8628942,-713.88282,-850.13972)">
+    <g clip-path="url(#mlx-clip-ml)" transform="translate(238.5907,296.923)">
+      <g transform="translate(0,139.72)">
+        <path d="m 13.9375,0 h 28.375 v -91.796875 h 1.359375 L 78.71875,0 h 19.265625 l 35.046875,-91.796875 h 1.35937 V 0 h 28.375 V -139.71875 H 125.96875 L 88.984375,-42.015625 H 87.8125 L 50.734375,-139.71875 H 13.9375 Z m 0,0" />
+      </g>
+      <g transform="translate(176.6821,139.72)">
+        <path d="m 13.9375,0 h 92.28125 V -26.046875 H 45.984375 V -139.71875 H 13.9375 Z m 0,0" />
+      </g>
+    </g>
+    <g clip-path="url(#mlx-clip-x)" transform="translate(238.5907,296.923)" fill-opacity="0.5">
+      <g transform="translate(290.57001,139.72)">
+        <path d="M 6.296875,0 H 40.5625 l 28.953125,-47.34375 h 0.96875 L 99.625,0 h 36.21875 L 91.109375,-69.8125 v -0.484375 l 45.218745,-69.421875 h -35.62499 l -27.70313,49 h -1.15625 l -27.890625,-49 H 6.484375 L 49.96875,-70.6875 v 0.390625 z m 0,0" />
+      </g>
+    </g>
+  </g>
+</svg>

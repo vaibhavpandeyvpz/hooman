@@ -2,7 +2,12 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { cachePath } from "./paths.js";
 import { LlmProvider } from "../models/types.js";
-import type { LlmBilling } from "../models/types.js";
+import type {
+  LlamaCppProviderOptions,
+  LlmBilling,
+  MlxProviderOptions,
+  ProviderOptions,
+} from "../models/types.js";
 
 /**
  * Billing metadata resolution backed by the models.dev catalog.
@@ -339,6 +344,33 @@ const LOCAL_PROVIDERS: ReadonlySet<LlmProvider> = new Set([
 ]);
 
 /**
+ * The context size configured on a resolved LLM entry, when the provider
+ * actually honors one: for the local `llama-cpp` and `mlx` providers this is
+ * the per-LLM `options.context` (falling back to the provider-level
+ * `context`). Other providers' windows are fixed server-side, so config
+ * context is ignored for them. Feed the result into
+ * {@link resolveLlmBilling}'s `configuredContext` so the context gauge
+ * reflects the actual runtime window rather than the catalog's training
+ * window.
+ */
+export function configuredLlmContext(llm: {
+  provider: LlmProvider;
+  providerOptions: ProviderOptions;
+  llmOptions: { context?: number };
+}): number | undefined {
+  if (
+    llm.provider !== LlmProvider.LlamaCpp &&
+    llm.provider !== LlmProvider.Mlx
+  ) {
+    return undefined;
+  }
+  const providerContext = (
+    llm.providerOptions as LlamaCppProviderOptions | MlxProviderOptions
+  ).context;
+  return llm.llmOptions.context ?? providerContext;
+}
+
+/**
  * Resolve billing metadata for a model: config-provided `billing` fields win,
  * anything missing is filled from the models.dev catalog, and the billing
  * name defaults to the raw model id when no `billing` block is configured.
@@ -349,15 +381,20 @@ const LOCAL_PROVIDERS: ReadonlySet<LlmProvider> = new Set([
  * discarded — the catalog prices the hosted API for the same model id, not
  * the free local inference — so only the context window resolves (config
  * `billing.costs`, if explicitly set, is still honored).
+ *
+ * `configuredContext` (the runtime context actually configured on the LLM
+ * entry — see {@link configuredLlmContext}) sits between the two sources:
+ * an explicit `billing.context` wins over it, and it wins over the catalog.
  */
 export async function resolveLlmBilling(
   billing: LlmBilling | null | undefined,
   modelId: string,
   provider?: LlmProvider,
+  configuredContext?: number,
 ): Promise<ResolvedLlmBilling | null> {
   const name = billing?.name ?? modelId;
   const isLocal = provider !== undefined && LOCAL_PROVIDERS.has(provider);
-  let context = billing?.context;
+  let context = billing?.context ?? configuredContext;
   let costs = billing?.costs ? configCostsToResolved(billing.costs) : undefined;
 
   if (context === undefined || (costs === undefined && !isLocal)) {

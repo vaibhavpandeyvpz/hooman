@@ -61,9 +61,13 @@ export type LlmOptions = {
   temperature?: number;
   maxTokens?: number;
   /**
-   * Context size in tokens for this model. Only honored by the `llama-cpp`
-   * provider (overrides the provider-level `context`); other providers
-   * ignore it.
+   * Context size in tokens for this model. Only honored by the local
+   * `llama-cpp` and `mlx` providers (overrides the provider-level
+   * `context`); other providers ignore it. For llama-cpp it sizes the
+   * actual llama.cpp context; for mlx (where MLX allocates KV state
+   * dynamically) it declares the model's usable window. Both feed the
+   * context-usage gauge, taking precedence over the models.dev catalog
+   * (an explicit `billing.context` still wins).
    */
   context?: number;
 };
@@ -174,6 +178,12 @@ export type LlamaCppProviderOptions = {
    */
   context?: number;
   /**
+   * Whether turns may reuse KV state already evaluated by a previous turn
+   * (llama.cpp context-sequence state reuse). Defaults to `true`; set
+   * `false` to re-prefill the full conversation from scratch every turn.
+   */
+  promptCache?: boolean;
+  /**
    * Reasoning controls. Providing `reasoning` enables thinking: the chat
    * template is configured to allow thought segments (Qwen `thoughts: "auto"`,
    * Gemma 4 `reasoning: true`, gpt-oss/Harmony native reasoning-effort) and
@@ -197,6 +207,18 @@ export type MinimaxProviderOptions = {
   reasoning?: ReasoningOptions;
 };
 
+/**
+ * Sizing for mlex's internal prompt-cache pool (LRU + idle-TTL eviction,
+ * keyed by longest exact-prefix match on token ids), applied once when the
+ * model is loaded. All fields are optional overrides of mlex's own
+ * defaults (`maxEntries` 16, `ttl` 300s, `minTokens` 8).
+ */
+export type MlxPromptCacheConfig = {
+  minTokens?: number;
+  maxEntries?: number;
+  ttl?: number;
+};
+
 export type MlxProviderOptions = {
   /**
    * Hugging Face access token used when downloading MLX-format weights from
@@ -204,6 +226,21 @@ export type MlxProviderOptions = {
    * unset.
    */
   hfToken?: string;
+  /**
+   * Default context size in tokens for this provider's models. MLX
+   * allocates KV state dynamically, so this doesn't size an allocation —
+   * it declares the usable window for the context-usage gauge. Per-LLM
+   * `options.context` takes precedence.
+   */
+  context?: number;
+  /**
+   * Whether turns may reuse KV state from mlex's internal prompt-cache
+   * pool (prefix matching against previous calls), applied once when the
+   * model is loaded. `undefined`, `null`, and `false` all disable caching
+   * entirely; an object (even `{}`) enables it, optionally overriding
+   * mlex's own pool-sizing defaults via its fields.
+   */
+  promptCache?: MlxPromptCacheConfig | false | null;
   /**
    * Reasoning controls. Providing `reasoning` enables thinking: the model
    * thinks naturally and `effort` caps thought tokens via the runtime's
@@ -434,6 +471,7 @@ export const LlamaCppProviderOptionsSchema = z.preprocess(
         .union([z.enum(["auto", "metal", "cuda", "vulkan"]), z.literal(false)])
         .optional(),
       context: z.number().int().positive().optional(),
+      promptCache: z.boolean().optional(),
       reasoning: ReasoningOptionsSchema.optional(),
     })
     .strict(),
@@ -448,9 +486,21 @@ export const MinimaxProviderOptionsSchema = z
   })
   .strict();
 
+export const MlxPromptCacheConfigSchema = z
+  .object({
+    minTokens: z.number().int().nonnegative().optional(),
+    maxEntries: z.number().int().positive().optional(),
+    ttl: z.number().int().positive().optional(),
+  })
+  .strict();
+
 export const MlxProviderOptionsSchema = z
   .object({
     hfToken: NonEmptyStringSchema.optional(),
+    context: z.number().int().positive().optional(),
+    promptCache: z
+      .union([MlxPromptCacheConfigSchema, z.literal(false), z.null()])
+      .optional(),
     reasoning: ReasoningOptionsSchema.optional(),
   })
   .strict();

@@ -80,7 +80,7 @@ function isModelFile(path: string): boolean {
  * one download via `subscribeModelDownloadProgress`; the smaller JSON/
  * tokenizer files download silently unless they exceed the reporter's
  * blob-size threshold. Returns the snapshot directory containing
- * `config.json`, which `@mlx-node/lm`'s `loadModel` consumes directly.
+ * `config.json`, which `mlex.js`'s `MlexModel.load` consumes directly.
  */
 export async function resolveModelDir(
   model: string,

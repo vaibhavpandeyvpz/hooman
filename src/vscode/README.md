@@ -9,7 +9,7 @@
   </p>
 </div>
 
-Hooman adds a chat panel to your activity bar, powered by the [Hooman CLI](https://www.npmjs.com/package/hoomanjs)'s Agent Client Protocol ([ACP](https://agentclientprotocol.com)) agent. Bring your own provider — Anthropic, OpenAI, Google, Ollama, OpenRouter, and [more](https://vaibhavpandey.com/hooman/guides/configuration/models/) — and let the agent read, edit, and run things in your workspace while you review and approve each step.
+Hooman adds a chat panel to your activity bar, powered by the [Hooman CLI](https://www.npmjs.com/package/hoomanjs)'s Agent Client Protocol ([ACP](https://agentclientprotocol.com)) agent. Bring your own provider — Anthropic, OpenAI, Google, Ollama, OpenRouter, local llama.cpp/MLX, and [more](https://vaibhavpandey.com/hooman/guides/configuration/models/) — and let the agent read, edit, and run things in your workspace while you review and approve each step.
 
 - Works in **stable VS Code, VS Code Insiders, and VS Code-compatible forks**.
 - **No special subscription**, no proposed APIs, no gating of any kind.
@@ -35,7 +35,7 @@ Hooman adds a chat panel to your activity bar, powered by the [Hooman CLI](https
 1. Install [Node.js](https://nodejs.org) `>= 24` (`npx` ships with it — that's all the extension needs).
 2. Install this extension.
 3. Click the **Hooman icon in the activity bar** and send a prompt. The extension launches the agent via `npx hoomanjs acp`, downloading the CLI on first use — no separate install step.
-4. Pick your provider and model. Out of the box, Hooman is configured for a local [Ollama](https://ollama.com) instance. To use a hosted provider instead, either:
+4. Pick your provider and model. Out of the box, Hooman is configured for local [llama.cpp](https://github.com/ggml-org/llama.cpp) models (plus [MLX](https://github.com/vaibhavpandeyvpz/mlex) presets on Apple Silicon) — no server or API key needed. To use a hosted provider instead, either:
    - click **Open Settings…** (gear icon in the panel title bar) to edit `~/.hooman/config.json` directly, or
    - run `npx hoomanjs` in a terminal and use the `/config` workflow.
 

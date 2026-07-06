@@ -72,6 +72,7 @@ import {
 import { toAdditiveUsage } from "../core/models/usage.js";
 import {
   computeUsageCostUsd,
+  configuredLlmContext,
   contextTokensFromUsage,
   resolveLlmBilling,
   type ResolvedLlmBilling,
@@ -1025,6 +1026,7 @@ export class HoomanAcpAgent {
         resolved.billing,
         resolved.llmOptions.model,
         resolved.provider,
+        configuredLlmContext(resolved),
       ).catch(() => null);
     } catch (error) {
       if (previous) {
@@ -1743,6 +1745,7 @@ export class HoomanAcpAgent {
       activeLlm.billing,
       activeLlm.llmOptions.model,
       activeLlm.provider,
+      configuredLlmContext(activeLlm),
     ).catch(() => null);
 
     return {

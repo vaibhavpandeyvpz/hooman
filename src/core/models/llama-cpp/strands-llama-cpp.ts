@@ -47,6 +47,12 @@ export interface LlamaCppModelConfig extends BaseModelConfig {
   /** Context size in tokens (default: adapted to the model and free VRAM/RAM). */
   context?: number;
   /**
+   * Whether turns may reuse the context sequence's KV state evaluated by a
+   * previous turn (default `true`). `false` clears the sequence before each
+   * generation, re-prefilling the full conversation from scratch.
+   */
+  promptCache?: boolean;
+  /**
    * Thinking controls. Presence enables reasoning: the resolved chat wrapper is
    * configured to allow thought segments (Qwen `thoughts: "auto"`, Gemma 4
    * `reasoning: true`, Harmony `reasoningEffort` mapped from `effort`). Absence
@@ -324,6 +330,13 @@ export class StrandsLlamaCppModel extends Model<LlamaCppModelConfig> {
       throw new ModelError(`llama.cpp initialization failed: ${msg}`, {
         cause: e,
       });
+    }
+
+    if (this.config.promptCache === false) {
+      // Drop the sequence's evaluated KV state so this turn prefills the
+      // full conversation from scratch instead of reusing the prior
+      // turn's prefix.
+      await chat.sequence.clearHistory();
     }
 
     const systemText = extractSystemText(options?.systemPrompt);

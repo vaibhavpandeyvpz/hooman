@@ -28,6 +28,7 @@ import {
 import { toAdditiveUsage } from "../core/models/usage.js";
 import {
   computeUsageCostUsd,
+  configuredLlmContext,
   contextTokensFromUsage,
   resolveLlmBilling,
   type ResolvedLlmBilling,
@@ -491,6 +492,7 @@ export function ChatApp({
       resolved.billing,
       resolved.llmOptions.model,
       resolved.provider,
+      configuredLlmContext(resolved),
     )
       .catch(() => null)
       .then((next) => {

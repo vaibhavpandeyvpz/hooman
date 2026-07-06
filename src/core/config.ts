@@ -206,7 +206,10 @@ const defaultConfigData = (): ConfigData => ({
     {
       name: "mlx",
       provider: LlmProvider.Mlx,
-      options: {},
+      // `promptCache: {}` enables mlex's prompt-cache pool with its own
+      // sizing defaults (16 entries, 300s TTL, 8-token minimum); omitting
+      // `promptCache` disables caching entirely.
+      options: { promptCache: {} },
     },
   ],
   llms: [
@@ -241,15 +244,35 @@ const defaultConfigData = (): ConfigData => ({
       },
       default: false,
     },
+    // The MLX entries below are Apple Silicon + macOS 26+ only (prebuilt
+    // mlex.js binaries); other platforms fail at load time if selected.
+    // MLX allocates KV state dynamically, so `context` declares each
+    // model's usable window (its full training window per config.json's
+    // max_position_embeddings) for the context-usage gauge.
     {
-      // Apple Silicon + macOS 26+ only (prebuilt @mlx-node binaries); other
-      // platforms fail at load time if this entry is selected. Must stay a
-      // bf16 repo: mlx-community's uniform 4-bit quants don't load in
-      // @mlx-node/lm (see src/core/models/mlx/).
-      name: "Qwen3 0.6B (MLX)",
+      name: "Qwen3.5 9B (MLX)",
       provider: "mlx",
       options: {
-        model: "mlx-community/Qwen3-0.6B-bf16",
+        model: "mlx-community/Qwen3.5-9B-OptiQ-4bit",
+        context: 262144,
+      },
+      default: false,
+    },
+    {
+      name: "Nemotron 3 Nano 4B (MLX)",
+      provider: "mlx",
+      options: {
+        model: "mlx-community/NVIDIA-Nemotron-3-Nano-4B-OptiQ-4bit",
+        context: 262144,
+      },
+      default: false,
+    },
+    {
+      name: "Gemma 4 12B (MLX)",
+      provider: "mlx",
+      options: {
+        model: "mlx-community/gemma-4-12B-it-qat-OptiQ-4bit",
+        context: 262144,
       },
       default: false,
     },

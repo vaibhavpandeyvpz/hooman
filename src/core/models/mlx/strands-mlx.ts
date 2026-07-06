@@ -18,12 +18,15 @@ import {
 import type { ModelStreamEvent } from "@strands-agents/sdk";
 import type { ToolResultBlock, ToolUseBlock } from "@strands-agents/sdk";
 import type {
-  ChatConfig,
-  ChatMessage,
-  SessionCapableModel,
-  ToolDefinition,
-} from "@mlx-node/lm";
+  JsChatMessage,
+  JsGenerateOptions,
+  JsGenerateResult,
+  JsToken,
+  JsTool,
+  MlexModel,
+} from "mlex.js";
 import { resolveModelDir } from "./resolve-model.js";
+import type { MlxPromptCacheConfig } from "../types.js";
 
 export interface MlxModelConfig extends BaseModelConfig {
   /**
@@ -35,25 +38,48 @@ export interface MlxModelConfig extends BaseModelConfig {
   /** Hugging Face access token for gated/private repos (falls back to `HF_TOKEN`). */
   hfToken?: string;
   /**
-   * Thinking controls. Presence enables reasoning: the model thinks naturally
-   * and `effort` caps thought tokens via the runtime's thinking-token budget.
-   * Absence disables it (`reasoningEffort: "none"` — the chat template closes
-   * the think block immediately and reasoning content is dropped).
+   * Whether turns may reuse KV state from mlex's internal prompt-cache pool
+   * (prefix matching against previous calls), applied once when the model
+   * is loaded. `undefined`/`false` disables caching entirely (every
+   * generate call forwards `promptCache: false`); an object (even `{}`)
+   * enables it, with its fields overriding mlex's own pool-sizing defaults.
+   */
+  promptCache?: MlxPromptCacheConfig | false;
+  /**
+   * Thinking controls. Presence enables reasoning (`enableThinking: true` on
+   * the chat template) with `effort` capping the reasoning span via
+   * `reasoningBudgetTokens`. Absence disables it: the template renders with
+   * thinking off and reasoning content is dropped.
    */
   reasoning?: { effort?: "minimal" | "low" | "medium" | "high" };
-  /** Cap on thought-segment tokens while reasoning is enabled. */
+  /** Cap on reasoning-span tokens while thinking is enabled. */
   thoughtBudgetTokens?: number;
 }
 
 /**
- * Loaded MLX models are expensive (weights in unified memory), so share them
- * process-wide keyed by resolved model directory. The native side owns one KV
- * cache per model and serializes turns on a worker thread; each `stream()`
- * call replays the full conversation through `chatStreamSessionStart`, whose
- * `reuseCache` prefix-matching turns the replay into an incremental prefill
- * when the same conversation continues.
+ * mlex.js caps generation at 256 tokens when `maxTokens` is unset — far too
+ * low for agent turns — so apply our own default instead.
  */
-const loadedModelPromises = new Map<string, Promise<SessionCapableModel>>();
+const DEFAULT_MAX_TOKENS = 8192;
+
+/**
+ * Loaded MLX models are expensive (weights in unified memory), so share them
+ * process-wide keyed by resolved model directory. mlex.js is stateless like
+ * the OpenAI/Anthropic APIs — every `generate` call takes the full
+ * transcript, and an internal prompt-cache pool transparently reuses KV
+ * state for whatever prefix a previous call already computed.
+ */
+const loadedModelPromises = new Map<string, Promise<MlexModel>>();
+
+/**
+ * Streamed token classification is best-effort at token granularity, so the
+ * reasoning-span markers themselves (`<think>`/`</think>`, Gemma4's channel
+ * markers) can arrive inside `kind: "reasoning"` deltas. The final result's
+ * `reasoning` field is marker-stripped — only the incremental stream carries
+ * them — so strip them here to keep the reasoning block to the chain of
+ * thought.
+ */
+const REASONING_MARKER_RE = /<\/?think>|<\|channel\|?>thought|<\/?channel\|>/g;
 
 function extractSystemText(system?: SystemPrompt): string | undefined {
   if (system === undefined) {
@@ -70,20 +96,6 @@ function extractSystemText(system?: SystemPrompt): string | undefined {
   }
   const joined = parts.join("\n").trim();
   return joined.length > 0 ? joined : undefined;
-}
-
-function contentBlockToText(block: ContentBlock): string | undefined {
-  if (block.type === "textBlock") {
-    return block.text;
-  }
-  if (
-    block.type === "imageBlock" ||
-    block.type === "videoBlock" ||
-    block.type === "documentBlock"
-  ) {
-    return `(mlx: ${block.type} content is not supported by this provider)`;
-  }
-  return undefined;
 }
 
 function toolResultToText(block: ToolResultBlock): string {
@@ -105,32 +117,39 @@ function toolResultToText(block: ToolResultBlock): string {
 }
 
 /**
- * Convert Strands conversation history to `@mlx-node/lm` `ChatMessage[]`.
- * Assistant toolUse blocks become `toolCalls` on the assistant message and
- * the matching toolResult blocks (which Strands puts on the following user
- * message) become `role: "tool"` messages referencing the call id — the
- * OpenAI-style layout the mlx-node chat templates expect. Rendering the full
- * history in one pass also sidesteps the ChatSession delta API's
- * one-tool-call-per-turn limit: multi-call fan-outs are resolved atomically
- * in a single jinja render.
+ * Convert Strands conversation history to mlex.js `JsChatMessage[]` — the
+ * same OpenAI-style layout: assistant toolUse blocks become `toolCalls` on
+ * the assistant message and the matching toolResult blocks (which Strands
+ * puts on the following user message) become `role: "tool"` messages
+ * referencing the call id. Image blocks with inline bytes are attached as
+ * `images` when the loaded checkpoint accepts them.
  */
 function strandsMessagesToHistory(
   messages: Message[],
   systemText: string | undefined,
-): ChatMessage[] {
-  const history: ChatMessage[] = [];
+  supportsImages: boolean,
+): JsChatMessage[] {
+  const history: JsChatMessage[] = [];
   if (systemText) {
     history.push({ role: "system", content: systemText });
   }
 
-  const pushText = (role: "user" | "assistant", text: string) => {
-    const last = history.at(-1);
-    if (last?.role === role && last.toolCalls === undefined) {
-      last.content =
-        last.content.length > 0 ? `${last.content}\n${text}` : text;
-    } else {
-      history.push({ role, content: text });
+  const appendText = (msg: JsChatMessage, text: string) => {
+    msg.content = msg.content.length > 0 ? `${msg.content}\n${text}` : text;
+  };
+
+  const blockToText = (block: ContentBlock): string | undefined => {
+    if (block.type === "textBlock") {
+      return block.text;
     }
+    if (
+      block.type === "imageBlock" ||
+      block.type === "videoBlock" ||
+      block.type === "documentBlock"
+    ) {
+      return `(mlx: ${block.type} content is not supported by this model)`;
+    }
+    return undefined;
   };
 
   for (const msg of messages) {
@@ -141,7 +160,7 @@ function strandsMessagesToHistory(
           const call = {
             id: b.toolUseId,
             name: b.name,
-            arguments: JSON.stringify(b.input ?? {}),
+            argumentsJson: JSON.stringify(b.input ?? {}),
           };
           const last = history.at(-1);
           if (last?.role === "assistant") {
@@ -155,12 +174,11 @@ function strandsMessagesToHistory(
           // Prior turns' chain of thought is not replayed into the context.
           continue;
         }
-        const text = contentBlockToText(block);
+        const text = blockToText(block);
         if (text !== undefined && text.length > 0) {
           const last = history.at(-1);
           if (last?.role === "assistant") {
-            last.content =
-              last.content.length > 0 ? `${last.content}\n${text}` : text;
+            appendText(last, text);
           } else {
             history.push({ role: "assistant", content: text });
           }
@@ -177,9 +195,27 @@ function strandsMessagesToHistory(
         });
         continue;
       }
-      const text = contentBlockToText(block);
+      if (block.type === "imageBlock" && supportsImages) {
+        const source = block.source as { bytes?: Uint8Array };
+        if (source.bytes !== undefined) {
+          const last = history.at(-1);
+          const target =
+            last?.role === "user" && last.toolCalls === undefined
+              ? last
+              : (history.push({ role: "user", content: "" }),
+                history.at(-1)!);
+          target.images = [...(target.images ?? []), Buffer.from(source.bytes)];
+          continue;
+        }
+      }
+      const text = blockToText(block);
       if (text !== undefined && text.length > 0) {
-        pushText("user", text);
+        const last = history.at(-1);
+        if (last?.role === "user" && last.toolCalls === undefined) {
+          appendText(last, text);
+        } else {
+          history.push({ role: "user", content: text });
+        }
       }
     }
   }
@@ -187,57 +223,31 @@ function strandsMessagesToHistory(
 }
 
 /**
- * Convert Strands tool specs to mlx-node `ToolDefinition`s. The native layer
- * cannot take nested objects across NAPI, so `parameters.properties` is a
- * JSON string (same conversion `createToolDefinition` performs).
+ * Convert Strands tool specs to mlex.js `JsTool`s. mlex takes standard JSON
+ * Schema `parameters` directly — no GBNF conversion or schema mangling.
  */
 function strandsToolsToDefinitions(
   toolSpecs: ToolSpec[] | undefined,
-): ToolDefinition[] | undefined {
+): JsTool[] | undefined {
   if (!toolSpecs?.length) {
     return undefined;
   }
-  return toolSpecs.map((spec) => {
-    const schema = (spec.inputSchema ?? {}) as {
-      properties?: Record<string, unknown>;
-      required?: unknown;
-    };
-    const properties = schema.properties;
-    const required = Array.isArray(schema.required)
-      ? schema.required.filter((r): r is string => typeof r === "string")
-      : undefined;
-    return {
-      type: "function",
-      function: {
-        name: spec.name,
-        ...(spec.description ? { description: spec.description } : {}),
-        ...(properties
-          ? {
-              parameters: {
-                type: "object",
-                properties: JSON.stringify(properties),
-                ...(required ? { required } : {}),
-              },
-            }
-          : {}),
-      },
-    } satisfies ToolDefinition;
-  });
+  return toolSpecs.map((spec) => ({
+    name: spec.name,
+    ...(spec.description ? { description: spec.description } : {}),
+    parameters: spec.inputSchema ?? { type: "object", properties: {} },
+  }));
 }
 
-/**
- * The native decode loop classifies each delta with `isReasoning`, but the
- * thought-marker tokens themselves (`<think>` / `</think>`) are streamed as
- * reasoning deltas too (the final event's `thinking` field is tag-stripped —
- * only the incremental stream carries them). Strip them so the reasoning
- * block contains just the chain of thought.
- */
-const THINK_MARKER_RE = /<\/?think>/g;
+type StreamQueueItem =
+  | { token: JsToken }
+  | { result: JsGenerateResult }
+  | { error: unknown };
 
-/** Strands {@link Model} backed by in-process Apple MLX via `@mlx-node/lm`. */
+/** Strands {@link Model} backed by in-process Apple MLX via `mlex.js`. */
 export class StrandsMlxModel extends Model<MlxModelConfig> {
   private config: MlxModelConfig;
-  private modelPromise: Promise<SessionCapableModel> | undefined;
+  private modelPromise: Promise<MlexModel> | undefined;
 
   constructor(config: MlxModelConfig) {
     super();
@@ -245,7 +255,8 @@ export class StrandsMlxModel extends Model<MlxModelConfig> {
   }
 
   updateConfig(modelConfig: MlxModelConfig): void {
-    const modelKey = (c: MlxModelConfig) => JSON.stringify([c.modelId]);
+    const modelKey = (c: MlxModelConfig) =>
+      JSON.stringify([c.modelId, c.promptCache ?? null]);
     const before = modelKey(this.config);
     this.config = { ...this.config, ...modelConfig };
     if (modelKey(this.config) !== before) {
@@ -258,60 +269,73 @@ export class StrandsMlxModel extends Model<MlxModelConfig> {
     return { ...this.config };
   }
 
-  private getModel(): Promise<SessionCapableModel> {
+  private getModel(): Promise<MlexModel> {
     this.modelPromise ??= this.initModel();
     return this.modelPromise;
   }
 
-  private async initModel(): Promise<SessionCapableModel> {
+  private async initModel(): Promise<MlexModel> {
     const modelId = this.config.modelId;
     if (!modelId) {
       throw new ModelError("MLX model is not configured");
     }
     const modelDir = await resolveModelDir(modelId, this.config.hfToken);
-    let promise = loadedModelPromises.get(modelDir);
+    const promptCache = this.config.promptCache;
+    const cacheEnabled = promptCache !== undefined && promptCache !== false;
+    // The prompt-cache pool is sized once at load time; key the shared
+    // instance by pool config too so two provider configs pointing at the
+    // same model directory with different sizing each get their own
+    // session instead of silently reusing whichever loaded first.
+    const cacheKey = `${modelDir}\u0000${JSON.stringify(cacheEnabled ? promptCache : false)}`;
+    let promise = loadedModelPromises.get(cacheKey);
     if (!promise) {
       promise = (async () => {
-        const { loadModel } = await import("@mlx-node/lm");
-        const loaded = await loadModel(modelDir);
-        if (
-          typeof (loaded as Partial<SessionCapableModel>)
-            .chatStreamSessionStart !== "function"
-        ) {
-          throw new Error(
-            `MLX model "${modelId}" is not a chat-capable model ` +
-              `(embedding/OCR models cannot be used as an LLM provider).`,
-          );
-        }
-        return loaded as unknown as SessionCapableModel;
+        const { MlexModel } = await import("mlex.js");
+        return MlexModel.load(
+          modelDir,
+          cacheEnabled
+            ? {
+                ...(promptCache.maxEntries !== undefined
+                  ? { maxEntries: promptCache.maxEntries }
+                  : {}),
+                ...(promptCache.ttl !== undefined
+                  ? { ttlSeconds: promptCache.ttl }
+                  : {}),
+                ...(promptCache.minTokens !== undefined
+                  ? { minCacheableTokens: promptCache.minTokens }
+                  : {}),
+              }
+            : undefined,
+        );
       })();
-      loadedModelPromises.set(modelDir, promise);
-      promise.catch(() => loadedModelPromises.delete(modelDir));
+      loadedModelPromises.set(cacheKey, promise);
+      promise.catch(() => loadedModelPromises.delete(cacheKey));
     }
     return promise;
   }
 
-  private buildChatConfig(toolSpecs: ToolSpec[] | undefined): ChatConfig {
+  private buildGenerateOptions(
+    toolSpecs: ToolSpec[] | undefined,
+  ): JsGenerateOptions {
     const reasoningEnabled = this.config.reasoning !== undefined;
     const tools = strandsToolsToDefinitions(toolSpecs);
     return {
-      // Presence of `reasoning` lets the model think naturally with a token
-      // budget; absence sets "none" so the template closes the think block
-      // immediately and reasoning content is omitted from the output.
-      ...(reasoningEnabled
-        ? this.config.thoughtBudgetTokens !== undefined
-          ? { thinkingTokenBudget: this.config.thoughtBudgetTokens }
-          : {}
-        : { reasoningEffort: "none" }),
-      ...(tools ? { tools } : {}),
-      ...(this.config.maxTokens !== undefined
-        ? { maxNewTokens: this.config.maxTokens }
-        : {}),
+      maxTokens: this.config.maxTokens ?? DEFAULT_MAX_TOKENS,
       ...(this.config.temperature !== undefined
         ? { temperature: this.config.temperature }
         : {}),
       ...(this.config.topP !== undefined ? { topP: this.config.topP } : {}),
-      reuseCache: true,
+      ...(tools ? { tools } : {}),
+      ...(this.config.promptCache === undefined || this.config.promptCache === false
+        ? { promptCache: false }
+        : {}),
+      // Presence of `reasoning` opts into thinking with a token budget;
+      // absence pins it off (the template default for every supported
+      // family, made explicit).
+      enableThinking: reasoningEnabled,
+      ...(reasoningEnabled && this.config.thoughtBudgetTokens !== undefined
+        ? { reasoningBudgetTokens: this.config.thoughtBudgetTokens }
+        : {}),
     };
   }
 
@@ -319,7 +343,7 @@ export class StrandsMlxModel extends Model<MlxModelConfig> {
     messages: Message[],
     options?: StreamOptions,
   ): AsyncIterable<ModelStreamEvent> {
-    let model: SessionCapableModel;
+    let model: MlexModel;
     try {
       model = await this.getModel();
     } catch (e) {
@@ -333,13 +357,41 @@ export class StrandsMlxModel extends Model<MlxModelConfig> {
     }
 
     const systemText = extractSystemText(options?.systemPrompt);
-    const history = strandsMessagesToHistory(messages, systemText);
-    const last = history.at(-1);
-    if (last === undefined || (last.role !== "user" && last.role !== "tool")) {
-      // The native session API generates against a trailing user/tool turn.
-      history.push({ role: "user", content: "" });
-    }
-    const chatConfig = this.buildChatConfig(options?.toolSpecs);
+    const history = strandsMessagesToHistory(
+      messages,
+      systemText,
+      model.supportsImages(),
+    );
+    const generateOptions = this.buildGenerateOptions(options?.toolSpecs);
+
+    // Adapt mlex's onToken callback + result promise to a pull-based queue
+    // the generator below can drain with backpressure-free yields.
+    const queue: StreamQueueItem[] = [];
+    let notify: (() => void) | undefined;
+    const push = (item: StreamQueueItem) => {
+      queue.push(item);
+      notify?.();
+      notify = undefined;
+    };
+    const waitForItem = () =>
+      queue.length > 0
+        ? Promise.resolve()
+        : new Promise<void>((resolve) => {
+            notify = resolve;
+          });
+
+    model
+      .generate(history, generateOptions, (err, token) => {
+        if (err) {
+          push({ error: err });
+        } else {
+          push({ token });
+        }
+      })
+      .then(
+        (result) => push({ result }),
+        (error: unknown) => push({ error }),
+      );
 
     yield new ModelMessageStartEvent({
       type: "modelMessageStartEvent",
@@ -360,20 +412,35 @@ export class StrandsMlxModel extends Model<MlxModelConfig> {
     };
 
     try {
-      for await (const event of model.chatStreamSessionStart(
-        history,
-        chatConfig,
-      )) {
-        if (!event.done) {
-          const isReasoning = event.isReasoning === true;
+      let finalResult: JsGenerateResult | undefined;
+      while (finalResult === undefined) {
+        await waitForItem();
+        while (queue.length > 0 && finalResult === undefined) {
+          const item = queue.shift()!;
+          if ("error" in item) {
+            const e = item.error;
+            const msg = e instanceof Error ? e.message : String(e);
+            throw new ModelError(`MLX generation error: ${msg}`, { cause: e });
+          }
+          if ("result" in item) {
+            finalResult = item.result;
+            break;
+          }
+          const token = item.token;
+          if (token.kind === "toolCall") {
+            // Raw, not-yet-parsed tool-call syntax; the parsed calls arrive
+            // on the final result.
+            continue;
+          }
+          const isReasoning = token.kind === "reasoning";
           const text = isReasoning
-            ? event.text.replace(THINK_MARKER_RE, "")
-            : event.text;
+            ? token.text.replace(REASONING_MARKER_RE, "")
+            : token.text;
           if (text.length === 0) {
             continue;
           }
-          // The template emits a newline right after `<think>`; don't open
-          // the reasoning block on whitespace alone.
+          // Templates emit a newline right after the thinking marker; don't
+          // open the reasoning block on whitespace alone.
           if (isReasoning && !reasoningBlockOpen && text.trim().length === 0) {
             continue;
           }
@@ -399,71 +466,72 @@ export class StrandsMlxModel extends Model<MlxModelConfig> {
               ? { type: "reasoningContentDelta", text }
               : { type: "textDelta", text },
           });
-          continue;
         }
+      }
 
-        // Final event.
-        const stop = closeOpenBlock();
-        if (stop) {
-          yield stop;
+      const stop = closeOpenBlock();
+      if (stop) {
+        yield stop;
+      }
+
+      for (const call of finalResult.toolCalls) {
+        let input: unknown = {};
+        try {
+          input = JSON.parse(call.argumentsJson) ?? {};
+        } catch {
+          // Unparseable arguments degrade to an empty object; the tool's own
+          // schema validation will surface the problem to the model.
         }
-        if (event.finishReason === "error") {
-          throw new ModelError(
-            `MLX generation finished with an error${
-              event.rawText ? `: ${event.rawText.slice(-500)}` : ""
-            }`,
-          );
-        }
-
-        const okCalls = (event.toolCalls ?? []).filter(
-          (call) => call.status === "ok",
-        );
-        for (const call of okCalls) {
-          const args =
-            typeof call.arguments === "string" ? {} : (call.arguments ?? {});
-          yield new ModelContentBlockStartEvent({
-            type: "modelContentBlockStartEvent",
-            start: {
-              type: "toolUseStart",
-              name: call.name,
-              toolUseId: call.id,
-            },
-          });
-          yield new ModelContentBlockDeltaEvent({
-            type: "modelContentBlockDeltaEvent",
-            delta: {
-              type: "toolUseInputDelta",
-              input: JSON.stringify(args),
-            },
-          });
-          yield new ModelContentBlockStopEvent({
-            type: "modelContentBlockStopEvent",
-          });
-        }
-
-        const stopReason =
-          okCalls.length > 0
-            ? ("toolUse" as const)
-            : event.finishReason === "length" ||
-                event.finishReason === "max_tokens"
-              ? ("maxTokens" as const)
-              : ("endTurn" as const);
-        yield new ModelMessageStopEvent({
-          type: "modelMessageStopEvent",
-          stopReason,
-        });
-
-        const inputTokens = event.promptTokens ?? 0;
-        const outputTokens = event.numTokens ?? 0;
-        yield new ModelMetadataEvent({
-          type: "modelMetadataEvent",
-          usage: {
-            inputTokens,
-            outputTokens,
-            totalTokens: inputTokens + outputTokens,
+        yield new ModelContentBlockStartEvent({
+          type: "modelContentBlockStartEvent",
+          start: {
+            type: "toolUseStart",
+            name: call.name,
+            toolUseId: call.id,
           },
         });
+        yield new ModelContentBlockDeltaEvent({
+          type: "modelContentBlockDeltaEvent",
+          delta: {
+            type: "toolUseInputDelta",
+            input: JSON.stringify(input),
+          },
+        });
+        yield new ModelContentBlockStopEvent({
+          type: "modelContentBlockStopEvent",
+        });
       }
+
+      // Native finish reason from mlex ("stop" | "length" | "toolCalls" |
+      // "aborted"), mapped onto Strands' stop reasons. "aborted" (the
+      // onToken callback stopped generation early — unused by this
+      // provider) degrades to endTurn.
+      const stopReason =
+        finalResult.finishReason === "toolCalls"
+          ? ("toolUse" as const)
+          : finalResult.finishReason === "length"
+            ? ("maxTokens" as const)
+            : ("endTurn" as const);
+      yield new ModelMessageStopEvent({
+        type: "modelMessageStopEvent",
+        stopReason,
+      });
+
+      // mlex reports OpenAI-style usage: `promptTokens` is the full prompt
+      // and `cachedTokens` a subset of it served from the prompt-cache pool.
+      // The factory marks this model total-inclusive so billing meters
+      // normalize it to the additive shape.
+      const { promptTokens, cachedTokens, completionTokens } =
+        finalResult.usage;
+      yield new ModelMetadataEvent({
+        type: "modelMetadataEvent",
+        usage: {
+          inputTokens: promptTokens,
+          outputTokens: completionTokens,
+          totalTokens: promptTokens + completionTokens,
+          ...(cachedTokens > 0 ? { cacheReadInputTokens: cachedTokens } : {}),
+        },
+      });
     } catch (e) {
       if (e instanceof ModelError) {
         throw e;

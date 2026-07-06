@@ -3,7 +3,7 @@ title: llama.cpp
 description: Configure the llama-cpp provider — in-process GGUF inference via node-llama-cpp, with models fetched from the Hugging Face Hub.
 ---
 
-Runtime provider id: `llama-cpp`. Runs GGUF models in-process via [node-llama-cpp](https://node-llama-cpp.withcat.ai/) — no separate server required. This is Hooman's default out-of-the-box provider: a fresh `config.json` ships three llama.cpp model presets — `Qwen/Qwen3-1.7B-GGUF:Q8_0` (the default), `unsloth/Qwen3.5-0.8B-MTP-GGUF:Q8_0`, and `unsloth/gemma-4-E2B-it-GGUF:Q8_0` — so the first turn works with no API keys or local runtime setup (plus a `Qwen3 0.6B (MLX)` preset on the Apple-Silicon-only [MLX provider](/hooman/guides/configuration/models/mlx/)). Weights are downloaded from the Hugging Face Hub (via `@huggingface/hub`) into `~/.hooman/cache/huggingface` on first use and reused afterwards.
+Runtime provider id: `llama-cpp`. Runs GGUF models in-process via [node-llama-cpp](https://node-llama-cpp.withcat.ai/) — no separate server required. This is Hooman's default out-of-the-box provider: a fresh `config.json` ships three llama.cpp model presets — `Qwen/Qwen3-1.7B-GGUF:Q8_0` (the default), `unsloth/Qwen3.5-0.8B-MTP-GGUF:Q8_0`, and `unsloth/gemma-4-E2B-it-GGUF:Q8_0` — so the first turn works with no API keys or local runtime setup (plus three presets — Qwen3.5 9B, Nemotron 3 Nano 4B, and Gemma 4 12B — on the Apple-Silicon-only [MLX provider](/hooman/guides/configuration/models/mlx/)). Weights are downloaded from the Hugging Face Hub (via `@huggingface/hub`) into `~/.hooman/cache/huggingface` on first use and reused afterwards.
 
 ## Provider options
 
@@ -12,6 +12,7 @@ Runtime provider id: `llama-cpp`. Runs GGUF models in-process via [node-llama-cp
 | `hfToken`   | string            | Optional. Hugging Face access token for gated/private repos. Falls back to the `HF_TOKEN` env var.                                                                               |
 | `gpu`       | string or `false` | Optional. `"auto"` (the default when unset), `"metal"`, `"cuda"`, `"vulkan"`, or `false` for CPU-only inference.                                                                 |
 | `context`   | number            | Optional. Context size in tokens. A per-LLM `options.context` overrides it; when both are absent, node-llama-cpp adapts it to the model's training context and available memory. |
+| `promptCache` | boolean         | Optional, default `true`. Reuse KV state evaluated by previous turns (prompt caching), so continuing a conversation only prefills the new tokens. Set `false` to re-prefill the full conversation every turn. |
 | `reasoning` | object            | Optional. See [Reasoning](/hooman/guides/configuration/models/#reasoning-options).                                                                                               |
 
 ## Model spec
@@ -73,7 +74,7 @@ Default models from the Hub (matches the out-of-the-box `config.json` — Qwen3 
 ]
 ```
 
-Each preset pins `options.context` to the model's full training window (32K for Qwen3 1.7B, 256K for Qwen3.5 0.8B, 128K for Gemma 4 E2B). The per-LLM `context` is specific to this provider and overrides the provider-level `context`.
+Each preset pins `options.context` to the model's full training window (32K for Qwen3 1.7B, 256K for Qwen3.5 0.8B, 128K for Gemma 4 E2B). The per-LLM `context` is honored by the local providers (this one and [MLX](/hooman/guides/configuration/models/mlx/)) and overrides the provider-level `context`; the configured value also feeds the context-usage gauge, taking precedence over the models.dev catalog (an explicit `billing.context` still wins).
 
 :::note
 Google's official `google/gemma-4-E2B-it-qat-q4_0-gguf` GGUF currently ships a malformed metadata entry (an empty key) that llama.cpp's parser rejects (`GGML_ASSERT(!key.empty())`), crashing the process on load — use the unsloth conversion above instead.

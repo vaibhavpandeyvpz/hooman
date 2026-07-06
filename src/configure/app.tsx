@@ -219,7 +219,7 @@ const DEFAULT_MODEL_BY_PROVIDER: Record<
   [LlmProvider.Groq]: "openai/gpt-oss-20b",
   [LlmProvider.LlamaCpp]: "Qwen/Qwen3-1.7B-GGUF:Q8_0",
   [LlmProvider.Minimax]: "MiniMax-M3",
-  [LlmProvider.Mlx]: "mlx-community/Qwen3-0.6B-bf16",
+  [LlmProvider.Mlx]: "mlx-community/Qwen3.5-9B-OptiQ-4bit",
   [LlmProvider.Moonshot]: "kimi-k2.7-code",
   [LlmProvider.Ollama]: "gemma4:e4b",
   [LlmProvider.OpenAI]: "gpt-5.5",
@@ -276,7 +276,8 @@ type TypedFieldKind =
   | "openaiApi"
   | "reasoningEffort"
   | "reasoningSummary"
-  | "reasoningDisplay";
+  | "reasoningDisplay"
+  | "promptCache";
 
 type TypedFieldDefinition = {
   key: string;
@@ -486,6 +487,13 @@ const PROVIDER_FIELD_DEFINITIONS: Record<
       note: "Context size in tokens (per-LLM `context` overrides this). Leave blank to let node-llama-cpp adapt it to the model and available memory.",
     },
     {
+      key: "promptCache",
+      label: "Prompt cache",
+      kind: "optionalBoolean",
+      placeholder: "true",
+      note: "Reuse KV state evaluated by previous turns (prompt caching). Defaults to true; set false to re-prefill the full conversation every turn.",
+    },
+    {
       key: "reasoningEffort",
       label: "Reasoning effort",
       kind: "reasoningEffort",
@@ -532,11 +540,24 @@ const PROVIDER_FIELD_DEFINITIONS: Record<
       note: "Optional; used to download gated/private MLX repos from the Hugging Face Hub. Falls back to the HF_TOKEN env var.",
     },
     {
+      key: "context",
+      label: "Context size",
+      kind: "optionalInteger",
+      placeholder: "262144",
+      note: "Declared context window in tokens for the context-usage gauge (per-LLM `context` overrides this). MLX allocates KV state dynamically, so this doesn't size an allocation.",
+    },
+    {
+      key: "promptCache",
+      label: "Prompt cache",
+      kind: "promptCache",
+      note: "Reuse KV state from mlex's internal prompt-cache pool (prefix matching against previous calls), applied when the model loads. Unset, null, or false disables caching entirely; enabling it (with or without overriding mlex's own sizing defaults: 16 entries, 300s TTL, 8-token minimum) turns it on.",
+    },
+    {
       key: "reasoningEffort",
       label: "Reasoning effort",
       kind: "reasoningEffort",
       placeholder: "medium",
-      note: 'Enables thinking on reasoning-capable MLX models (Qwen3/3.5) and caps thought tokens (1024/2048/4096/8192). Allowed: "minimal", "low", "medium", "high", or blank to disable thinking.',
+      note: 'Enables thinking on reasoning-capable MLX models (Qwen3/3.5, Gemma 4, Nemotron) and caps thought tokens (1024/2048/4096/8192). Allowed: "minimal", "low", "medium", "high", or blank to disable thinking.',
     },
   ],
   [LlmProvider.Moonshot]: [
@@ -705,7 +726,7 @@ const LLM_FIELD_DEFINITIONS: TypedFieldDefinition[] = [
     label: "Context size",
     kind: "optionalInteger",
     placeholder: "32768",
-    note: "Context size in tokens; only honored by the llama-cpp provider (overrides its provider-level `context`). Leave blank to clear.",
+    note: "Context size in tokens; only honored by the local llama-cpp and mlx providers (overrides their provider-level `context`). Leave blank to clear.",
   },
 ];
 
@@ -806,7 +827,34 @@ function parseTypedFieldValue(
       }
       throw new Error(`${definition.label} must be "summarized" or "omitted".`);
     }
+    case "promptCache":
+      // Edited via a dedicated screen (config-provider-prompt-cache), never
+      // through the generic promptValue path.
+      return undefined;
   }
+}
+
+/** Label suffix for the mlx `promptCache` provider field row. */
+function formatPromptCacheSummary(value: unknown): string {
+  if (value === undefined || value === null || value === false) {
+    return "disabled";
+  }
+  const config = value as {
+    minTokens?: number;
+    maxEntries?: number;
+    ttl?: number;
+  };
+  const overrides: string[] = [];
+  if (config.maxEntries !== undefined) {
+    overrides.push(`maxEntries=${config.maxEntries}`);
+  }
+  if (config.ttl !== undefined) {
+    overrides.push(`ttl=${config.ttl}s`);
+  }
+  if (config.minTokens !== undefined) {
+    overrides.push(`minTokens=${config.minTokens}`);
+  }
+  return overrides.length > 0 ? `enabled (${overrides.join(", ")})` : "enabled";
 }
 
 /** On/off display for tool rows (`Tool • Yes` / `Tool • No`). */
@@ -950,7 +998,8 @@ export function ConfigureApp({
         screen.kind === "config-provider-openai-api" ||
         screen.kind === "config-provider-reasoning-effort" ||
         screen.kind === "config-provider-reasoning-summary" ||
-        screen.kind === "config-provider-reasoning-display"
+        screen.kind === "config-provider-reasoning-display" ||
+        screen.kind === "config-provider-prompt-cache"
       ) {
         setScreen({ kind: "config-provider-edit", name: screen.name });
         return;
@@ -1846,7 +1895,9 @@ export function ConfigureApp({
                           providerOptions.reasoning as
                             { display?: unknown } | undefined
                         )?.display
-                      : providerOptions[definition.key],
+                      : definition.kind === "promptCache"
+                        ? formatPromptCacheSummary(providerOptions.promptCache)
+                        : providerOptions[definition.key],
             )}`,
             value: () => {
               if (definition.kind === "openaiApi") {
@@ -1873,6 +1924,13 @@ export function ConfigureApp({
               if (definition.kind === "reasoningDisplay") {
                 setScreen({
                   kind: "config-provider-reasoning-display",
+                  name: entry.name,
+                });
+                return;
+              }
+              if (definition.kind === "promptCache") {
+                setScreen({
+                  kind: "config-provider-prompt-cache",
                   name: entry.name,
                 });
                 return;
@@ -2117,6 +2175,129 @@ export function ConfigureApp({
       },
     ];
     return <MenuScreen title={title} description={description} items={items} />;
+  };
+
+  /**
+   * The mlx `promptCache` provider field: unset/`null`/`false` disables
+   * caching entirely; an object (even `{}`) enables it, with `minTokens`/
+   * `maxEntries`/`ttl` overriding mlex's own pool-sizing defaults (8/16/300s).
+   * Setting any of the three fields below auto-enables caching if it was
+   * disabled; the "Enabled" toggle exists for turning caching on with pure
+   * defaults (or off, dropping any overrides) without touching a field.
+   */
+  const renderPromptCacheMenu = () => {
+    if (screen.kind !== "config-provider-prompt-cache") {
+      return null;
+    }
+    const entry = config.providers.find(
+      (provider) => provider.name === screen.name,
+    );
+    if (!entry) {
+      return null;
+    }
+    const current =
+      "promptCache" in entry.options
+        ? ((entry.options as Record<string, unknown>).promptCache as
+            | { minTokens?: number; maxEntries?: number; ttl?: number }
+            | false
+            | null
+            | undefined)
+        : undefined;
+    const enabled =
+      current !== undefined && current !== null && current !== false;
+    const poolConfig = enabled ? current : undefined;
+
+    const patchField = (
+      key: "minTokens" | "maxEntries" | "ttl",
+      next: number | undefined,
+    ) => {
+      const merged = { ...(poolConfig ?? {}), [key]: next };
+      return patchProvider(entry.name, { promptCache: merged });
+    };
+
+    const numberField = (
+      key: "minTokens" | "maxEntries" | "ttl",
+      label: string,
+      placeholder: string,
+      note: string,
+    ): MenuItem => ({
+      label: `${label} • ${poolConfig?.[key] !== undefined ? poolConfig[key] : "default"}`,
+      value: () =>
+        promptValue({
+          title: `Update ${label}`,
+          label,
+          initialValue:
+            poolConfig?.[key] !== undefined ? String(poolConfig[key]) : "",
+          placeholder,
+          note,
+          onSubmit: async (value) => {
+            const trimmed = normalizeOptional(value);
+            const next =
+              trimmed === undefined
+                ? undefined
+                : parseNumber(trimmed, label, {
+                    integer: true,
+                    min: key === "minTokens" ? 0 : 1,
+                  });
+            if (
+              updateConfig(
+                { providers: patchField(key, next) },
+                `Updated prompt-cache ${key} for "${entry.name}".`,
+              )
+            ) {
+              setPrompt(null);
+            }
+          },
+        }),
+    });
+
+    const items: MenuItem[] = [
+      {
+        label: `Enabled • ${enabled ? "Yes" : "No"}`,
+        value: () => {
+          const next = enabled ? undefined : (poolConfig ?? {});
+          if (
+            updateConfig(
+              { providers: patchProvider(entry.name, { promptCache: next }) },
+              `${enabled ? "Disabled" : "Enabled"} prompt cache for "${entry.name}".`,
+            )
+          ) {
+            setScreen({ kind: "config-provider-prompt-cache", name: entry.name });
+          }
+        },
+      },
+      numberField(
+        "maxEntries",
+        "Max entries",
+        "16",
+        "Maximum cached prefixes kept at once (LRU-evicted beyond this). Leave blank for mlex's default (16).",
+      ),
+      numberField(
+        "ttl",
+        "TTL (seconds)",
+        "300",
+        "How long an unused cache entry is kept before eviction. Leave blank for mlex's default (300, i.e. 5 minutes).",
+      ),
+      numberField(
+        "minTokens",
+        "Min cacheable tokens",
+        "8",
+        "Prompts shorter than this many tokens are never cached. Leave blank for mlex's default (8).",
+      ),
+      {
+        label: "Back",
+        value: () =>
+          setScreen({ kind: "config-provider-edit", name: entry.name }),
+      },
+    ];
+
+    return (
+      <MenuScreen
+        title={`Prompt Cache • ${entry.name}`}
+        description="Sizing for mlex's internal prompt-cache pool, applied once when the model loads. Setting any field below also enables caching if it was disabled."
+        items={items}
+      />
+    );
   };
 
   const renderProviderTypeMenu = () => {
@@ -3178,6 +3359,8 @@ export function ConfigureApp({
           ["summarized", "omitted"],
           "Not set • current",
         );
+      case "config-provider-prompt-cache":
+        return renderPromptCacheMenu();
       case "config-provider-delete-confirm":
         return renderProviderDeleteConfirm();
       case "config-llms":

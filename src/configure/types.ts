@@ -23,6 +23,7 @@ export type Screen =
   | { kind: "config-provider-reasoning-effort"; name: string }
   | { kind: "config-provider-reasoning-summary"; name: string }
   | { kind: "config-provider-reasoning-display"; name: string }
+  | { kind: "config-provider-prompt-cache"; name: string }
   | { kind: "config-provider-delete-confirm"; name: string }
   | { kind: "config-tools" }
   | { kind: "config-llms" }
