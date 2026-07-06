@@ -76,6 +76,18 @@
           "when": "view == hooman.chatView",
           "group": "navigation@3"
         }
+      ],
+      "explorer/context": [
+        {
+          "command": "hooman.addExplorerSelectionToChat",
+          "when": "resourceScheme == file",
+          "group": "navigation@8"
+        },
+        {
+          "command": "hooman.addExplorerSelectionToNewChat",
+          "when": "resourceScheme == file",
+          "group": "navigation@9"
+        }
       ]
     },
     "commands": [
@@ -93,6 +105,14 @@
         "command": "hooman.openConfig",
         "title": "Hooman: Open Settings…",
         "icon": "$(gear)"
+      },
+      {
+        "command": "hooman.addExplorerSelectionToChat",
+        "title": "Add to Hooman Chat"
+      },
+      {
+        "command": "hooman.addExplorerSelectionToNewChat",
+        "title": "Add to New Hooman Chat"
       },
       {
         "command": "hooman.deleteAllSessions",

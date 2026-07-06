@@ -1,6 +1,6 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import * as vscode from "vscode";
 import { methods } from "@agentclientprotocol/sdk";
 import { HoomanAcpClient } from "./acp-client";
@@ -77,6 +77,36 @@ async function pickAndOpenSettings(): Promise<void> {
   }
 }
 
+function coerceExplorerUris(
+  uri: vscode.Uri | undefined,
+  uris: readonly vscode.Uri[] | undefined,
+): vscode.Uri[] {
+  const seen = new Set<string>();
+  const files: vscode.Uri[] = [];
+  for (const candidate of [uri, ...(uris ?? [])]) {
+    if (!candidate || candidate.scheme !== "file") {
+      continue;
+    }
+    const key = candidate.toString();
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    files.push(candidate);
+  }
+  return files;
+}
+
+function describeExplorerSelection(uris: readonly vscode.Uri[]): string {
+  if (uris.length === 0) {
+    return "selection";
+  }
+  if (uris.length === 1) {
+    return `“${basename(uris[0].fsPath) || uris[0].fsPath}”`;
+  }
+  return `${uris.length} items`;
+}
+
 export function activate(context: vscode.ExtensionContext): void {
   const outputChannel = vscode.window.createOutputChannel("Hooman", {
     log: true,
@@ -129,6 +159,40 @@ export function activate(context: vscode.ExtensionContext): void {
     }),
     vscode.commands.registerCommand("hooman.openConfig", () =>
       pickAndOpenSettings(),
+    ),
+    vscode.commands.registerCommand(
+      "hooman.addExplorerSelectionToChat",
+      async (uri?: vscode.Uri, uris?: readonly vscode.Uri[]) => {
+        const selection = coerceExplorerUris(uri, uris);
+        if (selection.length === 0) {
+          void vscode.window.showWarningMessage(
+            "Hooman: no files or folders selected.",
+          );
+          return;
+        }
+        await chatView.addExplorerAttachments(selection);
+        void vscode.window.setStatusBarMessage(
+          `Hooman: added ${describeExplorerSelection(selection)} to chat`,
+          3000,
+        );
+      },
+    ),
+    vscode.commands.registerCommand(
+      "hooman.addExplorerSelectionToNewChat",
+      async (uri?: vscode.Uri, uris?: readonly vscode.Uri[]) => {
+        const selection = coerceExplorerUris(uri, uris);
+        if (selection.length === 0) {
+          void vscode.window.showWarningMessage(
+            "Hooman: no files or folders selected.",
+          );
+          return;
+        }
+        await chatView.addExplorerAttachments(selection, { newChat: true });
+        void vscode.window.setStatusBarMessage(
+          `Hooman: started a new chat with ${describeExplorerSelection(selection)}`,
+          3000,
+        );
+      },
     ),
   );
 

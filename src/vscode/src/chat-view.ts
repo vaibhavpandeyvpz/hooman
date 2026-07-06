@@ -39,6 +39,7 @@ export class HoomanChatViewProvider
   static readonly viewType = "hooman.chatView";
 
   #view: vscode.WebviewView | undefined;
+  #webviewReady = false;
   #sessionId: string | null = null;
   #sessionTitle = "New Chat";
   #configOptions: SessionConfigOption[] = [];
@@ -71,6 +72,8 @@ export class HoomanChatViewProvider
   /** Whether the webview's Sessions panel is open (gates live list refreshes). */
   #sessionsPanelOpen = false;
   #sessionsRefreshTimer: NodeJS.Timeout | undefined;
+  /** Attachments staged before the webview was ready to receive messages. */
+  #pendingComposerAttachments: AttachmentInfo[] = [];
 
   /**
    * Fired whenever the panel's session state may have changed: session
@@ -154,6 +157,7 @@ export class HoomanChatViewProvider
 
   resolveWebviewView(webviewView: vscode.WebviewView): void {
     this.#view = webviewView;
+    this.#webviewReady = false;
     webviewView.title = this.#sessionTitle;
     webviewView.webview.options = {
       enableScripts: true,
@@ -165,6 +169,7 @@ export class HoomanChatViewProvider
     });
     webviewView.onDidDispose(() => {
       this.#view = undefined;
+      this.#webviewReady = false;
     });
   }
 
@@ -204,6 +209,27 @@ export class HoomanChatViewProvider
         `[chat-view] eager session creation failed: ${describe(error)}`,
       );
     });
+  }
+
+  /** Stage files/folders from the Explorer as composer attachments. */
+  async addExplorerAttachments(
+    uris: readonly vscode.Uri[],
+    options?: { newChat?: boolean },
+  ): Promise<void> {
+    const attachments = await this.#resolveUriAttachments(
+      uris.map((uri) => uri.toString()),
+    );
+    if (attachments.length === 0) {
+      return;
+    }
+    if (options?.newChat) {
+      this.#pendingComposerAttachments = attachments;
+      this.newChat();
+    } else {
+      this.#pendingComposerAttachments.push(...attachments);
+    }
+    this.focus();
+    this.#flushPendingComposerAttachments();
   }
 
   /** Change a session config option (used by the status bar menu and the webview pickers). */
@@ -348,6 +374,7 @@ export class HoomanChatViewProvider
   async #onMessage(message: InboundMessage): Promise<void> {
     switch (message.type) {
       case "ready":
+        this.#webviewReady = true;
         this.#post({
           type: "state",
           configOptions: this.#configOptions,
@@ -358,6 +385,7 @@ export class HoomanChatViewProvider
         this.#postEdits();
         // Eagerly create the session so the mode/model/effort pickers are
         // populated immediately, rather than only after the first prompt.
+        this.#flushPendingComposerAttachments();
         void this.#ensureSession().catch((error) => {
           this.outputChannel.warn(
             `[chat-view] eager session creation failed: ${describe(error)}`,
@@ -768,6 +796,15 @@ export class HoomanChatViewProvider
    * and hand them to the webview to stage as composer chips.
    */
   async #resolveDropped(uriStrings: string[]): Promise<void> {
+    const attachments = await this.#resolveUriAttachments(uriStrings);
+    if (attachments.length > 0) {
+      this.#post({ type: "attachments", attachments });
+    }
+  }
+
+  async #resolveUriAttachments(
+    uriStrings: string[],
+  ): Promise<AttachmentInfo[]> {
     const attachments: AttachmentInfo[] = [];
     for (const raw of uriStrings) {
       try {
@@ -795,9 +832,7 @@ export class HoomanChatViewProvider
         );
       }
     }
-    if (attachments.length > 0) {
-      this.#post({ type: "attachments", attachments });
-    }
+    return attachments;
   }
 
   /**
@@ -1095,6 +1130,15 @@ export class HoomanChatViewProvider
 
   #post(message: OutboundMessage): void {
     void this.#view?.webview.postMessage(message);
+  }
+
+  #flushPendingComposerAttachments(): void {
+    if (!this.#webviewReady || this.#pendingComposerAttachments.length === 0) {
+      return;
+    }
+    const attachments = this.#pendingComposerAttachments;
+    this.#pendingComposerAttachments = [];
+    this.#post({ type: "attachments", attachments });
   }
 
   /** Session title lives in the view header (not the composer) and the status bar tooltip. */
