@@ -214,6 +214,10 @@ type SessionRecord = {
   costUnpriced: boolean;
   /** Context tokens of the latest request (additive prompt total), for `usage_update.used`. */
   lastContextTokens: number | undefined;
+  /** Timestamp of the first output-text delta of the in-flight model request, for output tokens/sec. */
+  genStartedAt: number | null;
+  /** Output tokens/sec over the latest request's generation window (first text delta through its metadata event). */
+  lastTokensPerSecond: number | undefined;
 };
 
 async function readAgentIdentity(): Promise<AgentIdentity> {
@@ -1401,6 +1405,9 @@ export class HoomanAcpAgent {
           ...(tokens.cacheWriteInputTokens !== undefined && {
             cacheWrite: tokens.cacheWriteInputTokens,
           }),
+          ...(rec.lastTokensPerSecond !== undefined && {
+            tokensPerSecond: rec.lastTokensPerSecond,
+          }),
         },
       },
     });
@@ -1525,6 +1532,9 @@ export class HoomanAcpAgent {
       case "modelContentBlockDeltaEvent": {
         const { delta } = inner;
         if (delta.type === "textDelta" && delta.text) {
+          if (rec.genStartedAt === null) {
+            rec.genStartedAt = Date.now();
+          }
           await this.#sendUpdate(client, sessionId, {
             sessionUpdate: "agent_message_chunk",
             content: { type: "text", text: delta.text },
@@ -1580,6 +1590,16 @@ export class HoomanAcpAgent {
           const additive = toAdditiveUsage(inner.usage, rec.agent.model);
           rec.lastTurnUsage = lastTurnUsage(additive);
           rec.lastContextTokens = contextTokensFromUsage(additive);
+          // Output tokens/sec over the generation window, excluding
+          // time-to-first-token and any tool/approval time between requests.
+          const genStartedAt = rec.genStartedAt;
+          rec.genStartedAt = null;
+          const outputTokens = additive.outputTokens ?? 0;
+          rec.lastTokensPerSecond =
+            genStartedAt !== null && outputTokens > 0
+              ? outputTokens /
+                Math.max((Date.now() - genStartedAt) / 1000, 0.001)
+              : undefined;
           // Session cost accrues per request at the rates of the model that
           // served it; once a request with usage runs unpriced, the total is
           // incomplete and cost reporting stops for the session.
@@ -1747,6 +1767,8 @@ export class HoomanAcpAgent {
       cumulativeCostUsd: 0,
       costUnpriced: false,
       lastContextTokens: undefined,
+      genStartedAt: null,
+      lastTokensPerSecond: undefined,
     };
   }
 

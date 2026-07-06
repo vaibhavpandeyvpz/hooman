@@ -59,6 +59,7 @@ type StatusBarProps = {
     cacheReadInputTokens?: number;
     cacheWriteInputTokens?: number;
     latencyMs: number;
+    tokensPerSecond?: number;
   };
   /** Context-window utilization; only set when the window size was resolved. */
   contextUsage?: { used: number; size: number };
@@ -122,6 +123,9 @@ export function StatusBar({
   const tokensLabel = [
     inputLabel,
     `${formatTokenCount(usage.outputTokens)} out`,
+    ...(usage.tokensPerSecond && usage.tokensPerSecond > 0
+      ? [`${formatTokenCount(usage.tokensPerSecond)} tok/s`]
+      : []),
   ].join(", ");
   const hasTokens = usage.inputTokens + cacheInput + usage.outputTokens > 0;
   // Context-window utilization + session cost, resolved from the model's

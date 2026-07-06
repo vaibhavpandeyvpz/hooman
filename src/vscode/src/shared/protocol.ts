@@ -37,6 +37,8 @@ export interface TokenTotals {
   output: number;
   cacheRead?: number;
   cacheWrite?: number;
+  /** Output tokens/sec over the latest request's generation window. */
+  tokensPerSecond?: number;
 }
 
 /**

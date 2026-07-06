@@ -1,5 +1,5 @@
 import { Show } from "solid-js";
-import { ArrowDown, ArrowUp, Coins, Database } from "lucide-solid";
+import { ArrowDown, ArrowUp, Coins, Database, Zap } from "lucide-solid";
 import { formatCostUsd, formatCount } from "../lib/format";
 import { state } from "../store";
 
@@ -54,6 +54,15 @@ export default function UsageFooter() {
             <ArrowDown size={11} />
             {formatCount(usage().output)} out
           </span>
+          <Show when={(usage().tokensPerSecond ?? 0) > 0}>
+            <span
+              class="flex items-center gap-1"
+              title="Output tokens/sec (latest request)"
+            >
+              <Zap size={11} />
+              {formatCount(Math.round(usage().tokensPerSecond ?? 0))} tok/s
+            </span>
+          </Show>
           <span class="ml-auto flex items-center gap-3">
             <Show when={state.cost}>
               {(cost) => (

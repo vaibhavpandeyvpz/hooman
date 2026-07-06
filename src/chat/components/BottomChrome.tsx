@@ -40,6 +40,7 @@ type BottomChromeProps = {
     cacheReadInputTokens?: number;
     cacheWriteInputTokens?: number;
     latencyMs: number;
+    tokensPerSecond?: number;
   };
   /** Context-window utilization; only set when the window size was resolved. */
   contextUsage?: { used: number; size: number };

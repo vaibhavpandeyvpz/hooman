@@ -72,7 +72,10 @@ import type { ChatPicker } from "./components/ChromePicker.js";
 import { listCliSessions } from "../core/sessions/list-cli-sessions.js";
 
 /** Status bar: Strands `Usage` for the current user turn + summed latency across model cycles. */
-type TurnUsageStatus = Usage & { latencyMs: number };
+type TurnUsageStatus = Usage & {
+  latencyMs: number;
+  tokensPerSecond?: number;
+};
 
 function emptyTurnUsage(): TurnUsageStatus {
   return { ...createEmptyUsage(), latencyMs: 0 };
@@ -537,6 +540,10 @@ export function ChatApp({
   const thoughtStartedAtRef = useRef<number | null>(null);
   const toolLineIdsRef = useRef(new Map<string, string>());
   const pendingToolLineIdsRef = useRef<string[]>([]);
+  // Timestamp of the first output-text delta since the last model request
+  // completed; used to derive output tokens/sec (generation-only, excludes
+  // time-to-first-token and inter-request tool time).
+  const genStartRef = useRef<number | null>(null);
   const initialRanRef = useRef(false);
   const queuedPromptsRef = useRef<QueuedPrompt[]>([]);
   const skippedQueueIdsRef = useRef(new Set<string>());
@@ -1386,6 +1393,9 @@ export function ChatApp({
                   if (delta?.type === "reasoningContentDelta" && delta.text) {
                     appendThoughtText(delta.text);
                   } else if (delta?.type === "textDelta" && delta.text) {
+                    if (genStartRef.current === null) {
+                      genStartRef.current = Date.now();
+                    }
                     finalizeThoughtLine();
                     ensureAssistantLine();
                     appendAssistantText(delta.text);
@@ -1413,6 +1423,16 @@ export function ChatApp({
                   const cacheWrite = u.cacheWriteInputTokens ?? 0;
                   const hasCacheRead = u.cacheReadInputTokens !== undefined;
                   const hasCacheWrite = u.cacheWriteInputTokens !== undefined;
+                  // Output tokens/sec over the generation window (first output
+                  // delta of this request through its metadata event) — excludes
+                  // time-to-first-token and any tool/approval time between requests.
+                  const genStart = genStartRef.current;
+                  genStartRef.current = null;
+                  const tokensPerSecond =
+                    genStart !== null && outputTokens > 0
+                      ? outputTokens /
+                        Math.max((Date.now() - genStart) / 1000, 0.001)
+                      : undefined;
                   setUsage({
                     inputTokens,
                     outputTokens,
@@ -1423,6 +1443,7 @@ export function ChatApp({
                       cacheWriteInputTokens: cacheWrite,
                     }),
                     latencyMs: lat,
+                    tokensPerSecond,
                   });
                   // Session cost accrues per request at the current model's
                   // resolved rates; once a request runs unpriced the total is
