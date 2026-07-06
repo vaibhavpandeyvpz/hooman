@@ -2,6 +2,12 @@
 
 All notable changes to the Hooman VS Code extension are documented in this file.
 
+## [1.43.0]
+
+- Add a bundled local `mlx` provider for Apple Silicon on macOS 26+: the extension's packaged agent now ships MLX presets for Qwen3.5 9B, Nemotron 3 Nano 4B, and Gemma 4 12B, downloaded from the Hugging Face Hub on first use and run in-process via Metal.
+- Show output tokens per second in the usage footer for the latest request, alongside the existing input, cache, output, context-window, and session-cost meters.
+- Make local-model usage reporting more accurate: configured `llama-cpp` and `mlx` context windows now feed the context gauge, and MLX local inference is treated as free local execution rather than priced like a hosted API.
+
 ## [1.42.1]
 
 - Fix session cost in the usage footer for local llama.cpp/Ollama models: local inference is free, so catalog prices for the hosted API of the same model id are no longer applied — only the context-window gauge shows for these providers now.
