@@ -2,9 +2,12 @@
 
 All notable changes to the Hooman VS Code extension are documented in this file.
 
-## [Unreleased]
+## [1.44.0]
 
-- Add "Add Selection to Hooman Chat" / "Add Selection to New Hooman Chat": editor context-menu commands and a floating CodeLens over the active selection that stage the selected file/line-range as a composer chip (sent as a `resource_link` with a `#Lstart-Lend` fragment).
+- Send the selected editor text to Hooman Chat from the editor context menu: "Add Selection to Hooman Chat" / "Add Selection to New Hooman Chat", plus matching explorer-tree commands for selected files/folders, and a floating CodeLens over the active selection. The selection is staged as a composer chip and sent to the agent as a `resource_link` with a `#Lstart-Lend` fragment when applicable.
+- Open links from rendered Markdown with the host editor instead of the webview: `http(s)`/`mailto` links go through `vscode.env.openExternal`, and relative or absolute filesystem paths open in an editor tab using the active session's cwd.
+- Open plan files (`.plan.md`) in a dedicated custom-text-editor view: a richer plan editor with a parsed checklist, a Build menu (build / refresh / edit raw markdown), per-session mode/model pickers, and live sync between the chat's pinned plan checklist and the on-disk plan file.
+- Fix full-turn cost accumulation in the usage footer: output tokens and cost now correctly sum across every model request in a turn (input/cached-input still reflect the latest request, matching the CLI TUI's per-turn meter), and the per-turn token totals update in real time as the turn progresses.
 
 ## [1.43.1]
 
