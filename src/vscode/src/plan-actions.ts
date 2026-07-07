@@ -80,7 +80,7 @@ export class PlanFileActions implements vscode.Disposable {
       await this.chatView.setConfigOption(mode.id, MODE_VALUE_AGENT, false);
     }
 
-    this.chatView.submitPrompt(`Build this plan now: ${planUri.fsPath}`);
+    this.chatView.submitPrompt(`Implement this plan now: ${planUri.fsPath}`);
   }
 
   dispose(): void {

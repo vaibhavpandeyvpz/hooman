@@ -102,7 +102,7 @@ export class PlanEditorProvider implements vscode.CustomTextEditorProvider {
     if (mode?.type === "select" && mode.currentValue !== MODE_VALUE_AGENT) {
       await this.#chatView.setConfigOption(mode.id, MODE_VALUE_AGENT, false);
     }
-    this.#chatView.submitPrompt(`Build this plan now: ${document.uri.fsPath}`);
+    this.#chatView.submitPrompt(`Implement this plan now: ${document.uri.fsPath}`);
   }
 
   async revealDocument(
