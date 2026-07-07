@@ -3,7 +3,7 @@
 import { readFile } from "node:fs/promises";
 import { Command, Option } from "commander";
 import { bootstrap } from "./core/index.js";
-import { createMcpConfig, createMcpManager } from "./core/mcp/index.js";
+import { createMcpManager } from "./core/mcp/index.js";
 import { createToolApprovalIntervention } from "./exec/approvals.js";
 import { chat } from "./chat/index.js";
 import {
@@ -33,7 +33,6 @@ import {
   runWithAgentMemoryScope,
 } from "./core/memory/index.js";
 import { createSessionConfig } from "./core/session-config.js";
-import { mcpJsonPath } from "./core/utils/paths.js";
 import { getModeState, type SessionMode } from "./core/state/session-mode.js";
 import { isYoloEnabled } from "./core/state/yolo.js";
 import { formatModeNames, getModeIds } from "./core/modes/index.js";
@@ -42,7 +41,10 @@ import {
   listCliSessions,
   type CliSessionSummary,
 } from "./core/sessions/list-cli-sessions.js";
-import { createRuntimeConfig } from "./core/runtime-config.js";
+import {
+  createRuntimeConfig,
+  createRuntimeMcpConfig,
+} from "./core/runtime-config.js";
 import {
   createModelDownloadLogger,
   subscribeModelDownloadProgress,
@@ -463,7 +465,7 @@ mcp
   .description("Authenticate a remote MCP server with OAuth.")
   .argument("<server>", "Configured MCP server name.")
   .action(async (serverName: string) => {
-    const manager = createMcpManager(createMcpConfig(mcpJsonPath()));
+    const manager = createMcpManager(createRuntimeMcpConfig());
     try {
       await manager.authenticate(serverName.trim());
       console.log(`Authenticated MCP server "${serverName.trim()}".`);
@@ -490,7 +492,7 @@ mcp
       serverName: string,
       options: { scope: "all" | "client" | "tokens" | "discovery" },
     ) => {
-      const manager = createMcpManager(createMcpConfig(mcpJsonPath()));
+      const manager = createMcpManager(createRuntimeMcpConfig());
       try {
         await manager.logout(serverName.trim(), options.scope);
         console.log(
@@ -507,7 +509,7 @@ mcp
   .command("auth-status")
   .description("Show OAuth status for configured MCP servers.")
   .action(async () => {
-    const manager = createMcpManager(createMcpConfig(mcpJsonPath()));
+    const manager = createMcpManager(createRuntimeMcpConfig());
     try {
       const statuses = await manager.listAuthStatuses();
       if (statuses.length === 0) {

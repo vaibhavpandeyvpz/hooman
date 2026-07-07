@@ -3,6 +3,7 @@
 All notable changes to the Hooman VS Code extension are documented in this file.
 
 ## [1.44.1]
+
 - Plan file structural improvments
 
 ## [1.44.0]

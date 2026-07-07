@@ -157,7 +157,7 @@ At runtime, `config.json` and `mcp.json` support project-local overlays that lay
 - Primary: `~/.hooman/config.json` and `~/.hooman/mcp.json` (or `$HOOMAN_HOME/*` when `HOOMAN_HOME` is set).
 - Overlays: `.hooman/config.json` and `.hooman/mcp.json` in each directory from the git root down to the current working directory. The nearest file wins on key conflicts.
 - App config deep-merges objects and merges `providers`/`llms` by `name`; MCP config merges `mcpServers` by server name.
-- Overlays apply to the `chat`, `exec`, `daemon`, and `acp` bootstraps. The `/config` UI and `hooman mcp auth/logout/auth-status` operate on the home config only. See `src/core/runtime-config.ts` and `src/core/utils/discover-files.ts`.
+- Overlays apply to the `chat`, `exec`, `daemon`, and `acp` bootstraps, and to `hooman mcp auth/logout/auth-status`. The `/config` UI still operates on the home config only. See `src/core/runtime-config.ts` and `src/core/utils/discover-files.ts`.
 - Exception: in ACP mode MCP servers are session-scoped (supplied by the client on `session/new`/`load`/`resume`) and the local `mcp.json` (home + overlays) is skipped — unless the client identifies as the official VS Code extension via `_meta["hoomanjs/vscode"]: true`, in which case the local MCP config loads as usual on top of any session-scoped servers (see `src/acp/meta/vscode.ts` and `AcpMeta.loadLocalMcpConfig` in `src/core/index.ts`).
 
 `AGENTS.md` instruction files are a separate mechanism and are **not** nested under `.hooman/`: they are discovered as bare `AGENTS.md` files walked from the git root down to the current directory (see `src/core/prompts/runtime.ts`).
