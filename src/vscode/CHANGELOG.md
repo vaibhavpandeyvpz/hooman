@@ -2,9 +2,20 @@
 
 All notable changes to the Hooman VS Code extension are documented in this file.
 
+## [1.45.0]
+
+- Custom editors for Hooman's own config files: `.hooman/config.json`, `.hooman/mcp.json`, and `.hooman/instructions.md` now open in dedicated VS Code custom-text-editor views (`Hooman Configuration`, `Hooman MCP`, `Hooman Instructions`) with a rich webview UI on top of the underlying JSON/Markdown, so settings can be edited visually without hand-writing the files.
+- Manage providers, LLMs, MCP servers, web search, tool and prompt toggles from the new **Settings** view inside the chat activity bar: add/edit/delete providers and LLMs, switch the default model, add/edit/delete MCP servers (with per-server OAuth login/logout, project-vs-global scope, and configurable transport fields), and toggle the built-in tools and prompt sections.
+- Browse, search, install, and uninstall skills in-place: a new **Skills** view inside the chat activity bar lists the locally installed skills, searches the `skills.sh` registry, and runs the `skills` CLI to add or remove skills without leaving VS Code.
+- Project-local MCP overlays everywhere: MCP servers defined in a project's `.hooman/mcp.json` now overlay the global `~/.hooman/mcp.json` for both the chat and the `hooman mcp` CLI subcommands (`auth`, `logout`, `auth-status`, etc.), and the Settings UI's MCP editor honors the same global/project scope when saving new servers.
+- Better session tabs: the multi-chat tab bar is now styled like native VS Code editor tabs (active/inactive/hover backgrounds, focus top border, close-X on the tab), auto-scrolls the active tab into view as new tabs open, and routes close-actions only when the user clicks the close-X so the tab body keeps activating on click.
+- "Implement this plan" prompt: clicking **Build** on a plan (from the plan editor, the plan menu, or a plan chip in chat) now submits `Implement this plan now: <path>` to the agent instead of the previous `Build this plan now: <path>` wording, so the model treats the request as an implementation step rather than a build/compile step.
+- Plans require explicit approval: `exit_plan_mode` is no longer auto-approved by yolo or the always-allow list, the approval prompt no longer offers an "always allow" option for plan exits (CLI prompt and VS Code approval dialog), and the agent now has to get a per-plan confirmation before leaving plan mode.
+- Configure UX polish: the `hooman configure` wizard gained dedicated screens for creating providers and LLMs (with provider-type selection and editable drafts) and clearer copy for OAuth and provider toggles, so adding a new model is a guided flow instead of a single all-in-one form.
+
 ## [1.44.1]
 
-- Plan file structural improvments
+- Plan file structural improvements: entering plan mode now seeds a structured YAML frontmatter (`name`, `overview`, `tasks: []`, `status: pending`) so plans round-trip cleanly through the editor and CLI, the plan-mode prompt requires `name`/`overview`/`tasks` with `description` and `status` per task, and the agent-mode prompt keeps the plan's `tasks` section synchronized with `update_todos`. The plan editor's sidebar/checklist was renamed from "Todos" to "Tasks" to match the new frontmatter shape.
 
 ## [1.44.0]
 
