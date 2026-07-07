@@ -5,6 +5,7 @@ import {
   isResolvedPathInsideDir,
   normalizeUserPath,
 } from "../utils/normalize-user-path.js";
+import { getCwd } from "../utils/cwd-context.js";
 import { attachmentsPath, plansPath } from "../utils/paths.js";
 
 type AppStateLike = {
@@ -91,14 +92,23 @@ export function planModeWriteEditRejectionMessage(
   return `In plan mode, "${toolName}" was rejected automatically: path must be under the plans directory (${plansRoot}).`;
 }
 
-/** Skip approval for filesystem tools when targets stay inside trusted app-home dirs. */
+/**
+ * Skip approval for filesystem tools when targets stay inside trusted roots.
+ * In ask/plan mode, read_file/read_multiple_files are also auto-allowed under
+ * the session cwd so the narrowed surfaces can inspect the workspace without
+ * repeated approval prompts.
+ */
 function isImplicitPathAllowed(
   toolName: string,
   toolInput: Record<string, unknown>,
+  mode?: SessionMode,
 ): boolean {
   const attachments = attachmentsPath();
   const plans = plansPath();
   const readRoots = [attachments, plans];
+  if (mode === "ask" || mode === "plan") {
+    readRoots.push(getCwd());
+  }
 
   if (toolName === READ_FILE_TOOL) {
     const raw = toolInput.path;
@@ -143,16 +153,19 @@ function isImplicitPathAllowed(
 
 /**
  * Implicit, always-on allow for filesystem tools whose targets stay inside
- * trusted app-home dirs: reads under attachments or plans, writes/edits under
- * plans. Persistent "always allow" grants are handled separately by the
- * on-disk {@link Allowlist} (see `../approvals/allowlist.ts`).
+ * trusted roots: reads under attachments or plans in every mode, plus reads
+ * under the session cwd in ask/plan mode; writes/edits remain limited to the
+ * plans directory. Persistent "always allow" grants are handled separately by
+ * the on-disk {@link Allowlist} (see `../approvals/allowlist.ts`).
  */
 export function isImplicitlyAllowed(
   toolName: string,
   toolInput?: unknown,
+  mode?: SessionMode,
 ): boolean {
   return (
-    isPlainObjectRecord(toolInput) && isImplicitPathAllowed(toolName, toolInput)
+    isPlainObjectRecord(toolInput) &&
+    isImplicitPathAllowed(toolName, toolInput, mode)
   );
 }
 

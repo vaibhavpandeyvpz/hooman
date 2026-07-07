@@ -5,6 +5,7 @@ import {
 } from "@strands-agents/sdk";
 import fs from "node:fs/promises";
 import { getPlanState } from "../state/plan.js";
+import { getModeState } from "../state/session-mode.js";
 import {
   EXIT_PLAN_MODE_TOOL,
   INTERNAL_ALWAYS_ALLOWED,
@@ -135,7 +136,11 @@ export class HoomanToolApprovalIntervention extends InterventionHandler {
     if (
       isYoloEnabled(event.agent) ||
       INTERNAL_ALWAYS_ALLOWED.has(toolName) ||
-      isImplicitlyAllowed(toolName, event.toolUse.input) ||
+      isImplicitlyAllowed(
+        toolName,
+        event.toolUse.input,
+        getModeState(event.agent).mode,
+      ) ||
       getAllowlist().isAllowed(toolName, event.toolUse.input)
     ) {
       await this.onApproved?.(request, event, "auto");
