@@ -7,7 +7,7 @@ import type {
   PlanEditorStateInfo,
   WebviewRoute,
 } from "./shared/protocol";
-import { isPlanFileUri } from "./plan-file";
+import { isPlanFileUri, openFile } from "./plan-file";
 
 const CONFIG_ID_MODE = "mode";
 const CONFIG_ID_MODEL = "model";
@@ -216,7 +216,7 @@ export class PlanEditorProvider implements vscode.CustomTextEditorProvider {
         }
         return;
       }
-      await vscode.commands.executeCommand("vscode.open", uri);
+      await openFile(uri, { provider: this });
     } catch (error) {
       void vscode.window.showErrorMessage(
         `Hooman: could not open ${href}: ${error instanceof Error ? error.message : String(error)}`,

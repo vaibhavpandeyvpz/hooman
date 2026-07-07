@@ -16,7 +16,7 @@ import {
 import type { HoomanAcpClient } from "./acp-client";
 import type { EditTracker } from "./edit-tracker";
 import type { PermissionPrompts } from "./permissions";
-import { isPlanFilePath, revealPlanFile } from "./plan-file";
+import { isPlanFilePath, openFile, openPlanFile } from "./plan-file";
 import type { HoomanStatusBar } from "./status-bar";
 import type {
   AttachmentInfo,
@@ -858,13 +858,16 @@ export class HoomanChatViewProvider
       switch (message.action) {
         case "diff":
           if (message.path) {
+            const uri = vscode.Uri.file(message.path);
+            if (isPlanFilePath(uri.fsPath)) {
+              await openPlanFile(uri);
+              return;
+            }
             // Falls back to opening the file when the edit is no longer
             // tracked (already kept/undone, or from an older session).
             const opened = await this.editTracker.openDiff(message.path);
             if (!opened) {
-              await vscode.window.showTextDocument(
-                vscode.Uri.file(message.path),
-              );
+              await openFile(uri, { preview: false });
             }
           }
           return;
@@ -1416,7 +1419,7 @@ export class HoomanChatViewProvider
         }
         return;
       }
-      await vscode.commands.executeCommand("vscode.open", uri);
+      await openFile(uri);
     } catch (error) {
       if (this.#sessionId) {
         this.#post({
@@ -1447,7 +1450,7 @@ export class HoomanChatViewProvider
           }
           return;
         }
-        await vscode.commands.executeCommand("vscode.open", uri);
+        await openFile(uri);
         return;
       }
       if (attachment.data) {
@@ -1455,10 +1458,7 @@ export class HoomanChatViewProvider
         await mkdir(dir, { recursive: true });
         const path = join(dir, `${attachment.id}-${basename(attachment.name)}`);
         await writeFile(path, Buffer.from(attachment.data, "base64"));
-        await vscode.commands.executeCommand(
-          "vscode.open",
-          vscode.Uri.file(path),
-        );
+        await openFile(vscode.Uri.file(path));
       }
     } catch (error) {
       if (this.#sessionId) {
@@ -1887,7 +1887,7 @@ export class HoomanChatViewProvider
       return;
     }
     try {
-      await revealPlanFile(vscode.Uri.file(planFile));
+      await openPlanFile(vscode.Uri.file(planFile));
     } catch (error) {
       this.outputChannel.warn(
         `[chat-view] failed to reveal plan file ${planFile}: ${describe(error)}`,

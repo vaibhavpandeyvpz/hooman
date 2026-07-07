@@ -3,7 +3,7 @@ import type { SessionConfigOption } from "@agentclientprotocol/sdk";
 import type { EditTracker } from "./edit-tracker";
 import type { HoomanChatViewProvider } from "./chat-view";
 import type { PlanEditorProvider } from "./plan-editor";
-import { isPlanFileUri, revealPlanFile } from "./plan-file";
+import { isPlanFileUri, openPlanFile } from "./plan-file";
 
 const PLAN_EDITOR_CONTEXT = "hooman.isPlanEditor";
 const CONFIG_ID_MODE = "mode";
@@ -110,7 +110,7 @@ export class PlanFileActions implements vscode.Disposable {
     }
     this.#lastRevealedPlanPath = latest;
     try {
-      await revealPlanFile(vscode.Uri.file(latest), {
+      await openPlanFile(vscode.Uri.file(latest), {
         provider: this.planEditor,
       });
     } catch {
@@ -135,7 +135,7 @@ export class PlanFileActions implements vscode.Disposable {
     this.#previewNormalized.add(key);
     this.#reopeningPreview = true;
     try {
-      await revealPlanFile(editor.document.uri, {
+      await openPlanFile(editor.document.uri, {
         preserveFocus: false,
         viewColumn: editor.viewColumn,
         provider: this.planEditor,
