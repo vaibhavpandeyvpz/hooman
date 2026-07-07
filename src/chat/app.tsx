@@ -1266,6 +1266,7 @@ export function ChatApp({
       runningRef.current = true;
       setRunning(true);
       setTurnStartedAt(Date.now());
+      setUsage(emptyTurnUsage());
       appendLine({
         id: nowId(),
         role: "user",
@@ -1415,10 +1416,13 @@ export function ChatApp({
                     latencyMs?: number;
                   };
                   const lat = metricsData.latencyMs ?? 0;
-                  // Per-request token meter: show the latest request's usage
-                  // (uncached input, cached input, output) rather than a session
-                  // running total — the context gauge already reflects overall
-                  // window consumption, so the token row reports "this turn".
+                  // Token meter: input/cached-input show the latest request's
+                  // usage (each request resends the full context, so those
+                  // aren't additive — the context gauge already reflects
+                  // overall window consumption). Output tokens are additive
+                  // across every model request in the turn (thinking + tool
+                  // calls + final text each generate new, non-overlapping
+                  // tokens), so they're summed rather than overwritten.
                   const inputTokens = u.inputTokens ?? 0;
                   const outputTokens = u.outputTokens ?? 0;
                   const cacheRead = u.cacheReadInputTokens ?? 0;
@@ -1435,17 +1439,23 @@ export function ChatApp({
                       ? outputTokens /
                         Math.max((Date.now() - genStart) / 1000, 0.001)
                       : undefined;
-                  setUsage({
-                    inputTokens,
-                    outputTokens,
-                    totalTokens:
-                      inputTokens + cacheRead + cacheWrite + outputTokens,
-                    ...(hasCacheRead && { cacheReadInputTokens: cacheRead }),
-                    ...(hasCacheWrite && {
-                      cacheWriteInputTokens: cacheWrite,
-                    }),
-                    latencyMs: lat,
-                    tokensPerSecond,
+                  setUsage((prev) => {
+                    const totalOutputTokens = prev.outputTokens + outputTokens;
+                    return {
+                      inputTokens,
+                      outputTokens: totalOutputTokens,
+                      totalTokens:
+                        inputTokens +
+                        cacheRead +
+                        cacheWrite +
+                        totalOutputTokens,
+                      ...(hasCacheRead && { cacheReadInputTokens: cacheRead }),
+                      ...(hasCacheWrite && {
+                        cacheWriteInputTokens: cacheWrite,
+                      }),
+                      latencyMs: prev.latencyMs + lat,
+                      tokensPerSecond,
+                    };
                   });
                   // Session cost accrues per request at the current model's
                   // resolved rates; once a request runs unpriced the total is

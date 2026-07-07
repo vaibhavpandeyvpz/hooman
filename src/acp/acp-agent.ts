@@ -195,9 +195,11 @@ type SessionRecord = {
   /** Persist this provider's effort to shared config after a deferred rebuild. */
   pendingPersistEffort: { provider: string; effort: string | undefined } | null;
   /**
-   * Latest request's token usage (additive shape), mirroring the CLI TUI's
-   * `StatusBar` meter which reports "this turn" rather than a session total.
-   * Distinct from the context-window utilization sent as `usage_update.used`.
+   * Current turn's token usage (additive shape), mirroring the CLI TUI's
+   * `StatusBar` meter: input/cached-input are the latest request's values,
+   * output tokens accumulate across every request in the turn. Reset at the
+   * start of each `prompt()` call. Distinct from the context-window
+   * utilization sent as `usage_update.used`.
    */
   lastTurnUsage: Usage;
   /**
@@ -278,14 +280,17 @@ function createEmptyUsage(): Usage {
 
 /**
  * Build the per-turn token meter from a single request's usage, mirroring the
- * CLI TUI (`src/chat/app.tsx`): report just the latest request's tokens rather
- * than a session running total — the context gauge already reflects overall
- * window consumption. `source` must already be in the additive shape (see
+ * CLI TUI (`src/chat/app.tsx`): input/cached-input reflect just the latest
+ * request (each request resends the full context, so those aren't additive
+ * — the context gauge already reflects overall window consumption), while
+ * output tokens accumulate across every model request in the turn (`prev`),
+ * since each request's thinking/tool-call/final-text generation produces new,
+ * non-overlapping tokens. `source` must already be in the additive shape (see
  * `toAdditiveUsage`), where cache reads are not part of `inputTokens`.
  */
-function lastTurnUsage(source: Usage): Usage {
+function lastTurnUsage(prev: Usage, source: Usage): Usage {
   const inputTokens = source.inputTokens ?? 0;
-  const outputTokens = source.outputTokens ?? 0;
+  const outputTokens = (prev.outputTokens ?? 0) + (source.outputTokens ?? 0);
   const cacheRead = source.cacheReadInputTokens ?? 0;
   const cacheWrite = source.cacheWriteInputTokens ?? 0;
   return {
@@ -1200,6 +1205,7 @@ export class HoomanAcpAgent {
     rec.streamingToolInputJson.clear();
     rec.lastStreamToolUseId = null;
     rec.currentAssistantMessageId = null;
+    rec.lastTurnUsage = createEmptyUsage();
 
     let stopReason: StopReason = "end_turn";
 
@@ -1375,7 +1381,8 @@ export class HoomanAcpAgent {
    *   clients should not render a used/size percentage.
    * - `cost`: cumulative session USD, only while every priced request had
    *   resolved rates — otherwise omitted rather than reporting a lowball.
-   * - `_meta["hoomanjs/tokens"]`: the latest request's token totals
+   * - `_meta["hoomanjs/tokens"]`: this turn's token totals — input/cached-
+   *   input from the latest request, output summed across the turn
    *   (mirroring the CLI TUI's per-turn `in`/`cin`/`out` meter).
    */
   #sendUsageUpdate(
@@ -1590,7 +1597,7 @@ export class HoomanAcpAgent {
           // reads; normalize to the additive shape so `in`/`cin` don't
           // double-count in the client's meter.
           const additive = toAdditiveUsage(inner.usage, rec.agent.model);
-          rec.lastTurnUsage = lastTurnUsage(additive);
+          rec.lastTurnUsage = lastTurnUsage(rec.lastTurnUsage, additive);
           rec.lastContextTokens = contextTokensFromUsage(additive);
           // Output tokens/sec over the generation window, excluding
           // time-to-first-token and any tool/approval time between requests.
