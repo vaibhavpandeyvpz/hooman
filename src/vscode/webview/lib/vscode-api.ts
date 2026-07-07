@@ -1,6 +1,7 @@
 import type {
   InboundMessage,
   OutboundMessage,
+  WebviewRoute,
 } from "../../src/shared/protocol";
 
 interface VsCodeApi {
@@ -12,6 +13,18 @@ interface VsCodeApi {
 declare function acquireVsCodeApi(): VsCodeApi;
 
 const vscode = acquireVsCodeApi();
+
+function isWebviewRoute(value: string | undefined): value is WebviewRoute {
+  return value === "/" || value === "/chat" || !!value?.startsWith("/plans/");
+}
+
+function readInitialRoute(): WebviewRoute {
+  const raw = document.body.dataset.route;
+  return isWebviewRoute(raw) ? raw : "/";
+}
+
+/** Initial route injected by the host HTML before the webview app boots. */
+export const initialRoute = readInitialRoute();
 
 /** Send a typed message to the extension host. */
 export function post(message: InboundMessage): void {

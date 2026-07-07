@@ -310,7 +310,7 @@ export class PlanEditorProvider implements vscode.CustomTextEditorProvider {
   <link href="${styleUri}" rel="stylesheet">
   <title>${escapeHtml(title)}</title>
 </head>
-<body>
+<body data-route="/plans/${encodeURIComponent(title)}">
   <div id="root"></div>
   <script nonce="${nonce}" src="${scriptUri}"></script>
 </body>

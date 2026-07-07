@@ -1961,7 +1961,7 @@ export class HoomanChatViewProvider
   <link href="${styleUri}" rel="stylesheet">
   <title>Hooman</title>
 </head>
-<body>
+<body data-route="/chat">
   <div id="root"></div>
   <script nonce="${nonce}" src="${scriptUri}"></script>
 </body>

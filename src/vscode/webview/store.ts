@@ -20,7 +20,7 @@ import type {
   TokenTotals,
   WebviewRoute,
 } from "../src/shared/protocol";
-import { onHostMessage, post } from "./lib/vscode-api";
+import { initialRoute, onHostMessage, post } from "./lib/vscode-api";
 import { estimateTokens } from "./lib/format";
 
 export type ToolCallStatusUi =
@@ -134,7 +134,7 @@ function createRuntime(): SessionRuntime {
 }
 
 const [state, setState] = createStore<State>({
-  route: "/",
+  route: initialRoute,
   planView: null,
   activeSessionId: null,
   tabs: [],

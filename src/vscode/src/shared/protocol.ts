@@ -133,7 +133,7 @@ export interface TabInfo {
 }
 
 /** Route-like identifier for the shared Hooman webview app. */
-export type WebviewRoute = "/" | `/plans/${string}`;
+export type WebviewRoute = "/" | "/chat" | `/plans/${string}`;
 
 /** State for the custom `.plan.md` surface rendered by the shared webview app. */
 export interface PlanEditorStateInfo {
