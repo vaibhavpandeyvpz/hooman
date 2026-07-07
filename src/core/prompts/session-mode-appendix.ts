@@ -9,6 +9,7 @@ import {
   PLAN_ENTERED_AT_STATE_KEY,
   PLAN_ENTER_REASON_STATE_KEY,
   PLAN_FILE_STATE_KEY,
+  PLAN_LAST_FILE_STATE_KEY,
 } from "../state/plan.js";
 import {
   getModeState,
@@ -22,6 +23,7 @@ const { compile } = handlebars;
 const SESSION_MODE_TEMPLATE_STATE_KEYS = [
   MODE_STATE_KEY,
   PLAN_FILE_STATE_KEY,
+  PLAN_LAST_FILE_STATE_KEY,
   PLAN_ENTER_REASON_STATE_KEY,
   PLAN_ENTERED_AT_STATE_KEY,
 ] as const;

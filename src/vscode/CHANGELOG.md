@@ -15,7 +15,7 @@ All notable changes to the Hooman VS Code extension are documented in this file.
 - Add a retry strategy for transient model failures: a live "Request failed · retrying in Xs · attempt N/M" card in the chat with an expandable error detail, and exponential backoff up to 10 attempts for rate limits (HTTP 408/409/425/429), 5xx errors, and common network blips.
 - Webview polish: render the agent's reasoning (expanded thought blocks) as markdown instead of plain preformatted text, and stop the chat or plan view from briefly flashing the wrong UI before the first route message lands — an unknown route now shows a friendly empty-state card.
 
-## [1.43.1] 
+## [1.43.1]
 
 - Add a bundled local `mlx` provider for Apple Silicon on macOS 26+: the extension's packaged agent now ships MLX presets for Qwen3.5 9B, Nemotron 3 Nano 4B, and Gemma 4 12B, downloaded from the Hugging Face Hub on first use and run in-process via Metal.
 - Show output tokens per second in the usage footer for the latest request, alongside the existing input, cache, output, context-window, and session-cost meters.

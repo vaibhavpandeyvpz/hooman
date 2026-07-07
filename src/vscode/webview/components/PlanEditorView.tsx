@@ -26,7 +26,7 @@ import {
 } from "lucide-solid";
 import { state } from "../store";
 import { Markdown } from "../lib/markdown";
-import { parsePlanText, type TodoItem } from "../lib/plan-render";
+import { parsePlanText, type PlanTaskItem } from "../lib/plan-render";
 import { post } from "../lib/vscode-api";
 
 type IconComponent = Component<{ size?: number; class?: string }>;
@@ -200,7 +200,7 @@ export default function PlanEditorView() {
                     Plan is empty
                   </h3>
                   <p class="mt-1 max-w-xs text-sm text-muted">
-                    Add goals and todos in Markdown, then build to turn them
+                    Add goals and tasks in Markdown, then build to turn them
                     into action.
                   </p>
                   <button
@@ -228,13 +228,13 @@ export default function PlanEditorView() {
                   </Show>
                   <div class="grid grid-cols-2 gap-3 sm:grid-cols-3">
                     <StatBox
-                      label="Todos"
-                      value={String(parsed().todos.length)}
+                      label="Tasks"
+                      value={String(parsed().tasks.length)}
                     />
                     <StatBox
                       label="Done"
                       value={String(
-                        parsed().todos.filter((t) =>
+                        parsed().tasks.filter((t) =>
                           isStatus(t.status, "completed"),
                         ).length,
                       )}
@@ -242,7 +242,7 @@ export default function PlanEditorView() {
                     <StatBox
                       label="In progress"
                       value={String(
-                        parsed().todos.filter((t) =>
+                        parsed().tasks.filter((t) =>
                           isStatus(t.status, "in_progress"),
                         ).length,
                       )}
@@ -262,8 +262,8 @@ export default function PlanEditorView() {
             </Show>
           </main>
 
-          {/* Todo checklist sidebar */}
-          <Show when={parsed().todos.length > 0}>
+          {/* Task checklist sidebar */}
+          <Show when={parsed().tasks.length > 0}>
             <aside class="w-full shrink-0 lg:w-[22rem]">
               <div class="sticky top-0 rounded-2xl border border-border/80 bg-panel/50 p-5 shadow-sm">
                 <div class="mb-4 flex items-center justify-between">
@@ -273,12 +273,12 @@ export default function PlanEditorView() {
                   </div>
                   <span class="text-xs text-muted">
                     {
-                      parsed().todos.filter((t) =>
+                      parsed().tasks.filter((t) =>
                         isStatus(t.status, "completed"),
                       ).length
                     }
                     {" / "}
-                    {parsed().todos.length}
+                    {parsed().tasks.length}
                   </span>
                 </div>
 
@@ -288,10 +288,10 @@ export default function PlanEditorView() {
                     class="h-full rounded-full bg-accent transition-all"
                     style={{
                       width: `${Math.round(
-                        (parsed().todos.filter((t) =>
+                        (parsed().tasks.filter((t) =>
                           isStatus(t.status, "completed"),
                         ).length /
-                          parsed().todos.length) *
+                          parsed().tasks.length) *
                           100,
                       )}%`,
                     }}
@@ -299,8 +299,8 @@ export default function PlanEditorView() {
                 </div>
 
                 <div class="space-y-2">
-                  <For each={parsed().todos}>
-                    {(todo) => <TodoRow todo={todo} />}
+                  <For each={parsed().tasks}>
+                    {(task) => <TaskRow task={task} />}
                   </For>
                 </div>
               </div>
@@ -370,8 +370,8 @@ function StatBox(props: { label: string; value: string }) {
   );
 }
 
-function TodoRow(props: { todo: TodoItem }) {
-  const status = normalizeStatus(props.todo.status);
+function TaskRow(props: { task: PlanTaskItem }) {
+  const status = normalizeStatus(props.task.status);
   return (
     <div class="group flex items-start gap-3 rounded-xl border border-border/60 bg-[var(--vscode-editor-background)] px-3 py-3 transition hover:border-border">
       <div class="mt-0.5 shrink-0">
@@ -398,11 +398,11 @@ function TodoRow(props: { todo: TodoItem }) {
               : "text-foreground"
           }`}
         >
-          {props.todo.content}
+          {props.task.description}
         </div>
-        <Show when={props.todo.status}>
+        <Show when={props.task.status}>
           <div class="mt-1 text-[11px] capitalize text-muted">
-            {formatStatusLabel(props.todo.status!)}
+            {formatStatusLabel(props.task.status!)}
           </div>
         </Show>
       </div>

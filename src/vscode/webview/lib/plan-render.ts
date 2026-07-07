@@ -1,6 +1,6 @@
 import { load as loadYaml } from "js-yaml";
 
-export type TodoItem = { content: string; status?: string };
+export type PlanTaskItem = { description: string; status?: string };
 
 /**
  * Split a leading `--- ... ---` YAML frontmatter block from Markdown.
@@ -29,13 +29,13 @@ type ParsedPlan = {
   title: string;
   overview?: string;
   status?: string;
-  todos: TodoItem[];
+  tasks: PlanTaskItem[];
   rawRemainder: string;
   structured: boolean;
 };
 
 /**
- * Parse a plan file using YAML frontmatter for metadata and todos, falling
+ * Parse a plan file using YAML frontmatter for metadata and tasks, falling
  * back to plain Markdown heading detection.
  */
 export function parsePlanText(text: string, fallbackTitle: string): ParsedPlan {
@@ -43,7 +43,7 @@ export function parsePlanText(text: string, fallbackTitle: string): ParsedPlan {
   if (!trimmed) {
     return {
       title: fallbackTitle,
-      todos: [],
+      tasks: [],
       rawRemainder: "",
       structured: false,
     };
@@ -56,7 +56,7 @@ export function parsePlanText(text: string, fallbackTitle: string): ParsedPlan {
       : {};
   const hasFrontmatter = Object.keys(data).length > 0;
 
-  const todos = parseTodos(data.todos);
+  const tasks = parseTasks(data.tasks ?? data.todos);
   const remainder = parsed.content.trim();
 
   return {
@@ -68,30 +68,34 @@ export function parsePlanText(text: string, fallbackTitle: string): ParsedPlan {
       fallbackTitle,
     overview: asString(data.overview),
     status: asString(data.status),
-    todos,
+    tasks,
     rawRemainder: remainder,
     structured: hasFrontmatter,
   };
 }
 
-function parseTodos(value: unknown): TodoItem[] {
+function parseTasks(value: unknown): PlanTaskItem[] {
   if (!Array.isArray(value)) {
     return [];
   }
 
-  const items: TodoItem[] = [];
+  const items: PlanTaskItem[] = [];
   for (const entry of value) {
     if (typeof entry === "string") {
-      items.push({ content: entry });
+      items.push({ description: entry });
     } else if (entry && typeof entry === "object") {
-      const content = asString(entry.content) ?? asString(entry.name) ?? "";
+      const description =
+        asString((entry as Record<string, unknown>).description) ??
+        asString((entry as Record<string, unknown>).content) ??
+        asString((entry as Record<string, unknown>).name) ??
+        "";
       items.push({
-        content,
-        status: asString(entry.status),
+        description,
+        status: asString((entry as Record<string, unknown>).status),
       });
     }
   }
-  return items;
+  return items.filter((item) => item.description.trim().length > 0);
 }
 
 function asString(value: unknown): string | undefined {

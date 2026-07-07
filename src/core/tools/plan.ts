@@ -26,7 +26,15 @@ import { plansPath } from "../utils/paths.js";
 
 const PLAN_PREVIEW_MAX_BYTES = 8 * 1024;
 
-const ENTER_STUB_MD = "# Plan\n\n";
+const ENTER_STUB_MD = `---
+name: Plan
+overview: ""
+tasks: []
+status: pending
+---
+
+# Plan
+`;
 
 const EnterPlanModeInputSchema = z.object({
   reason: z.string().trim().optional(),
