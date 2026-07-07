@@ -9,6 +9,7 @@ import { BASELINE_SCHEME, EditTracker } from "./edit-tracker";
 import { PlanEditorProvider } from "./plan-editor";
 import { PlanFileActions } from "./plan-actions";
 import { PermissionPrompts } from "./permissions";
+import { SelectionActionsCodeLensProvider } from "./selection-actions";
 import { HoomanStatusBar } from "./status-bar";
 
 /** `~/.hooman/` (or `$HOOMAN_HOME`); mirrors `src/core/utils/paths.ts`. */
@@ -207,6 +208,26 @@ export function activate(context: vscode.ExtensionContext): void {
           3000,
         );
       },
+    ),
+    vscode.commands.registerCommand("hooman.addSelectionToChat", () => {
+      const editor = vscode.window.activeTextEditor;
+      if (!editor || editor.selection.isEmpty) {
+        void vscode.window.showWarningMessage("Hooman: no text selected.");
+        return;
+      }
+      chatView.addSelectionAttachment(editor);
+    }),
+    vscode.commands.registerCommand("hooman.addSelectionToNewChat", () => {
+      const editor = vscode.window.activeTextEditor;
+      if (!editor || editor.selection.isEmpty) {
+        void vscode.window.showWarningMessage("Hooman: no text selected.");
+        return;
+      }
+      chatView.addSelectionAttachment(editor, { newChat: true });
+    }),
+    vscode.languages.registerCodeLensProvider(
+      { pattern: "**/*" },
+      new SelectionActionsCodeLensProvider(context),
     ),
   );
 

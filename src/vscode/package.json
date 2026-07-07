@@ -91,16 +91,28 @@
         }
       ],
       "editor/title": [],
+      "editor/context": [
+        {
+          "command": "hooman.addSelectionToChat",
+          "when": "editorHasSelection",
+          "group": "1_hooman@1"
+        },
+        {
+          "command": "hooman.addSelectionToNewChat",
+          "when": "editorHasSelection",
+          "group": "1_hooman@2"
+        }
+      ],
       "explorer/context": [
         {
           "command": "hooman.addExplorerSelectionToChat",
           "when": "resourceScheme == file",
-          "group": "navigation@8"
+          "group": "1_hooman@1"
         },
         {
           "command": "hooman.addExplorerSelectionToNewChat",
           "when": "resourceScheme == file",
-          "group": "navigation@9"
+          "group": "1_hooman@2"
         }
       ]
     },
@@ -127,6 +139,14 @@
       {
         "command": "hooman.addExplorerSelectionToNewChat",
         "title": "Add to New Hooman Chat"
+      },
+      {
+        "command": "hooman.addSelectionToChat",
+        "title": "Add Selection to Hooman Chat"
+      },
+      {
+        "command": "hooman.addSelectionToNewChat",
+        "title": "Add Selection to New Hooman Chat"
       },
       {
         "command": "hooman.deleteAllSessions",

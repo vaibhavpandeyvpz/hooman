@@ -228,6 +228,39 @@ export class HoomanChatViewProvider
     const attachments = await this.#resolveUriAttachments(
       uris.map((uri) => uri.toString()),
     );
+    this.#stageComposerAttachments(attachments, options);
+  }
+
+  /** Stage an active editor's selection as a ranged composer attachment. */
+  addSelectionAttachment(
+    editor: vscode.TextEditor,
+    options?: { newChat?: boolean },
+  ): void {
+    const selection = editor.selection;
+    if (selection.isEmpty) {
+      return;
+    }
+    const start = selection.start.line + 1;
+    const end = selection.end.line + 1;
+    const path = editor.document.uri.fsPath;
+    this.#stageComposerAttachments(
+      [
+        {
+          id: randomUUID(),
+          name: `${basename(path)} (${start}-${end})`,
+          kind: "file",
+          path,
+          range: { start, end },
+        },
+      ],
+      options,
+    );
+  }
+
+  #stageComposerAttachments(
+    attachments: AttachmentInfo[],
+    options?: { newChat?: boolean },
+  ): void {
     if (attachments.length === 0) {
       return;
     }
@@ -1321,9 +1354,12 @@ async function attachmentToBlock(
     }
   }
   if (attachment.path) {
+    const uri = vscode.Uri.file(attachment.path).toString();
     return {
       type: "resource_link",
-      uri: vscode.Uri.file(attachment.path).toString(),
+      uri: attachment.range
+        ? `${uri}#L${attachment.range.start}-L${attachment.range.end}`
+        : uri,
       name: attachment.name,
     };
   }

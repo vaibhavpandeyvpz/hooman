@@ -2,6 +2,10 @@
 
 All notable changes to the Hooman VS Code extension are documented in this file.
 
+## [Unreleased]
+
+- Add "Add Selection to Hooman Chat" / "Add Selection to New Hooman Chat": editor context-menu commands and a floating CodeLens over the active selection that stage the selected file/line-range as a composer chip (sent as a `resource_link` with a `#Lstart-Lend` fragment).
+
 ## [1.43.1]
 
 - Add a bundled local `mlx` provider for Apple Silicon on macOS 26+: the extension's packaged agent now ships MLX presets for Qwen3.5 9B, Nemotron 3 Nano 4B, and Gemma 4 12B, downloaded from the Hugging Face Hub on first use and run in-process via Metal.

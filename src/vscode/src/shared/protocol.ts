@@ -100,6 +100,8 @@ export interface AttachmentInfo {
   /** Base64 payload for attachments without a path. */
   data?: string;
   mimeType?: string;
+  /** 1-indexed, inclusive line range, set for editor-selection attachments. */
+  range?: { start: number; end: number };
 }
 
 /** A prompt submitted while a turn was already running, waiting to run next (or be steered into the active turn). */
