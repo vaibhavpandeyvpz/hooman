@@ -27,6 +27,13 @@ Resume or pin a session id:
 hooman chat --session my-session
 ```
 
+Resume the most recent session in the current project:
+
+```bash
+hooman chat --continue
+# or: hooman chat -C
+```
+
 Skip the in-chat tool approval UI (auto-approve every tool call; use only when you trust the prompt and environment):
 
 ```bash
@@ -122,6 +129,14 @@ hooman daemon --debug
 - **`ask`** — read-oriented, narrower surface (similar to interactive plan mode) but without the plan lifecycle tools.
 
 In `chat`, `/mode` switches between `agent`, `ask`, and `plan`. ACP sessions can set `hooman.sessionMode` to the same three values.
+
+## `hooman sessions`
+
+List and inspect saved CLI sessions for the current project.
+
+```bash
+hooman sessions list
+```
 
 ## `hooman config`
 
