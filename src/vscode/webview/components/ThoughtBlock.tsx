@@ -1,6 +1,7 @@
 import { createEffect, createSignal, Show } from "solid-js";
 import { ChevronDown, ChevronRight } from "lucide-solid";
 import { formatDuration } from "../lib/format";
+import { Markdown } from "../lib/markdown";
 import { thoughtTokenEstimate } from "../store";
 
 export default function ThoughtBlock(props: {
@@ -42,8 +43,10 @@ export default function ThoughtBlock(props: {
         </Show>
       </button>
       <Show when={expanded()}>
-        <div class="mt-0.5 max-h-56 overflow-y-auto whitespace-pre-wrap pb-1 scroll-thin">
-          {props.text}
+        <div class="mt-0.5 max-h-56 overflow-y-auto pb-1 scroll-thin">
+          <Markdown class="break-words px-0.5 text-[12.5px] leading-relaxed text-muted">
+            {props.text}
+          </Markdown>
         </div>
       </Show>
     </div>
