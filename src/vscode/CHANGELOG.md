@@ -2,6 +2,9 @@
 
 All notable changes to the Hooman VS Code extension are documented in this file.
 
+## [1.44.1]
+- Plan file structural improvments
+
 ## [1.44.0]
 
 - Send the selected editor text to Hooman Chat from the editor context menu: "Add Selection to Hooman Chat" / "Add Selection to New Hooman Chat", plus matching explorer-tree commands for selected files/folders, and a floating CodeLens over the active selection. The selection is staged as a composer chip and sent to the agent as a `resource_link` with a `#Lstart-Lend` fragment when applicable.
