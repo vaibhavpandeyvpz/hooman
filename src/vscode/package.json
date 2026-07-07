@@ -36,7 +36,8 @@
     "ai"
   ],
   "activationEvents": [
-    "onStartupFinished"
+    "onStartupFinished",
+    "onCustomEditor:hooman.planEditor"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -59,6 +60,18 @@
         }
       ]
     },
+    "customEditors": [
+      {
+        "viewType": "hooman.planEditor",
+        "displayName": "Hooman Plan",
+        "selector": [
+          {
+            "filenamePattern": "*.plan.md"
+          }
+        ],
+        "priority": "default"
+      }
+    ],
     "menus": {
       "view/title": [
         {
@@ -77,6 +90,7 @@
           "group": "navigation@3"
         }
       ],
+      "editor/title": [],
       "explorer/context": [
         {
           "command": "hooman.addExplorerSelectionToChat",
@@ -121,6 +135,16 @@
       {
         "command": "hooman.showOutput",
         "title": "Hooman: Show Output Channel"
+      },
+      {
+        "command": "hooman.plan.pickModel",
+        "title": "Model",
+        "icon": "$(chevron-down)"
+      },
+      {
+        "command": "hooman.plan.build",
+        "title": "Build",
+        "icon": "$(play)"
       }
     ],
     "configuration": {
@@ -160,13 +184,17 @@
   "devDependencies": {
     "@agentclientprotocol/sdk": "^1.1.0",
     "@tailwindcss/vite": "^4.3.2",
+    "@types/js-yaml": "^4.0.9",
     "@types/node": "^24.0.0",
     "@types/vscode": "^1.110.0",
     "@vscode/vsce": "^3.7.1",
     "esbuild": "^0.28.1",
+    "js-yaml": "^4.1.0",
     "lucide-solid": "^1.23.0",
-    "marked": "^18.0.5",
+    "remark-breaks": "^4.0.0",
+    "remark-gfm": "^4.0.1",
     "solid-js": "^1.9.14",
+    "solid-markdown": "^2.1.1",
     "tailwindcss": "^4.3.2",
     "typescript": "^5.9.3",
     "vite": "^8.1.3",

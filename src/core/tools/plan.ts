@@ -105,7 +105,7 @@ Re-entering after leaving reopens this session's most recent plan file so you ca
           planFile = lastPlanFile;
           reused = true;
         } else {
-          planFile = path.join(dir, `${randomUUID()}.md`);
+          planFile = path.join(dir, `${randomUUID()}.plan.md`);
           await fs.writeFile(planFile, ENTER_STUB_MD, "utf8");
           reused = false;
         }

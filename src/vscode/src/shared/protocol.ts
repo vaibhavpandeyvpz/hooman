@@ -121,6 +121,20 @@ export interface SessionRowInfo {
   busy: boolean;
 }
 
+/** Route-like identifier for the shared Hooman webview app. */
+export type WebviewRoute = "/" | `/plans/${string}`;
+
+/** State for the custom `.plan.md` surface rendered by the shared webview app. */
+export interface PlanEditorStateInfo {
+  path: string;
+  name: string;
+  text: string;
+  modelLabel: string;
+  modeLabel?: string;
+  busy: boolean;
+  dirty: boolean;
+}
+
 /** Messages sent from the webview to the extension host. */
 export type InboundMessage =
   | { type: "ready" }
@@ -149,7 +163,11 @@ export type InboundMessage =
   | { type: "sessionsClosed" }
   | { type: "openSession"; sessionId: string; cwd: string; title: string }
   | { type: "deleteSession"; sessionId: string; title: string }
-  | { type: "newChat" };
+  | { type: "newChat" }
+  | { type: "pickModel" }
+  | { type: "build" }
+  | { type: "editMarkdown" }
+  | { type: "refresh" };
 
 /** Messages sent from the extension host to the webview. */
 export type OutboundMessage =
@@ -160,6 +178,8 @@ export type OutboundMessage =
       busy: boolean;
       queue: QueuedPromptInfo[];
     }
+  | { type: "route"; route: WebviewRoute }
+  | { type: "planState"; state: PlanEditorStateInfo }
   | { type: "configOptions"; configOptions: SessionConfigOption[] }
   | { type: "update"; update: SessionUpdate }
   | { type: "promptStart" }

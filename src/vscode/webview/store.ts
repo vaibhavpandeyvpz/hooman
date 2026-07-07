@@ -13,9 +13,11 @@ import type {
   ModelDownloadInfo,
   OutboundMessage,
   PermissionOptionInfo,
+  PlanEditorStateInfo,
   QueuedPromptInfo,
   SessionRowInfo,
   TokenTotals,
+  WebviewRoute,
 } from "../src/shared/protocol";
 import { onHostMessage, post } from "./lib/vscode-api";
 import { estimateTokens } from "./lib/format";
@@ -62,6 +64,8 @@ export type Activity =
   | { type: "tool"; title: string };
 
 interface State {
+  route: WebviewRoute;
+  planView: PlanEditorStateInfo | null;
   items: TranscriptItem[];
   busy: boolean;
   promptStartedAt: number | null;
@@ -91,6 +95,8 @@ interface State {
 }
 
 const [state, setState] = createStore<State>({
+  route: "/",
+  planView: null,
   items: [],
   busy: false,
   promptStartedAt: null,
@@ -536,6 +542,12 @@ onHostMessage((msg) => {
         busy: msg.busy,
         queue: msg.queue,
       });
+      break;
+    case "route":
+      setState("route", msg.route);
+      break;
+    case "planState":
+      setState("planView", msg.state);
       break;
     case "configOptions":
       setState("configOptions", msg.configOptions);

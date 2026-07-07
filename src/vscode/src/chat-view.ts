@@ -16,6 +16,7 @@ import {
 import type { HoomanAcpClient } from "./acp-client";
 import type { EditTracker } from "./edit-tracker";
 import type { PermissionPrompts } from "./permissions";
+import { isPlanFilePath, revealPlanFile } from "./plan-file";
 import type { HoomanStatusBar } from "./status-bar";
 import type {
   AttachmentInfo,
@@ -155,6 +156,11 @@ export class HoomanChatViewProvider
     return this.#busy;
   }
 
+  /** Current session config options exposed by ACP (model, mode, effort, ...). */
+  get configOptions(): readonly SessionConfigOption[] {
+    return this.#configOptions;
+  }
+
   resolveWebviewView(webviewView: vscode.WebviewView): void {
     this.#view = webviewView;
     this.#webviewReady = false;
@@ -244,6 +250,12 @@ export class HoomanChatViewProvider
       value,
       boolean: isBoolean,
     });
+  }
+
+  /** Submit a prompt from host-side UI integrations. */
+  submitPrompt(text: string): void {
+    this.#submitOrQueue(text, []);
+    this.focus();
   }
 
   /** Load an existing ACP session into the panel, replaying its history. */
@@ -959,6 +971,7 @@ export class HoomanChatViewProvider
 
   #deliverSessionUpdate(notification: SessionNotification): void {
     const update = notification.update;
+    void this.#maybeRevealPlanFileFromUpdate(update);
     if (update.sessionUpdate === "config_option_update") {
       this.#configOptions = update.configOptions ?? this.#configOptions;
       this.#post({ type: "configOptions", configOptions: this.#configOptions });
@@ -1132,6 +1145,26 @@ export class HoomanChatViewProvider
     void this.#view?.webview.postMessage(message);
   }
 
+  async #maybeRevealPlanFileFromUpdate(update: SessionUpdate): Promise<void> {
+    if (
+      update.sessionUpdate !== "tool_call_update" ||
+      update.status !== "completed"
+    ) {
+      return;
+    }
+    const planFile = findPlanFilePath(update.rawOutput);
+    if (!planFile || !isPlanFilePath(planFile)) {
+      return;
+    }
+    try {
+      await revealPlanFile(vscode.Uri.file(planFile));
+    } catch (error) {
+      this.outputChannel.warn(
+        `[chat-view] failed to reveal plan file ${planFile}: ${describe(error)}`,
+      );
+    }
+  }
+
   #flushPendingComposerAttachments(): void {
     if (!this.#webviewReady || this.#pendingComposerAttachments.length === 0) {
       return;
@@ -1257,4 +1290,37 @@ function echoTextWithAttachments(
     .map((attachment) => `[attachment] ${attachment.name}`)
     .join("\n");
   return text ? `${text}\n\n${names}` : names;
+}
+
+function findPlanFilePath(value: unknown): string | null {
+  if (!value) {
+    return null;
+  }
+  if (typeof value === "string") {
+    return value;
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const planFile = findPlanFilePath(item);
+      if (planFile) {
+        return planFile;
+      }
+    }
+    return null;
+  }
+  if (typeof value !== "object") {
+    return null;
+  }
+  const record = value as Record<string, unknown>;
+  const direct = record.plan_file;
+  if (typeof direct === "string") {
+    return direct;
+  }
+  for (const nested of Object.values(record)) {
+    const planFile = findPlanFilePath(nested);
+    if (planFile) {
+      return planFile;
+    }
+  }
+  return null;
 }

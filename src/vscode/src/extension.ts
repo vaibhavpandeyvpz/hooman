@@ -6,6 +6,8 @@ import { methods } from "@agentclientprotocol/sdk";
 import { HoomanAcpClient } from "./acp-client";
 import { HoomanChatViewProvider } from "./chat-view";
 import { BASELINE_SCHEME, EditTracker } from "./edit-tracker";
+import { PlanEditorProvider } from "./plan-editor";
+import { PlanFileActions } from "./plan-actions";
 import { PermissionPrompts } from "./permissions";
 import { HoomanStatusBar } from "./status-bar";
 
@@ -149,6 +151,18 @@ export function activate(context: vscode.ExtensionContext): void {
       },
     ),
   );
+
+  const planEditor = new PlanEditorProvider(context, chatView);
+  context.subscriptions.push(
+    planEditor,
+    vscode.window.registerCustomEditorProvider(
+      PlanEditorProvider.viewType,
+      planEditor,
+      {
+        webviewOptions: { retainContextWhenHidden: true },
+      },
+    ),
+  );
   context.subscriptions.push(
     vscode.commands.registerCommand("hooman.newChat", () => {
       chatView.newChat();
@@ -208,7 +222,14 @@ export function activate(context: vscode.ExtensionContext): void {
     openConfig: () => void pickAndOpenSettings(),
   });
   chatView.setStatusBar(statusBar);
+
+  const planFileActions = new PlanFileActions(
+    chatView,
+    editTracker,
+    planEditor,
+  );
   context.subscriptions.push(
+    planFileActions,
     statusBar,
     vscode.commands.registerCommand(HoomanStatusBar.menuCommand, () => {
       void statusBar.showMenu();
@@ -219,6 +240,12 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand("hooman.showOutput", () => {
       outputChannel.show();
     }),
+    vscode.commands.registerCommand("hooman.plan.pickModel", () =>
+      planFileActions.pickModel(),
+    ),
+    vscode.commands.registerCommand("hooman.plan.build", () =>
+      planFileActions.buildActivePlan(),
+    ),
   );
 
   context.subscriptions.push(
