@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { z } from "zod";
 import { Box, Text, useApp, useInput } from "ink";
 import {
   LlmProvider,
@@ -14,6 +15,7 @@ import {
   type Stdio,
   type StreamableHttp,
 } from "../core/mcp/types.js";
+import type { McpConfigScope } from "../core/mcp/config.js";
 import type {
   SkillListEntry,
   SkillSearchResult,
@@ -860,6 +862,34 @@ function formatPromptCacheSummary(value: unknown): string {
 /** On/off display for tool rows (`Tool • Yes` / `Tool • No`). */
 const yesNo = (on: boolean): string => (on ? "Yes" : "No");
 
+function formatMcpScope(scope: McpConfigScope): string {
+  return scope === "global" ? "global" : "project";
+}
+
+function formatMcpWriteTargetLabel(path: string): string {
+  return truncate(path, 72);
+}
+
+function formatMcpDeleteDescription(
+  name: string,
+  sourcePath: string,
+  scope: McpConfigScope,
+): string {
+  return `Remove "${name}" from ${formatMcpScope(scope)} mcp.json (${truncate(sourcePath, 64)})? This cannot be undone from here.`;
+}
+
+function formatConfigureError(error: unknown): string {
+  if (error instanceof z.ZodError) {
+    const issue = error.issues[0];
+    if (!issue) {
+      return "Invalid value.";
+    }
+    const path = issue.path.map(String).join(".");
+    return path ? `${path}: ${issue.message}` : issue.message;
+  }
+  return error instanceof Error ? error.message : String(error);
+}
+
 export function ConfigureApp({
   config,
   mcpConfig,
@@ -884,21 +914,25 @@ export function ConfigureApp({
     setRevision((value) => value + 1);
   }, []);
 
+  const handleActionError = useCallback((error: unknown) => {
+    setNotice({
+      kind: "error",
+      text: formatConfigureError(error),
+    });
+  }, []);
+
   const runTask = useCallback(
     async (label: string, task: () => Promise<void>) => {
       setBusyMessage(label);
       try {
         await task();
       } catch (error) {
-        setNotice({
-          kind: "error",
-          text: error instanceof Error ? error.message : String(error),
-        });
+        handleActionError(error);
       } finally {
         setBusyMessage(null);
       }
     },
-    [],
+    [handleActionError],
   );
 
   const refreshSkills = useCallback(
@@ -953,7 +987,10 @@ export function ConfigureApp({
     [config, revision],
   );
 
-  const mcpServers = useMemo(() => mcpConfig.list(), [mcpConfig, revision]);
+  const mcpServers = useMemo(
+    () => mcpConfig.listWithSources(),
+    [mcpConfig, revision],
+  );
 
   useInput(
     (input, key) => {
@@ -978,7 +1015,10 @@ export function ConfigureApp({
         setScreen({ kind: "mcp" });
         return;
       }
-      if (screen.kind === "mcp-delete-confirm") {
+      if (
+        screen.kind === "mcp-delete-confirm" ||
+        screen.kind === "mcp-save-target"
+      ) {
         setScreen({ kind: "mcp" });
         return;
       }
@@ -1183,13 +1223,10 @@ export function ConfigureApp({
       try {
         await prompt.onSubmit(value);
       } catch (error) {
-        setNotice({
-          kind: "error",
-          text: error instanceof Error ? error.message : String(error),
-        });
+        handleActionError(error);
       }
     },
-    [prompt],
+    [handleActionError, prompt],
   );
 
   const persistMcpTransport = useCallback(
@@ -1197,23 +1234,38 @@ export function ConfigureApp({
       currentName: string | undefined,
       nextName: string,
       transport: Stdio | StreamableHttp | Sse,
+      targetPath?: string,
     ) => {
       if (!nextName) {
         throw new Error("Server name is required.");
       }
-      if (currentName && currentName !== nextName && mcpConfig.get(nextName)) {
-        throw new Error(`MCP server "${nextName}" already exists.`);
-      }
       if (!currentName) {
-        mcpConfig.add(nextName, transport);
+        if (!targetPath) {
+          throw new Error("Save target is required for a new MCP server.");
+        }
+        mcpConfig.addToPath(targetPath, nextName, transport);
         setSuccess(`Added MCP server "${nextName}".`);
-      } else if (currentName === nextName) {
-        mcpConfig.update(currentName, transport);
-        setSuccess(`Updated MCP server "${currentName}".`);
       } else {
-        mcpConfig.add(nextName, transport);
-        mcpConfig.remove(currentName);
-        setSuccess(`Renamed MCP server "${currentName}" to "${nextName}".`);
+        const currentEntry = mcpConfig.getEntry(currentName);
+        if (!currentEntry) {
+          throw new Error(`MCP server "${currentName}" does not exist.`);
+        }
+        if (currentName === nextName) {
+          mcpConfig.updateInPath(
+            currentEntry.sourcePath,
+            currentName,
+            transport,
+          );
+          setSuccess(`Updated MCP server "${currentName}".`);
+        } else {
+          mcpConfig.renameInPath(
+            currentEntry.sourcePath,
+            currentName,
+            nextName,
+            transport,
+          );
+          setSuccess(`Renamed MCP server "${currentName}" to "${nextName}".`);
+        }
       }
       setMcpDraft(null);
       setScreen({ kind: "mcp" });
@@ -1296,37 +1348,31 @@ export function ConfigureApp({
     [promptValue, updateMcpDraftField],
   );
 
-  const saveMcpStdioDraft = useCallback(
-    (originalName?: string) => {
-      const values = mcpDraft ?? {};
-      const name = (values.name ?? "").trim();
-      const command = (values.command ?? "").trim();
-      if (!name) {
-        throw new Error("Server name is required.");
-      }
-      if (!command) {
-        throw new Error("Command is required.");
-      }
-      const args = parseStringArray(values.args ?? "", "Arguments");
-      const env = parseStringRecord(values.env ?? "", "Environment variables");
-      const cwd = normalizeOptional(values.cwd ?? "");
-      const transport = McpTransportSchema.parse({
-        type: "stdio",
-        command,
-        ...(args.length > 0 ? { args } : {}),
-        ...(env && Object.keys(env).length > 0 ? { env } : {}),
-        ...(cwd ? { cwd } : {}),
-      }) as Stdio;
-      persistMcpTransport(originalName, name, transport);
-    },
-    [mcpDraft, persistMcpTransport],
-  );
+  const buildMcpStdioDraft = useCallback(() => {
+    const values = mcpDraft ?? {};
+    const name = (values.name ?? "").trim();
+    const command = (values.command ?? "").trim();
+    if (!name) {
+      throw new Error("Server name is required.");
+    }
+    if (!command) {
+      throw new Error("Command is required.");
+    }
+    const args = parseStringArray(values.args ?? "", "Arguments");
+    const env = parseStringRecord(values.env ?? "", "Environment variables");
+    const cwd = normalizeOptional(values.cwd ?? "");
+    const transport = McpTransportSchema.parse({
+      type: "stdio",
+      command,
+      ...(args.length > 0 ? { args } : {}),
+      ...(env && Object.keys(env).length > 0 ? { env } : {}),
+      ...(cwd ? { cwd } : {}),
+    }) as Stdio;
+    return { name, transport };
+  }, [mcpDraft]);
 
-  const saveMcpRemoteDraft = useCallback(
-    (
-      transportType: StreamableHttp["type"] | Sse["type"],
-      originalName?: string,
-    ) => {
+  const buildMcpRemoteDraft = useCallback(
+    (transportType: StreamableHttp["type"] | Sse["type"]) => {
       const values = mcpDraft ?? {};
       const name = (values.name ?? "").trim();
       const url = (values.url ?? "").trim();
@@ -1404,9 +1450,36 @@ export function ConfigureApp({
         ...(headers && Object.keys(headers).length > 0 ? { headers } : {}),
         ...(oauth ? { oauth } : {}),
       }) as StreamableHttp | Sse;
+      return { name, transport };
+    },
+    [mcpDraft],
+  );
+
+  const saveMcpStdioDraft = useCallback(
+    (originalName?: string) => {
+      const { name, transport } = buildMcpStdioDraft();
+      if (!originalName) {
+        setScreen({ kind: "mcp-save-target", transportType: "stdio" });
+        return;
+      }
       persistMcpTransport(originalName, name, transport);
     },
-    [mcpDraft, persistMcpTransport],
+    [buildMcpStdioDraft, persistMcpTransport],
+  );
+
+  const saveMcpRemoteDraft = useCallback(
+    (
+      transportType: StreamableHttp["type"] | Sse["type"],
+      originalName?: string,
+    ) => {
+      const { name, transport } = buildMcpRemoteDraft(transportType);
+      if (!originalName) {
+        setScreen({ kind: "mcp-save-target", transportType });
+        return;
+      }
+      persistMcpTransport(originalName, name, transport);
+    },
+    [buildMcpRemoteDraft, persistMcpTransport],
   );
 
   const llmSummary = useCallback(
@@ -1454,10 +1527,7 @@ export function ConfigureApp({
             writeFileSync(path, `${next}\n`, "utf8");
             setSuccess("Updated instructions.md.");
           } catch (error) {
-            setNotice({
-              kind: "error",
-              text: error instanceof Error ? error.message : String(error),
-            });
+            handleActionError(error);
           }
         },
       },
@@ -1489,6 +1559,7 @@ export function ConfigureApp({
         )}`}
         items={items}
         footerHint="enter: select | esc: back"
+        onActionError={handleActionError}
       />
     );
   };
@@ -1604,6 +1675,7 @@ export function ConfigureApp({
         title="General"
         description="Manage app-wide settings loaded from ~/.hooman/config.json."
         items={items}
+        onActionError={handleActionError}
       />
     );
   };
@@ -2981,6 +3053,7 @@ export function ConfigureApp({
         title={`${screen.originalName ? "Edit" : "Add"} stdio server`}
         description="Select a field to edit, then save when you're done."
         items={items}
+        onActionError={handleActionError}
       />
     );
   };
@@ -3020,6 +3093,48 @@ export function ConfigureApp({
         } ${screen.transportType} server`}
         description="Select a field to edit, then save when you're done."
         items={items}
+        onActionError={handleActionError}
+      />
+    );
+  };
+
+  const renderMcpSaveTargetMenu = () => {
+    if (screen.kind !== "mcp-save-target") {
+      return null;
+    }
+    const targets = mcpConfig.writableTargets();
+    const saveToTarget = (path: string) => {
+      try {
+        if (screen.transportType === "stdio") {
+          const { name, transport } = buildMcpStdioDraft();
+          persistMcpTransport(undefined, name, transport, path);
+        } else {
+          const { name, transport } = buildMcpRemoteDraft(screen.transportType);
+          persistMcpTransport(undefined, name, transport, path);
+        }
+      } catch (error) {
+        handleActionError(error);
+      }
+    };
+
+    const items: MenuItem[] = [
+      ...targets.map((target) => ({
+        key: `mcp-save-target:${target.path}`,
+        label: `${target.scope === "global" ? "Global" : "Project"} • ${formatMcpWriteTargetLabel(target.path)}`,
+        value: () => saveToTarget(target.path),
+      })),
+      {
+        label: "Back",
+        value: () => setScreen({ kind: "mcp" }),
+      },
+    ];
+
+    return (
+      <MenuScreen
+        title="Choose save target"
+        description="Select where to save this new MCP server."
+        items={items}
+        onActionError={handleActionError}
       />
     );
   };
@@ -3032,7 +3147,7 @@ export function ConfigureApp({
         label: `Edit ${server.name} • ${formatMcpServerLabel(
           server.transport,
           oauthStatus,
-        )}`,
+        )} • ${formatMcpScope(server.scope)}`,
         boldSubstring: server.name,
         oauthStatus:
           oauthStatus === "authenticated" ||
@@ -3073,7 +3188,10 @@ export function ConfigureApp({
         value: () => {
           mcpConfig.reload();
           refresh();
-          setNotice({ kind: "info", text: "Reloaded MCP config from disk." });
+          setNotice({
+            kind: "info",
+            text: "Reloaded merged MCP config from disk.",
+          });
         },
       },
       {
@@ -3085,11 +3203,12 @@ export function ConfigureApp({
     return (
       <MenuScreen
         title="MCP Servers"
-        description="Add, edit, or remove named MCP transports from ~/.hooman/mcp.json."
+        description="Add, edit, or remove named MCP transports from merged MCP config (global + project overlays)."
         items={items}
         footerHint={(item) =>
           formatMcpFooterHint(item, mcpServers, mcpAuthStatuses)
         }
+        onActionError={handleActionError}
         onShortcut={async (input, item) => {
           const server = findMcpServerFromMenuItem(item, mcpServers);
           if (!server) {
@@ -3098,7 +3217,12 @@ export function ConfigureApp({
           const status = mcpAuthStatuses[server.name];
           const key = input.toLowerCase();
           if (key === "d") {
-            setScreen({ kind: "mcp-delete-confirm", name: server.name });
+            setScreen({
+              kind: "mcp-delete-confirm",
+              name: server.name,
+              sourcePath: server.sourcePath,
+              scope: server.scope,
+            });
             return;
           }
           if (
@@ -3209,7 +3333,7 @@ export function ConfigureApp({
     if (screen.kind !== "mcp-delete-confirm") {
       return null;
     }
-    const { name } = screen;
+    const { name, sourcePath, scope } = screen;
     const items: MenuItem[] = [
       {
         key: `mcp-del-cancel:${name}`,
@@ -3218,17 +3342,16 @@ export function ConfigureApp({
       },
       {
         key: `mcp-del-confirm:${name}`,
-        label: "Yes — remove from mcp.json",
+        label: `Yes — remove from ${formatMcpScope(scope)} mcp.json`,
         value: () => {
           try {
-            mcpConfig.remove(name);
+            mcpConfig.removeFromPath(sourcePath, name);
             refresh();
-            setSuccess(`Deleted MCP server "${name}".`);
+            setSuccess(
+              `Deleted MCP server "${name}" from ${formatMcpScope(scope)} mcp.json.`,
+            );
           } catch (error) {
-            setNotice({
-              kind: "error",
-              text: error instanceof Error ? error.message : String(error),
-            });
+            handleActionError(error);
           }
           setScreen({ kind: "mcp" });
         },
@@ -3238,8 +3361,9 @@ export function ConfigureApp({
     return (
       <MenuScreen
         title="Delete MCP server?"
-        description={`Remove "${name}" from ~/.hooman/mcp.json? This cannot be undone from here.`}
+        description={formatMcpDeleteDescription(name, sourcePath, scope)}
         items={items}
+        onActionError={handleActionError}
       />
     );
   };
@@ -3384,6 +3508,8 @@ export function ConfigureApp({
         return renderSearchProviderMenu();
       case "mcp":
         return renderMcpMenu();
+      case "mcp-save-target":
+        return renderMcpSaveTargetMenu();
       case "mcp-stdio-edit":
         return renderMcpStdioEditMenu();
       case "mcp-remote-edit":
@@ -3430,8 +3556,18 @@ function formatMcpServerLabel(
 
 function findMcpServerFromMenuItem(
   item: MenuItem | undefined,
-  servers: Array<{ name: string; transport: Stdio | StreamableHttp | Sse }>,
-): { name: string; transport: Stdio | StreamableHttp | Sse } | null {
+  servers: Array<{
+    name: string;
+    transport: Stdio | StreamableHttp | Sse;
+    sourcePath: string;
+    scope: McpConfigScope;
+  }>,
+): {
+  name: string;
+  transport: Stdio | StreamableHttp | Sse;
+  sourcePath: string;
+  scope: McpConfigScope;
+} | null {
   if (!item?.key?.startsWith("mcp-server:")) {
     return null;
   }
@@ -3441,7 +3577,12 @@ function findMcpServerFromMenuItem(
 
 function formatMcpFooterHint(
   item: MenuItem | undefined,
-  servers: Array<{ name: string; transport: Stdio | StreamableHttp | Sse }>,
+  servers: Array<{
+    name: string;
+    transport: Stdio | StreamableHttp | Sse;
+    sourcePath: string;
+    scope: McpConfigScope;
+  }>,
   statuses: Record<string, McpAuthStatus>,
 ): string {
   const server = findMcpServerFromMenuItem(item, servers);

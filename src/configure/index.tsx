@@ -2,14 +2,10 @@ import { mkdir } from "node:fs/promises";
 import { render } from "ink";
 import { ConfigureApp } from "./app.js";
 import { Config as AppConfig } from "../core/config.js";
-import { Config as McpConfig, createMcpManager } from "../core/mcp/index.js";
+import { createMcpManager } from "../core/mcp/index.js";
 import { createSkillsRegistry } from "../core/skills/index.js";
-import {
-  basePath,
-  configJsonPath,
-  mcpJsonPath,
-  skillsPath,
-} from "../core/utils/paths.js";
+import { basePath, configJsonPath, skillsPath } from "../core/utils/paths.js";
+import { createRuntimeMcpConfig } from "../core/runtime-config.js";
 
 /** Switch to the terminal's alternate screen buffer (clears it, homes the cursor). */
 const ENTER_ALT_SCREEN = "\x1b[?1049h\x1b[2J\x1b[H";
@@ -21,7 +17,7 @@ export async function configure(): Promise<void> {
   await mkdir(skillsPath(), { recursive: true });
 
   const config = new AppConfig(configJsonPath());
-  const mcpConfig = new McpConfig(mcpJsonPath());
+  const mcpConfig = createRuntimeMcpConfig();
   const mcpManager = createMcpManager(mcpConfig);
   const skills = createSkillsRegistry(basePath());
 

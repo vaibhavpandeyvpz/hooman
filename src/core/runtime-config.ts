@@ -1,4 +1,5 @@
 import { basename, join, resolve } from "node:path";
+import { candidateWalkUpPaths } from "./utils/discover-files.js";
 import { Config, type ConfigOptions } from "./config.js";
 import { Config as McpConfig } from "./mcp/config.js";
 import { APP_FOLDER, configJsonPath, mcpJsonPath } from "./utils/paths.js";
@@ -55,7 +56,15 @@ export function createRuntimeConfig(cwd: string = process.cwd()): Config {
 
 export function createRuntimeMcpConfig(cwd: string = process.cwd()): McpConfig {
   const sources = runtimeConfigSources(cwd);
+  const projectPath = resolve(
+    candidateWalkUpPaths(
+      join(APP_FOLDER, basename(sources.mcp.primaryPath)),
+      cwd,
+    ).at(-1) ??
+      join(resolve(cwd), APP_FOLDER, basename(sources.mcp.primaryPath)),
+  );
   return new McpConfig(sources.mcp.primaryPath, {
     overlayPaths: sources.mcp.overlayPaths,
+    projectPath,
   });
 }

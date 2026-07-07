@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Box, Text, useInput } from "ink";
 import SelectInput from "ink-select-input";
-import type { MenuAction, MenuItem } from "../types.js";
+import type { MenuAction, MenuActionErrorHandler, MenuItem } from "../types.js";
 import { SelectMenuItem } from "./SelectMenuItem.js";
 
 type MenuScreenProps = {
@@ -14,6 +14,7 @@ type MenuScreenProps = {
     input: string,
     item: MenuItem | undefined,
   ) => void | Promise<void>;
+  onActionError?: MenuActionErrorHandler;
 };
 
 export function MenuScreen({
@@ -23,6 +24,7 @@ export function MenuScreen({
   footerHint = "enter: select | esc: back | ctrl+c: exit",
   initialIndex = 0,
   onShortcut,
+  onActionError,
 }: MenuScreenProps): React.JSX.Element {
   const hasHeader = Boolean(title?.trim()) || Boolean(description?.trim());
   // `ink-select-input` resets its highlight to index 0 whenever the items' `value`
@@ -100,7 +102,11 @@ export function MenuScreen({
           initialIndex={initialIndex}
           itemComponent={SelectMenuItem}
           onSelect={(item) => {
-            void item.value();
+            void Promise.resolve()
+              .then(() => item.value())
+              .catch((error) => {
+                onActionError?.(error);
+              });
           }}
           onHighlight={(item) => {
             setHighlightedKey(item.key);

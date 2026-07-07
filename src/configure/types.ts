@@ -11,6 +11,8 @@ export type ConfigureAppProps = {
   onExit: () => void;
 };
 
+export type MenuActionErrorHandler = (error: unknown) => void;
+
 export type Screen =
   | { kind: "home" }
   | { kind: "config-general" }
@@ -34,13 +36,23 @@ export type Screen =
   | { kind: "config-search" }
   | { kind: "config-search-provider" }
   | { kind: "mcp" }
+  | {
+      kind: "mcp-save-target";
+      transportType: "stdio" | "streamable-http" | "sse";
+      originalName?: string;
+    }
   | { kind: "mcp-stdio-edit"; originalName?: string }
   | {
       kind: "mcp-remote-edit";
       transportType: "streamable-http" | "sse";
       originalName?: string;
     }
-  | { kind: "mcp-delete-confirm"; name: string }
+  | {
+      kind: "mcp-delete-confirm";
+      name: string;
+      sourcePath: string;
+      scope: "global" | "project";
+    }
   | { kind: "skills" }
   | { kind: "skills-delete-confirm"; folder: string; displayName: string }
   | { kind: "skills-search-results"; query: string };
