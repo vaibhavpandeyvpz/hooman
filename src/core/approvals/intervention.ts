@@ -133,21 +133,22 @@ export class HoomanToolApprovalIntervention extends InterventionHandler {
       return InterventionActions.deny(planReject);
     }
 
+    const isPlanExit = toolName === EXIT_PLAN_MODE_TOOL;
     if (
-      isYoloEnabled(event.agent) ||
+      (!isPlanExit && isYoloEnabled(event.agent)) ||
       INTERNAL_ALWAYS_ALLOWED.has(toolName) ||
       isImplicitlyAllowed(
         toolName,
         event.toolUse.input,
         getModeState(event.agent).mode,
       ) ||
-      getAllowlist().isAllowed(toolName, event.toolUse.input)
+      (!isPlanExit && getAllowlist().isAllowed(toolName, event.toolUse.input))
     ) {
       await this.onApproved?.(request, event, "auto");
       return InterventionActions.proceed();
     }
 
-    if (toolName === EXIT_PLAN_MODE_TOOL) {
+    if (isPlanExit) {
       const preview = await readPlanPreview(event.agent);
       if (preview) {
         request = { ...request, preview };
@@ -161,6 +162,10 @@ export class HoomanToolApprovalIntervention extends InterventionHandler {
       return InterventionActions.proceed();
     }
     if (result === "always") {
+      if (isPlanExit) {
+        await this.onApproved?.(request, event, "allow");
+        return InterventionActions.proceed();
+      }
       getAllowlist().allowAlways(toolName, event.toolUse.input);
       await this.onApproved?.(request, event, "always");
       return InterventionActions.proceed();
