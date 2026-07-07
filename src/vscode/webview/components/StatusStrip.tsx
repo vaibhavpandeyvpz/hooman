@@ -7,7 +7,7 @@ import {
 } from "solid-js";
 import { Square } from "lucide-solid";
 import { formatClock } from "../lib/format";
-import { cancelPrompt, state } from "../store";
+import { cancelPrompt, sessionState } from "../store";
 import { THINKING_VERBS } from "../lib/thinking-verbs";
 
 /** Cycling accent hues for the shimmering status label: cyan → sky → blue, matching the logo. */
@@ -33,33 +33,33 @@ export default function StatusStrip() {
   let hueTimer: ReturnType<typeof setInterval> | undefined;
 
   createEffect(() => {
-    if (state.busy && !clock) {
+    if (sessionState().busy && !clock) {
       clock = setInterval(() => setNow(Date.now()), 250);
-    } else if (!state.busy && clock) {
+    } else if (!sessionState().busy && clock) {
       clearInterval(clock);
       clock = undefined;
     }
   });
 
   createEffect(() => {
-    if (state.busy && !verbTimer) {
+    if (sessionState().busy && !verbTimer) {
       verbTimer = setInterval(
         () => setVerbIndex((value) => pickVerbIndex(value)),
         1800,
       );
-    } else if (!state.busy && verbTimer) {
+    } else if (!sessionState().busy && verbTimer) {
       clearInterval(verbTimer);
       verbTimer = undefined;
     }
   });
 
   createEffect(() => {
-    if (state.busy && !hueTimer) {
+    if (sessionState().busy && !hueTimer) {
       hueTimer = setInterval(
         () => setHueIndex((value) => (value + 1) % HUES.length),
         900,
       );
-    } else if (!state.busy && hueTimer) {
+    } else if (!sessionState().busy && hueTimer) {
       clearInterval(hueTimer);
       hueTimer = undefined;
     }
@@ -73,7 +73,9 @@ export default function StatusStrip() {
 
   const elapsed = createMemo(() => {
     void now();
-    return state.promptStartedAt ? Date.now() - state.promptStartedAt : 0;
+    return sessionState().promptStartedAt
+      ? Date.now() - sessionState().promptStartedAt
+      : 0;
   });
 
   const activityLabel = createMemo(() => THINKING_VERBS[verbIndex()]);
@@ -84,7 +86,7 @@ export default function StatusStrip() {
   }));
 
   return (
-    <Show when={state.busy}>
+    <Show when={sessionState().busy}>
       <div class="mx-2.5 mb-1.5 flex items-center gap-2 text-[12px] text-muted">
         <span class="flex gap-0.5">
           <span class="animate-blip h-1.5 w-1.5 rounded-full bg-accent [animation-delay:0ms]" />

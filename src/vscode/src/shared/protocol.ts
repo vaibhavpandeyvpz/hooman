@@ -117,10 +117,19 @@ export interface SessionRowInfo {
   cwd: string;
   title: string;
   updatedAt?: string;
-  /** Currently loaded in the chat panel. */
+  /** Currently active in the chat panel. */
   current: boolean;
-  /** Currently loaded AND a turn is running. */
+  /** This open session currently has a turn running. */
   busy: boolean;
+}
+
+/** One open chat tab in the webview. */
+export interface TabInfo {
+  sessionId: string;
+  title: string;
+  busy: boolean;
+  pendingPermissions?: number;
+  unread?: boolean;
 }
 
 /** Route-like identifier for the shared Hooman webview app. */
@@ -165,6 +174,8 @@ export type InboundMessage =
   | { type: "listSessions" }
   | { type: "sessionsClosed" }
   | { type: "openSession"; sessionId: string; cwd: string; title: string }
+  | { type: "activateTab"; sessionId: string }
+  | { type: "closeTab"; sessionId: string }
   | { type: "deleteSession"; sessionId: string; title: string }
   | { type: "newChat" }
   | { type: "pickModel" }
@@ -176,6 +187,7 @@ export type InboundMessage =
 export type OutboundMessage =
   | {
       type: "state";
+      sessionId: string;
       configOptions: SessionConfigOption[];
       commands: CommandInfo[];
       busy: boolean;
@@ -183,12 +195,22 @@ export type OutboundMessage =
     }
   | { type: "route"; route: WebviewRoute }
   | { type: "planState"; state: PlanEditorStateInfo }
-  | { type: "configOptions"; configOptions: SessionConfigOption[] }
-  | { type: "update"; update: SessionUpdate }
-  | { type: "promptStart" }
-  | { type: "promptEnd"; stopReason?: string }
+  | {
+      type: "tabs";
+      tabs: TabInfo[];
+      activeSessionId: string | null;
+    }
+  | {
+      type: "configOptions";
+      sessionId: string;
+      configOptions: SessionConfigOption[];
+    }
+  | { type: "update"; sessionId: string; update: SessionUpdate }
+  | { type: "promptStart"; sessionId: string }
+  | { type: "promptEnd"; sessionId: string; stopReason?: string }
   | {
       type: "permission";
+      sessionId: string;
       requestId: string;
       title: string;
       detail?: string;
@@ -196,14 +218,29 @@ export type OutboundMessage =
       /** Agent question (`ask_user`) rather than a tool approval; rendered as a question card. */
       question?: boolean;
     }
-  | { type: "permissionResolved"; requestId: string; note?: string }
-  | { type: "clear" }
-  | { type: "edits"; edits: EditInfo[] }
-  | { type: "queue"; items: QueuedPromptInfo[] }
-  | { type: "queueEditText"; text: string; attachments?: AttachmentInfo[] }
-  | { type: "attachments"; attachments: AttachmentInfo[] }
-  | { type: "download"; download: ModelDownloadInfo | null }
+  | {
+      type: "permissionResolved";
+      sessionId: string;
+      requestId: string;
+      note?: string;
+    }
+  | { type: "clear"; sessionId: string }
+  | { type: "edits"; sessionId: string; edits: EditInfo[] }
+  | { type: "queue"; sessionId: string; items: QueuedPromptInfo[] }
+  | {
+      type: "queueEditText";
+      sessionId: string;
+      text: string;
+      attachments?: AttachmentInfo[];
+    }
+  | { type: "attachments"; sessionId: string; attachments: AttachmentInfo[] }
+  | { type: "download"; sessionId: string; download: ModelDownloadInfo | null }
   | { type: "sessions"; sessions: SessionRowInfo[] }
   | { type: "showSessions" }
-  | { type: "sessionLoading"; loading: boolean; title?: string }
-  | { type: "error"; message: string };
+  | {
+      type: "sessionLoading";
+      sessionId: string;
+      loading: boolean;
+      title?: string;
+    }
+  | { type: "error"; sessionId: string; message: string };

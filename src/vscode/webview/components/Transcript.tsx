@@ -1,6 +1,6 @@
 import { createEffect, For, Match, Show, Switch } from "solid-js";
 import { CircleAlert } from "lucide-solid";
-import { state } from "../store";
+import { sessionState } from "../store";
 import EmptyState from "./EmptyState";
 import UserMessage from "./UserMessage";
 import AssistantMessage from "./AssistantMessage";
@@ -27,7 +27,7 @@ export default function Transcript() {
   // updates (assistant text, live terminal output) don't fight manual
   // scrollback.
   createEffect(() => {
-    const items = state.items;
+    const items = sessionState().items;
     const last = items[items.length - 1];
     // Read whichever field can grow during streaming so this effect re-runs on it.
     void (last?.kind === "assistant" || last?.kind === "thought"
@@ -43,10 +43,10 @@ export default function Transcript() {
       ref={containerRef}
       class="scroll-thin flex flex-1 flex-col gap-2 overflow-y-auto p-2.5"
     >
-      <Show when={state.items.length === 0}>
+      <Show when={sessionState().items.length === 0}>
         <EmptyState />
       </Show>
-      <For each={state.items}>
+      <For each={sessionState().items}>
         {(item) => (
           <Switch>
             <Match when={item.kind === "user" && item}>

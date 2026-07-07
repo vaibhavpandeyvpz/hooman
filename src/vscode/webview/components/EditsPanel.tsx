@@ -1,12 +1,12 @@
 import { createSignal, For, Show } from "solid-js";
 import { ChevronDown, ChevronRight, FileDiff } from "lucide-solid";
-import { editAction, state } from "../store";
+import { editAction, sessionState } from "../store";
 
 export default function EditsPanel() {
   const [collapsed, setCollapsed] = createSignal(false);
 
   return (
-    <Show when={state.edits.length > 0}>
+    <Show when={sessionState().edits.length > 0}>
       <div class="mx-2.5 mb-1.5 rounded-lg border border-border bg-panel">
         <div class="flex items-center gap-1.5 px-2.5 py-1.5 text-[12.5px]">
           <button
@@ -21,7 +21,7 @@ export default function EditsPanel() {
             )}
             <FileDiff size={13} class="text-muted" />
             <span class="font-medium">Changes</span>
-            <span class="text-muted">{state.edits.length}</span>
+            <span class="text-muted">{sessionState().edits.length}</span>
           </button>
           <div class="flex shrink-0 gap-1">
             <button
@@ -44,7 +44,7 @@ export default function EditsPanel() {
         </div>
         <Show when={!collapsed()}>
           <div class="max-h-40 overflow-y-auto px-2.5 pb-1.5 scroll-thin">
-            <For each={state.edits}>
+            <For each={sessionState().edits}>
               {(edit) => (
                 <div class="flex items-center gap-2 py-0.5 text-[12.5px]">
                   <button

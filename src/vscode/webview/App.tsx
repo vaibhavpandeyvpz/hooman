@@ -1,4 +1,5 @@
 import { Show } from "solid-js";
+import TabStrip from "./components/TabStrip";
 import Transcript from "./components/Transcript";
 import PlanPanel from "./components/PlanPanel";
 import EditsPanel from "./components/EditsPanel";
@@ -18,6 +19,7 @@ export default function App() {
       when={state.route !== "/"}
       fallback={
         <div class="relative flex h-full min-h-0 flex-col">
+          <TabStrip />
           <Transcript />
           <PlanPanel />
           <EditsPanel />

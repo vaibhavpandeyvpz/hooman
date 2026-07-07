@@ -16,6 +16,7 @@ import type {
   PlanEditorStateInfo,
   QueuedPromptInfo,
   SessionRowInfo,
+  TabInfo,
   TokenTotals,
   WebviewRoute,
 } from "../src/shared/protocol";
@@ -51,7 +52,6 @@ export type TranscriptItem =
       title: string;
       detail?: string;
       options: PermissionOptionInfo[];
-      /** Agent question (`ask_user`) rather than a tool approval. */
       question?: boolean;
       resolvedNote: string | null;
     }
@@ -63,9 +63,7 @@ export type Activity =
   | { type: "streaming" }
   | { type: "tool"; title: string };
 
-interface State {
-  route: WebviewRoute;
-  planView: PlanEditorStateInfo | null;
+type SessionUiState = {
   items: TranscriptItem[];
   busy: boolean;
   promptStartedAt: number | null;
@@ -75,90 +73,159 @@ interface State {
   plan: PlanEntry[];
   edits: EditInfo[];
   usage: TokenTotals | null;
-  /** Context-window utilization; null until the agent reports a resolved window size. */
   context: ContextUsageInfo | null;
-  /** Cumulative session cost; null while pricing is unresolved. */
   cost: CostInfo | null;
-  /** Live model-weights download (llama.cpp GGUF fetch); null when idle. */
   download: ModelDownloadInfo | null;
   queue: QueuedPromptInfo[];
-  /** Text handed back from a queued item picked for editing; the composer consumes and clears it. */
   editDraft: string | null;
-  /** Attachments staged in the composer, sent with the next prompt. */
   attachments: AttachmentInfo[];
-  /** Whether the Sessions overlay panel is open. */
-  sessionsOpen: boolean;
-  /** Persisted sessions shown in the Sessions overlay (host keeps it fresh while open). */
-  sessions: SessionRowInfo[];
-  /** Title of the session currently being switched to (blur-loader overlay), or null. */
   loadingSession: string | null;
+};
+
+type SessionRuntime = {
+  hiddenToolCalls: Set<string>;
+  openStreamId: string | null;
+  openStreamKind: "assistant" | "thought" | null;
+  openUserMessageId: string | null;
+  openUserItemId: string | null;
+  pendingPermissions: Set<string>;
+};
+
+interface State {
+  route: WebviewRoute;
+  planView: PlanEditorStateInfo | null;
+  activeSessionId: string | null;
+  tabs: TabInfo[];
+  sessions: Record<string, SessionUiState>;
+  sessionsOpen: boolean;
+  persistedSessions: SessionRowInfo[];
+}
+
+function createSessionState(): SessionUiState {
+  return {
+    items: [],
+    busy: false,
+    promptStartedAt: null,
+    activity: { type: "idle" },
+    configOptions: [],
+    commands: [],
+    plan: [],
+    edits: [],
+    usage: null,
+    context: null,
+    cost: null,
+    download: null,
+    queue: [],
+    editDraft: null,
+    attachments: [],
+    loadingSession: null,
+  };
+}
+
+function createRuntime(): SessionRuntime {
+  return {
+    hiddenToolCalls: new Set<string>(),
+    openStreamId: null,
+    openStreamKind: null,
+    openUserMessageId: null,
+    openUserItemId: null,
+    pendingPermissions: new Set<string>(),
+  };
 }
 
 const [state, setState] = createStore<State>({
   route: "/",
   planView: null,
-  items: [],
-  busy: false,
-  promptStartedAt: null,
-  activity: { type: "idle" },
-  configOptions: [],
-  commands: [],
-  plan: [],
-  edits: [],
-  usage: null,
-  context: null,
-  cost: null,
-  download: null,
-  queue: [],
-  editDraft: null,
-  attachments: [],
+  activeSessionId: null,
+  tabs: [],
+  sessions: {},
   sessionsOpen: false,
-  sessions: [],
-  loadingSession: null,
+  persistedSessions: [],
 });
 
-export { state };
+export { setState, state };
 
-/** Tool calls fully represented elsewhere (the todo tool -> pinned plan panel) shouldn't also render a raw card. */
-const hiddenToolCalls = new Set<string>();
-/** Which transcript item id is the live target of the current stream, so the next chunk of the same kind extends it. */
-let openStreamId: string | null = null;
-let openStreamKind: "assistant" | "thought" | null = null;
+const runtimes = new Map<string, SessionRuntime>();
 
-function pushItem(item: TranscriptItem): void {
-  setState("items", (items) => [...items, item]);
+function activeSessionId(): string | null {
+  return state.activeSessionId;
 }
 
-function itemIndex(id: string): number {
-  return state.items.findIndex((item) => item.id === id);
-}
-
-/** Stop extending the current stream target (a new item kind, or a turn boundary, breaks it). */
-function breakStream(): void {
-  if (openStreamKind === "thought" && openStreamId) {
-    finalizeThought(openStreamId);
+function ensureSession(sessionId: string): void {
+  if (!state.sessions[sessionId]) {
+    setState("sessions", sessionId, createSessionState());
   }
-  openStreamId = null;
-  openStreamKind = null;
-  openUserMessageId = null;
-  openUserItemId = null;
+  if (!runtimes.has(sessionId)) {
+    runtimes.set(sessionId, createRuntime());
+  }
 }
 
-function finalizeThought(id: string): void {
-  const index = itemIndex(id);
+function getRuntime(sessionId: string): SessionRuntime {
+  let runtime = runtimes.get(sessionId);
+  if (!runtime) {
+    runtime = createRuntime();
+    runtimes.set(sessionId, runtime);
+  }
+  return runtime;
+}
+
+function activeSession(): SessionUiState {
+  const sessionId = activeSessionId();
+  return sessionId
+    ? (state.sessions[sessionId] ?? createSessionState())
+    : createSessionState();
+}
+
+export function sessionState(): SessionUiState {
+  const sessionId = activeSessionId();
+  if (!sessionId) {
+    return createSessionState();
+  }
+  ensureSession(sessionId);
+  return state.sessions[sessionId];
+}
+
+function pushItem(sessionId: string, item: TranscriptItem): void {
+  ensureSession(sessionId);
+  setState("sessions", sessionId, "items", (items) => [...items, item]);
+}
+
+function itemIndex(sessionId: string, id: string): number {
+  return (state.sessions[sessionId]?.items ?? []).findIndex(
+    (item) => item.id === id,
+  );
+}
+
+function breakStream(sessionId: string): void {
+  const runtime = getRuntime(sessionId);
+  if (runtime.openStreamKind === "thought" && runtime.openStreamId) {
+    finalizeThought(sessionId, runtime.openStreamId);
+  }
+  runtime.openStreamId = null;
+  runtime.openStreamKind = null;
+  runtime.openUserMessageId = null;
+  runtime.openUserItemId = null;
+}
+
+function finalizeThought(sessionId: string, id: string): void {
+  const index = itemIndex(sessionId, id);
   if (index === -1) {
     return;
   }
-  setState("items", index, (item) =>
+  setState("sessions", sessionId, "items", index, (item) =>
     item.kind === "thought" && item.finishedAt === null
       ? { ...item, finishedAt: Date.now() }
       : item,
   );
 }
 
-function addUserMessage(text: string, attachments?: AttachmentInfo[]): void {
-  breakStream();
-  pushItem({
+function addUserMessage(
+  sessionId: string,
+  text: string,
+  attachments?: AttachmentInfo[],
+): void {
+  breakStream(sessionId);
+  pushItem(sessionId, {
     kind: "user",
     id: crypto.randomUUID(),
     text,
@@ -166,33 +233,30 @@ function addUserMessage(text: string, attachments?: AttachmentInfo[]): void {
   });
 }
 
-/**
- * The user message currently receiving chunks: replayed history (session/load)
- * streams one `user_message_chunk` per content block with a shared
- * `messageId`, and they should coalesce into a single bubble.
- */
-let openUserMessageId: string | null = null;
-let openUserItemId: string | null = null;
-
 function appendToUserMessage(
+  sessionId: string,
   messageId: string | undefined,
   part: { text?: string; attachment?: AttachmentInfo },
 ): void {
+  ensureSession(sessionId);
+  const runtime = getRuntime(sessionId);
   const isContinuation =
     messageId !== undefined &&
-    messageId === openUserMessageId &&
-    openUserItemId !== null &&
-    itemIndex(openUserItemId) !== -1;
+    messageId === runtime.openUserMessageId &&
+    runtime.openUserItemId !== null &&
+    itemIndex(sessionId, runtime.openUserItemId) !== -1;
   if (!isContinuation) {
-    breakStream();
+    breakStream(sessionId);
     const id = crypto.randomUUID();
-    pushItem({ kind: "user", id, text: "" });
-    openUserItemId = id;
-    openUserMessageId = messageId ?? null;
+    pushItem(sessionId, { kind: "user", id, text: "" });
+    runtime.openUserItemId = id;
+    runtime.openUserMessageId = messageId ?? null;
   }
   setState(
+    "sessions",
+    sessionId,
     "items",
-    itemIndex(openUserItemId!),
+    itemIndex(sessionId, runtime.openUserItemId!),
     produce((item) => {
       if (item.kind !== "user") {
         return;
@@ -231,15 +295,16 @@ function extensionFromMime(mime: string): string {
   return subtype ? `.${subtype.replace(/^x-/, "")}` : "";
 }
 
+type SessionUpdatePayload = Extract<
+  OutboundMessage,
+  { type: "update" }
+>["update"];
+
 type UserChunkContent = Extract<
   SessionUpdatePayload,
   { sessionUpdate: "user_message_chunk" }
 >["content"];
 
-/**
- * Render a non-text prompt block (replayed by the agent per the ACP spec) as
- * an attachment pill, mirroring how the composer shows staged attachments.
- */
 function userChunkToPart(
   content: UserChunkContent,
 ): { text?: string; attachment?: AttachmentInfo } | null {
@@ -291,78 +356,91 @@ function userChunkToPart(
   }
 }
 
-function appendAssistantText(text: string): void {
-  if (openStreamKind === "thought") {
-    breakStream();
+function appendAssistantText(sessionId: string, text: string): void {
+  ensureSession(sessionId);
+  const runtime = getRuntime(sessionId);
+  if (runtime.openStreamKind === "thought") {
+    breakStream(sessionId);
   }
-  if (openStreamKind !== "assistant") {
+  if (runtime.openStreamKind !== "assistant") {
     const id = crypto.randomUUID();
-    pushItem({ kind: "assistant", id, text: "" });
-    openStreamId = id;
-    openStreamKind = "assistant";
+    pushItem(sessionId, { kind: "assistant", id, text: "" });
+    runtime.openStreamId = id;
+    runtime.openStreamKind = "assistant";
   }
-  const id = openStreamId!;
+  const id = runtime.openStreamId!;
   setState(
+    "sessions",
+    sessionId,
     "items",
-    itemIndex(id),
+    itemIndex(sessionId, id),
     produce((item) => {
       if (item.kind === "assistant") {
         item.text += text;
       }
     }),
   );
-  setState("activity", { type: "streaming" });
+  setState("sessions", sessionId, "activity", { type: "streaming" });
 }
 
-function appendThoughtText(text: string): void {
-  if (openStreamKind === "assistant") {
-    breakStream();
+function appendThoughtText(sessionId: string, text: string): void {
+  ensureSession(sessionId);
+  const runtime = getRuntime(sessionId);
+  if (runtime.openStreamKind === "assistant") {
+    breakStream(sessionId);
   }
-  if (openStreamKind !== "thought") {
+  if (runtime.openStreamKind !== "thought") {
     const id = crypto.randomUUID();
-    pushItem({
+    pushItem(sessionId, {
       kind: "thought",
       id,
       text: "",
       startedAt: Date.now(),
       finishedAt: null,
     });
-    openStreamId = id;
-    openStreamKind = "thought";
+    runtime.openStreamId = id;
+    runtime.openStreamKind = "thought";
   }
-  const id = openStreamId!;
+  const id = runtime.openStreamId!;
   setState(
+    "sessions",
+    sessionId,
     "items",
-    itemIndex(id),
+    itemIndex(sessionId, id),
     produce((item) => {
       if (item.kind === "thought") {
         item.text += text;
       }
     }),
   );
-  setState("activity", { type: "thinking" });
+  setState("sessions", sessionId, "activity", { type: "thinking" });
 }
 
-function upsertToolCall(update: {
-  toolCallId: string;
-  title?: string | null;
-  kind?: string | null;
-  status?: string | null;
-  rawInput?: unknown;
-  content?: ToolCallContent[] | null;
-  _meta?: { [key: string]: unknown } | null;
-}): void {
+function upsertToolCall(
+  sessionId: string,
+  update: {
+    toolCallId: string;
+    title?: string | null;
+    kind?: string | null;
+    status?: string | null;
+    rawInput?: unknown;
+    content?: ToolCallContent[] | null;
+    _meta?: { [key: string]: unknown } | null;
+  },
+): void {
+  ensureSession(sessionId);
+  const runtime = getRuntime(sessionId);
   if (update.title === "update_todos") {
-    hiddenToolCalls.add(update.toolCallId);
+    runtime.hiddenToolCalls.add(update.toolCallId);
   }
-  if (hiddenToolCalls.has(update.toolCallId)) {
+  if (runtime.hiddenToolCalls.has(update.toolCallId)) {
     return;
   }
-  breakStream();
+  breakStream(sessionId);
   const live = Boolean(update._meta?.["hoomanjs/live"]);
-  const index = itemIndex(update.toolCallId);
+  const index = itemIndex(sessionId, update.toolCallId);
   if (index === -1) {
-    pushItem({
+    pushItem(sessionId, {
       kind: "tool",
       id: update.toolCallId,
       title: update.title ?? "Tool",
@@ -377,11 +455,16 @@ function upsertToolCall(update: {
       update.status !== "completed" &&
       update.status !== "failed"
     ) {
-      setState("activity", { type: "tool", title: update.title ?? "Tool" });
+      setState("sessions", sessionId, "activity", {
+        type: "tool",
+        title: update.title ?? "Tool",
+      });
     }
     return;
   }
   setState(
+    "sessions",
+    sessionId,
     "items",
     index,
     produce((item) => {
@@ -406,61 +489,65 @@ function upsertToolCall(update: {
       item.live = live;
     }),
   );
-  const current = state.items[index];
+  const current = state.sessions[sessionId]?.items[index];
   if (
     current?.kind === "tool" &&
     (update.status === "completed" || update.status === "failed")
   ) {
-    setState("activity", { type: "idle" });
+    setState("sessions", sessionId, "activity", { type: "idle" });
   } else if (current?.kind === "tool") {
-    setState("activity", { type: "tool", title: current.title });
+    setState("sessions", sessionId, "activity", {
+      type: "tool",
+      title: current.title,
+    });
   }
 }
 
-type SessionUpdatePayload = Extract<
-  OutboundMessage,
-  { type: "update" }
->["update"];
-
-function handleSessionUpdate(update: SessionUpdatePayload): void {
+function handleSessionUpdate(
+  sessionId: string,
+  update: SessionUpdatePayload,
+): void {
+  ensureSession(sessionId);
   switch (update.sessionUpdate) {
     case "user_message_chunk": {
       const part = userChunkToPart(update.content);
       if (part) {
-        appendToUserMessage(update.messageId ?? undefined, part);
+        appendToUserMessage(sessionId, update.messageId ?? undefined, part);
       }
       break;
     }
     case "agent_message_chunk":
       if (update.content?.type === "text") {
-        appendAssistantText(update.content.text);
+        appendAssistantText(sessionId, update.content.text);
       }
       break;
     case "agent_thought_chunk":
       if (update.content?.type === "text") {
-        appendThoughtText(update.content.text);
+        appendThoughtText(sessionId, update.content.text);
       }
       break;
     case "tool_call":
     case "tool_call_update":
-      upsertToolCall(update);
+      upsertToolCall(sessionId, update);
       break;
     case "plan":
-      setState("plan", update.entries ?? []);
+      setState("sessions", sessionId, "plan", update.entries ?? []);
       break;
     case "usage_update": {
       const tokens = update._meta?.["hoomanjs/tokens"] as
         TokenTotals | undefined;
       if (tokens) {
-        setState("usage", tokens);
+        setState("sessions", sessionId, "usage", tokens);
       }
-      // `size: 0` means the context window could not be resolved (no billing
-      // config and no models.dev hit) — show nothing rather than a made-up %.
       setState(
+        "sessions",
+        sessionId,
         "context",
         update.size > 0 ? { used: update.used, size: update.size } : null,
       );
       setState(
+        "sessions",
+        sessionId,
         "cost",
         update.cost
           ? { amount: update.cost.amount, currency: update.cost.currency }
@@ -469,21 +556,27 @@ function handleSessionUpdate(update: SessionUpdatePayload): void {
       break;
     }
     case "available_commands_update":
-      setState("commands", update.availableCommands ?? []);
+      setState(
+        "sessions",
+        sessionId,
+        "commands",
+        update.availableCommands ?? [],
+      );
       break;
     default:
       break;
   }
 }
 
-const pendingPermissions = new Set<string>();
-
 function showPermission(
+  sessionId: string,
   msg: Extract<OutboundMessage, { type: "permission" }>,
 ): void {
-  breakStream();
-  pendingPermissions.add(msg.requestId);
-  pushItem({
+  ensureSession(sessionId);
+  const runtime = getRuntime(sessionId);
+  breakStream(sessionId);
+  runtime.pendingPermissions.add(msg.requestId);
+  pushItem(sessionId, {
     kind: "permission",
     id: msg.requestId,
     title: msg.title,
@@ -494,13 +587,20 @@ function showPermission(
   });
 }
 
-function resolvePermission(requestId: string, note?: string): void {
-  pendingPermissions.delete(requestId);
-  const index = itemIndex(requestId);
+function resolvePermission(
+  sessionId: string,
+  requestId: string,
+  note?: string,
+): void {
+  ensureSession(sessionId);
+  getRuntime(sessionId).pendingPermissions.delete(requestId);
+  const index = itemIndex(sessionId, requestId);
   if (index === -1) {
     return;
   }
   setState(
+    "sessions",
+    sessionId,
     "items",
     index,
     produce((item) => {
@@ -511,37 +611,39 @@ function resolvePermission(requestId: string, note?: string): void {
   );
 }
 
-function clearChat(): void {
-  hiddenToolCalls.clear();
-  openStreamId = null;
-  openStreamKind = null;
-  openUserMessageId = null;
-  openUserItemId = null;
-  pendingPermissions.clear();
-  setState({
-    items: [],
-    plan: [],
-    edits: [],
-    usage: null,
-    context: null,
-    cost: null,
-    download: null,
-    queue: [],
-    editDraft: null,
-    attachments: [],
-    activity: { type: "idle" },
-  });
+function clearChat(sessionId: string): void {
+  ensureSession(sessionId);
+  const runtime = getRuntime(sessionId);
+  runtime.hiddenToolCalls.clear();
+  runtime.openStreamId = null;
+  runtime.openStreamKind = null;
+  runtime.openUserMessageId = null;
+  runtime.openUserItemId = null;
+  runtime.pendingPermissions.clear();
+  setState("sessions", sessionId, createSessionState());
 }
 
 onHostMessage((msg) => {
   switch (msg.type) {
     case "state":
-      setState({
-        configOptions: msg.configOptions,
-        commands: msg.commands,
-        busy: msg.busy,
-        queue: msg.queue,
-      });
+      ensureSession(msg.sessionId);
+      setState(
+        "sessions",
+        msg.sessionId,
+        produce((session) => {
+          session.configOptions = msg.configOptions;
+          session.commands = msg.commands;
+          session.busy = msg.busy;
+          session.queue = msg.queue;
+        }),
+      );
+      break;
+    case "tabs":
+      setState({ tabs: msg.tabs, activeSessionId: msg.activeSessionId });
+      for (const tab of msg.tabs) {
+        ensureSession(tab.sessionId);
+        setState("sessions", tab.sessionId, "busy", tab.busy);
+      }
       break;
     case "route":
       setState("route", msg.route);
@@ -550,79 +652,106 @@ onHostMessage((msg) => {
       setState("planView", msg.state);
       break;
     case "configOptions":
-      setState("configOptions", msg.configOptions);
+      ensureSession(msg.sessionId);
+      setState("sessions", msg.sessionId, "configOptions", msg.configOptions);
       break;
     case "update":
-      handleSessionUpdate(msg.update);
+      handleSessionUpdate(msg.sessionId, msg.update);
       break;
     case "promptStart":
-      setState({
+      ensureSession(msg.sessionId);
+      setState("sessions", msg.sessionId, {
+        ...state.sessions[msg.sessionId],
         busy: true,
         promptStartedAt: Date.now(),
         activity: { type: "thinking" },
       });
       break;
     case "promptEnd":
-      breakStream();
-      setState({
-        busy: false,
-        promptStartedAt: null,
-        activity: { type: "idle" },
-        download: null,
-      });
+      ensureSession(msg.sessionId);
+      breakStream(msg.sessionId);
+      setState(
+        "sessions",
+        msg.sessionId,
+        produce((session) => {
+          session.busy = false;
+          session.promptStartedAt = null;
+          session.activity = { type: "idle" };
+          session.download = null;
+        }),
+      );
       break;
     case "download":
-      setState("download", msg.download);
+      ensureSession(msg.sessionId);
+      setState("sessions", msg.sessionId, "download", msg.download);
       break;
     case "permission":
-      showPermission(msg);
+      showPermission(msg.sessionId, msg);
       break;
     case "permissionResolved":
-      resolvePermission(msg.requestId, msg.note);
+      resolvePermission(msg.sessionId, msg.requestId, msg.note);
       break;
     case "clear":
-      clearChat();
+      clearChat(msg.sessionId);
       break;
     case "edits":
-      setState("edits", msg.edits);
+      ensureSession(msg.sessionId);
+      setState("sessions", msg.sessionId, "edits", msg.edits);
       break;
     case "queue":
-      setState("queue", msg.items);
+      ensureSession(msg.sessionId);
+      setState("sessions", msg.sessionId, "queue", msg.items);
       break;
     case "queueEditText":
+      ensureSession(msg.sessionId);
       if (msg.attachments?.length) {
-        setState("attachments", (staged) => [...staged, ...msg.attachments!]);
+        setState("sessions", msg.sessionId, "attachments", (staged) => [
+          ...staged,
+          ...msg.attachments!,
+        ]);
       }
-      setState("editDraft", msg.text);
+      setState("sessions", msg.sessionId, "editDraft", msg.text);
       break;
     case "attachments":
-      setState("attachments", (staged) => [...staged, ...msg.attachments]);
+      ensureSession(msg.sessionId);
+      setState("sessions", msg.sessionId, "attachments", (staged) => [
+        ...staged,
+        ...msg.attachments,
+      ]);
       break;
     case "sessions":
-      setState("sessions", msg.sessions);
+      setState("persistedSessions", msg.sessions);
       break;
     case "showSessions":
       setState("sessionsOpen", true);
       break;
     case "sessionLoading":
+      ensureSession(msg.sessionId);
       setState(
+        "sessions",
+        msg.sessionId,
         "loadingSession",
         msg.loading ? (msg.title ?? "Loading session") : null,
       );
       break;
     case "error":
-      breakStream();
-      pushItem({
+      ensureSession(msg.sessionId);
+      breakStream(msg.sessionId);
+      pushItem(msg.sessionId, {
         kind: "error",
         id: crypto.randomUUID(),
         message: msg.message,
       });
-      setState({
-        busy: false,
-        promptStartedAt: null,
-        activity: { type: "idle" },
-        download: null,
-      });
+      setState(
+        "sessions",
+        msg.sessionId,
+        produce((session) => {
+          session.busy = false;
+          session.promptStartedAt = null;
+          session.activity = { type: "idle" };
+          session.download = null;
+        }),
+      );
       break;
     default:
       break;
@@ -631,23 +760,24 @@ onHostMessage((msg) => {
 
 post({ type: "ready" });
 
-// ---- Actions callable from components -------------------------------------
-
-/** Submits immediately if idle; queues (host-side) to run after the active turn otherwise. */
 export function submitPrompt(text: string): void {
+  const sessionId = activeSessionId();
+  if (!sessionId) {
+    return;
+  }
+  ensureSession(sessionId);
+  const session = activeSession();
   const trimmed = text.trim();
-  // Plain copies: Solid store items are Proxy objects, which the webview's
-  // structured-clone postMessage cannot serialize (DataCloneError).
-  const attachments = state.attachments.map((attachment) => ({
+  const attachments = session.attachments.map((attachment) => ({
     ...attachment,
   }));
   if (!trimmed && attachments.length === 0) {
     return;
   }
-  if (!state.busy) {
-    addUserMessage(trimmed, attachments);
+  if (!session.busy) {
+    addUserMessage(sessionId, trimmed, attachments);
   }
-  setState("attachments", []);
+  setState("sessions", sessionId, "attachments", []);
   post({ type: "prompt", text: trimmed, attachments });
 }
 
@@ -659,51 +789,55 @@ export function queueDeletePrompt(id: string): void {
   post({ type: "queueDelete", id });
 }
 
-/** Runs (or steers into the active turn) a single queued item immediately, out of order. */
 export function queueSendNow(id: string): void {
   post({ type: "queueSendNow", id });
 }
 
-/** Pulls a queued item's text back into the composer for editing. */
 export function queueEditPrompt(id: string): void {
   post({ type: "queueEdit", id });
 }
 
-/** Drains the whole queue into the currently running turn's guidance. */
 export function steerQueue(): void {
   post({ type: "steerQueue" });
 }
 
 export function clearEditDraft(): void {
-  setState("editDraft", null);
+  const sessionId = activeSessionId();
+  if (!sessionId) {
+    return;
+  }
+  setState("sessions", sessionId, "editDraft", null);
 }
 
-/** Load text into the composer and focus it (used by the empty-state starter prompts). */
 export function prefillComposer(text: string): void {
-  setState("editDraft", text);
+  const sessionId = activeSessionId();
+  if (!sessionId) {
+    return;
+  }
+  setState("sessions", sessionId, "editDraft", text);
 }
 
-// ---- Attachments -----------------------------------------------------------
-
-/** Ask the host to show the native file browser; results arrive as an `attachments` message. */
 export function pickFiles(): void {
   post({ type: "pickFiles" });
 }
 
-/** Ask the host to stat dropped `file://` URIs (VS Code explorer / uri-list drags) into attachments. */
 export function resolveDropped(uris: string[]): void {
   if (uris.length > 0) {
     post({ type: "resolveDropped", uris });
   }
 }
 
-/** Stage an in-memory attachment (OS drop or clipboard paste, where only bytes are available). */
 export function addDataAttachment(
   name: string,
   mimeType: string,
   base64: string,
 ): void {
-  setState("attachments", (staged) => [
+  const sessionId = activeSessionId();
+  if (!sessionId) {
+    return;
+  }
+  ensureSession(sessionId);
+  setState("sessions", sessionId, "attachments", (staged) => [
     ...staged,
     {
       id: crypto.randomUUID(),
@@ -716,19 +850,19 @@ export function addDataAttachment(
 }
 
 export function removeAttachment(id: string): void {
-  setState("attachments", (staged) =>
+  const sessionId = activeSessionId();
+  if (!sessionId) {
+    return;
+  }
+  setState("sessions", sessionId, "attachments", (staged) =>
     staged.filter((attachment) => attachment.id !== id),
   );
 }
 
-/** Open/preview an attachment in the editor (host resolves path vs in-memory data). */
 export function openAttachment(attachment: AttachmentInfo): void {
-  // Copy to a plain object: `attachment` is usually a Solid store Proxy,
-  // which postMessage's structured clone rejects with a DataCloneError.
   post({ type: "openAttachment", attachment: { ...attachment } });
 }
 
-/** Open a link clicked inside rendered Markdown (host routes file paths to the editor, URLs to the OS browser). */
 export function openLink(href: string): void {
   post({ type: "openLink", href });
 }
@@ -746,8 +880,12 @@ export function respondToPermission(
   optionId: string,
   optionName: string,
 ): void {
+  const sessionId = activeSessionId();
+  if (!sessionId) {
+    return;
+  }
   post({ type: "permissionResponse", requestId, optionId });
-  resolvePermission(requestId, `Responded: ${optionName}`);
+  resolvePermission(sessionId, requestId, `Responded: ${optionName}`);
 }
 
 export function editAction(
@@ -757,14 +895,10 @@ export function editAction(
   post({ type: "editAction", action, path });
 }
 
-/** Estimated token count for a thought block, used once it's finalized (no server-side reasoning token count is available). */
 export function thoughtTokenEstimate(text: string): number {
   return estimateTokens(text);
 }
 
-// ---- Sessions panel --------------------------------------------------------
-
-/** Open the Sessions overlay and ask the host for a fresh list. */
 export function openSessionsPanel(): void {
   setState("sessionsOpen", true);
   post({ type: "listSessions" });
@@ -775,10 +909,10 @@ export function closeSessionsPanel(): void {
   post({ type: "sessionsClosed" });
 }
 
-/** Load a persisted session into the panel (host replays its history). */
 export function openSessionRow(row: SessionRowInfo): void {
   closeSessionsPanel();
-  if (row.current) {
+  if (state.tabs.some((tab) => tab.sessionId === row.sessionId)) {
+    activateTab(row.sessionId);
     return;
   }
   post({
@@ -789,13 +923,19 @@ export function openSessionRow(row: SessionRowInfo): void {
   });
 }
 
-/** Delete one persisted session (host asks for confirmation, then refreshes the list). */
 export function deleteSessionRow(row: SessionRowInfo): void {
   post({ type: "deleteSession", sessionId: row.sessionId, title: row.title });
 }
 
-/** Start a fresh session from the Sessions overlay. */
 export function newChatFromPanel(): void {
   closeSessionsPanel();
   post({ type: "newChat" });
+}
+
+export function activateTab(sessionId: string): void {
+  post({ type: "activateTab", sessionId });
+}
+
+export function closeTab(sessionId: string): void {
+  post({ type: "closeTab", sessionId });
 }

@@ -1,7 +1,7 @@
 import { Show } from "solid-js";
 import { Download } from "lucide-solid";
 import { formatBytes, formatEtaSeconds } from "../lib/format";
-import { state } from "../store";
+import { sessionState } from "../store";
 
 /**
  * Transient strip shown while model weights are being downloaded (llama.cpp
@@ -12,13 +12,13 @@ import { state } from "../store";
  */
 export default function DownloadStrip() {
   const ratio = () => {
-    const download = state.download;
+    const download = sessionState().download;
     return download?.totalBytes && download.totalBytes > 0
       ? Math.min(1, download.receivedBytes / download.totalBytes)
       : null;
   };
   return (
-    <Show when={state.download}>
+    <Show when={sessionState().download}>
       {(download) => (
         <div class="mx-2.5 mb-1.5 rounded border border-border bg-panel px-2 py-1.5 text-[11px] text-muted">
           <div class="flex items-center gap-2">

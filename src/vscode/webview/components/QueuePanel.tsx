@@ -13,7 +13,7 @@ import {
   queueDeletePrompt,
   queueEditPrompt,
   queueSendNow,
-  state,
+  sessionState,
   steerQueue,
 } from "../store";
 
@@ -22,7 +22,7 @@ export default function QueuePanel() {
   const [collapsed, setCollapsed] = createSignal(false);
 
   return (
-    <Show when={state.queue.length > 0}>
+    <Show when={sessionState().queue.length > 0}>
       <div class="mx-2.5 mb-1.5 rounded-lg border border-border bg-panel">
         <div class="flex items-center gap-1.5 px-2.5 py-1.5 text-[12.5px]">
           <button
@@ -35,7 +35,9 @@ export default function QueuePanel() {
             ) : (
               <ChevronDown size={13} />
             )}
-            <span class="font-medium">{state.queue.length} Queued</span>
+            <span class="font-medium">
+              {sessionState().queue.length} Queued
+            </span>
           </button>
           <button
             type="button"
@@ -49,7 +51,7 @@ export default function QueuePanel() {
         </div>
         <Show when={!collapsed()}>
           <div class="max-h-40 overflow-y-auto px-1.5 pb-1.5 scroll-thin">
-            <For each={state.queue}>
+            <For each={sessionState().queue}>
               {(item) => (
                 <div class="group flex items-center gap-2 rounded-md px-1.5 py-1 text-[12.5px] hover:bg-list-active-bg hover:text-list-active-fg">
                   <Clock size={12} class="shrink-0 text-muted" />

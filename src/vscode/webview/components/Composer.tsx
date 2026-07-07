@@ -19,6 +19,7 @@ import {
   pickFiles,
   removeAttachment,
   resolveDropped,
+  sessionState,
   setConfigOption,
   state,
   submitPrompt,
@@ -80,19 +81,19 @@ export default function Composer() {
       return [];
     }
     const needle = value.slice(1).toLowerCase();
-    return state.commands.filter((cmd) =>
+    return sessionState().commands.filter((cmd) =>
       cmd.name.toLowerCase().startsWith(needle),
     );
   });
 
   const selectOptions = createMemo(() =>
-    state.configOptions.filter(
+    sessionState().configOptions.filter(
       (o): o is Extract<SessionConfigOption, { type: "select" }> =>
         o.type === "select",
     ),
   );
   const booleanOptions = createMemo(() =>
-    state.configOptions.filter(
+    sessionState().configOptions.filter(
       (o): o is Extract<SessionConfigOption, { type: "boolean" }> =>
         o.type === "boolean",
     ),
@@ -109,7 +110,7 @@ export default function Composer() {
   // A queued item picked for editing lands here; load it into the composer
   // for the user to tweak and resubmit (it was already removed from the queue).
   createEffect(() => {
-    const draft = state.editDraft;
+    const draft = sessionState().editDraft;
     if (draft === null) {
       return;
     }
@@ -123,7 +124,7 @@ export default function Composer() {
 
   function submit() {
     const value = text();
-    if (!value.trim() && state.attachments.length === 0) {
+    if (!value.trim() && sessionState().attachments.length === 0) {
       return;
     }
     // While busy this queues instead of starting a new turn immediately.
@@ -220,9 +221,9 @@ export default function Composer() {
         onDragLeave={() => setDragging(false)}
         onDrop={onDrop}
       >
-        <Show when={state.attachments.length > 0}>
+        <Show when={sessionState().attachments.length > 0}>
           <div class="flex flex-wrap gap-1">
-            <For each={state.attachments}>
+            <For each={sessionState().attachments}>
               {(attachment) => (
                 <span class="flex max-w-full items-center gap-1 rounded-md border border-border bg-panel px-1.5 py-0.5 text-[11.5px] text-accent">
                   <button
@@ -262,7 +263,9 @@ export default function Composer() {
         <textarea
           ref={textareaRef}
           rows={1}
-          placeholder={state.busy ? "Queue a follow-up…" : "Ask Hooman…"}
+          placeholder={
+            sessionState().busy ? "Queue a follow-up…" : "Ask Hooman…"
+          }
           class="max-h-40 min-h-[22px] w-full resize-none border-none bg-transparent text-[13px] leading-relaxed text-input-foreground outline-none placeholder:text-muted"
           value={text()}
           onInput={(event) => {
@@ -389,8 +392,12 @@ export default function Composer() {
           <button
             type="button"
             class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-button text-button-foreground transition-colors hover:bg-button-hover disabled:opacity-40"
-            disabled={!text().trim() && state.attachments.length === 0}
-            title={state.busy ? "Queue (runs after the current turn)" : "Send"}
+            disabled={!text().trim() && sessionState().attachments.length === 0}
+            title={
+              sessionState().busy
+                ? "Queue (runs after the current turn)"
+                : "Send"
+            }
             onClick={submit}
           >
             <ArrowUp size={15} />

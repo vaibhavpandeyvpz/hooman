@@ -1,7 +1,7 @@
 import { Show } from "solid-js";
 import { ArrowDown, ArrowUp, Coins, Database, Zap } from "lucide-solid";
 import { formatCostUsd, formatCount } from "../lib/format";
-import { state } from "../store";
+import { sessionState } from "../store";
 
 /**
  * Mirrors the CLI TUI's per-turn `in`/`cin`/`out` token meter: the latest
@@ -18,7 +18,7 @@ import { state } from "../store";
  */
 export default function UsageFooter() {
   const contextRatio = () => {
-    const context = state.context;
+    const context = sessionState().context;
     return context && context.size > 0
       ? Math.min(1, context.used / context.size)
       : 0;
@@ -34,7 +34,7 @@ export default function UsageFooter() {
     return "var(--color-accent)";
   };
   return (
-    <Show when={state.usage}>
+    <Show when={sessionState().usage}>
       {(usage) => (
         <div class="mx-2.5 mb-1.5 flex items-center gap-3 text-[11px] text-muted font-mono tabular-nums">
           <span class="flex items-center gap-1" title="Input tokens">
@@ -64,7 +64,7 @@ export default function UsageFooter() {
             </span>
           </Show>
           <span class="ml-auto flex items-center gap-3">
-            <Show when={state.cost}>
+            <Show when={sessionState().cost}>
               {(cost) => (
                 <span
                   class="flex items-center gap-1"
@@ -75,7 +75,7 @@ export default function UsageFooter() {
                 </span>
               )}
             </Show>
-            <Show when={state.context}>
+            <Show when={sessionState().context}>
               {(context) => (
                 <span
                   class="flex items-center gap-1.5"

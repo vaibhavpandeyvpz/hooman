@@ -7,15 +7,18 @@ import {
   ListChecks,
   SquareCheck,
 } from "lucide-solid";
-import { state } from "../store";
+import { sessionState } from "../store";
 
 export default function PlanPanel() {
   const [collapsed, setCollapsed] = createSignal(false);
   const done = createMemo(
-    () => state.plan.filter((entry) => entry.status === "completed").length,
+    () =>
+      sessionState().plan.filter((entry) => entry.status === "completed")
+        .length,
   );
   const allDone = createMemo(
-    () => state.plan.length > 0 && done() === state.plan.length,
+    () =>
+      sessionState().plan.length > 0 && done() === sessionState().plan.length,
   );
 
   // Auto-collapse once everything is done; the user can still re-expand it.
@@ -26,7 +29,7 @@ export default function PlanPanel() {
   });
 
   return (
-    <Show when={state.plan.length > 0}>
+    <Show when={sessionState().plan.length > 0}>
       <div class="mx-2.5 mb-1.5 rounded-lg border border-border bg-panel">
         <button
           type="button"
@@ -37,12 +40,12 @@ export default function PlanPanel() {
           <ListChecks size={13} class="text-muted" />
           <span class="font-medium">Plan</span>
           <span class="ml-auto text-muted">
-            {done()}/{state.plan.length}
+            {done()}/{sessionState().plan.length}
           </span>
         </button>
         <Show when={!collapsed()}>
           <div class="max-h-40 overflow-y-auto px-2.5 pb-1.5 scroll-thin">
-            <For each={state.plan}>
+            <For each={sessionState().plan}>
               {(entry) => (
                 <div
                   class={`flex items-start gap-1.5 py-0.5 text-[12.5px] ${

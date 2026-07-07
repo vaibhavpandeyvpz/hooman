@@ -24,6 +24,7 @@ import type {
   InboundMessage,
   OutboundMessage,
   QueuedPromptInfo,
+  TabInfo,
 } from "./shared/protocol";
 
 /**
@@ -31,18 +32,45 @@ import type {
  * through {@link HoomanAcpClient}. Unlike the native-chat surface, this works
  * in stable VS Code and forks — no proposed APIs, no special entitlement.
  *
- * The panel drives one ACP session at a time; `newChat()` and `openSession()`
- * switch it out.
+ * The panel keeps multiple ACP sessions alive in parallel and switches
+ * between them with tabs.
  */
+type SessionHostState = {
+  title: string;
+  cwd: string;
+  loaded: boolean;
+  configOptions: SessionConfigOption[];
+  commands: CommandInfo[];
+  busy: boolean;
+  queue: QueuedPromptInfo[];
+  pendingPermissionCount: number;
+  unread: boolean;
+  pendingUpdates: SessionNotification[];
+  pendingConfigOptions: Map<
+    string,
+    { value: string | boolean; boolean: boolean }
+  >;
+  liveTerminals: Map<string, NodeJS.Timeout>;
+};
+
+type PersistedTabState = {
+  sessionId: string;
+  cwd: string;
+  title: string;
+};
+
 export class HoomanChatViewProvider
   implements vscode.WebviewViewProvider, vscode.Disposable
 {
   static readonly viewType = "hooman.chatView";
+  static readonly maxOpenTabs = 8;
 
   #view: vscode.WebviewView | undefined;
   #webviewReady = false;
   #sessionId: string | null = null;
   #sessionTitle = "New Chat";
+  #tabs: string[] = [];
+  #sessions = new Map<string, SessionHostState>();
   /** Working directory of the active session, used to resolve relative Markdown links clicked in chat/plan text. */
   #cwd: string = defaultCwd();
   #configOptions: SessionConfigOption[] = [];
@@ -86,21 +114,27 @@ export class HoomanChatViewProvider
   readonly #onDidChangeSessionState = new vscode.EventEmitter<void>();
   readonly onDidChangeSessionState = this.#onDidChangeSessionState.event;
 
-  readonly #pendingPermissions = new Map<
+  #pendingPermissions = new Map<
     string,
-    { resolve: (response: RequestPermissionResponse) => void }
+    {
+      sessionId: string;
+      resolve: (response: RequestPermissionResponse) => void;
+    }
   >();
   /** toolCallId → poll timer streaming live terminal output to the webview. */
-  readonly #liveTerminals = new Map<string, NodeJS.Timeout>();
+  #liveTerminals = new Map<string, NodeJS.Timeout>();
   readonly #disposables: vscode.Disposable[] = [];
+  readonly #storageKey = "hooman.chatTabs";
 
   constructor(
+    private readonly context: vscode.ExtensionContext,
     private readonly extensionUri: vscode.Uri,
     private readonly client: HoomanAcpClient,
     private readonly permissions: PermissionPrompts,
     private readonly editTracker: EditTracker,
     private readonly outputChannel: vscode.LogOutputChannel,
   ) {
+    this.#restorePersistedTabs();
     this.permissions.setInlineDelegate((sessionKey, request, cancellation) =>
       this.#tryInlinePermission(sessionKey, request, cancellation),
     );
@@ -109,29 +143,66 @@ export class HoomanChatViewProvider
         this.#onSessionUpdate(notification),
       ),
       this.client.onModelDownload((notification) => {
-        if (notification.sessionId !== this.#sessionId) {
-          return;
+        const state = this.#sessions.get(notification.sessionId);
+        if (state) {
+          state.busy = state.busy || notification.status === "downloading";
         }
         const { sessionId, ...download } = notification;
-        void sessionId;
-        // A finished or failed download clears the progress strip; errors
-        // surface through the turn's own error reporting.
         this.#post({
           type: "download",
+          sessionId,
           download: download.status === "downloading" ? download : null,
+        });
+        this.#post({
+          type: "tabs",
+          tabs: this.#tabInfo(),
+          activeSessionId: this.#sessionId,
         });
       }),
       this.client.onDidExit(() => {
         this.#busy = false;
         this.#stopAllTerminalPolls();
+        for (const state of this.#sessions.values()) {
+          for (const timer of state.liveTerminals.values()) {
+            clearInterval(timer);
+          }
+          state.liveTerminals.clear();
+          state.busy = false;
+          state.pendingUpdates = [];
+          state.pendingConfigOptions.clear();
+          state.queue = [];
+        }
+        const activeSessionId = this.#sessionId;
         this.#sessionId = null;
         this.#pendingUpdates = [];
         this.#pendingConfigOptions.clear();
         this.#queue = [];
-        this.#post({ type: "sessionLoading", loading: false });
+        for (const pending of this.#pendingPermissions.values()) {
+          const sessionState = this.#sessions.get(pending.sessionId);
+          if (sessionState) {
+            sessionState.pendingPermissionCount = Math.max(
+              0,
+              sessionState.pendingPermissionCount - 1,
+            );
+          }
+        }
+        this.#pendingPermissions.clear();
+        if (activeSessionId) {
+          this.#post({
+            type: "sessionLoading",
+            sessionId: activeSessionId,
+            loading: false,
+          });
+          this.#post({
+            type: "error",
+            sessionId: activeSessionId,
+            message: "The Hooman agent process exited.",
+          });
+        }
         this.#post({
-          type: "error",
-          message: "The Hooman agent process exited.",
+          type: "tabs",
+          tabs: this.#tabInfo(),
+          activeSessionId: this.#sessionId,
         });
       }),
       this.editTracker.onDidChangeEdits((sessionId) => {
@@ -148,17 +219,251 @@ export class HoomanChatViewProvider
     this.#syncStatus();
   }
 
-  /** Session currently loaded in the panel, if any. */
+  #createSessionState(overrides?: Partial<SessionHostState>): SessionHostState {
+    return {
+      title: "New Chat",
+      cwd: defaultCwd(),
+      loaded: false,
+      configOptions: [],
+      commands: [],
+      busy: false,
+      queue: [],
+      pendingPermissionCount: 0,
+      unread: false,
+      pendingUpdates: [],
+      pendingConfigOptions: new Map(),
+      liveTerminals: new Map(),
+      ...overrides,
+    };
+  }
+
+  #persistTabs(): void {
+    const tabs = this.#tabs
+      .map((sessionId) => {
+        const state = this.#sessions.get(sessionId);
+        if (!state) {
+          return null;
+        }
+        return {
+          sessionId,
+          cwd: state.cwd,
+          title: state.title,
+        } satisfies PersistedTabState;
+      })
+      .filter((tab): tab is PersistedTabState => tab !== null);
+    void this.context.workspaceState.update(this.#storageKey, {
+      tabs,
+      activeSessionId: this.#sessionId,
+    });
+  }
+
+  #restorePersistedTabs(): void {
+    const saved = this.context.workspaceState.get<{
+      tabs?: PersistedTabState[];
+      activeSessionId?: string | null;
+    }>(this.#storageKey);
+    if (!saved?.tabs?.length) {
+      return;
+    }
+    this.#tabs = [];
+    this.#sessions.clear();
+    for (const tab of saved.tabs) {
+      if (!tab.sessionId) {
+        continue;
+      }
+      this.#tabs.push(tab.sessionId);
+      this.#sessions.set(
+        tab.sessionId,
+        this.#createSessionState({
+          title: tab.title || tab.sessionId,
+          cwd: tab.cwd || defaultCwd(),
+          loaded: false,
+        }),
+      );
+    }
+    const active =
+      saved.activeSessionId && this.#sessions.has(saved.activeSessionId)
+        ? saved.activeSessionId
+        : (this.#tabs[0] ?? null);
+    if (active) {
+      this.#loadSessionState(active);
+    }
+  }
+
+  async #ensureSessionLoaded(sessionId: string): Promise<void> {
+    const state = this.#sessions.get(sessionId);
+    if (!state || state.loaded) {
+      return;
+    }
+    this.#saveActiveSessionState();
+    this.#loadSessionState(sessionId);
+    this.#post({
+      type: "tabs",
+      tabs: this.#tabInfo(),
+      activeSessionId: sessionId,
+    });
+    this.#post({
+      type: "sessionLoading",
+      sessionId,
+      loading: true,
+      title: state.title,
+    });
+    this.#post({ type: "clear", sessionId });
+    this.#postQueue();
+    try {
+      const agent = await this.client.ensureStarted();
+      const response = await agent.request(methods.agent.session.load, {
+        sessionId,
+        cwd: state.cwd,
+        mcpServers: [],
+        _meta: { "hoomanjs/vscode": true },
+      });
+      state.loaded = true;
+      state.configOptions = response.configOptions ?? [];
+      if (this.#sessionId === sessionId) {
+        this.#configOptions = [...state.configOptions];
+      }
+      this.#post({
+        type: "configOptions",
+        sessionId,
+        configOptions: state.configOptions,
+      });
+      this.#postEdits();
+      this.#syncStatus();
+    } catch (error) {
+      this.#post({
+        type: "error",
+        sessionId,
+        message: `Failed to load session: ${describe(error)}`,
+      });
+    } finally {
+      this.#post({ type: "sessionLoading", sessionId, loading: false });
+      this.#persistTabs();
+    }
+  }
+
+  #tabInfo(): TabInfo[] {
+    return this.#tabs.map((sessionId) => {
+      const state = this.#sessions.get(sessionId);
+      return {
+        sessionId,
+        title: state?.title ?? sessionId,
+        busy: state?.busy ?? false,
+        pendingPermissions: state?.pendingPermissionCount ?? 0,
+        unread: state?.unread ?? false,
+      };
+    });
+  }
+
+  #saveActiveSessionState(): void {
+    if (!this.#sessionId) {
+      return;
+    }
+    const existing = this.#sessions.get(this.#sessionId);
+    if (!existing) {
+      return;
+    }
+    existing.title = this.#sessionTitle;
+    existing.cwd = this.#cwd;
+    existing.configOptions = [...this.#configOptions];
+    existing.commands = [...this.#commands];
+    existing.busy = this.#busy;
+    existing.queue = [...this.#queue];
+    existing.pendingUpdates = [...this.#pendingUpdates];
+    existing.pendingConfigOptions = new Map(this.#pendingConfigOptions);
+    existing.liveTerminals = this.#liveTerminals;
+  }
+
+  #canOpenAnotherTab(): boolean {
+    return this.#tabs.length < HoomanChatViewProvider.maxOpenTabs;
+  }
+
+  #warnTabLimit(): void {
+    void vscode.window.showWarningMessage(
+      `Hooman: you can open up to ${HoomanChatViewProvider.maxOpenTabs} chat tabs at once. Close one before opening another.`,
+    );
+  }
+
+  #loadSessionState(sessionId: string): void {
+    const state = this.#sessions.get(sessionId) ?? this.#createSessionState();
+    this.#sessionId = sessionId;
+    this.#sessionTitle = state.title;
+    this.#cwd = state.cwd;
+    this.#configOptions = [...state.configOptions];
+    this.#commands = [...state.commands];
+    this.#busy = state.busy;
+    this.#queue = [...state.queue];
+    this.#pendingUpdates = [...state.pendingUpdates];
+    this.#pendingConfigOptions = new Map(state.pendingConfigOptions);
+    this.#liveTerminals = state.liveTerminals;
+    if (this.#view) {
+      this.#view.title = this.#sessionTitle;
+    }
+  }
+
+  #activateTab(sessionId: string): void {
+    if (sessionId === this.#sessionId) {
+      this.focus();
+      return;
+    }
+    this.#saveActiveSessionState();
+    const target = this.#sessions.get(sessionId);
+    if (target) {
+      target.unread = false;
+    }
+    this.#loadSessionState(sessionId);
+    this.#post({
+      type: "tabs",
+      tabs: this.#tabInfo(),
+      activeSessionId: this.#sessionId,
+    });
+    this.#postActiveState();
+    this.#postEdits();
+    this.#postQueue();
+    this.#flushPendingComposerAttachments();
+    this.#syncStatus();
+    this.focus();
+    const state = this.#sessions.get(sessionId);
+    if (state && !state.loaded) {
+      void this.#ensureSessionLoaded(sessionId);
+    }
+  }
+
+  #postActiveState(): void {
+    if (!this.#sessionId) {
+      return;
+    }
+    const active = this.#sessions.get(this.#sessionId);
+    if (active) {
+      active.unread = false;
+    }
+    this.#post({
+      type: "state",
+      sessionId: this.#sessionId,
+      configOptions: this.#configOptions,
+      commands: this.#commands,
+      busy: this.#busy,
+      queue: this.#queue,
+    });
+    this.#post({
+      type: "tabs",
+      tabs: this.#tabInfo(),
+      activeSessionId: this.#sessionId,
+    });
+    this.#persistTabs();
+  }
+
+  /** Session currently active in the panel, if any. */
   get currentSessionId(): string | null {
     return this.#sessionId;
   }
 
-  /** Whether a turn is currently running in the panel. */
+  /** Whether the active tab currently has a turn running. */
   get isBusy(): boolean {
     return this.#busy;
   }
 
-  /** Current session config options exposed by ACP (model, mode, effort, ...). */
+  /** Current session config options exposed by ACP for the active tab. */
   get configOptions(): readonly SessionConfigOption[] {
     return this.#configOptions;
   }
@@ -190,28 +495,26 @@ export class HoomanChatViewProvider
     }
   }
 
-  /** Start a fresh session, eagerly creating it so the pickers repopulate immediately. */
+  /** Start a fresh session in a new tab, eagerly creating it so the pickers repopulate immediately. */
   newChat(): void {
-    this.#stopAllTerminalPolls();
-    const previous = this.#sessionId;
-    if (previous) {
-      // Free the in-memory state for the session we're leaving (persisted
-      // data stays on disk); no need to await — the new session id is fresh.
-      void this.#closeSession(previous);
+    if (!this.#canOpenAnotherTab()) {
+      this.#warnTabLimit();
+      return;
     }
+    this.#saveActiveSessionState();
     this.#sessionId = null;
+    this.#sessionTitle = "New Chat";
     this.#cwd = defaultCwd();
     this.#pendingUpdates = [];
-    this.#pendingConfigOptions.clear();
-    this.#setTitle("New Chat");
+    this.#pendingConfigOptions = new Map();
     this.#configOptions = [];
     this.#commands = [];
     this.#busy = false;
     this.#queue = [];
-    this.#post({ type: "configOptions", configOptions: [] });
-    this.#post({ type: "clear" });
-    this.#postEdits();
-    this.#postQueue();
+    this.#liveTerminals = new Map();
+    if (this.#view) {
+      this.#view.title = this.#sessionTitle;
+    }
     this.#syncStatus();
     void this.#ensureSession().catch((error) => {
       this.outputChannel.warn(
@@ -294,60 +597,37 @@ export class HoomanChatViewProvider
     this.focus();
   }
 
-  /** Load an existing ACP session into the panel, replaying its history. */
+  /** Open an existing ACP session in a tab, replaying its history once when first opened. */
   async openSession(
     sessionId: string,
     cwd: string,
     title: string,
   ): Promise<void> {
-    if (sessionId === this.#sessionId) {
-      this.focus();
+    if (this.#sessions.has(sessionId)) {
+      this.#activateTab(sessionId);
       return;
     }
-    // Loading covers the whole switch: agent spawn, closing the previous
-    // session, session/load bootstrap, and the history replay stream.
-    this.#post({ type: "sessionLoading", loading: true, title });
-    try {
-      const agent = await this.client.ensureStarted();
-      this.#stopAllTerminalPolls();
-      const previous = this.#sessionId;
-      if (previous) {
-        await this.#closeSession(previous);
-      }
-      this.#pendingUpdates = [];
-      this.#pendingConfigOptions.clear();
-      this.#sessionId = sessionId;
-      this.#cwd = cwd;
-      this.#commands = [];
-      this.#queue = [];
-      this.#setTitle(title);
-      this.#post({ type: "clear" });
-      this.#postQueue();
-      try {
-        const response = await agent.request(methods.agent.session.load, {
-          sessionId,
-          cwd,
-          mcpServers: [],
-          // Identify as the official extension so the agent loads the local
-          // MCP config (~/.hooman/mcp.json + repo overlays) as usual.
-          _meta: { "hoomanjs/vscode": true },
-        });
-        this.#configOptions = response.configOptions ?? [];
-        this.#post({
-          type: "configOptions",
-          configOptions: this.#configOptions,
-        });
-      } catch (error) {
-        this.#post({
-          type: "error",
-          message: `Failed to load session: ${describe(error)}`,
-        });
-      }
-      this.#postEdits();
-      this.#syncStatus();
-    } finally {
-      this.#post({ type: "sessionLoading", loading: false });
+    if (!this.#canOpenAnotherTab()) {
+      this.#warnTabLimit();
+      return;
     }
+    this.#saveActiveSessionState();
+    const loadingState = this.#createSessionState({
+      title,
+      cwd,
+      loaded: false,
+    });
+    this.#sessions.set(sessionId, loadingState);
+    this.#tabs.push(sessionId);
+    this.#loadSessionState(sessionId);
+    this.#post({
+      type: "tabs",
+      tabs: this.#tabInfo(),
+      activeSessionId: sessionId,
+    });
+    this.#postActiveState();
+    this.#persistTabs();
+    await this.#ensureSessionLoaded(sessionId);
   }
 
   /**
@@ -371,13 +651,14 @@ export class HoomanChatViewProvider
         type: "sessions",
         sessions: response.sessions.map((info) => {
           const current = info.sessionId === this.#sessionId;
+          const state = this.#sessions.get(info.sessionId);
           return {
             sessionId: info.sessionId,
             cwd: info.cwd,
             title: info.title ?? info.sessionId,
             updatedAt: info.updatedAt ?? undefined,
             current,
-            busy: current && this.#busy,
+            busy: state?.busy ?? false,
           };
         }),
       });
@@ -425,21 +706,25 @@ export class HoomanChatViewProvider
       case "ready":
         this.#webviewReady = true;
         this.#post({
-          type: "state",
-          configOptions: this.#configOptions,
-          commands: this.#commands,
-          busy: this.#busy,
-          queue: this.#queue,
+          type: "tabs",
+          tabs: this.#tabInfo(),
+          activeSessionId: this.#sessionId,
         });
-        this.#postEdits();
-        // Eagerly create the session so the mode/model/effort pickers are
-        // populated immediately, rather than only after the first prompt.
+        if (this.#sessionId) {
+          this.#postActiveState();
+          this.#postEdits();
+          const state = this.#sessions.get(this.#sessionId);
+          if (state && !state.loaded) {
+            void this.#ensureSessionLoaded(this.#sessionId);
+          }
+        } else {
+          void this.#ensureSession().catch((error) => {
+            this.outputChannel.warn(
+              `[chat-view] eager session creation failed: ${describe(error)}`,
+            );
+          });
+        }
         this.#flushPendingComposerAttachments();
-        void this.#ensureSession().catch((error) => {
-          this.outputChannel.warn(
-            `[chat-view] eager session creation failed: ${describe(error)}`,
-          );
-        });
         return;
       case "prompt":
         this.#submitOrQueue(message.text, message.attachments ?? []);
@@ -466,8 +751,26 @@ export class HoomanChatViewProvider
         const pending = this.#pendingPermissions.get(message.requestId);
         if (pending) {
           this.#pendingPermissions.delete(message.requestId);
+          const sessionState = this.#sessions.get(pending.sessionId);
+          if (sessionState) {
+            sessionState.pendingPermissionCount = Math.max(
+              0,
+              sessionState.pendingPermissionCount - 1,
+            );
+          }
           pending.resolve({
             outcome: { outcome: "selected", optionId: message.optionId },
+          });
+          this.#post({
+            type: "tabs",
+            tabs: this.#tabInfo(),
+            activeSessionId: this.#sessionId,
+          });
+          this.#post({
+            type: "permissionResolved",
+            sessionId: pending.sessionId,
+            requestId: message.requestId,
+            note: `Responded: ${message.optionId}`,
           });
         }
         return;
@@ -496,8 +799,12 @@ export class HoomanChatViewProvider
         }
         const [item] = this.#queue.splice(index, 1);
         this.#postQueue();
+        if (!this.#sessionId) {
+          return;
+        }
         this.#post({
           type: "queueEditText",
+          sessionId: this.#sessionId,
           text: item.text,
           attachments: item.attachments,
         });
@@ -515,6 +822,12 @@ export class HoomanChatViewProvider
         return;
       case "openSession":
         await this.openSession(message.sessionId, message.cwd, message.title);
+        return;
+      case "activateTab":
+        this.#activateTab(message.sessionId);
+        return;
+      case "closeTab":
+        await this.#closeTab(message.sessionId);
         return;
       case "deleteSession": {
         const deleted = await this.deleteSession(
@@ -570,53 +883,89 @@ export class HoomanChatViewProvider
           return;
       }
     } catch (error) {
-      this.#post({
-        type: "error",
-        message: `Edit action failed: ${describe(error)}`,
-      });
+      if (this.#sessionId) {
+        this.#post({
+          type: "error",
+          sessionId: this.#sessionId,
+          message: `Edit action failed: ${describe(error)}`,
+        });
+      }
     }
   }
 
   /** Push the current pending-edit list for the active session to the webview. */
   #postEdits(): void {
+    if (!this.#sessionId) {
+      return;
+    }
     this.#post({
       type: "edits",
-      edits: this.#sessionId ? this.editTracker.listFor(this.#sessionId) : [],
+      sessionId: this.#sessionId,
+      edits: this.editTracker.listFor(this.#sessionId),
     });
   }
 
-  /** Create the ACP session if one doesn't exist yet, without starting a turn. */
+  /** Create the ACP session for the active new-tab placeholder if one doesn't exist yet, without starting a turn. */
   async #ensureSession(): Promise<void> {
     if (this.#sessionId) {
       return;
     }
     const agent = await this.client.ensureStarted();
     if (this.#sessionId) {
-      // Another caller (e.g. a concurrent prompt) won the race while we awaited.
       return;
     }
     const response = await agent.request(methods.agent.session.new, {
       cwd: defaultCwd(),
       mcpServers: [],
-      // Identify as the official extension so the agent loads the local
-      // MCP config (~/.hooman/mcp.json + repo overlays) as usual.
       _meta: { "hoomanjs/vscode": true },
     });
+
     this.#adoptSession(response.sessionId);
     this.#configOptions = response.configOptions ?? [];
-    this.#post({ type: "configOptions", configOptions: this.#configOptions });
+    const state = this.#sessions.get(response.sessionId);
+    if (state) {
+      state.loaded = true;
+      state.configOptions = [...this.#configOptions];
+    }
+    this.#post({
+      type: "configOptions",
+      sessionId: response.sessionId,
+      configOptions: this.#configOptions,
+    });
   }
 
-  /** Assign `#sessionId` and replay any notifications buffered while it was unknown. */
+  /** Assign the just-created ACP session to the active new tab and replay buffered notifications. */
   #adoptSession(sessionId: string): void {
+    const state = this.#createSessionState({
+      title: this.#sessionTitle,
+      cwd: this.#cwd,
+      configOptions: [...this.#configOptions],
+      commands: [...this.#commands],
+      busy: this.#busy,
+      queue: [...this.#queue],
+      pendingUpdates: [...this.#pendingUpdates],
+      pendingConfigOptions: new Map(this.#pendingConfigOptions),
+      liveTerminals: this.#liveTerminals,
+    });
+    state.loaded = true;
+    this.#sessions.set(sessionId, state);
+    if (!this.#tabs.includes(sessionId)) {
+      this.#tabs.push(sessionId);
+    }
     this.#sessionId = sessionId;
     const pending = this.#pendingUpdates;
     this.#pendingUpdates = [];
+    state.pendingUpdates = [];
     for (const notification of pending) {
       if (notification.sessionId === sessionId) {
         this.#deliverSessionUpdate(notification);
       }
     }
+    this.#post({
+      type: "tabs",
+      tabs: this.#tabInfo(),
+      activeSessionId: sessionId,
+    });
     this.#syncStatus();
     void this.#flushPendingConfigOptions();
   }
@@ -625,6 +974,12 @@ export class HoomanChatViewProvider
   async #flushPendingConfigOptions(): Promise<void> {
     const pending = [...this.#pendingConfigOptions.entries()];
     this.#pendingConfigOptions.clear();
+    if (this.#sessionId) {
+      const state = this.#sessions.get(this.#sessionId);
+      if (state) {
+        state.pendingConfigOptions.clear();
+      }
+    }
     for (const [configId, pick] of pending) {
       await this.#setConfigOption({
         type: "setConfigOption",
@@ -649,11 +1004,16 @@ export class HoomanChatViewProvider
       return;
     }
     this.#busy = true;
+    this.#saveActiveSessionState();
     this.#syncStatus();
-    this.#post({ type: "promptStart" });
-    if (options?.echoLocally) {
+    const promptSessionId = this.#sessionId;
+    if (promptSessionId) {
+      this.#post({ type: "promptStart", sessionId: promptSessionId });
+    }
+    if (options?.echoLocally && promptSessionId) {
       this.#post({
         type: "update",
+        sessionId: promptSessionId,
         update: {
           sessionUpdate: "user_message_chunk",
           content: {
@@ -669,16 +1029,28 @@ export class HoomanChatViewProvider
       if (!this.#sessionId) {
         throw new Error("Session creation failed.");
       }
+      const sessionId = this.#sessionId;
       const agent = await this.client.ensureStarted();
       const result = await agent.request(methods.agent.session.prompt, {
-        sessionId: this.#sessionId,
+        sessionId,
         prompt: await this.#buildPromptBlocks(text, attachments),
       });
-      this.#post({ type: "promptEnd", stopReason: result.stopReason });
+      this.#post({
+        type: "promptEnd",
+        sessionId,
+        stopReason: result.stopReason,
+      });
     } catch (error) {
-      this.#post({ type: "error", message: describe(error) });
+      if (this.#sessionId) {
+        this.#post({
+          type: "error",
+          sessionId: this.#sessionId,
+          message: describe(error),
+        });
+      }
     } finally {
       this.#busy = false;
+      this.#saveActiveSessionState();
       this.#stopAllTerminalPolls();
       this.#syncStatus();
       this.#processNextQueued();
@@ -715,6 +1087,64 @@ export class HoomanChatViewProvider
     }
   }
 
+  async #closeTab(sessionId: string): Promise<void> {
+    const state = this.#sessions.get(sessionId);
+    if (!state) {
+      return;
+    }
+    if (state.pendingPermissionCount > 0) {
+      const confirm = await vscode.window.showWarningMessage(
+        `Close this tab with ${state.pendingPermissionCount} pending permission prompt${state.pendingPermissionCount === 1 ? "" : "s"}?`,
+        {
+          modal: true,
+          detail:
+            "Closing the tab will cancel those pending prompts for this session.",
+        },
+        "Close Tab",
+      );
+      if (confirm !== "Close Tab") {
+        return;
+      }
+      this.#cancelPendingPermissionsForSession(sessionId);
+    }
+    if (state.busy) {
+      try {
+        const agent = await this.client.ensureStarted();
+        await agent.notify(methods.agent.session.cancel, { sessionId });
+      } catch (error) {
+        this.outputChannel.warn(
+          `[chat-view] cancel before close failed for ${sessionId}: ${describe(error)}`,
+        );
+      }
+    }
+    for (const timer of state.liveTerminals.values()) {
+      clearInterval(timer);
+    }
+    state.liveTerminals.clear();
+    await this.#closeSession(sessionId);
+    this.#sessions.delete(sessionId);
+    this.#tabs = this.#tabs.filter((id) => id !== sessionId);
+    if (this.#sessionId === sessionId) {
+      const next = this.#tabs[this.#tabs.length - 1] ?? null;
+      if (next) {
+        this.#loadSessionState(next);
+        this.#postActiveState();
+        this.#postEdits();
+        this.#postQueue();
+      } else {
+        this.newChat();
+        return;
+      }
+    }
+    this.#post({
+      type: "tabs",
+      tabs: this.#tabInfo(),
+      activeSessionId: this.#sessionId,
+    });
+    this.#persistTabs();
+    this.#syncStatus();
+  }
+
   /**
    * Delete one persisted session after a modal confirmation. Returns whether
    * the deletion happened. When it's the session currently open in the panel,
@@ -732,9 +1162,10 @@ export class HoomanChatViewProvider
     try {
       const agent = await this.client.ensureStarted();
       await agent.request(methods.agent.session.delete, { sessionId });
-      if (sessionId === this.#sessionId) {
-        this.newChat();
+      if (this.#sessions.has(sessionId)) {
+        await this.#closeTab(sessionId);
       } else {
+        this.#persistTabs();
         this.#onDidChangeSessionState.fire();
       }
       return true;
@@ -763,7 +1194,14 @@ export class HoomanChatViewProvider
   }
 
   #postQueue(): void {
-    this.#post({ type: "queue", items: this.#queue });
+    if (!this.#sessionId) {
+      return;
+    }
+    this.#post({
+      type: "queue",
+      sessionId: this.#sessionId,
+      items: this.#queue,
+    });
   }
 
   /** Dequeue and run the next queued prompt once the active turn ends. */
@@ -817,10 +1255,13 @@ export class HoomanChatViewProvider
         _meta: { "hoomanjs/steer": true },
       });
     } catch (error) {
-      this.#post({
-        type: "error",
-        message: `Failed to steer the active turn: ${describe(error)}`,
-      });
+      if (this.#sessionId) {
+        this.#post({
+          type: "error",
+          sessionId: this.#sessionId,
+          message: `Failed to steer the active turn: ${describe(error)}`,
+        });
+      }
     }
   }
 
@@ -850,7 +1291,13 @@ export class HoomanChatViewProvider
   async #resolveDropped(uriStrings: string[]): Promise<void> {
     const attachments = await this.#resolveUriAttachments(uriStrings);
     if (attachments.length > 0) {
-      this.#post({ type: "attachments", attachments });
+      if (this.#sessionId) {
+        this.#post({
+          type: "attachments",
+          sessionId: this.#sessionId,
+          attachments,
+        });
+      }
     }
   }
 
@@ -933,10 +1380,13 @@ export class HoomanChatViewProvider
       }
       await vscode.commands.executeCommand("vscode.open", uri);
     } catch (error) {
-      this.#post({
-        type: "error",
-        message: `Could not open ${href}: ${describe(error)}`,
-      });
+      if (this.#sessionId) {
+        this.#post({
+          type: "error",
+          sessionId: this.#sessionId,
+          message: `Could not open ${href}: ${describe(error)}`,
+        });
+      }
     }
   }
 
@@ -973,10 +1423,13 @@ export class HoomanChatViewProvider
         );
       }
     } catch (error) {
-      this.#post({
-        type: "error",
-        message: `Could not open ${attachment.name}: ${describe(error)}`,
-      });
+      if (this.#sessionId) {
+        this.#post({
+          type: "error",
+          sessionId: this.#sessionId,
+          message: `Could not open ${attachment.name}: ${describe(error)}`,
+        });
+      }
     }
   }
 
@@ -1037,45 +1490,97 @@ export class HoomanChatViewProvider
         request,
       );
       this.#configOptions = response.configOptions ?? this.#configOptions;
-      this.#post({ type: "configOptions", configOptions: this.#configOptions });
+      if (this.#sessionId) {
+        const state = this.#sessions.get(this.#sessionId);
+        if (state) {
+          state.configOptions = [...this.#configOptions];
+        }
+        this.#post({
+          type: "configOptions",
+          sessionId: this.#sessionId,
+          configOptions: this.#configOptions,
+        });
+      }
       this.#syncStatus();
     } catch (error) {
-      this.#post({
-        type: "error",
-        message: `Failed to set option: ${describe(error)}`,
-      });
+      if (this.#sessionId) {
+        this.#post({
+          type: "error",
+          sessionId: this.#sessionId,
+          message: `Failed to set option: ${describe(error)}`,
+        });
+      }
     }
   }
 
   // ---- Host -> webview ----------------------------------------------------
 
   #onSessionUpdate(notification: SessionNotification): void {
-    if (this.#sessionId === null) {
-      // A `session/new` call is likely still in flight; buffer until it
-      // resolves and we learn (and adopt) its session id.
-      this.#pendingUpdates.push(notification);
+    const state = this.#sessions.get(notification.sessionId);
+    if (!state) {
+      if (this.#sessionId === null) {
+        this.#pendingUpdates.push(notification);
+      }
       return;
     }
-    if (notification.sessionId !== this.#sessionId) {
+    if (notification.sessionId === this.#sessionId) {
+      this.#deliverSessionUpdate(notification);
       return;
     }
-    this.#deliverSessionUpdate(notification);
+    this.#deliverSessionUpdate(notification, state);
   }
 
-  #deliverSessionUpdate(notification: SessionNotification): void {
+  #deliverSessionUpdate(
+    notification: SessionNotification,
+    stateOverride?: SessionHostState,
+  ): void {
+    const sessionId = notification.sessionId;
     const update = notification.update;
+    const state = stateOverride ?? this.#sessions.get(sessionId);
+    if (!state) {
+      return;
+    }
+    if (sessionId !== this.#sessionId && this.#shouldMarkUnread(update)) {
+      if (!state.unread) {
+        state.unread = true;
+        this.#post({
+          type: "tabs",
+          tabs: this.#tabInfo(),
+          activeSessionId: this.#sessionId,
+        });
+      }
+    }
     void this.#maybeRevealPlanFileFromUpdate(update);
     if (update.sessionUpdate === "config_option_update") {
-      this.#configOptions = update.configOptions ?? this.#configOptions;
-      this.#post({ type: "configOptions", configOptions: this.#configOptions });
+      state.configOptions = update.configOptions ?? state.configOptions;
+      if (sessionId === this.#sessionId) {
+        this.#configOptions = [...state.configOptions];
+      }
+      this.#post({
+        type: "configOptions",
+        sessionId,
+        configOptions: state.configOptions,
+      });
       this.#syncStatus();
       return;
     }
     if (update.sessionUpdate === "available_commands_update") {
-      this.#commands = update.availableCommands ?? this.#commands;
+      state.commands = update.availableCommands ?? state.commands;
+      if (sessionId === this.#sessionId) {
+        this.#commands = [...state.commands];
+      }
     }
     if (update.sessionUpdate === "session_info_update" && update.title) {
-      this.#setTitle(update.title);
+      state.title = update.title;
+      if (sessionId === this.#sessionId) {
+        this.#setTitle(update.title);
+      } else {
+        this.#post({
+          type: "tabs",
+          tabs: this.#tabInfo(),
+          activeSessionId: this.#sessionId,
+        });
+      }
     }
     // During a live turn the agent echoes the prompt back as a
     // user_message_chunk; the webview already rendered it locally on send.
@@ -1088,8 +1593,12 @@ export class HoomanChatViewProvider
     ) {
       return;
     }
-    this.#trackLiveTerminal(update);
-    this.#post({ type: "update", update: this.#resolveToolContent(update) });
+    this.#trackLiveTerminal(sessionId, update);
+    this.#post({
+      type: "update",
+      sessionId,
+      update: this.#resolveToolContent(update),
+    });
   }
 
   /**
@@ -1099,7 +1608,7 @@ export class HoomanChatViewProvider
    * ...). The agent re-embeds the terminal in the completed/failed update,
    * which both stops the poll and delivers the final output.
    */
-  #trackLiveTerminal(update: SessionUpdate): void {
+  #trackLiveTerminal(sessionId: string, update: SessionUpdate): void {
     if (
       update.sessionUpdate !== "tool_call" &&
       update.sessionUpdate !== "tool_call_update"
@@ -1107,17 +1616,26 @@ export class HoomanChatViewProvider
       return;
     }
     if (update.status === "completed" || update.status === "failed") {
-      this.#stopTerminalPoll(update.toolCallId);
+      this.#stopTerminalPoll(sessionId, update.toolCallId);
       return;
     }
     const terminal = update.content?.find((item) => item.type === "terminal");
     if (terminal) {
-      this.#startTerminalPoll(update.toolCallId, terminal.terminalId);
+      this.#startTerminalPoll(
+        sessionId,
+        update.toolCallId,
+        terminal.terminalId,
+      );
     }
   }
 
-  #startTerminalPoll(toolCallId: string, terminalId: string): void {
-    if (this.#liveTerminals.has(toolCallId)) {
+  #startTerminalPoll(
+    sessionId: string,
+    toolCallId: string,
+    terminalId: string,
+  ): void {
+    const state = this.#sessions.get(sessionId);
+    if (!state || state.liveTerminals.has(toolCallId)) {
       return;
     }
     let lastOutput = "";
@@ -1129,6 +1647,7 @@ export class HoomanChatViewProvider
       lastOutput = output;
       this.#post({
         type: "update",
+        sessionId,
         update: {
           sessionUpdate: "tool_call_update",
           toolCallId,
@@ -1139,18 +1658,25 @@ export class HoomanChatViewProvider
         },
       });
     }, 300);
-    this.#liveTerminals.set(toolCallId, timer);
+    state.liveTerminals.set(toolCallId, timer);
   }
 
-  #stopTerminalPoll(toolCallId: string): void {
-    const timer = this.#liveTerminals.get(toolCallId);
+  #stopTerminalPoll(sessionId: string, toolCallId: string): void {
+    const state = this.#sessions.get(sessionId);
+    const timer = state?.liveTerminals.get(toolCallId);
     if (timer) {
       clearInterval(timer);
-      this.#liveTerminals.delete(toolCallId);
+      state?.liveTerminals.delete(toolCallId);
     }
   }
 
   #stopAllTerminalPolls(): void {
+    for (const state of this.#sessions.values()) {
+      for (const timer of state.liveTerminals.values()) {
+        clearInterval(timer);
+      }
+      state.liveTerminals.clear();
+    }
     for (const timer of this.#liveTerminals.values()) {
       clearInterval(timer);
     }
@@ -1186,6 +1712,53 @@ export class HoomanChatViewProvider
     return { ...update, content };
   }
 
+  #shouldMarkUnread(update: SessionUpdate): boolean {
+    switch (update.sessionUpdate) {
+      case "agent_message_chunk":
+      case "agent_thought_chunk":
+      case "tool_call":
+      case "tool_call_update":
+      case "session_info_update":
+      case "plan":
+        return true;
+      case "user_message_chunk":
+        return Boolean(update._meta?.["hoomanjs/steered"]);
+      default:
+        return false;
+    }
+  }
+
+  #cancelPendingPermissionsForSession(sessionId: string): void {
+    const entries = [...this.#pendingPermissions.entries()].filter(
+      ([, pending]) => pending.sessionId === sessionId,
+    );
+    if (entries.length === 0) {
+      return;
+    }
+    const sessionState = this.#sessions.get(sessionId);
+    for (const [requestId, pending] of entries) {
+      this.#pendingPermissions.delete(requestId);
+      pending.resolve({ outcome: { outcome: "cancelled" } });
+      this.#post({
+        type: "permissionResolved",
+        sessionId,
+        requestId,
+        note: "Cancelled",
+      });
+    }
+    if (sessionState) {
+      sessionState.pendingPermissionCount = Math.max(
+        0,
+        sessionState.pendingPermissionCount - entries.length,
+      );
+    }
+    this.#post({
+      type: "tabs",
+      tabs: this.#tabInfo(),
+      activeSessionId: this.#sessionId,
+    });
+  }
+
   #tryInlinePermission(
     sessionKey: string,
     request: RequestPermissionRequest,
@@ -1205,8 +1778,18 @@ export class HoomanChatViewProvider
           : undefined,
       )
       .find((text): text is string => Boolean(text));
+    const sessionState = this.#sessions.get(sessionKey);
+    if (sessionState) {
+      sessionState.pendingPermissionCount += 1;
+    }
+    this.#post({
+      type: "tabs",
+      tabs: this.#tabInfo(),
+      activeSessionId: this.#sessionId,
+    });
     this.#post({
       type: "permission",
+      sessionId: sessionKey,
       requestId,
       title: request.toolCall.title ?? "Tool call",
       detail: isQuestion
@@ -1220,11 +1803,27 @@ export class HoomanChatViewProvider
       ...(isQuestion ? { question: true } : {}),
     });
     return new Promise<RequestPermissionResponse>((resolve) => {
-      this.#pendingPermissions.set(requestId, { resolve });
+      this.#pendingPermissions.set(requestId, {
+        sessionId: sessionKey,
+        resolve,
+      });
       cancellation.onCancellationRequested(() => {
         if (this.#pendingPermissions.delete(requestId)) {
+          const sessionState = this.#sessions.get(sessionKey);
+          if (sessionState) {
+            sessionState.pendingPermissionCount = Math.max(
+              0,
+              sessionState.pendingPermissionCount - 1,
+            );
+          }
+          this.#post({
+            type: "tabs",
+            tabs: this.#tabInfo(),
+            activeSessionId: this.#sessionId,
+          });
           this.#post({
             type: "permissionResolved",
+            sessionId: sessionKey,
             requestId,
             note: "Cancelled",
           });
@@ -1259,20 +1858,39 @@ export class HoomanChatViewProvider
   }
 
   #flushPendingComposerAttachments(): void {
-    if (!this.#webviewReady || this.#pendingComposerAttachments.length === 0) {
+    if (
+      !this.#webviewReady ||
+      this.#pendingComposerAttachments.length === 0 ||
+      !this.#sessionId
+    ) {
       return;
     }
     const attachments = this.#pendingComposerAttachments;
     this.#pendingComposerAttachments = [];
-    this.#post({ type: "attachments", attachments });
+    this.#post({
+      type: "attachments",
+      sessionId: this.#sessionId,
+      attachments,
+    });
   }
 
   /** Session title lives in the view header (not the composer) and the status bar tooltip. */
   #setTitle(title: string): void {
     this.#sessionTitle = title;
+    if (this.#sessionId) {
+      const state = this.#sessions.get(this.#sessionId);
+      if (state) {
+        state.title = title;
+      }
+    }
     if (this.#view) {
       this.#view.title = title;
     }
+    this.#post({
+      type: "tabs",
+      tabs: this.#tabInfo(),
+      activeSessionId: this.#sessionId,
+    });
     this.#syncStatus();
   }
 

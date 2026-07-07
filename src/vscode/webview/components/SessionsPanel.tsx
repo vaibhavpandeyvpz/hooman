@@ -49,8 +49,10 @@ export default function SessionsPanel() {
   const groups = createMemo(() => {
     const needle = query().trim().toLowerCase();
     const filtered = needle
-      ? state.sessions.filter((row) => row.title.toLowerCase().includes(needle))
-      : state.sessions;
+      ? state.persistedSessions.filter((row) =>
+          row.title.toLowerCase().includes(needle),
+        )
+      : state.persistedSessions;
     const byLabel = new Map<string, SessionRowInfo[]>();
     for (const row of filtered) {
       const label = dateGroupLabel(row.updatedAt);

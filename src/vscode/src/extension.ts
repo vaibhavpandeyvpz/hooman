@@ -136,6 +136,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
   // Webview chat panel — works everywhere (stable VS Code, Insiders, and compatible forks).
   const chatView = new HoomanChatViewProvider(
+    context,
     context.extensionUri,
     client,
     permissions,
