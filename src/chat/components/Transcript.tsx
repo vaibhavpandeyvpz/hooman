@@ -4,6 +4,7 @@ import type { ChatLine } from "../types.js";
 import { ChatMessage } from "./ChatMessage.js";
 import { ThoughtEvent } from "./ThoughtEvent.js";
 import { ToolEvent } from "./ToolEvent.js";
+import { RetryEvent } from "./RetryEvent.js";
 
 type TranscriptLineProps = {
   line: ChatLine;
@@ -27,6 +28,8 @@ export function TranscriptLine({
           assistantName={assistantName}
           reasoningDisplay={reasoningDisplay}
         />
+      ) : line.role === "retry" ? (
+        <RetryEvent line={line} />
       ) : (
         <ChatMessage line={line} assistantName={assistantName} />
       )}

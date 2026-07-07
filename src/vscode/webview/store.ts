@@ -11,6 +11,7 @@ import type {
   CostInfo,
   EditInfo,
   ModelDownloadInfo,
+  ModelRetryInfo,
   OutboundMessage,
   PermissionOptionInfo,
   PlanEditorStateInfo,
@@ -55,6 +56,15 @@ export type TranscriptItem =
       question?: boolean;
       resolvedNote: string | null;
     }
+  | {
+      kind: "retry";
+      id: string;
+      retryInSeconds: number;
+      attempt: number;
+      maxAttempts: number;
+      error: string;
+      errorDetail?: string;
+    }
   | { kind: "error"; id: string; message: string };
 
 export type Activity =
@@ -76,6 +86,7 @@ type SessionUiState = {
   context: ContextUsageInfo | null;
   cost: CostInfo | null;
   download: ModelDownloadInfo | null;
+  retry: ModelRetryInfo | null;
   queue: QueuedPromptInfo[];
   editDraft: string | null;
   attachments: AttachmentInfo[];
@@ -89,6 +100,7 @@ type SessionRuntime = {
   openUserMessageId: string | null;
   openUserItemId: string | null;
   pendingPermissions: Set<string>;
+  retryItemId: string | null;
 };
 
 interface State {
@@ -115,6 +127,7 @@ function createSessionState(): SessionUiState {
     context: null,
     cost: null,
     download: null,
+    retry: null,
     queue: [],
     editDraft: null,
     attachments: [],
@@ -130,6 +143,7 @@ function createRuntime(): SessionRuntime {
     openUserMessageId: null,
     openUserItemId: null,
     pendingPermissions: new Set<string>(),
+    retryItemId: null,
   };
 }
 
@@ -503,6 +517,41 @@ function upsertToolCall(
   }
 }
 
+function upsertRetry(sessionId: string, retry: ModelRetryInfo | null): void {
+  ensureSession(sessionId);
+  const runtime = getRuntime(sessionId);
+  if (!retry) {
+    const id = runtime.retryItemId;
+    if (id) {
+      setState("sessions", sessionId, "items", (items) =>
+        items.filter((item) => item.kind !== "retry" || item.id !== id),
+      );
+    }
+    runtime.retryItemId = null;
+    setState("sessions", sessionId, "retry", null);
+    return;
+  }
+  const id = runtime.retryItemId ?? crypto.randomUUID();
+  runtime.retryItemId = id;
+  const nextItem: Extract<TranscriptItem, { kind: "retry" }> = {
+    kind: "retry",
+    id,
+    retryInSeconds: retry.retryInSeconds,
+    attempt: retry.nextAttempt,
+    maxAttempts: retry.maxAttempts,
+    error: retry.error,
+    errorDetail: retry.errorDetail,
+  };
+  const index = itemIndex(sessionId, id);
+  if (index === -1) {
+    breakStream(sessionId);
+    pushItem(sessionId, nextItem);
+  } else {
+    setState("sessions", sessionId, "items", index, nextItem);
+  }
+  setState("sessions", sessionId, "retry", retry);
+}
+
 function handleSessionUpdate(
   sessionId: string,
   update: SessionUpdatePayload,
@@ -620,6 +669,7 @@ function clearChat(sessionId: string): void {
   runtime.openUserMessageId = null;
   runtime.openUserItemId = null;
   runtime.pendingPermissions.clear();
+  runtime.retryItemId = null;
   setState("sessions", sessionId, createSessionState());
 }
 
@@ -678,12 +728,17 @@ onHostMessage((msg) => {
           session.promptStartedAt = null;
           session.activity = { type: "idle" };
           session.download = null;
+          session.retry = null;
         }),
       );
+      upsertRetry(msg.sessionId, null);
       break;
     case "download":
       ensureSession(msg.sessionId);
       setState("sessions", msg.sessionId, "download", msg.download);
+      break;
+    case "retry":
+      upsertRetry(msg.sessionId, msg.retry);
       break;
     case "permission":
       showPermission(msg.sessionId, msg);
@@ -750,8 +805,10 @@ onHostMessage((msg) => {
           session.promptStartedAt = null;
           session.activity = { type: "idle" };
           session.download = null;
+          session.retry = null;
         }),
       );
+      upsertRetry(msg.sessionId, null);
       break;
     default:
       break;

@@ -25,6 +25,10 @@ import {
   subscribeModelDownloadProgress,
   type ModelDownloadProgress,
 } from "../core/models/download-progress.js";
+import {
+  subscribeModelRetryProgress,
+  type ModelRetryProgress,
+} from "../core/agent/retry-progress.js";
 import { toAdditiveUsage } from "../core/models/usage.js";
 import {
   computeUsageCostUsd,
@@ -534,6 +538,7 @@ export function ChatApp({
   }, []);
   const mountedRef = useRef(true);
   const runningRef = useRef(false);
+  const retryLineIdRef = useRef<string | null>(null);
   const assistantLineIdRef = useRef<string | null>(null);
   const assistantCommittedTextRef = useRef("");
   const streamedAssistantBlockRef = useRef<string | null>(null);
@@ -697,6 +702,58 @@ export function ChatApp({
   const removeLine = useCallback((id: string) => {
     setLines((prev) => prev.filter((line) => line.id !== id));
   }, []);
+
+  const clearRetryLine = useCallback(() => {
+    const id = retryLineIdRef.current;
+    if (!id) {
+      return;
+    }
+    removeLine(id);
+    retryLineIdRef.current = null;
+  }, [removeLine]);
+
+  const upsertRetryLine = useCallback((progress: ModelRetryProgress) => {
+    const id = retryLineIdRef.current ?? nowId();
+    retryLineIdRef.current = id;
+    const line: ChatLine = {
+      id,
+      role: "retry",
+      title: "retry",
+      content: progress.error,
+      errorDetail: progress.errorDetail,
+      retryInSeconds: progress.retryInSeconds,
+      attempt: progress.nextAttempt,
+      maxAttempts: progress.maxAttempts,
+      done: false,
+    };
+    setLines((prev) => {
+      const index = prev.findIndex((entry) => entry.id === id);
+      if (progress.status === "retrying") {
+        return index === -1 ? prev : prev.filter((entry) => entry.id !== id);
+      }
+      if (index === -1) {
+        return [...prev, line];
+      }
+      return prev.map((entry) =>
+        entry.id === id ? { ...entry, ...line } : entry,
+      );
+    });
+    if (progress.status === "retrying") {
+      retryLineIdRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => {
+    return subscribeModelRetryProgress((progress) => {
+      if (
+        progress.sessionId !== undefined &&
+        progress.sessionId !== sessionId
+      ) {
+        return;
+      }
+      upsertRetryLine(progress);
+    });
+  }, [sessionId, upsertRetryLine]);
 
   const replaceAssistantText = useCallback((text: string) => {
     const id = assistantLineIdRef.current;
@@ -1279,6 +1336,7 @@ export function ChatApp({
         done: true,
       });
       try {
+        clearRetryLine();
         const streamInput =
           attachmentBlocks.length > 0
             ? [
@@ -1481,6 +1539,7 @@ export function ChatApp({
           }
         });
       } catch (error) {
+        clearRetryLine();
         appendLine({
           id: nowId(),
           role: "system",
@@ -1489,6 +1548,7 @@ export function ChatApp({
           done: true,
         });
       } finally {
+        clearRetryLine();
         finalizeThoughtLine();
         finalizeAssistantLine();
         for (const toolLineId of toolLineIdsRef.current.values()) {

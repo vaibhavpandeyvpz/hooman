@@ -159,6 +159,14 @@ export class HoomanChatViewProvider
           activeSessionId: this.#sessionId,
         });
       }),
+      this.client.onModelRetry((notification) => {
+        const { sessionId, ...retry } = notification;
+        this.#post({
+          type: "retry",
+          sessionId,
+          retry: retry.status === "countdown" ? retry : null,
+        });
+      }),
       this.client.onDidExit(() => {
         this.#busy = false;
         this.#stopAllTerminalPolls();

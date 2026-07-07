@@ -208,6 +208,11 @@ export type {
   ModelDownloadProgress,
   ModelDownloadProgressListener,
 } from "./core/models/download-progress.js";
+export { subscribeModelRetryProgress } from "./core/agent/retry-progress.js";
+export type {
+  ModelRetryProgress,
+  ModelRetryProgressListener,
+} from "./core/agent/retry-progress.js";
 export {
   create as createAnthropicModelProvider,
   type AnthropicModelParams,

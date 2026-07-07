@@ -15,6 +15,7 @@ import { type Config } from "../config.js";
 import { FileMemoryStore } from "../memory/index.js";
 import { ToolBasedModelExtractor } from "../memory/model-extractor.js";
 import { modelProviders, type ModelProvider } from "../models/index.js";
+import { HoomanDefaultModelRetryStrategy } from "./default-retry-strategy.js";
 import type { Manager as McpManager } from "../mcp/index.js";
 import type { System as SystemPrompt } from "../prompts/index.js";
 import { FlatFileStorage } from "../sessions/flat-file-storage.js";
@@ -192,6 +193,7 @@ export async function create(
     ],
     interventions: meta.interventions ?? [],
     tools,
+    retryStrategy: new HoomanDefaultModelRetryStrategy(),
     printer: print,
     ...(conversationManager ? { conversationManager } : {}),
     ...(sessionManager ? { sessionManager } : {}),

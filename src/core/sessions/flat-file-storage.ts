@@ -74,7 +74,9 @@ export class FlatFileStorage implements SnapshotStorage {
         ? (clone.data as Record<string, unknown>)
         : null;
     const state =
-      data?.state && typeof data.state === "object" && !Array.isArray(data.state)
+      data?.state &&
+      typeof data.state === "object" &&
+      !Array.isArray(data.state)
         ? (data.state as Record<string, unknown>)
         : null;
     if (state) {

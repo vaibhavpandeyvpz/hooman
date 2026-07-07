@@ -1,7 +1,7 @@
 import type { FileToolDisplay } from "../core/state/file-tool-display.js";
 
 export type ChatRole = "user" | "assistant" | "tool" | "system";
-export type ChatTimelineRole = ChatRole | "thought";
+export type ChatTimelineRole = ChatRole | "thought" | "retry";
 
 export interface ChatLine {
   id: string;
@@ -16,6 +16,10 @@ export interface ChatLine {
   startedAt?: number;
   finishedAt?: number;
   estimatedTokens?: number;
+  retryInSeconds?: number;
+  attempt?: number;
+  maxAttempts?: number;
+  errorDetail?: string;
 }
 
 export type ApprovalDecision = "allow" | "reject" | "always";

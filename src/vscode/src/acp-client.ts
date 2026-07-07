@@ -14,7 +14,10 @@ import {
 import { FsBackend } from "./fs-backend";
 import { TerminalBackend } from "./terminal-backend";
 import { PermissionPrompts } from "./permissions";
-import type { ModelDownloadNotification } from "./shared/protocol";
+import type {
+  ModelDownloadNotification,
+  ModelRetryNotification,
+} from "./shared/protocol";
 
 /** `../package.json` relative to the compiled `out/acp-client.js`, i.e. this sub-package's manifest. */
 const EXTENSION_VERSION = (require("../package.json") as { version: string })
@@ -47,6 +50,10 @@ export class HoomanAcpClient implements vscode.Disposable {
   readonly #onModelDownload =
     new vscode.EventEmitter<ModelDownloadNotification>();
   readonly onModelDownload = this.#onModelDownload.event;
+
+  /** Custom `_hoomanjs/model_retry` notifications (live retry countdown). */
+  readonly #onModelRetry = new vscode.EventEmitter<ModelRetryNotification>();
+  readonly onModelRetry = this.#onModelRetry.event;
 
   readonly #onDidExit = new vscode.EventEmitter<void>();
   readonly onDidExit = this.#onDidExit.event;
@@ -151,6 +158,13 @@ export class HoomanAcpClient implements vscode.Disposable {
         (ctx) => {
           this.#onModelDownload.fire(ctx.params);
         },
+      )
+      .onNotification(
+        "_hoomanjs/model_retry",
+        (params) => params as ModelRetryNotification,
+        (ctx) => {
+          this.#onModelRetry.fire(ctx.params);
+        },
       );
 
     this.#connection = clientApp.connect(stream);
@@ -174,6 +188,7 @@ export class HoomanAcpClient implements vscode.Disposable {
     this.terminal.dispose();
     this.#onSessionUpdate.dispose();
     this.#onModelDownload.dispose();
+    this.#onModelRetry.dispose();
     this.#onDidExit.dispose();
     if (this.#process && !this.#process.killed) {
       this.#process.kill();

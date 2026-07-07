@@ -7,6 +7,7 @@ import AssistantMessage from "./AssistantMessage";
 import ThoughtBlock from "./ThoughtBlock";
 import ToolCard from "./ToolCard";
 import PermissionCard from "./PermissionCard";
+import RetryCard from "./RetryCard";
 
 export default function Transcript() {
   let containerRef: HTMLDivElement | undefined;
@@ -81,6 +82,17 @@ export default function Transcript() {
             </Match>
             <Match when={item.kind === "tool" && item}>
               {(tool) => <ToolCard item={tool()} />}
+            </Match>
+            <Match when={item.kind === "retry" && item}>
+              {(retry) => (
+                <RetryCard
+                  retryInSeconds={retry().retryInSeconds}
+                  attempt={retry().attempt}
+                  maxAttempts={retry().maxAttempts}
+                  error={retry().error}
+                  errorDetail={retry().errorDetail}
+                />
+              )}
             </Match>
             <Match when={item.kind === "permission" && item}>
               {(perm) => <PermissionCard item={perm()} />}

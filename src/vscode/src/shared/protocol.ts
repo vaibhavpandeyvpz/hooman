@@ -82,6 +82,22 @@ export interface ModelDownloadNotification extends ModelDownloadInfo {
   sessionId: string;
 }
 
+export interface ModelRetryInfo {
+  status: "countdown" | "retrying";
+  attempt: number;
+  nextAttempt: number;
+  maxAttempts: number;
+  waitMs: number;
+  retryInSeconds: number;
+  error: string;
+  errorDetail?: string;
+}
+
+/** `_hoomanjs/model_retry` notification params: retry progress plus the owning session. */
+export interface ModelRetryNotification extends ModelRetryInfo {
+  sessionId: string;
+}
+
 /**
  * A file, folder, or in-memory image staged for (or sent with) a prompt.
  * Path-backed attachments come from the native file dialog or drags that
@@ -236,6 +252,7 @@ export type OutboundMessage =
     }
   | { type: "attachments"; sessionId: string; attachments: AttachmentInfo[] }
   | { type: "download"; sessionId: string; download: ModelDownloadInfo | null }
+  | { type: "retry"; sessionId: string; retry: ModelRetryInfo | null }
   | { type: "sessions"; sessions: SessionRowInfo[] }
   | { type: "showSessions" }
   | {

@@ -71,6 +71,10 @@ import {
   subscribeModelDownloadProgress,
   type ModelDownloadProgress,
 } from "../core/models/download-progress.js";
+import {
+  subscribeModelRetryProgress,
+  type ModelRetryProgress,
+} from "../core/agent/retry-progress.js";
 import { toAdditiveUsage } from "../core/models/usage.js";
 import {
   computeUsageCostUsd,
@@ -439,6 +443,36 @@ export class HoomanAcpAgent {
         void client
           .notify<ModelDownloadProgress & { sessionId: string }>(
             "_hoomanjs/model_download",
+            { sessionId, ...progress },
+          )
+          .catch(() => undefined);
+      }
+    });
+    subscribeModelRetryProgress((progress) => {
+      const client = this.#client;
+      if (!client) {
+        return;
+      }
+      if (progress.sessionId) {
+        const rec = this.#sessions.get(progress.sessionId);
+        if (!rec || !this.#isTurnActive(rec)) {
+          return;
+        }
+        void client
+          .notify<ModelRetryProgress & { sessionId: string }>(
+            "_hoomanjs/model_retry",
+            { sessionId: progress.sessionId, ...progress },
+          )
+          .catch(() => undefined);
+        return;
+      }
+      for (const [sessionId, rec] of this.#sessions) {
+        if (!this.#isTurnActive(rec)) {
+          continue;
+        }
+        void client
+          .notify<ModelRetryProgress & { sessionId: string }>(
+            "_hoomanjs/model_retry",
             { sessionId, ...progress },
           )
           .catch(() => undefined);
