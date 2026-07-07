@@ -1622,6 +1622,10 @@ export class HoomanAcpAgent {
               rec.costUnpriced = true;
             }
           }
+          // Push the accumulated-so-far usage after every request, not just
+          // at turn end, so clients (e.g. VS Code) see the meter grow live
+          // across a multi-request turn instead of jumping once at the end.
+          await this.#sendUsageUpdate(client, sessionId, rec, undefined);
         }
         return;
       }
