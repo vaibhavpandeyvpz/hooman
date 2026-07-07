@@ -109,7 +109,7 @@ const MCP_REMOTE_BASE_FIELDS: McpDraftField[] = [
   },
   {
     key: "oauthEnabled",
-    label: "Enable OAuth? (yes/no)",
+    label: "Enable OAuth",
     placeholder: "no",
     note: "Choose yes for servers that use OAuth 2.0/2.1 or dynamic client registration.",
   },
@@ -369,7 +369,7 @@ const PROVIDER_FIELD_DEFINITIONS: Record<
       label: "Deployment-based URLs",
       kind: "optionalBoolean",
       placeholder: "false",
-      note: "Allowed: yes/no/true/false. Leave blank to use the AI SDK default.",
+      note: "Toggle between yes and no. Leave unset to use the AI SDK default.",
     },
     {
       key: "reasoningEffort",
@@ -904,6 +904,14 @@ export function ConfigureApp({
   const [busyMessage, setBusyMessage] = useState<string | null>(null);
   const [revision, setRevision] = useState(0);
   const [mcpDraft, setMcpDraft] = useState<Record<string, string> | null>(null);
+  const [providerDraft, setProviderDraft] = useState<Record<
+    string,
+    string
+  > | null>(null);
+  const [providerDraftType, setProviderDraftType] = useState<
+    (typeof SUPPORTED_PROVIDER_TYPES)[number] | null
+  >(null);
+  const [llmDraft, setLlmDraft] = useState<Record<string, string> | null>(null);
   const [installedSkills, setInstalledSkills] = useState<SkillListEntry[]>([]);
   const [searchResults, setSearchResults] = useState<SkillSearchResult[]>([]);
   const [mcpAuthStatuses, setMcpAuthStatuses] = useState<
@@ -1015,6 +1023,25 @@ export function ConfigureApp({
         setScreen({ kind: "mcp" });
         return;
       }
+      if (screen.kind === "config-provider-create") {
+        setProviderDraft(null);
+        setProviderDraftType(null);
+        setScreen({ kind: "config-providers" });
+        return;
+      }
+      if (screen.kind === "config-provider-create-type") {
+        setScreen({ kind: "config-provider-create" });
+        return;
+      }
+      if (screen.kind === "config-llm-create") {
+        setLlmDraft(null);
+        setScreen({ kind: "config-llms" });
+        return;
+      }
+      if (screen.kind === "config-llm-create-provider") {
+        setScreen({ kind: "config-llm-create" });
+        return;
+      }
       if (
         screen.kind === "mcp-delete-confirm" ||
         screen.kind === "mcp-save-target"
@@ -1046,6 +1073,10 @@ export function ConfigureApp({
       }
       if (screen.kind === "config-provider-add-type") {
         setScreen({ kind: "config-providers" });
+        return;
+      }
+      if (screen.kind === "config-providers" || screen.kind === "config-llms") {
+        setScreen({ kind: "config" });
         return;
       }
       if (screen.kind !== "home") {
@@ -1132,24 +1163,14 @@ export function ConfigureApp({
     [config],
   );
 
-  const addLlm = useCallback(
-    (name: string) => {
-      const providerName = config.providers[0]?.name ?? "llama.cpp";
-      const providerType =
-        config.providers.find((provider) => provider.name === providerName)
-          ?.provider ?? LlmProvider.LlamaCpp;
-      return [
-        ...config.llms,
-        {
-          name,
-          provider: providerName,
-          options: {
-            model: defaultModelForProviderType(providerType),
-          },
-          default: false,
-        },
-      ];
-    },
+  const addLlmEntry = useCallback(
+    (entry: LlmEntry) => [...config.llms, entry] as ConfigData["llms"],
+    [config],
+  );
+
+  const addProviderEntry = useCallback(
+    (entry: ProviderEntry) =>
+      [...config.providers, entry] as ConfigData["providers"],
     [config],
   );
 
@@ -1210,6 +1231,18 @@ export function ConfigureApp({
       config.providers.filter((provider) => provider.name !== name),
     [config],
   );
+
+  const updateProviderDraftField = useCallback((key: string, value: string) => {
+    setProviderDraft((current) =>
+      current ? { ...current, [key]: value } : current,
+    );
+  }, []);
+
+  const updateLlmDraftField = useCallback((key: string, value: string) => {
+    setLlmDraft((current) =>
+      current ? { ...current, [key]: value } : current,
+    );
+  }, []);
 
   const promptValue = useCallback((state: PromptState) => {
     setPrompt(state);
@@ -1346,6 +1379,39 @@ export function ConfigureApp({
       });
     },
     [promptValue, updateMcpDraftField],
+  );
+
+  const editProviderDraftField = useCallback(
+    (definition: TypedFieldDefinition, initialValue: string) => {
+      promptValue({
+        title: `Update ${definition.label}`,
+        label: definition.label,
+        initialValue,
+        placeholder: definition.placeholder,
+        note: definition.note,
+        onSubmit: async (value) => {
+          updateProviderDraftField(definition.key, value);
+          setPrompt(null);
+        },
+      });
+    },
+    [promptValue, updateProviderDraftField],
+  );
+
+  const editLlmDraftField = useCallback(
+    (label: string, key: string, initialValue: string, note?: string) => {
+      promptValue({
+        title: `Update ${label}`,
+        label,
+        initialValue,
+        note,
+        onSubmit: async (value) => {
+          updateLlmDraftField(key, value);
+          setPrompt(null);
+        },
+      });
+    },
+    [promptValue, updateLlmDraftField],
   );
 
   const buildMcpStdioDraft = useCallback(() => {
@@ -1860,23 +1926,11 @@ export function ConfigureApp({
     const items: MenuItem[] = [
       {
         label: "Add provider",
-        value: () =>
-          promptValue({
-            title: "Add a new provider",
-            label: "Name",
-            placeholder: "openai-prod",
-            onSubmit: async (value) => {
-              const name = value.trim();
-              if (!name) {
-                throw new Error("Name is required.");
-              }
-              if (config.providers.some((provider) => provider.name === name)) {
-                throw new Error(`A provider named "${name}" already exists.`);
-              }
-              setPrompt(null);
-              setScreen({ kind: "config-provider-add-type", name });
-            },
-          }),
+        value: () => {
+          setProviderDraft({ name: "" });
+          setProviderDraftType(SUPPORTED_PROVIDER_TYPES[0]);
+          setScreen({ kind: "config-provider-create" });
+        },
       },
       ...providerItems,
       {
@@ -1890,6 +1944,194 @@ export function ConfigureApp({
         title="Providers"
         description="Configure reusable provider credentials and shared params."
         items={items}
+      />
+    );
+  };
+
+  const renderProviderCreateMenu = () => {
+    if (screen.kind !== "config-provider-create" || !providerDraft) {
+      return null;
+    }
+    const providerType = providerDraftType ?? SUPPORTED_PROVIDER_TYPES[0];
+    const providerFields = PROVIDER_FIELD_DEFINITIONS[providerType];
+    const items: MenuItem[] = [
+      {
+        label: `Name • ${providerDraft.name?.trim() ? providerDraft.name : "not set"}`,
+        value: () =>
+          editProviderDraftField(
+            {
+              key: "name",
+              label: "Name",
+              kind: "string",
+              placeholder: "openai-prod",
+            },
+            providerDraft.name ?? "",
+          ),
+      },
+      {
+        label: `Type • ${providerType}`,
+        value: () => setScreen({ kind: "config-provider-create-type" }),
+      },
+      ...providerFields.map((definition) => ({
+        key: `provider-create-field:${definition.key}`,
+        label: `${definition.label} • ${formatDraftFieldValue(
+          {
+            key: definition.key,
+            label: definition.label,
+            placeholder: definition.placeholder,
+            note: definition.note,
+          },
+          providerDraft[definition.key],
+        )}`,
+        value: () => {
+          if (definition.kind === "optionalBoolean") {
+            updateProviderDraftField(
+              definition.key,
+              isTruthyToggle(providerDraft[definition.key]) ? "no" : "yes",
+            );
+            return;
+          }
+          editProviderDraftField(
+            definition,
+            providerDraft[definition.key] ?? "",
+          );
+        },
+      })),
+      {
+        label: "Save",
+        value: () => {
+          const name = (providerDraft.name ?? "").trim();
+          if (!name) {
+            throw new Error("Name is required.");
+          }
+          if (config.providers.some((provider) => provider.name === name)) {
+            throw new Error(`A provider named "${name}" already exists.`);
+          }
+          const options = providerOptionsTemplate(providerType) as Record<
+            string,
+            unknown
+          >;
+          for (const definition of providerFields) {
+            if (definition.key === "openaiApi") {
+              const nextValue = parseTypedFieldValue(
+                providerDraft[definition.key] ?? "",
+                definition,
+              );
+              options.api = nextValue;
+              continue;
+            }
+            if (definition.kind === "reasoningEffort") {
+              const effort = parseTypedFieldValue(
+                providerDraft[definition.key] ?? "",
+                definition,
+              );
+              const reasoning = {
+                ...((options.reasoning as
+                  Record<string, unknown> | undefined) ?? {}),
+                effort,
+              };
+              options.reasoning = Object.values(reasoning).some(
+                (value) => value !== undefined,
+              )
+                ? reasoning
+                : undefined;
+              continue;
+            }
+            if (definition.kind === "reasoningSummary") {
+              const summary = parseTypedFieldValue(
+                providerDraft[definition.key] ?? "",
+                definition,
+              );
+              const reasoning = {
+                ...((options.reasoning as
+                  Record<string, unknown> | undefined) ?? {}),
+                summary,
+              };
+              options.reasoning = Object.values(reasoning).some(
+                (value) => value !== undefined,
+              )
+                ? reasoning
+                : undefined;
+              continue;
+            }
+            if (definition.kind === "reasoningDisplay") {
+              const display = parseTypedFieldValue(
+                providerDraft[definition.key] ?? "",
+                definition,
+              );
+              const reasoning = {
+                ...((options.reasoning as
+                  Record<string, unknown> | undefined) ?? {}),
+                display,
+              };
+              options.reasoning = Object.values(reasoning).some(
+                (value) => value !== undefined,
+              )
+                ? reasoning
+                : undefined;
+              continue;
+            }
+            if (definition.kind === "bedrockCredentials") {
+              const accessKeyId = normalizeOptional(
+                providerDraft.accessKeyId ?? "",
+              );
+              const secretAccessKey = normalizeOptional(
+                providerDraft.secretAccessKey ?? "",
+              );
+              if (
+                (accessKeyId === undefined) !==
+                (secretAccessKey === undefined)
+              ) {
+                throw new Error(
+                  "Access key ID and secret access key must be provided together.",
+                );
+              }
+              options.accessKeyId = accessKeyId;
+              options.secretAccessKey = secretAccessKey;
+              continue;
+            }
+            if (definition.kind === "promptCache") {
+              continue;
+            }
+            options[definition.key] = parseTypedFieldValue(
+              providerDraft[definition.key] ?? "",
+              definition,
+            );
+          }
+          if (
+            updateConfig(
+              {
+                providers: addProviderEntry({
+                  name,
+                  provider: providerType,
+                  options: options,
+                } as ProviderEntry),
+              },
+              `Added provider "${name}" as "${providerType}".`,
+            )
+          ) {
+            setProviderDraft(null);
+            setProviderDraftType(null);
+            setScreen({ kind: "config-provider-edit", name });
+          }
+        },
+      },
+      {
+        label: "Back",
+        value: () => {
+          setProviderDraft(null);
+          setProviderDraftType(null);
+          setScreen({ kind: "config-providers" });
+        },
+      },
+    ];
+
+    return (
+      <MenuScreen
+        title="Add a new provider"
+        description="Select a field to edit, then save when you're done."
+        items={items}
+        onActionError={handleActionError}
       />
     );
   };
@@ -2005,6 +2247,19 @@ export function ConfigureApp({
                   kind: "config-provider-prompt-cache",
                   name: entry.name,
                 });
+                return;
+              }
+              if (definition.kind === "optionalBoolean") {
+                const currentValue = providerOptions[definition.key];
+                const nextValue = currentValue === true ? false : true;
+                updateConfig(
+                  {
+                    providers: patchProvider(entry.name, {
+                      [definition.key]: nextValue,
+                    }),
+                  },
+                  `Updated ${definition.label.toLowerCase()} for "${entry.name}" to ${nextValue ? "yes" : "no"}.`,
+                );
                 return;
               }
               if (definition.kind === "bedrockCredentials") {
@@ -2505,32 +2760,24 @@ export function ConfigureApp({
     const items: MenuItem[] = [
       {
         label: "Add LLM",
-        value: () =>
-          promptValue({
-            title: "Add a new LLM",
-            label: "Name",
-            placeholder: "Gemma 27B",
-            onSubmit: async (value) => {
-              const name = value.trim();
-              if (!name) {
-                throw new Error("Name is required.");
-              }
-              if (config.llms.some((m) => m.name === name)) {
-                throw new Error(`An LLM named "${name}" already exists.`);
-              }
-              if (config.providers.length === 0) {
-                throw new Error(
-                  "Add at least one provider first so the model can reference it.",
-                );
-              }
-              if (
-                updateConfig({ llms: addLlm(name) }, `Added LLM "${name}".`)
-              ) {
-                setPrompt(null);
-                setScreen({ kind: "config-llm-edit", name });
-              }
-            },
-          }),
+        value: () => {
+          if (config.providers.length === 0) {
+            throw new Error(
+              "Add at least one provider first so the model can reference it.",
+            );
+          }
+          const providerName = config.providers[0]!.name;
+          const providerType = config.providers[0]!.provider;
+          setLlmDraft({
+            name: "",
+            provider: providerName,
+            model: defaultModelForProviderType(providerType),
+            temperature: "",
+            maxTokens: "",
+            context: "",
+          });
+          setScreen({ kind: "config-llm-create" });
+        },
       },
       ...llmItems,
       {
@@ -2544,6 +2791,122 @@ export function ConfigureApp({
         title="LLMs"
         description="Add, edit, or remove named LLM configurations. The default is used for new sessions."
         items={items}
+      />
+    );
+  };
+
+  const renderLlmCreateMenu = () => {
+    if (screen.kind !== "config-llm-create" || !llmDraft) {
+      return null;
+    }
+    const provider = config.providers.find(
+      (candidate) => candidate.name === llmDraft.provider,
+    );
+    const providerType = provider?.provider;
+    const items: MenuItem[] = [
+      {
+        label: `Name • ${llmDraft.name?.trim() ? llmDraft.name : "not set"}`,
+        value: () => editLlmDraftField("Name", "name", llmDraft.name ?? ""),
+      },
+      {
+        label: `Provider • ${llmDraft.provider ?? "not set"}`,
+        value: () => setScreen({ kind: "config-llm-create-provider" }),
+      },
+      {
+        label: `Model • ${llmDraft.model?.trim() ? llmDraft.model : "not set"}`,
+        value: () =>
+          editLlmDraftField(
+            "Model",
+            "model",
+            llmDraft.model ?? "",
+            providerType
+              ? `Suggested default for ${providerType}: ${defaultModelForProviderType(providerType)}`
+              : undefined,
+          ),
+      },
+      ...LLM_FIELD_DEFINITIONS.map((definition) => ({
+        key: `llm-create-field:${definition.key}`,
+        label: `${definition.label} • ${formatDraftFieldValue(
+          {
+            key: definition.key,
+            label: definition.label,
+            placeholder: definition.placeholder,
+            note: definition.note,
+          },
+          llmDraft[definition.key],
+        )}`,
+        value: () =>
+          editLlmDraftField(
+            definition.label,
+            definition.key,
+            llmDraft[definition.key] ?? "",
+            definition.note,
+          ),
+      })),
+      {
+        label: "Save",
+        value: () => {
+          const name = (llmDraft.name ?? "").trim();
+          if (!name) {
+            throw new Error("Name is required.");
+          }
+          if (config.llms.some((llm) => llm.name === name)) {
+            throw new Error(`An LLM named "${name}" already exists.`);
+          }
+          const providerName = (llmDraft.provider ?? "").trim();
+          if (!providerName) {
+            throw new Error("Provider is required.");
+          }
+          const selectedProvider = config.providers.find(
+            (candidate) => candidate.name === providerName,
+          );
+          if (!selectedProvider) {
+            throw new Error(`Provider "${providerName}" does not exist.`);
+          }
+          const model = (llmDraft.model ?? "").trim();
+          if (!model) {
+            throw new Error("Model is required.");
+          }
+          const options: Record<string, unknown> = { model };
+          for (const definition of LLM_FIELD_DEFINITIONS) {
+            options[definition.key] = parseTypedFieldValue(
+              llmDraft[definition.key] ?? "",
+              definition,
+            );
+          }
+          if (
+            updateConfig(
+              {
+                llms: addLlmEntry({
+                  name,
+                  provider: providerName,
+                  options: options as LlmEntry["options"],
+                  default: false,
+                }),
+              },
+              `Added LLM "${name}".`,
+            )
+          ) {
+            setLlmDraft(null);
+            setScreen({ kind: "config-llm-edit", name });
+          }
+        },
+      },
+      {
+        label: "Back",
+        value: () => {
+          setLlmDraft(null);
+          setScreen({ kind: "config-llms" });
+        },
+      },
+    ];
+
+    return (
+      <MenuScreen
+        title="Add a new LLM"
+        description="Select a field to edit, then save when you're done."
+        items={items}
+        onActionError={handleActionError}
       />
     );
   };
@@ -2707,6 +3070,45 @@ export function ConfigureApp({
               : "Edit fields, set as default, or delete this LLM."
         }
         items={items}
+      />
+    );
+  };
+
+  const renderLlmCreateProviderMenu = () => {
+    if (screen.kind !== "config-llm-create-provider" || !llmDraft) {
+      return null;
+    }
+    const items: MenuItem[] = [
+      ...config.providers.map((provider) => ({
+        label:
+          provider.name === llmDraft.provider
+            ? `${provider.name} • current`
+            : `${provider.name} • ${provider.provider}`,
+        value: () => {
+          setLlmDraft((current) =>
+            current
+              ? {
+                  ...current,
+                  provider: provider.name,
+                  model: defaultModelForProviderType(provider.provider),
+                }
+              : current,
+          );
+          setScreen({ kind: "config-llm-create" });
+        },
+      })),
+      {
+        label: "Back",
+        value: () => setScreen({ kind: "config-llm-create" }),
+      },
+    ];
+
+    return (
+      <MenuScreen
+        title="Choose provider"
+        description="Pick which shared provider config this LLM should use."
+        items={items}
+        onActionError={handleActionError}
       />
     );
   };
@@ -3070,7 +3472,16 @@ export function ConfigureApp({
       ...fields.map((field) => ({
         key: `mcp-remote:${field.key}`,
         label: `${field.label} • ${formatDraftFieldValue(field, mcpDraft[field.key])}`,
-        value: () => editMcpDraftField(field, mcpDraft[field.key] ?? ""),
+        value: () => {
+          if (field.key === "oauthEnabled") {
+            updateMcpDraftField(
+              field.key,
+              isTruthyToggle(mcpDraft[field.key]) ? "no" : "yes",
+            );
+            return;
+          }
+          editMcpDraftField(field, mcpDraft[field.key] ?? "");
+        },
       })),
       {
         label: "Save",
@@ -3451,6 +3862,10 @@ export function ConfigureApp({
         return renderConfigMenu();
       case "config-providers":
         return renderProvidersMenu();
+      case "config-provider-create":
+        return renderProviderCreateMenu();
+      case "config-provider-create-type":
+        return renderProviderAddTypeMenu();
       case "config-provider-add-type":
         return renderProviderAddTypeMenu();
       case "config-provider-edit":
@@ -3492,6 +3907,10 @@ export function ConfigureApp({
         return renderProviderDeleteConfirm();
       case "config-llms":
         return renderLlmsMenu();
+      case "config-llm-create":
+        return renderLlmCreateMenu();
+      case "config-llm-create-provider":
+        return renderLlmCreateProviderMenu();
       case "config-llm-edit":
         return renderLlmEditMenu();
       case "config-llm-provider":

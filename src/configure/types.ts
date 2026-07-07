@@ -18,6 +18,8 @@ export type Screen =
   | { kind: "config-general" }
   | { kind: "config" }
   | { kind: "config-providers" }
+  | { kind: "config-provider-create" }
+  | { kind: "config-provider-create-type" }
   | { kind: "config-provider-add-type"; name: string }
   | { kind: "config-provider-edit"; name: string }
   | { kind: "config-provider-type"; name: string }
@@ -29,6 +31,8 @@ export type Screen =
   | { kind: "config-provider-delete-confirm"; name: string }
   | { kind: "config-tools" }
   | { kind: "config-llms" }
+  | { kind: "config-llm-create" }
+  | { kind: "config-llm-create-provider" }
   | { kind: "config-llm-edit"; name: string }
   | { kind: "config-llm-provider"; name: string }
   | { kind: "config-llm-delete-confirm"; name: string }
