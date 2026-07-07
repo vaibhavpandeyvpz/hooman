@@ -20,12 +20,7 @@ export default function TabStrip() {
                 title={tab.title}
                 onClick={() => activateTab(tab.sessionId)}
               >
-                <Show
-                  when={tab.busy}
-                  fallback={
-                    <span class="h-2 w-2 shrink-0 rounded-full bg-muted/70" />
-                  }
-                >
+                <Show when={tab.busy}>
                   <Loader2
                     size={11}
                     class="shrink-0 animate-spin text-accent"

@@ -15,6 +15,8 @@ import {
   type CloseSessionRequest,
   type CloseSessionResponse,
   type DeleteSessionRequest,
+  type ForkSessionRequest,
+  type ForkSessionResponse,
   type FileSystemCapabilities,
   type InitializeRequest,
   type InitializeResponse,
@@ -485,6 +487,7 @@ export class HoomanAcpAgent {
         sessionCapabilities: {
           list: {},
           delete: {},
+          fork: {},
           resume: {},
           close: {},
         },
@@ -578,6 +581,99 @@ export class HoomanAcpAgent {
         record.config,
         mode,
         isYoloEnabled(record.agent),
+      ),
+    };
+  }
+
+  async forkSession(
+    params: ForkSessionRequest,
+    _client: AgentContext,
+  ): Promise<ForkSessionResponse> {
+    await this.#storeReady;
+    assertAbsolutePath(params.cwd, "cwd");
+    const sourceEntry = await readSessionEntry(this.#acpRoot, params.sessionId);
+    if (!sourceEntry) {
+      throw RequestError.resourceNotFound(`session:${params.sessionId}`);
+    }
+    const sourceRecord = this.#sessions.get(params.sessionId);
+    if (sourceRecord && this.#isTurnActive(sourceRecord)) {
+      throw RequestError.invalidParams({
+        sessionId: params.sessionId,
+        message: "Cannot fork a session while a turn is still running.",
+      });
+    }
+    if (sourceRecord) {
+      await getAgentSessionManager(sourceRecord.agent)?.saveSnapshot({
+        target: sourceRecord.agent,
+        isLatest: true,
+      });
+    }
+
+    const sessionId = crypto.randomUUID();
+    const clientUserId = extractAcpClientUserId(params._meta);
+    const userId =
+      clientUserId !== undefined ? clientUserId : (sourceEntry.userId ?? null);
+    const mcpServers =
+      params.mcpServers && params.mcpServers.length > 0
+        ? normalizeAcpSessionMcpServers(params.mcpServers)
+        : (sourceEntry.mcpServers ?? []);
+    const vscode =
+      extractAcpVscodeFlag(params._meta) || sourceEntry.vscode === true;
+    const mode = resolveSessionMode(sourceEntry.sessionMode);
+    const now = new Date().toISOString();
+    const title = sourceEntry.title
+      ? `${sourceEntry.title} (fork)`
+      : "Fork Chat";
+
+    const cloned = await new FlatFileStorage(
+      this.#snapshotsRoot,
+    ).cloneLatestSnapshot({
+      sourceSessionId: params.sessionId,
+      targetSessionId: sessionId,
+      sourceTitle: title,
+    });
+    if (!cloned) {
+      throw RequestError.internalError({
+        message: "Could not clone the source session snapshot.",
+      });
+    }
+
+    const entry: SessionIndexEntry = {
+      sessionId,
+      cwd: params.cwd,
+      createdAt: now,
+      updatedAt: now,
+      title,
+      userId,
+      mcpServers,
+      ...(vscode ? { vscode } : {}),
+      yolo: sourceEntry.yolo,
+      sessionMode: mode,
+      model: sourceEntry.model,
+    };
+    await writeSessionEntry(this.#acpRoot, entry);
+
+    const forkConfig = createSessionConfig();
+    if (
+      sourceEntry.model &&
+      sourceEntry.model !== currentModelName(forkConfig) &&
+      forkConfig.llms.some((candidate) => candidate.name === sourceEntry.model)
+    ) {
+      forkConfig.update({
+        llms: forkConfig.llms.map((candidate) => ({
+          ...candidate,
+          default: candidate.name === sourceEntry.model,
+        })),
+      });
+    }
+
+    return {
+      sessionId,
+      modes: buildSessionModeState(mode),
+      configOptions: buildSessionConfigOptions(
+        forkConfig,
+        mode,
+        sourceEntry.yolo === true,
       ),
     };
   }
@@ -1993,6 +2089,9 @@ export function createAcpApp(agent: HoomanAcpAgent): AgentApp {
     )
     .onRequest(methods.agent.session.delete, (ctx) =>
       agent.deleteSession(ctx.params),
+    )
+    .onRequest(methods.agent.session.fork, (ctx) =>
+      agent.forkSession(ctx.params, ctx.client),
     )
     .onRequest(methods.agent.session.setMode, (ctx) =>
       agent.setSessionMode(ctx.params, ctx.client),

@@ -178,6 +178,7 @@ export type InboundMessage =
   | { type: "closeTab"; sessionId: string }
   | { type: "deleteSession"; sessionId: string; title: string }
   | { type: "newChat" }
+  | { type: "forkChat" }
   | { type: "pickModel" }
   | { type: "build" }
   | { type: "editMarkdown" }

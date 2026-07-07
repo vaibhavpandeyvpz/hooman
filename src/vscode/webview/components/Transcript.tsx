@@ -1,6 +1,6 @@
 import { createEffect, For, Match, Show, Switch } from "solid-js";
 import { CircleAlert } from "lucide-solid";
-import { sessionState } from "../store";
+import { latestCompletedAssistantId, sessionState } from "../store";
 import EmptyState from "./EmptyState";
 import UserMessage from "./UserMessage";
 import AssistantMessage from "./AssistantMessage";
@@ -58,7 +58,17 @@ export default function Transcript() {
               )}
             </Match>
             <Match when={item.kind === "assistant" && item}>
-              {(assistant) => <AssistantMessage text={assistant().text} />}
+              {(assistant) => (
+                <AssistantMessage
+                  id={assistant().id}
+                  text={assistant().text}
+                  copied={assistant().copied}
+                  showActions={
+                    !sessionState().busy &&
+                    latestCompletedAssistantId() === assistant().id
+                  }
+                />
+              )}
             </Match>
             <Match when={item.kind === "thought" && item}>
               {(thought) => (

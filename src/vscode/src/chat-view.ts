@@ -842,6 +842,9 @@ export class HoomanChatViewProvider
       case "newChat":
         this.newChat();
         return;
+      case "forkChat":
+        await this.#forkChat();
+        return;
     }
   }
 
@@ -890,6 +893,41 @@ export class HoomanChatViewProvider
           message: `Edit action failed: ${describe(error)}`,
         });
       }
+    }
+  }
+
+  async #forkChat(): Promise<void> {
+    if (!this.#sessionId) {
+      return;
+    }
+    const sourceSessionId = this.#sessionId;
+    const sourceCwd = this.#cwd;
+    const sourceTitle = this.#sessionTitle;
+    const forkTitle = sourceTitle ? `${sourceTitle} (fork)` : "Fork Chat";
+    const sourceState = this.#sessions.get(sourceSessionId);
+    if (sourceState?.busy || this.#busy) {
+      this.#post({
+        type: "error",
+        sessionId: sourceSessionId,
+        message: "Finish the current turn before forking this chat.",
+      });
+      return;
+    }
+    try {
+      const agent = await this.client.ensureStarted();
+      const response = await agent.request(methods.agent.session.fork, {
+        sessionId: sourceSessionId,
+        cwd: sourceCwd,
+        _meta: { "hoomanjs/vscode": true },
+      });
+      await this.openSession(response.sessionId, sourceCwd, forkTitle);
+      await this.#postSessions();
+    } catch (error) {
+      this.#post({
+        type: "error",
+        sessionId: sourceSessionId,
+        message: `Failed to fork session: ${describe(error)}`,
+      });
     }
   }
 

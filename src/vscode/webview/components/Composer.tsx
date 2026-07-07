@@ -21,7 +21,6 @@ import {
   resolveDropped,
   sessionState,
   setConfigOption,
-  state,
   submitPrompt,
 } from "../store";
 import {

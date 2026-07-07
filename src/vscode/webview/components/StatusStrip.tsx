@@ -73,12 +73,13 @@ export default function StatusStrip() {
 
   const elapsed = createMemo(() => {
     void now();
-    return sessionState().promptStartedAt
-      ? Date.now() - sessionState().promptStartedAt
-      : 0;
+    const startedAt = sessionState().promptStartedAt;
+    return startedAt ? Date.now() - startedAt : 0;
   });
 
-  const activityLabel = createMemo(() => THINKING_VERBS[verbIndex()]);
+  const activityLabel = createMemo(
+    () => THINKING_VERBS[verbIndex()] ?? "Thinking",
+  );
 
   const shimmerStyle = createMemo(() => ({
     color: `hsl(${HUES[hueIndex()]}, 85%, 65%)`,

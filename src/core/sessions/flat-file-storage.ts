@@ -1,4 +1,5 @@
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { TITLE_STATE_KEY } from "../state/session-title.js";
 import { join } from "node:path";
 import type {
   Snapshot,
@@ -50,6 +51,54 @@ export class FlatFileStorage implements SnapshotStorage {
   async listSnapshotIds(): Promise<string[]> {
     // Flat storage only tracks one mutable snapshot.
     return [];
+  }
+
+  async cloneLatestSnapshot(params: {
+    sourceSessionId: string;
+    targetSessionId: string;
+    sourceTitle?: string | null;
+  }): Promise<boolean> {
+    const source = await this.loadSnapshot({
+      location: {
+        sessionId: params.sourceSessionId,
+        scope: "agent",
+        scopeId: "default",
+      },
+    });
+    if (!source) {
+      return false;
+    }
+    const clone = structuredClone(source) as Snapshot;
+    const data =
+      clone.data && typeof clone.data === "object" && !Array.isArray(clone.data)
+        ? (clone.data as Record<string, unknown>)
+        : null;
+    const state =
+      data?.state && typeof data.state === "object" && !Array.isArray(data.state)
+        ? (data.state as Record<string, unknown>)
+        : null;
+    if (state) {
+      state.sessionId = params.targetSessionId;
+      if (
+        params.sourceTitle !== undefined &&
+        params.sourceTitle !== null &&
+        String(params.sourceTitle).trim().length > 0
+      ) {
+        state[TITLE_STATE_KEY] = params.sourceTitle;
+      }
+    }
+    clone.createdAt = new Date().toISOString();
+    await this.saveSnapshot({
+      location: {
+        sessionId: params.targetSessionId,
+        scope: "agent",
+        scopeId: "default",
+      },
+      snapshotId: "latest",
+      isLatest: true,
+      snapshot: clone,
+    });
+    return true;
   }
 
   async deleteSession(params: { sessionId: string }): Promise<void> {

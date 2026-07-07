@@ -28,7 +28,7 @@ export type ToolCallStatusUi =
 
 export type TranscriptItem =
   | { kind: "user"; id: string; text: string; attachments?: AttachmentInfo[] }
-  | { kind: "assistant"; id: string; text: string }
+  | { kind: "assistant"; id: string; text: string; copied?: boolean }
   | {
       kind: "thought";
       id: string;
@@ -837,15 +837,16 @@ export function addDataAttachment(
     return;
   }
   ensureSession(sessionId);
-  setState("sessions", sessionId, "attachments", (staged) => [
-    ...staged,
-    {
-      id: crypto.randomUUID(),
-      name,
-      kind: mimeType.startsWith("image/") ? "image" : "file",
-      data: base64,
-      mimeType,
-    },
+  const next: AttachmentInfo = {
+    id: crypto.randomUUID(),
+    name,
+    kind: mimeType.startsWith("image/") ? "image" : "file",
+    data: base64,
+    mimeType,
+  };
+  setState("sessions", sessionId, "attachments", [
+    ...sessionState().attachments,
+    next,
   ]);
 }
 
@@ -930,6 +931,49 @@ export function deleteSessionRow(row: SessionRowInfo): void {
 export function newChatFromPanel(): void {
   closeSessionsPanel();
   post({ type: "newChat" });
+}
+
+export function forkChatFromPanel(): void {
+  post({ type: "forkChat" });
+}
+
+export function setAssistantCopied(id: string, copied: boolean): void {
+  const sessionId = activeSessionId();
+  if (!sessionId) {
+    return;
+  }
+  const index = itemIndex(sessionId, id);
+  if (index === -1) {
+    return;
+  }
+  setState(
+    "sessions",
+    sessionId,
+    "items",
+    index,
+    produce((item) => {
+      if (item.kind === "assistant") {
+        item.copied = copied;
+      }
+    }),
+  );
+}
+
+export function latestCompletedAssistantId(
+  sessionId?: string | null,
+): string | null {
+  const target = sessionId ?? activeSessionId();
+  if (!target) {
+    return null;
+  }
+  const items = state.sessions[target]?.items ?? [];
+  for (let index = items.length - 1; index >= 0; index -= 1) {
+    const item = items[index];
+    if (item?.kind === "assistant") {
+      return item.id;
+    }
+  }
+  return null;
 }
 
 export function activateTab(sessionId: string): void {
