@@ -1,5 +1,6 @@
 import * as path from "node:path";
 import * as vscode from "vscode";
+import { isPlanFilePath } from "./plan-file";
 
 /** Scheme used to serve pre-edit baselines to VS Code's diff editor. */
 export const BASELINE_SCHEME = "hooman-baseline";
@@ -54,6 +55,15 @@ export class EditTracker
     before: string | null,
     after: string,
   ): void {
+    if (isPlanFilePath(fsPath)) {
+      const existing = this.#files.get(fsPath);
+      if (existing) {
+        this.#files.delete(fsPath);
+        this.#onDidChangeEdits.fire(existing.sessionId);
+      }
+      return;
+    }
+
     const existing = this.#files.get(fsPath);
     if (existing && existing.sessionId === sessionId) {
       existing.current = after;
@@ -70,7 +80,7 @@ export class EditTracker
   listFor(sessionId: string): TrackedEdit[] {
     const edits: TrackedEdit[] = [];
     for (const [fsPath, file] of this.#files) {
-      if (file.sessionId !== sessionId) {
+      if (file.sessionId !== sessionId || isPlanFilePath(fsPath)) {
         continue;
       }
       const { adds, removes } = lineDiffStats(

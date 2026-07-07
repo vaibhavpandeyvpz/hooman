@@ -1050,6 +1050,11 @@ export class HoomanChatViewProvider
     const promptSessionId = this.#sessionId;
     if (promptSessionId) {
       this.#post({ type: "promptStart", sessionId: promptSessionId });
+      this.#post({
+        type: "tabs",
+        tabs: this.#tabInfo(),
+        activeSessionId: this.#sessionId,
+      });
     }
     if (options?.echoLocally && promptSessionId) {
       this.#post({
@@ -1092,6 +1097,7 @@ export class HoomanChatViewProvider
     } finally {
       this.#busy = false;
       this.#saveActiveSessionState();
+      this.#postActiveState();
       this.#stopAllTerminalPolls();
       this.#syncStatus();
       this.#processNextQueued();

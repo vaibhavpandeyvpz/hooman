@@ -1,5 +1,11 @@
 import { createSignal, For, Show } from "solid-js";
-import { ChevronDown, ChevronRight, FileDiff } from "lucide-solid";
+import {
+  Check,
+  ChevronDown,
+  ChevronRight,
+  FileDiff,
+  RotateCcw,
+} from "lucide-solid";
 import { editAction, sessionState } from "../store";
 
 export default function EditsPanel() {
@@ -23,22 +29,22 @@ export default function EditsPanel() {
             <span class="font-medium">Changes</span>
             <span class="text-muted">{sessionState().edits.length}</span>
           </button>
-          <div class="flex shrink-0 gap-1">
+          <div class="flex shrink-0 items-center gap-0.5">
             <button
               type="button"
-              class="rounded border border-button-border bg-button-secondary px-2 py-0.5 text-[11px] text-button-secondary-foreground hover:bg-button-secondary-hover"
-              title="Keep all changes"
-              onClick={() => editAction("keepAll")}
-            >
-              Keep All
-            </button>
-            <button
-              type="button"
-              class="rounded border border-button-border bg-button-secondary px-2 py-0.5 text-[11px] text-button-secondary-foreground hover:bg-button-secondary-hover"
+              class="rounded px-2.5 py-1 text-[11px] text-muted hover:bg-panel hover:text-foreground"
               title="Undo all changes"
               onClick={() => editAction("undoAll")}
             >
               Undo All
+            </button>
+            <button
+              type="button"
+              class="inline-flex h-7 items-center rounded-full bg-button px-3 text-[11px] font-medium text-button-foreground hover:bg-button-hover"
+              title="Keep all changes"
+              onClick={() => editAction("keepAll")}
+            >
+              Keep All
             </button>
           </div>
         </div>
@@ -46,10 +52,10 @@ export default function EditsPanel() {
           <div class="max-h-40 overflow-y-auto px-2.5 pb-1.5 scroll-thin">
             <For each={sessionState().edits}>
               {(edit) => (
-                <div class="flex items-center gap-2 py-0.5 text-[12.5px]">
+                <div class="group flex items-center gap-1.5 rounded-md px-1 py-0.5 text-[12.5px] transition-colors hover:bg-list-active-bg/35">
                   <button
                     type="button"
-                    class="min-w-0 flex-1 truncate text-left text-accent hover:underline"
+                    class="min-w-0 flex-1 truncate text-left text-foreground/85 hover:text-accent hover:underline"
                     title={edit.path + (edit.created ? " (new file)" : "")}
                     onClick={() => editAction("diff", edit.path)}
                   >
@@ -58,29 +64,38 @@ export default function EditsPanel() {
                       <span class="text-muted"> (new)</span>
                     </Show>
                   </button>
-                  <span class="shrink-0 font-mono text-[11px]">
+                  <span class="shrink-0 font-mono text-[10.5px] opacity-80 transition-opacity group-hover:opacity-100">
                     <span class="text-added">+{edit.adds}</span>{" "}
                     <span class="text-removed">-{edit.removes}</span>
                   </span>
-                  <button
-                    type="button"
-                    class="shrink-0 rounded border border-button-border bg-button-secondary px-2 py-0.5 text-[11px] text-button-secondary-foreground hover:bg-button-secondary-hover"
-                    onClick={() => editAction("keep", edit.path)}
-                  >
-                    Keep
-                  </button>
-                  <button
-                    type="button"
-                    class="shrink-0 rounded border border-button-border bg-button-secondary px-2 py-0.5 text-[11px] text-button-secondary-foreground hover:bg-button-secondary-hover"
-                    title={
-                      edit.created
-                        ? "Delete this new file"
-                        : "Restore the original content"
-                    }
-                    onClick={() => editAction("undo", edit.path)}
-                  >
-                    Undo
-                  </button>
+                  <div class="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+                    <button
+                      type="button"
+                      class="shrink-0 rounded p-1 text-muted hover:bg-panel hover:text-foreground"
+                      title="Keep this change"
+                      aria-label="Keep this change"
+                      onClick={() => editAction("keep", edit.path)}
+                    >
+                      <Check size={12} />
+                    </button>
+                    <button
+                      type="button"
+                      class="shrink-0 rounded p-1 text-muted hover:bg-panel hover:text-foreground"
+                      title={
+                        edit.created
+                          ? "Delete this new file"
+                          : "Restore the original content"
+                      }
+                      aria-label={
+                        edit.created
+                          ? "Delete this new file"
+                          : "Restore the original content"
+                      }
+                      onClick={() => editAction("undo", edit.path)}
+                    >
+                      <RotateCcw size={12} />
+                    </button>
+                  </div>
                 </div>
               )}
             </For>
