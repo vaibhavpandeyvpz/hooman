@@ -8,9 +8,11 @@ import type {
 import type { EditTracker } from "./edit-tracker";
 
 /**
- * Backs the ACP `fs/*` client methods against VS Code's workspace APIs, so the
- * agent sees dirty (unsaved) buffers and edits go through undo-able
- * workspace edits when a document is already open in an editor.
+ * Backs the ACP `fs/*` client methods against VS Code's workspace APIs.
+ * Edits go through undo-able workspace edits when a document is already
+ * open in an editor, and are saved to disk immediately afterward so the
+ * agent's changes are never left as an unsaved buffer for the user to
+ * reconcile manually.
  */
 export class FsBackend {
   #editTracker: EditTracker | undefined;
@@ -58,6 +60,12 @@ export class FsBackend {
       const edit = new vscode.WorkspaceEdit();
       edit.replace(uri, fullRange, request.content);
       await vscode.workspace.applyEdit(edit);
+      // Persist to disk immediately so the agent's on-disk view stays in
+      // sync and the user isn't left with an unsaved buffer to reconcile.
+      const reopened = this.#findOpenDocument(uri);
+      if (reopened?.isDirty) {
+        await reopened.save();
+      }
     } else {
       await vscode.workspace.fs.writeFile(
         uri,
