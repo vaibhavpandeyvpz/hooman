@@ -1,4 +1,4 @@
-import { basename } from "node:path";
+import { basename, dirname, isAbsolute, join } from "node:path";
 import * as vscode from "vscode";
 import type { SessionConfigOption } from "@agentclientprotocol/sdk";
 import type { HoomanChatViewProvider } from "./chat-view";
@@ -179,6 +179,48 @@ export class PlanEditorProvider implements vscode.CustomTextEditorProvider {
       case "editMarkdown":
         await this.openRawMarkdown(document);
         return;
+      case "openLink":
+        await this.#openLink(document, message.href);
+        return;
+    }
+  }
+
+  /**
+   * Open a link clicked inside the rendered plan body: external URLs go to
+   * the OS handler, everything else is a filesystem path resolved relative
+   * to the plan file's own directory when not already absolute.
+   */
+  async #openLink(document: vscode.TextDocument, href: string): Promise<void> {
+    try {
+      if (/^[a-z][a-z0-9+.-]*:\/\//i.test(href) || href.startsWith("mailto:")) {
+        await vscode.env.openExternal(vscode.Uri.parse(href));
+        return;
+      }
+      const clean = href.split(/[?#]/)[0] || href;
+      const target = isAbsolute(clean)
+        ? clean
+        : join(dirname(document.uri.fsPath), clean);
+      const uri = vscode.Uri.file(target);
+      let isDirectory = false;
+      try {
+        const stat = await vscode.workspace.fs.stat(uri);
+        isDirectory = (stat.type & vscode.FileType.Directory) !== 0;
+      } catch {
+        // Missing on disk — let `vscode.open` surface the error.
+      }
+      if (isDirectory) {
+        try {
+          await vscode.commands.executeCommand("revealInExplorer", uri);
+        } catch {
+          await vscode.commands.executeCommand("revealFileInOS", uri);
+        }
+        return;
+      }
+      await vscode.commands.executeCommand("vscode.open", uri);
+    } catch (error) {
+      void vscode.window.showErrorMessage(
+        `Hooman: could not open ${href}: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
 
@@ -281,7 +323,8 @@ type PlanEditorInboundMessage =
   | { type: "refresh" }
   | { type: "pickModel" }
   | { type: "build" }
-  | { type: "editMarkdown" };
+  | { type: "editMarkdown" }
+  | { type: "openLink"; href: string };
 
 type FlatOption = { value: string; name: string; description?: string | null };
 

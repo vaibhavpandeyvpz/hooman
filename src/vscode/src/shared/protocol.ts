@@ -159,6 +159,7 @@ export type InboundMessage =
   | { type: "pickFiles" }
   | { type: "resolveDropped"; uris: string[] }
   | { type: "openAttachment"; attachment: AttachmentInfo }
+  | { type: "openLink"; href: string }
   | { type: "listSessions" }
   | { type: "sessionsClosed" }
   | { type: "openSession"; sessionId: string; cwd: string; title: string }

@@ -728,6 +728,11 @@ export function openAttachment(attachment: AttachmentInfo): void {
   post({ type: "openAttachment", attachment: { ...attachment } });
 }
 
+/** Open a link clicked inside rendered Markdown (host routes file paths to the editor, URLs to the OS browser). */
+export function openLink(href: string): void {
+  post({ type: "openLink", href });
+}
+
 export function setConfigOption(
   configId: string,
   value: string | boolean,

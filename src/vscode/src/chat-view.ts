@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { basename, extname, join } from "node:path";
+import { basename, extname, isAbsolute, join } from "node:path";
 import * as vscode from "vscode";
 import {
   methods,
@@ -43,6 +43,8 @@ export class HoomanChatViewProvider
   #webviewReady = false;
   #sessionId: string | null = null;
   #sessionTitle = "New Chat";
+  /** Working directory of the active session, used to resolve relative Markdown links clicked in chat/plan text. */
+  #cwd: string = defaultCwd();
   #configOptions: SessionConfigOption[] = [];
   #commands: CommandInfo[] = [];
   #busy = false;
@@ -198,6 +200,7 @@ export class HoomanChatViewProvider
       void this.#closeSession(previous);
     }
     this.#sessionId = null;
+    this.#cwd = defaultCwd();
     this.#pendingUpdates = [];
     this.#pendingConfigOptions.clear();
     this.#setTitle("New Chat");
@@ -281,6 +284,7 @@ export class HoomanChatViewProvider
       this.#pendingUpdates = [];
       this.#pendingConfigOptions.clear();
       this.#sessionId = sessionId;
+      this.#cwd = cwd;
       this.#commands = [];
       this.#queue = [];
       this.#setTitle(title);
@@ -415,6 +419,9 @@ export class HoomanChatViewProvider
         return;
       case "openAttachment":
         await this.#openAttachment(message.attachment);
+        return;
+      case "openLink":
+        await this.#openLink(message.href);
         return;
       case "cancel":
         await this.#cancel();
@@ -845,6 +852,59 @@ export class HoomanChatViewProvider
       }
     }
     return attachments;
+  }
+
+  /**
+   * Open a link clicked inside rendered Markdown (assistant messages, plan
+   * bodies): `http(s)`/`mailto` URLs go to the OS's external handler,
+   * everything else is treated as a filesystem path — absolute as-is,
+   * relative resolved against the active session's cwd (falling back to the
+   * first workspace folder) — and opened in an editor tab, or revealed in
+   * the Explorer/OS file manager when it turns out to be a directory.
+   */
+  async #openLink(href: string): Promise<void> {
+    try {
+      const external =
+        /^[a-z][a-z0-9+.-]*:\/\//i.test(href) || href.startsWith("mailto:");
+      if (external) {
+        // `vscode.open`-style URIs (vscode://, command:) are also better left
+        // to the platform handler / VS Code's own URI dispatch.
+        await vscode.env.openExternal(vscode.Uri.parse(href));
+        return;
+      }
+      const clean = href.split(/[?#]/)[0] || href;
+      const target = isAbsolute(clean)
+        ? clean
+        : join(
+            this.#cwd ||
+              vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ||
+              defaultCwd(),
+            clean,
+          );
+      const uri = vscode.Uri.file(target);
+      let isDirectory = false;
+      try {
+        const stat = await vscode.workspace.fs.stat(uri);
+        isDirectory = (stat.type & vscode.FileType.Directory) !== 0;
+      } catch {
+        // Doesn't exist on disk — fall through and let `vscode.open` surface
+        // the error rather than silently doing nothing.
+      }
+      if (isDirectory) {
+        try {
+          await vscode.commands.executeCommand("revealInExplorer", uri);
+        } catch {
+          await vscode.commands.executeCommand("revealFileInOS", uri);
+        }
+        return;
+      }
+      await vscode.commands.executeCommand("vscode.open", uri);
+    } catch (error) {
+      this.#post({
+        type: "error",
+        message: `Could not open ${href}: ${describe(error)}`,
+      });
+    }
   }
 
   /**
