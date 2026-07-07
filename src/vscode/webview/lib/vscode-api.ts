@@ -15,7 +15,15 @@ declare function acquireVsCodeApi(): VsCodeApi;
 const vscode = acquireVsCodeApi();
 
 function isWebviewRoute(value: string | undefined): value is WebviewRoute {
-  return value === "/" || value === "/chat" || !!value?.startsWith("/plans/");
+  return (
+    value === "/" ||
+    value === "/chat" ||
+    value === "/skills" ||
+    !!value?.startsWith("/plans/") ||
+    !!value?.startsWith("/config/") ||
+    !!value?.startsWith("/mcp/") ||
+    !!value?.startsWith("/instructions/")
+  );
 }
 
 function readInitialRoute(): WebviewRoute {

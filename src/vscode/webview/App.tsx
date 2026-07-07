@@ -12,6 +12,7 @@ import StatusStrip from "./components/StatusStrip";
 import UsageFooter from "./components/UsageFooter";
 import Composer from "./components/Composer";
 import PlanEditorView from "./components/PlanEditorView";
+import SettingsEditorView from "./components/SettingsEditorView";
 import { state } from "./store";
 
 export default function App() {
@@ -35,6 +36,18 @@ export default function App() {
       <Match when={state.route.startsWith("/plans/")}>
         <PlanEditorView />
       </Match>
+      <Match when={state.route.startsWith("/config/")}>
+        <SettingsEditorView mode="config" />
+      </Match>
+      <Match when={state.route.startsWith("/mcp/")}>
+        <SettingsEditorView mode="mcp" />
+      </Match>
+      <Match when={state.route.startsWith("/instructions/")}>
+        <SettingsEditorView mode="instructions" />
+      </Match>
+      <Match when={state.route === "/skills"}>
+        <SettingsEditorView mode="skills" />
+      </Match>
       <Match when={true}>
         <div class="flex h-full items-center justify-center bg-[var(--vscode-editor-background)] p-6">
           <div class="flex max-w-sm flex-col items-center rounded-xl border border-border bg-panel px-6 py-5 text-center shadow-sm">
@@ -43,7 +56,8 @@ export default function App() {
             </div>
             <div class="text-sm font-medium text-foreground">Hooman</div>
             <p class="mt-1 text-xs leading-5 text-muted">
-              Open a chat session or a plan file to get started.
+              Open a chat session, a plan file, or a Hooman config file to get
+              started.
             </p>
           </div>
         </div>

@@ -3,6 +3,16 @@ import type {
   SessionConfigOption,
   SessionUpdate,
 } from "@agentclientprotocol/sdk";
+import type {
+  ConfigEditorAction,
+  ConfigEditorStateInfo,
+  InstructionsEditorAction,
+  InstructionsEditorStateInfo,
+  McpEditorAction,
+  McpEditorStateInfo,
+  SkillsViewAction,
+  SkillsViewStateInfo,
+} from "./settings";
 
 /**
  * Bridge protocol between the extension host (`src/chat-view.ts`) and the
@@ -149,7 +159,14 @@ export interface TabInfo {
 }
 
 /** Route-like identifier for the shared Hooman webview app. */
-export type WebviewRoute = "/" | "/chat" | `/plans/${string}`;
+export type WebviewRoute =
+  | "/"
+  | "/chat"
+  | `/plans/${string}`
+  | `/config/${string}`
+  | `/mcp/${string}`
+  | `/instructions/${string}`
+  | "/skills";
 
 /** State for the custom `.plan.md` surface rendered by the shared webview app. */
 export interface PlanEditorStateInfo {
@@ -198,7 +215,11 @@ export type InboundMessage =
   | { type: "pickModel" }
   | { type: "build" }
   | { type: "editMarkdown" }
-  | { type: "refresh" };
+  | { type: "refresh" }
+  | { type: "configEditorAction"; action: ConfigEditorAction }
+  | { type: "mcpEditorAction"; action: McpEditorAction }
+  | { type: "instructionsEditorAction"; action: InstructionsEditorAction }
+  | { type: "skillsViewAction"; action: SkillsViewAction };
 
 /** Messages sent from the extension host to the webview. */
 export type OutboundMessage =
@@ -212,6 +233,10 @@ export type OutboundMessage =
     }
   | { type: "route"; route: WebviewRoute }
   | { type: "planState"; state: PlanEditorStateInfo }
+  | { type: "configEditorState"; state: ConfigEditorStateInfo }
+  | { type: "mcpEditorState"; state: McpEditorStateInfo }
+  | { type: "instructionsEditorState"; state: InstructionsEditorStateInfo }
+  | { type: "skillsViewState"; state: SkillsViewStateInfo }
   | {
       type: "tabs";
       tabs: TabInfo[];

@@ -37,7 +37,10 @@
   ],
   "activationEvents": [
     "onStartupFinished",
-    "onCustomEditor:hooman.planEditor"
+    "onCustomEditor:hooman.planEditor",
+    "onCustomEditor:hooman.configEditor",
+    "onCustomEditor:hooman.mcpEditor",
+    "onCustomEditor:hooman.instructionsEditor"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -67,6 +70,45 @@
         "selector": [
           {
             "filenamePattern": "*.plan.md"
+          }
+        ],
+        "priority": "default"
+      },
+      {
+        "viewType": "hooman.configEditor",
+        "displayName": "Hooman Configuration",
+        "selector": [
+          {
+            "filenamePattern": "**/.hooman/config.json"
+          },
+          {
+            "filenamePattern": ".hooman/config.json"
+          }
+        ],
+        "priority": "default"
+      },
+      {
+        "viewType": "hooman.mcpEditor",
+        "displayName": "Hooman MCP",
+        "selector": [
+          {
+            "filenamePattern": "**/.hooman/mcp.json"
+          },
+          {
+            "filenamePattern": ".hooman/mcp.json"
+          }
+        ],
+        "priority": "default"
+      },
+      {
+        "viewType": "hooman.instructionsEditor",
+        "displayName": "Hooman Instructions",
+        "selector": [
+          {
+            "filenamePattern": "**/.hooman/instructions.md"
+          },
+          {
+            "filenamePattern": ".hooman/instructions.md"
           }
         ],
         "priority": "default"

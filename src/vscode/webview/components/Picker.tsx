@@ -1,4 +1,11 @@
-import { createSignal, For, onCleanup, Show, type JSX } from "solid-js";
+import {
+  createEffect,
+  createSignal,
+  For,
+  onCleanup,
+  Show,
+  type JSX,
+} from "solid-js";
 import { Check, ChevronDown } from "lucide-solid";
 
 export interface PickerOption {
@@ -24,6 +31,7 @@ export default function Picker(props: {
 }) {
   const [open, setOpen] = createSignal(false);
   let rootRef: HTMLDivElement | undefined;
+  const optionRefs = new Map<string, HTMLButtonElement>();
 
   const onDocClick = (event: MouseEvent) => {
     if (rootRef && !rootRef.contains(event.target as Node)) {
@@ -45,6 +53,15 @@ export default function Picker(props: {
     document.removeEventListener("mousedown", onDocClick, { capture: true }),
   );
 
+  createEffect(() => {
+    if (!open()) {
+      return;
+    }
+    queueMicrotask(() => {
+      optionRefs.get(props.value)?.scrollIntoView({ block: "nearest" });
+    });
+  });
+
   return (
     <div class="relative" ref={rootRef}>
       <button
@@ -63,7 +80,8 @@ export default function Picker(props: {
             {(option) => (
               <button
                 type="button"
-                class="flex w-full items-center gap-2 px-2.5 py-1 text-left text-[12px] hover:bg-list-active-bg hover:text-list-active-fg"
+                ref={(element) => optionRefs.set(option.value, element)}
+                class={`flex w-full items-center gap-2 px-2.5 py-1 text-left text-[12px] hover:bg-list-active-bg hover:text-list-active-fg ${option.value === props.value ? "bg-list-active-bg text-list-active-fg" : ""}`}
                 onClick={() => {
                   props.onSelect(option.value);
                   setOpen(false);

@@ -21,6 +21,12 @@ import type {
   TokenTotals,
   WebviewRoute,
 } from "../src/shared/protocol";
+import type {
+  ConfigEditorStateInfo,
+  InstructionsEditorStateInfo,
+  McpEditorStateInfo,
+  SkillsViewStateInfo,
+} from "../src/shared/settings";
 import { initialRoute, onHostMessage, post } from "./lib/vscode-api";
 import { estimateTokens } from "./lib/format";
 
@@ -106,6 +112,10 @@ type SessionRuntime = {
 interface State {
   route: WebviewRoute;
   planView: PlanEditorStateInfo | null;
+  configEditorView: ConfigEditorStateInfo | null;
+  mcpEditorView: McpEditorStateInfo | null;
+  instructionsEditorView: InstructionsEditorStateInfo | null;
+  skillsView: SkillsViewStateInfo | null;
   activeSessionId: string | null;
   tabs: TabInfo[];
   sessions: Record<string, SessionUiState>;
@@ -150,6 +160,10 @@ function createRuntime(): SessionRuntime {
 const [state, setState] = createStore<State>({
   route: initialRoute,
   planView: null,
+  configEditorView: null,
+  mcpEditorView: null,
+  instructionsEditorView: null,
+  skillsView: null,
   activeSessionId: null,
   tabs: [],
   sessions: {},
@@ -701,6 +715,18 @@ onHostMessage((msg) => {
     case "planState":
       setState("planView", msg.state);
       break;
+    case "configEditorState":
+      setState("configEditorView", msg.state);
+      break;
+    case "mcpEditorState":
+      setState("mcpEditorView", msg.state);
+      break;
+    case "instructionsEditorState":
+      setState("instructionsEditorView", msg.state);
+      break;
+    case "skillsViewState":
+      setState("skillsView", msg.state);
+      break;
     case "configOptions":
       ensureSession(msg.sessionId);
       setState("sessions", msg.sessionId, "configOptions", msg.configOptions);
@@ -923,6 +949,30 @@ export function openAttachment(attachment: AttachmentInfo): void {
 
 export function openLink(href: string): void {
   post({ type: "openLink", href });
+}
+
+export function sendConfigEditorAction(
+  action: import("../src/shared/settings").ConfigEditorAction,
+): void {
+  post({ type: "configEditorAction", action });
+}
+
+export function sendMcpEditorAction(
+  action: import("../src/shared/settings").McpEditorAction,
+): void {
+  post({ type: "mcpEditorAction", action });
+}
+
+export function sendInstructionsEditorAction(
+  action: import("../src/shared/settings").InstructionsEditorAction,
+): void {
+  post({ type: "instructionsEditorAction", action });
+}
+
+export function sendSkillsViewAction(
+  action: import("../src/shared/settings").SkillsViewAction,
+): void {
+  post({ type: "skillsViewAction", action });
 }
 
 export function setConfigOption(

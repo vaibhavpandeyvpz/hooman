@@ -1,113 +1,128 @@
+import { basename, dirname } from "node:path";
 import { mkdir, writeFile } from "node:fs/promises";
-import { homedir } from "node:os";
-import { basename, dirname, join } from "node:path";
 import * as vscode from "vscode";
 import { methods } from "@agentclientprotocol/sdk";
 import { HoomanAcpClient } from "./acp-client";
 import { HoomanChatViewProvider } from "./chat-view";
+import {
+  HoomanConfigEditorProvider,
+  HoomanMcpEditorProvider,
+  openHoomanConfigEditor,
+  openHoomanMcpEditor,
+} from "./config-editor";
 import { BASELINE_SCHEME, EditTracker } from "./edit-tracker";
+import {
+  HoomanInstructionsEditorProvider,
+  openHoomanInstructionsEditor,
+} from "./instructions-editor";
 import { PlanEditorProvider } from "./plan-editor";
 import { PlanFileActions } from "./plan-actions";
 import { PermissionPrompts } from "./permissions";
 import { SelectionActionsCodeLensProvider } from "./selection-actions";
+import {
+  defaultConfigScaffold,
+  defaultMcpScaffold,
+  homeConfigPath,
+  homeInstructionsPath,
+  homeMcpPath,
+  isHoomanConfigPath,
+  isHoomanMcpPath,
+  openTextFile,
+} from "./settings-utils";
+import { HoomanSkillsPanel } from "./skills-panel";
 import { HoomanStatusBar } from "./status-bar";
 
-/** `~/.hooman/` (or `$HOOMAN_HOME`); mirrors `src/core/utils/paths.ts`. */
-function hoomanHomePath(): string {
-  const override = process.env.HOOMAN_HOME?.trim();
-  return override || join(homedir(), ".hooman");
-}
+type LauncherAction =
+  | "open-config"
+  | "open-mcp"
+  | "open-instructions"
+  | "open-skills"
+  | "open-raw-config"
+  | "open-raw-mcp"
+  | "open-raw-instructions";
 
-type HoomanSettingsFile = {
-  /** File name under the Hooman home directory. */
-  file: string;
-  label: string;
-  description: string;
-  /** Written only when the file doesn't already exist. */
-  scaffold: string;
-};
-
-const HOOMAN_SETTINGS_FILES: readonly HoomanSettingsFile[] = [
-  {
-    file: "config.json",
-    label: "$(json) config.json",
-    description: "App config — providers, models, tool toggles, compaction",
-    scaffold: "{}\n",
-  },
-  {
-    file: "mcp.json",
-    label: "$(plug) mcp.json",
-    description: "Configured MCP servers",
-    scaffold: '{\n  "mcpServers": {}\n}\n',
-  },
-];
-
-/** Open a Hooman settings file in an editor, scaffolding it first if it doesn't exist yet. */
-async function openHoomanSettingsFile(
-  settingsFile: HoomanSettingsFile,
-): Promise<void> {
-  const path = join(hoomanHomePath(), settingsFile.file);
+async function ensureTextFile(path: string, scaffold: string): Promise<void> {
   try {
     await mkdir(dirname(path), { recursive: true });
-    await writeFile(path, settingsFile.scaffold, { flag: "wx" });
+    await writeFile(path, scaffold, { flag: "wx" });
   } catch {
-    // Directory/file already exists — fine, we just open it below.
-  }
-  try {
-    const document = await vscode.workspace.openTextDocument(path);
-    await vscode.window.showTextDocument(document);
-  } catch (error) {
-    void vscode.window.showErrorMessage(
-      `Hooman: failed to open ${settingsFile.file}: ${
-        error instanceof Error ? error.message : String(error)
-      }`,
-    );
+    // Already exists.
   }
 }
 
-/** Prompt for which Hooman settings file to open (`config.json` or `mcp.json`), then open it. */
-async function pickAndOpenSettings(): Promise<void> {
-  const picked = await vscode.window.showQuickPick(
-    HOOMAN_SETTINGS_FILES.map((settingsFile) => ({
-      label: settingsFile.label,
-      description: settingsFile.description,
-      settingsFile,
-    })),
-    { placeHolder: "Which Hooman settings file do you want to open?" },
+async function pickLauncherAction(): Promise<LauncherAction | undefined> {
+  const items: Array<vscode.QuickPickItem & { value: LauncherAction }> = [
+    {
+      label: "$(settings-gear) Open Hooman Configuration",
+      description: "Visual editor for .hooman/config.json",
+      value: "open-config",
+    },
+    {
+      label: "$(plug) Open Hooman MCP",
+      description: "Visual editor for .hooman/mcp.json",
+      value: "open-mcp",
+    },
+    {
+      label: "$(book) Open Instructions",
+      description: "Visual editor for ~/.hooman/instructions.md",
+      value: "open-instructions",
+    },
+    {
+      label: "$(extensions) Open Skills Manager",
+      description: "Search, install, and remove Hooman skills",
+      value: "open-skills",
+    },
+  ];
+  items.push(
+    {
+      label: "$(json) Open raw config.json",
+      description: "Open ~/.hooman/config.json in text editor",
+      value: "open-raw-config",
+    },
+    {
+      label: "$(json) Open raw mcp.json",
+      description: "Open ~/.hooman/mcp.json in text editor",
+      value: "open-raw-mcp",
+    },
+    {
+      label: "$(markdown) Open raw instructions.md",
+      description: "Open ~/.hooman/instructions.md in text editor",
+      value: "open-raw-instructions",
+    },
   );
-  if (picked) {
-    await openHoomanSettingsFile(picked.settingsFile);
-  }
+  const picked = await vscode.window.showQuickPick(items, {
+    placeHolder: "Open a Hooman configuration surface",
+  });
+  return picked?.value;
 }
 
-function coerceExplorerUris(
-  uri: vscode.Uri | undefined,
-  uris: readonly vscode.Uri[] | undefined,
-): vscode.Uri[] {
-  const seen = new Set<string>();
-  const files: vscode.Uri[] = [];
-  for (const candidate of [uri, ...(uris ?? [])]) {
-    if (!candidate || candidate.scheme !== "file") {
-      continue;
-    }
-    const key = candidate.toString();
-    if (seen.has(key)) {
-      continue;
-    }
-    seen.add(key);
-    files.push(candidate);
-  }
-  return files;
+async function openConfigurationSurface(
+  configEditor: HoomanConfigEditorProvider | undefined,
+): Promise<void> {
+  const path = homeConfigPath();
+  await ensureTextFile(path, defaultConfigScaffold(true));
+  await openHoomanConfigEditor(configEditor, vscode.Uri.file(path));
 }
 
-function describeExplorerSelection(uris: readonly vscode.Uri[]): string {
-  if (uris.length === 0) {
-    return "selection";
-  }
-  if (uris.length === 1) {
-    return `“${basename(uris[0].fsPath) || uris[0].fsPath}”`;
-  }
-  return `${uris.length} items`;
+async function openMcpSurface(
+  mcpEditor: HoomanMcpEditorProvider | undefined,
+): Promise<void> {
+  const path = homeMcpPath();
+  await ensureTextFile(path, defaultMcpScaffold());
+  await openHoomanMcpEditor(mcpEditor, vscode.Uri.file(path));
+}
+
+async function openInstructions(
+  instructionsEditor: HoomanInstructionsEditorProvider | undefined,
+): Promise<void> {
+  const path = homeInstructionsPath();
+  await ensureTextFile(path, "# Hooman Instructions\n");
+  await openHoomanInstructionsEditor(instructionsEditor, vscode.Uri.file(path));
+}
+
+async function openRaw(path: string, scaffold: string): Promise<void> {
+  await ensureTextFile(path, scaffold);
+  await openTextFile(path);
 }
 
 export function activate(context: vscode.ExtensionContext): void {
@@ -122,8 +137,6 @@ export function activate(context: vscode.ExtensionContext): void {
   const client = new HoomanAcpClient(outputChannel, permissions);
   context.subscriptions.push(client);
 
-  // Edit tracker: snapshots baselines for files the agent writes through the
-  // ACP fs backend, powering the Changes panel (diff / keep / undo).
   const editTracker = new EditTracker();
   client.fs.setEditTracker(editTracker);
   context.subscriptions.push(
@@ -134,7 +147,6 @@ export function activate(context: vscode.ExtensionContext): void {
     ),
   );
 
-  // Webview chat panel — works everywhere (stable VS Code, Insiders, and compatible forks).
   const chatView = new HoomanChatViewProvider(
     context,
     context.extensionUri,
@@ -155,8 +167,16 @@ export function activate(context: vscode.ExtensionContext): void {
   );
 
   const planEditor = new PlanEditorProvider(context, chatView);
+  const configEditor = new HoomanConfigEditorProvider(context);
+  const mcpEditor = new HoomanMcpEditorProvider(context);
+  const instructionsEditor = new HoomanInstructionsEditorProvider(context);
+  const skillsPanel = new HoomanSkillsPanel(context);
   context.subscriptions.push(
     planEditor,
+    configEditor,
+    mcpEditor,
+    instructionsEditor,
+    skillsPanel,
     vscode.window.registerCustomEditorProvider(
       PlanEditorProvider.viewType,
       planEditor,
@@ -164,7 +184,29 @@ export function activate(context: vscode.ExtensionContext): void {
         webviewOptions: { retainContextWhenHidden: true },
       },
     ),
+    vscode.window.registerCustomEditorProvider(
+      HoomanConfigEditorProvider.viewType,
+      configEditor,
+      {
+        webviewOptions: { retainContextWhenHidden: true },
+      },
+    ),
+    vscode.window.registerCustomEditorProvider(
+      HoomanMcpEditorProvider.viewType,
+      mcpEditor,
+      {
+        webviewOptions: { retainContextWhenHidden: true },
+      },
+    ),
+    vscode.window.registerCustomEditorProvider(
+      HoomanInstructionsEditorProvider.viewType,
+      instructionsEditor,
+      {
+        webviewOptions: { retainContextWhenHidden: true },
+      },
+    ),
   );
+
   context.subscriptions.push(
     vscode.commands.registerCommand("hooman.newChat", () => {
       chatView.newChat();
@@ -173,9 +215,34 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand("hooman.pickSession", () => {
       chatView.showSessions();
     }),
-    vscode.commands.registerCommand("hooman.openConfig", () =>
-      pickAndOpenSettings(),
-    ),
+    vscode.commands.registerCommand("hooman.openConfig", async () => {
+      const action = await pickLauncherAction();
+      switch (action) {
+        case "open-config":
+          await openConfigurationSurface(configEditor);
+          return;
+        case "open-mcp":
+          await openMcpSurface(mcpEditor);
+          return;
+        case "open-instructions":
+          await openInstructions(instructionsEditor);
+          return;
+        case "open-skills":
+          await skillsPanel.show();
+          return;
+        case "open-raw-config":
+          await openRaw(homeConfigPath(), defaultConfigScaffold(true));
+          return;
+        case "open-raw-mcp":
+          await openRaw(homeMcpPath(), defaultMcpScaffold());
+          return;
+        case "open-raw-instructions":
+          await openRaw(homeInstructionsPath(), "# Hooman Instructions\n");
+          return;
+        default:
+          return;
+      }
+    }),
     vscode.commands.registerCommand(
       "hooman.addExplorerSelectionToChat",
       async (uri?: vscode.Uri, uris?: readonly vscode.Uri[]) => {
@@ -232,8 +299,6 @@ export function activate(context: vscode.ExtensionContext): void {
     ),
   );
 
-  // Status bar item mirroring the panel's session (model · mode, spinner while
-  // busy); its menu exposes all session controls.
   const statusBar = new HoomanStatusBar({
     setConfigOption: (configId, value, isBoolean) =>
       chatView.setConfigOption(configId, value, isBoolean),
@@ -241,7 +306,7 @@ export function activate(context: vscode.ExtensionContext): void {
     pickSession: () => chatView.showSessions(),
     showOutput: () => outputChannel.show(),
     focusChat: () => chatView.focus(),
-    openConfig: () => void pickAndOpenSettings(),
+    openConfig: () => void vscode.commands.executeCommand("hooman.openConfig"),
   });
   chatView.setStatusBar(statusBar);
 
@@ -297,6 +362,54 @@ export function activate(context: vscode.ExtensionContext): void {
       }
     }),
   );
+
+  context.subscriptions.push(
+    vscode.workspace.onDidOpenTextDocument(async (document) => {
+      if (isHoomanConfigPath(document.uri.fsPath)) {
+        await openHoomanConfigEditor(configEditor, document.uri, {
+          preserveFocus: false,
+          viewColumn: vscode.ViewColumn.Active,
+        });
+        return;
+      }
+      if (isHoomanMcpPath(document.uri.fsPath)) {
+        await openHoomanMcpEditor(mcpEditor, document.uri, {
+          preserveFocus: false,
+          viewColumn: vscode.ViewColumn.Active,
+        });
+      }
+    }),
+  );
+}
+
+function coerceExplorerUris(
+  uri: vscode.Uri | undefined,
+  uris: readonly vscode.Uri[] | undefined,
+): vscode.Uri[] {
+  const seen = new Set<string>();
+  const files: vscode.Uri[] = [];
+  for (const candidate of [uri, ...(uris ?? [])]) {
+    if (!candidate || candidate.scheme !== "file") {
+      continue;
+    }
+    const key = candidate.toString();
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    files.push(candidate);
+  }
+  return files;
+}
+
+function describeExplorerSelection(uris: readonly vscode.Uri[]): string {
+  if (uris.length === 0) {
+    return "selection";
+  }
+  if (uris.length === 1) {
+    return `“${basename(uris[0].fsPath) || uris[0].fsPath}”`;
+  }
+  return `${uris.length} items`;
 }
 
 export function deactivate(): void {}
