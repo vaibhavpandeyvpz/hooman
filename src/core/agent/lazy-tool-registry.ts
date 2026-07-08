@@ -94,7 +94,7 @@ export class LazyToolRegistry {
   }
 
   get(name: string): Tool | undefined {
-    const tool = this.tools.get(name);
+    const tool = this.tools.get(name) ?? this.#activatedTool(name);
     if (!tool) {
       return undefined;
     }
@@ -154,6 +154,17 @@ export class LazyToolRegistry {
 
   #activeMcpNames(): string[] {
     return this.agent ? getActiveMcpToolNames(this.agent) : [];
+  }
+
+  #activatedTool(name: string): Tool | undefined {
+    if (!this.#activeMcpNames().includes(name)) {
+      return undefined;
+    }
+    const entry = this.catalog.get(name);
+    if (!entry || !this.isToolActivatable(entry)) {
+      return undefined;
+    }
+    return entry.tool;
   }
 
   #catalogAsTools(): Map<string, Tool> {
