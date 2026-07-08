@@ -2,6 +2,10 @@
 
 All notable changes to the Hooman VS Code extension are documented in this file.
 
+## [1.45.4]
+
+- CI/CD fixes only.
+
 ## [1.45.3]
 
 - No more `node`/`npx` on your PATH required to run the agent: the extension now resolves the Hooman ACP launcher through a three-step ladder -- (1) an explicit `hooman.acp.command`/`hooman.acp.args` override is honored verbatim, (2) otherwise `bunx`/`npx` on PATH is used to run `hoomanjs@<extension version>` (preferring Bun), and (3) if neither is available it downloads a prebuilt, self-contained CLI tarball for your platform from the matching GitHub release (checksum-verified, extracted to `~/.hooman/cli/<version>/`) and runs it with VS Code's own bundled Node runtime. The download happens once per version behind the usual session loader plus a "downloading agent runtime" progress notification, is shared across concurrent sessions, and surfaces as a normal session-load error if it fails. Local inference runtimes (`node-llama-cpp`, and `mlex.js` on Apple Silicon) ship inside the downloaded tarball, so MLX/llama.cpp models work fully offline without a separate install step.
