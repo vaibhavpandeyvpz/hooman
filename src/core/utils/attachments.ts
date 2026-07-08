@@ -1,17 +1,7 @@
-import { basename } from "node:path";
 import { readFile, stat } from "node:fs/promises";
-import {
-  DocumentBlock,
-  ImageBlock,
-  TextBlock,
-  VideoBlock,
-  type ContentBlock,
-} from "@strands-agents/sdk";
-import {
-  detectDocumentFormat,
-  detectImageFormat,
-  detectVideoFormat,
-} from "./file-formats.js";
+import { TextBlock, type ContentBlock } from "@strands-agents/sdk";
+import type { ResolvedLlmMetadata } from "./metadata.js";
+import { attachmentPathToPromptBlocks } from "./model-metadata.js";
 
 const DEFAULT_MAX_ATTACHMENT_BYTES = 1024 * 1024;
 
@@ -22,9 +12,7 @@ export type AttachmentBinaryFallback = {
   sizeBytes: number;
 };
 
-export type AttachmentMediaBlocks = Array<
-  TextBlock | ImageBlock | VideoBlock | DocumentBlock
->;
+export type AttachmentMediaBlocks = Array<ContentBlock>;
 
 export type AttachmentReadResult =
   AttachmentMediaBlocks | AttachmentBinaryFallback;
@@ -35,6 +23,7 @@ type AttachmentReadOptions = {
   unsupportedFormat?: "diagnostic" | "base64";
   onError?: "throw" | "diagnostic";
   diagnosticKind?: string;
+  metadata?: Pick<ResolvedLlmMetadata, "modality"> | null;
 };
 
 export function normalizeAttachmentPaths(input: unknown): string[] {
@@ -116,45 +105,16 @@ export async function readAttachmentAsBlocksOrBase64(
       buffer.byteOffset,
       buffer.byteLength,
     );
-    const metadata = (
-      kind: "image" | "video" | "document",
-      format: string,
-    ): TextBlock =>
-      new TextBlock(
-        JSON.stringify({
-          path: trimmedPath,
-          kind,
-          format,
-          size_bytes: info.size,
-        }),
-      );
+    const blocks = attachmentPathToPromptBlocks({
+      path: trimmedPath,
+      bytes,
+      sizeBytes: info.size,
+      metadata: options?.metadata,
+      includeMetadata,
+    });
 
-    const imageFormat = detectImageFormat(trimmedPath);
-    if (imageFormat) {
-      return [
-        ...(includeMetadata ? [metadata("image", imageFormat)] : []),
-        new ImageBlock({ format: imageFormat, source: { bytes } }),
-      ];
-    }
-
-    const videoFormat = detectVideoFormat(trimmedPath);
-    if (videoFormat) {
-      return [
-        ...(includeMetadata ? [metadata("video", videoFormat)] : []),
-        new VideoBlock({ format: videoFormat, source: { bytes } }),
-      ];
-    }
-
-    const documentFormat = detectDocumentFormat(trimmedPath);
-    if (documentFormat) {
-      return [
-        ...(includeMetadata ? [metadata("document", documentFormat)] : []),
-        new DocumentBlock({
-          name: basename(trimmedPath),
-          format: documentFormat,
-          source: { bytes },
-        }),
-      ];
+    if (blocks.length > 0) {
+      return blocks;
     }
 
     if (unsupportedFormat === "diagnostic") {

@@ -41,7 +41,7 @@ export interface PermissionOptionInfo {
   kind?: PermissionOptionKind;
 }
 
-/** Cumulative session token totals (billing meter), forwarded via `usage_update._meta`. */
+/** Cumulative session token totals (metadata meter), forwarded via `usage_update._meta`. */
 export interface TokenTotals {
   input: number;
   output: number;
@@ -53,7 +53,7 @@ export interface TokenTotals {
 
 /**
  * Context-window utilization from `usage_update`: tokens currently in context
- * vs. the window size resolved from the model's billing config / models.dev
+ * vs. the window size resolved from the model's metadata config / models.dev
  * (the agent sends `size: 0` when unresolved, in which case this stays unset).
  */
 export interface ContextUsageInfo {

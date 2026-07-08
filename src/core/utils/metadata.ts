@@ -4,13 +4,14 @@ import { cachePath } from "./paths.js";
 import { LlmProvider } from "../models/types.js";
 import type {
   LlamaCppProviderOptions,
-  LlmBilling,
+  LlmInputModality,
+  LlmMetadata,
   MlxProviderOptions,
   ProviderOptions,
 } from "../models/types.js";
 
 /**
- * Billing metadata resolution backed by the models.dev catalog.
+ * Model metadata resolution backed by the models.dev catalog.
  *
  * The catalog (`https://models.dev/catalog.json`) is cached on disk under
  * `~/.hooman/cache/models-dev.json` and refreshed at most once per day; a
@@ -18,11 +19,12 @@ import type {
  * offline once the catalog has been fetched at least once.
  *
  * `catalog.providers` is keyed by provider id and carries per-provider model
- * entries with `limit.context` and `cost` (USD per million tokens);
- * `catalog.models` is keyed by `lab/model-id` and identifies each model's
- * canonical lab. When several providers serve a matching model, the provider
- * whose id equals the lab (e.g. `anthropic` for `anthropic/claude-*`) wins;
- * otherwise the first matching provider's metrics are used.
+ * entries with `limit.context`, `cost` (USD per million tokens), and optional
+ * `modalities.input`; `catalog.models` is keyed by `lab/model-id` and
+ * identifies each model's canonical lab. When several providers serve a
+ * matching model, the provider whose id equals the lab (e.g. `anthropic` for
+ * `anthropic/claude-*`) wins; otherwise the first matching provider's metrics
+ * are used.
  */
 
 const CATALOG_URL = "https://models.dev/catalog.json";
@@ -41,6 +43,10 @@ type ModelsDevModel = {
     cache_read?: number;
     cache_write?: number;
   };
+  modalities?: {
+    input?: string[];
+    output?: string[];
+  };
 };
 
 type ModelsDevCatalog = {
@@ -54,23 +60,33 @@ type CacheEnvelope = {
 };
 
 /** Resolved per-million-token USD prices (cache tiers fall back to `inputPerM`). */
-export type ResolvedBillingCosts = {
+export type ResolvedMetadataCosts = {
   inputPerM: number;
   cacheReadPerM?: number;
   cacheWritePerM?: number;
   outputPerM: number;
 };
 
+export type ResolvedLlmModality = {
+  text: boolean;
+  image: boolean;
+  pdf: boolean;
+  audio: boolean;
+  video: boolean;
+};
+
 /**
- * Billing metadata for the active model, merged from the LLM config's
- * `billing` block (which wins per field) and the models.dev catalog. Fields
+ * Model metadata for the active model, merged from the LLM config's
+ * `metadata` block (which wins per field) and the models.dev catalog. Fields
  * that could not be resolved from either source stay `undefined` — consumers
  * must not report context usage without `context` or cost without `costs`.
+ * Modality always resolves, defaulting to text-only when unset.
  */
-export type ResolvedLlmBilling = {
+export type ResolvedLlmMetadata = {
   name: string;
   context?: number;
-  costs?: ResolvedBillingCosts;
+  costs?: ResolvedMetadataCosts;
+  modality: ResolvedLlmModality;
 };
 
 let memory: { envelope: CacheEnvelope; loadedAt: number } | null = null;
@@ -123,11 +139,6 @@ async function writeDiskCache(envelope: CacheEnvelope): Promise<void> {
   }
 }
 
-/**
- * Load the models.dev catalog: in-memory copy while fresh, then the disk
- * cache (refreshed once older than a day), then the network. Returns `null`
- * when nothing has ever been fetched and the network is unavailable.
- */
 async function loadCatalog(): Promise<ModelsDevCatalog | null> {
   if (memory && isFresh(memory.envelope)) {
     return memory.envelope.catalog;
@@ -169,7 +180,6 @@ async function loadCatalog(): Promise<ModelsDevCatalog | null> {
   }
 }
 
-/** Collapse separators so `claude-haiku-4.5` matches models.dev's `claude-haiku-4-5`. */
 function normalizeModelId(value: string): string {
   return value
     .toLowerCase()
@@ -177,7 +187,6 @@ function normalizeModelId(value: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
-/** Candidate forms of the billing name: as-is plus the last `/` segment (OpenRouter-style ids). */
 function targetForms(name: string): string[] {
   const forms = new Set<string>();
   const normalized = normalizeModelId(name);
@@ -194,12 +203,6 @@ function targetForms(name: string): string[] {
   return [...forms];
 }
 
-/**
- * Match quality between the billing name and a catalog model id.
- * Tier 1: normalized equality. Tier 2: one normalized id contains the other
- * (e.g. a Bedrock region-prefixed id vs. the catalog's bare id); the length
- * difference breaks ties toward the closest candidate.
- */
 function matchModelId(
   targets: readonly string[],
   candidateId: string,
@@ -215,9 +218,6 @@ function matchModelId(
     }
     const shorter = target.length < candidate.length ? target : candidate;
     const longer = target.length < candidate.length ? candidate : target;
-    // Containment only counts on separator boundaries, so `gpt-5` does not
-    // swallow `gpt-5-mini` but `anthropic-claude-haiku-4-5-...-v1-0` still
-    // matches a `us.`-prefixed configured id.
     if (shorter.length >= 4 && longer.includes(shorter)) {
       const index = longer.indexOf(shorter);
       const before = index === 0 || longer[index - 1] === "-";
@@ -242,9 +242,37 @@ type ProviderMatch = {
   lengthDiff: number;
 };
 
-function catalogEntryToBilling(
+function catalogModalitiesToResolved(
+  modalities?: ModelsDevModel["modalities"],
+): ResolvedLlmModality {
+  const inputs = new Set(
+    (modalities?.input ?? []).map((value) => value.toLowerCase()),
+  );
+  return {
+    text: inputs.size === 0 || inputs.has("text"),
+    image: inputs.has("image"),
+    pdf: inputs.has("pdf"),
+    audio: inputs.has("audio"),
+    video: inputs.has("video"),
+  };
+}
+
+function mergeResolvedModality(
+  configured?: LlmInputModality,
+  resolved?: ResolvedLlmModality,
+): ResolvedLlmModality {
+  return {
+    text: configured?.text ?? resolved?.text ?? true,
+    image: configured?.image ?? resolved?.image ?? false,
+    pdf: configured?.pdf ?? resolved?.pdf ?? false,
+    audio: configured?.audio ?? resolved?.audio ?? false,
+    video: configured?.video ?? resolved?.video ?? false,
+  };
+}
+
+function catalogEntryToMetadata(
   model: ModelsDevModel,
-): Pick<ResolvedLlmBilling, "context" | "costs"> {
+): Pick<ResolvedLlmMetadata, "context" | "costs" | "modality"> {
   const context =
     typeof model.limit?.context === "number" && model.limit.context > 0
       ? model.limit.context
@@ -263,20 +291,18 @@ function catalogEntryToBilling(
           outputPerM: cost.output,
         }
       : undefined;
-  return { context, costs };
+  return {
+    context,
+    costs,
+    modality: catalogModalitiesToResolved(model.modalities),
+  };
 }
 
-/**
- * Find the best models.dev entry for a billing name. Providers are ranked by
- * match tier, then by whether the provider is the model's canonical lab
- * (`catalog.models` is keyed `lab/model-id`), then by closeness of the id
- * match, then by catalog order.
- */
 function lookupInCatalog(
   catalog: ModelsDevCatalog,
-  billingName: string,
-): Pick<ResolvedLlmBilling, "context" | "costs"> | null {
-  const targets = targetForms(billingName);
+  metadataName: string,
+): Pick<ResolvedLlmMetadata, "context" | "costs" | "modality"> | null {
+  const targets = targetForms(metadataName);
   if (targets.length === 0) {
     return null;
   }
@@ -316,15 +342,15 @@ function lookupInCatalog(
     candidates.reduce((best, match) =>
       match.lengthDiff < best.lengthDiff ? match : best,
     );
-  const resolved = catalogEntryToBilling(preferred.model);
+  const resolved = catalogEntryToMetadata(preferred.model);
   return resolved.context === undefined && resolved.costs === undefined
-    ? null
+    ? { ...resolved, modality: resolved.modality }
     : resolved;
 }
 
 function configCostsToResolved(
-  costs: NonNullable<LlmBilling["costs"]>,
-): ResolvedBillingCosts {
+  costs: NonNullable<LlmMetadata["costs"]>,
+): ResolvedMetadataCosts {
   return {
     inputPerM: costs["input/m"],
     ...(costs["cache/m"] !== undefined && { cacheReadPerM: costs["cache/m"] }),
@@ -332,27 +358,12 @@ function configCostsToResolved(
   };
 }
 
-/**
- * Providers that run inference locally: their token usage costs nothing, so
- * catalog prices (which belong to the hosted API serving the same model)
- * must never be applied to them.
- */
 const LOCAL_PROVIDERS: ReadonlySet<LlmProvider> = new Set([
   LlmProvider.LlamaCpp,
   LlmProvider.Mlx,
   LlmProvider.Ollama,
 ]);
 
-/**
- * The context size configured on a resolved LLM entry, when the provider
- * actually honors one: for the local `llama-cpp` and `mlx` providers this is
- * the per-LLM `options.context` (falling back to the provider-level
- * `context`). Other providers' windows are fixed server-side, so config
- * context is ignored for them. Feed the result into
- * {@link resolveLlmBilling}'s `configuredContext` so the context gauge
- * reflects the actual runtime window rather than the catalog's training
- * window.
- */
 export function configuredLlmContext(llm: {
   provider: LlmProvider;
   providerOptions: ProviderOptions;
@@ -371,33 +382,41 @@ export function configuredLlmContext(llm: {
 }
 
 /**
- * Resolve billing metadata for a model: config-provided `billing` fields win,
- * anything missing is filled from the models.dev catalog, and the billing
- * name defaults to the raw model id when no `billing` block is configured.
+ * Resolve model metadata: config-provided `metadata` fields win, anything
+ * missing is filled from the models.dev catalog, and the metadata name
+ * defaults to the raw model id when no `metadata` block is configured.
  * Returns `null` when neither source yields a context size nor prices — in
- * that case nothing billing-related should be reported or displayed.
+ * that case nothing cost/context-related should be reported or displayed.
  *
  * When `provider` is a local provider (llama.cpp, Ollama), catalog costs are
  * discarded — the catalog prices the hosted API for the same model id, not
  * the free local inference — so only the context window resolves (config
- * `billing.costs`, if explicitly set, is still honored).
+ * `metadata.costs`, if explicitly set, is still honored).
  *
  * `configuredContext` (the runtime context actually configured on the LLM
  * entry — see {@link configuredLlmContext}) sits between the two sources:
- * an explicit `billing.context` wins over it, and it wins over the catalog.
+ * an explicit `metadata.context` wins over it, and it wins over the catalog.
+ * Modality always resolves, defaulting to text-only when unset.
  */
-export async function resolveLlmBilling(
-  billing: LlmBilling | null | undefined,
+export async function resolveLlmMetadata(
+  metadata: LlmMetadata | null | undefined,
   modelId: string,
   provider?: LlmProvider,
   configuredContext?: number,
-): Promise<ResolvedLlmBilling | null> {
-  const name = billing?.name ?? modelId;
+): Promise<ResolvedLlmMetadata | null> {
+  const name = metadata?.name ?? modelId;
   const isLocal = provider !== undefined && LOCAL_PROVIDERS.has(provider);
-  let context = billing?.context ?? configuredContext;
-  let costs = billing?.costs ? configCostsToResolved(billing.costs) : undefined;
+  let context = metadata?.context ?? configuredContext;
+  let costs = metadata?.costs
+    ? configCostsToResolved(metadata.costs)
+    : undefined;
+  let modality = mergeResolvedModality(metadata?.modality);
 
-  if (context === undefined || (costs === undefined && !isLocal)) {
+  if (
+    context === undefined ||
+    (costs === undefined && !isLocal) ||
+    metadata?.modality === undefined
+  ) {
     const catalog = await loadCatalog();
     const fromCatalog = catalog ? lookupInCatalog(catalog, name) : null;
     if (fromCatalog) {
@@ -405,21 +424,19 @@ export async function resolveLlmBilling(
       if (!isLocal) {
         costs ??= fromCatalog.costs;
       }
+      modality = mergeResolvedModality(
+        metadata?.modality,
+        fromCatalog.modality,
+      );
     }
   }
 
   if (context === undefined && costs === undefined) {
     return null;
   }
-  return { name, context, costs };
+  return { name, context, costs, modality };
 }
 
-/**
- * USD cost of one request's token usage. Expects usage already normalized to
- * the additive shape (see `toAdditiveUsage`): cache reads/writes are separate
- * from `inputTokens`. Cache tiers without an explicit price fall back to the
- * plain input rate.
- */
 export function computeUsageCostUsd(
   usage: {
     inputTokens?: number;
@@ -427,7 +444,7 @@ export function computeUsageCostUsd(
     cacheReadInputTokens?: number;
     cacheWriteInputTokens?: number;
   },
-  costs: ResolvedBillingCosts,
+  costs: ResolvedMetadataCosts,
 ): number {
   const input = usage.inputTokens ?? 0;
   const output = usage.outputTokens ?? 0;
@@ -442,11 +459,6 @@ export function computeUsageCostUsd(
   );
 }
 
-/**
- * Context tokens occupied by a request, from its additive-shape usage: the
- * full prompt (uncached input + cache reads/writes). Used as the "tokens
- * currently in context" figure for context-window utilization.
- */
 export function contextTokensFromUsage(usage: {
   inputTokens?: number;
   cacheReadInputTokens?: number;

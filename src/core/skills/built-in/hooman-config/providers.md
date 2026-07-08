@@ -11,20 +11,21 @@ Each element of `llms` has:
 - `options.model`: model id passed to the resolved runtime provider.
 - `options.temperature`: optional normalized temperature override.
 - `options.maxTokens`: optional normalized output token limit.
-- `options.context`: optional context size in tokens; only honored by the local `llama-cpp` and `mlx` providers (overrides the provider-level `context`), other providers ignore it. For llama-cpp it sizes the actual llama.cpp context; for mlx it declares the usable window. Both feed the context-usage gauge (an explicit `billing.context` still wins).
+- `options.context`: optional context size in tokens; only honored by the local `llama-cpp` and `mlx` providers (overrides the provider-level `context`), other providers ignore it. For llama-cpp it sizes the actual llama.cpp context; for mlx it declares the usable window. Both feed the context-usage gauge (an explicit `metadata.context` still wins).
 - `default`: boolean; mark one entry `"default": true` for the active model.
-- `billing`: optional billing metadata used for context-window utilization and session-cost display. When present, `billing.name` is required — the model identifier looked up on models.dev (defaults to `options.model` when `billing` is omitted). Optional overrides: `billing.context` (context window size in tokens) and `billing.costs` (USD per million tokens: required `"input/m"` and `"output/m"`, optional `"cache/m"` for cached-input reads). Anything not provided is resolved from the models.dev catalog; when neither source resolves, context usage and cost are simply not shown.
+- `metadata`: optional model metadata used for context-window utilization, session-cost display, and input modality overrides. When present, `metadata.name` is required — the model identifier looked up on models.dev (defaults to `options.model` when `metadata` is omitted). Optional overrides: `metadata.context` (context window size in tokens), `metadata.costs` (USD per million tokens: required `"input/m"` and `"output/m"`, optional `"cache/m"` for cached-input reads), and `metadata.modality` (`text`, `image`, `pdf`, `audio`, `video`; unspecified fields default from models.dev, then to text-only). Anything not provided is resolved from the models.dev catalog; when neither source resolves prices/context, context usage and cost are simply not shown.
 
-Example `billing` block:
+Example `metadata` block:
 
 ```json
 {
   "name": "Haiku 4.5",
   "provider": "LiteLLM Anthropic",
-  "billing": {
+  "metadata": {
     "name": "claude-haiku-4.5",
     "context": 200000,
-    "costs": { "input/m": 1, "cache/m": 0.1, "output/m": 5 }
+    "costs": { "input/m": 1, "cache/m": 0.1, "output/m": 5 },
+    "modality": { "text": true, "image": true, "pdf": true }
   },
   "options": { "model": "claude-haiku-4.5" },
   "default": true

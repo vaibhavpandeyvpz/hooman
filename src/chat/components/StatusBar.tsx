@@ -129,7 +129,7 @@ export function StatusBar({
   ].join(", ");
   const hasTokens = usage.inputTokens + cacheInput + usage.outputTokens > 0;
   // Context-window utilization + session cost, resolved from the model's
-  // `billing` config / the models.dev catalog. Hidden when unresolved.
+  // `metadata` config / the models.dev catalog. Hidden when unresolved.
   const contextRatio =
     contextUsage && contextUsage.size > 0
       ? contextUsage.used / contextUsage.size

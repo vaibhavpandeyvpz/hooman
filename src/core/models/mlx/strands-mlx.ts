@@ -525,7 +525,7 @@ export class StrandsMlxModel extends Model<MlxModelConfig> {
 
       // mlex reports OpenAI-style usage: `promptTokens` is the full prompt
       // and `cachedTokens` a subset of it served from the prompt-cache pool.
-      // The factory marks this model total-inclusive so billing meters
+      // The factory marks this model total-inclusive so metadata meters
       // normalize it to the additive shape.
       const { promptTokens, cachedTokens, completionTokens } =
         finalResult.usage;

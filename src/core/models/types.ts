@@ -67,7 +67,7 @@ export type LlmOptions = {
    * actual llama.cpp context; for mlx (where MLX allocates KV state
    * dynamically) it declares the model's usable window. Both feed the
    * context-usage gauge, taking precedence over the models.dev catalog
-   * (an explicit `billing.context` still wins).
+   * (an explicit `metadata.context` still wins).
    */
   context?: number;
 };
@@ -77,22 +77,31 @@ export type LlmOptions = {
  * (cache read) price; cache writes are billed at the `input/m` rate when only
  * these config-provided prices are available.
  */
-export type LlmBillingCosts = {
+export type LlmMetadataCosts = {
   "input/m": number;
   "cache/m"?: number;
   "output/m": number;
 };
 
 /**
- * Optional billing metadata on a named LLM. `name` is the model identifier
- * used to look the model up on models.dev (defaults to `options.model` when
- * `billing` is omitted entirely); `context`/`costs` override whatever the
- * models.dev catalog resolves.
+ * Optional metadata on a named LLM. `name` is the model identifier used to
+ * look the model up on models.dev (defaults to `options.model` when
+ * `metadata` is omitted entirely); `context`/`costs`/`modality` override
+ * whatever the models.dev catalog resolves.
  */
-export type LlmBilling = {
+export type LlmInputModality = {
+  text?: boolean;
+  image?: boolean;
+  pdf?: boolean;
+  audio?: boolean;
+  video?: boolean;
+};
+
+export type LlmMetadata = {
   name: string;
   context?: number;
-  costs?: LlmBillingCosts;
+  costs?: LlmMetadataCosts;
+  modality?: LlmInputModality;
 };
 
 export type AnthropicProviderOptions = {
@@ -374,7 +383,7 @@ export const LlmOptionsSchema = z
   })
   .strict();
 
-export const LlmBillingCostsSchema = z
+export const LlmMetadataCostsSchema = z
   .object({
     "input/m": z.number().nonnegative(),
     "cache/m": z.number().nonnegative().optional(),
@@ -382,11 +391,22 @@ export const LlmBillingCostsSchema = z
   })
   .strict();
 
-export const LlmBillingSchema = z
+export const LlmInputModalitySchema = z
+  .object({
+    text: z.boolean().optional(),
+    image: z.boolean().optional(),
+    pdf: z.boolean().optional(),
+    audio: z.boolean().optional(),
+    video: z.boolean().optional(),
+  })
+  .strict();
+
+export const LlmMetadataSchema = z
   .object({
     name: NonEmptyStringSchema,
     context: z.number().int().positive().optional(),
-    costs: LlmBillingCostsSchema.optional(),
+    costs: LlmMetadataCostsSchema.optional(),
+    modality: LlmInputModalitySchema.optional(),
   })
   .strict();
 
@@ -664,7 +684,7 @@ export const NamedLlmConfigSchema = z
     name: NonEmptyStringSchema,
     provider: NonEmptyStringSchema,
     options: LlmOptionsSchema,
-    billing: LlmBillingSchema.nullish(),
+    metadata: LlmMetadataSchema.nullish(),
     default: z.boolean().default(false),
   })
   .strict();

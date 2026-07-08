@@ -79,9 +79,9 @@ import {
   computeUsageCostUsd,
   configuredLlmContext,
   contextTokensFromUsage,
-  resolveLlmBilling,
-  type ResolvedLlmBilling,
-} from "../core/utils/billing.js";
+  resolveLlmMetadata,
+  type ResolvedLlmMetadata,
+} from "../core/utils/metadata.js";
 import {
   buildSessionConfigOptions,
   currentModelName,
@@ -208,11 +208,11 @@ type SessionRecord = {
    */
   lastTurnUsage: Usage;
   /**
-   * Billing metadata for the active model (config `billing` merged with the
+   * Billing metadata for the active model (config `metadata` merged with the
    * models.dev catalog), re-resolved on model rebuilds. `null` when nothing
    * could be resolved — context size and cost are then not reported.
    */
-  billing: ResolvedLlmBilling | null;
+  metadata: ResolvedLlmMetadata | null;
   /** Cumulative session cost in USD, accumulated per request at that request's model rates. */
   cumulativeCostUsd: number;
   /**
@@ -961,7 +961,7 @@ export class HoomanAcpAgent {
       // The conversation (and thus the context tokens in use) carries over to
       // the new model, so rescale the client's context gauge against the new
       // window immediately instead of leaving the old one up until the next
-      // turn ends. Skipped mid-turn: the rebuild (and billing re-resolution)
+      // turn ends. Skipped mid-turn: the rebuild (and metadata re-resolution)
       // is deferred to the turn boundary, and the running turn's own
       // `usage_update` is still correctly priced against the old model.
       if (!this.#isTurnActive(rec)) {
@@ -1153,8 +1153,8 @@ export class HoomanAcpAgent {
         resolved.providerOptions,
         resolved.llmOptions,
       );
-      rec.billing = await resolveLlmBilling(
-        resolved.billing,
+      rec.metadata = await resolveLlmMetadata(
+        resolved.metadata,
         resolved.llmOptions.model,
         resolved.provider,
         configuredLlmContext(resolved),
@@ -1207,7 +1207,7 @@ export class HoomanAcpAgent {
             persistEffort.effort,
           );
         }
-        // The rebuild re-resolved billing; rescale the client's context gauge
+        // The rebuild re-resolved metadata; rescale the client's context gauge
         // against the new model's window (the turn's earlier `usage_update`
         // carried the previous model's size). Best-effort: the turn result
         // must not fail over a lost notification.
@@ -1362,15 +1362,18 @@ export class HoomanAcpAgent {
 
       const invokeArgs =
         command?.name === "init"
-          ? acpPromptToInvokeArgs([
-              {
-                type: "text",
-                text: command.args
-                  ? `${INIT_AGENTS_PROMPT}\n\n${command.args}`
-                  : INIT_AGENTS_PROMPT,
-              },
-            ])
-          : acpPromptToInvokeArgs(params.prompt);
+          ? acpPromptToInvokeArgs(
+              [
+                {
+                  type: "text",
+                  text: command.args
+                    ? `${INIT_AGENTS_PROMPT}\n\n${command.args}`
+                    : INIT_AGENTS_PROMPT,
+                },
+              ],
+              rec.metadata,
+            )
+          : acpPromptToInvokeArgs(params.prompt, rec.metadata);
       const signals: AbortSignal[] = [turnAbort.signal];
       if (this.#connectionSignal) {
         signals.push(this.#connectionSignal);
@@ -1501,7 +1504,7 @@ export class HoomanAcpAgent {
    * Emit a `usage_update` at the end of a turn:
    * - `used`: context tokens of the latest request (additive prompt total,
    *   so cache reads/writes count regardless of provider reporting style).
-   * - `size`: the context window resolved from the model's `billing` config /
+   * - `size`: the context window resolved from the model's `metadata` config /
    *   the models.dev catalog; `0` ("unknown") when unresolved, in which case
    *   clients should not render a used/size percentage.
    * - `cost`: cumulative session USD, only while every priced request had
@@ -1521,11 +1524,11 @@ export class HoomanAcpAgent {
       return Promise.resolve();
     }
     const tokens = rec.lastTurnUsage;
-    const includeCost = rec.billing?.costs !== undefined && !rec.costUnpriced;
+    const includeCost = rec.metadata?.costs !== undefined && !rec.costUnpriced;
     return this.#sendUpdate(client, sessionId, {
       sessionUpdate: "usage_update",
       used: contextUsed,
-      size: rec.billing?.context ?? 0,
+      size: rec.metadata?.context ?? 0,
       ...(includeCost && {
         cost: { amount: rec.cumulativeCostUsd, currency: "USD" },
       }),
@@ -1738,10 +1741,10 @@ export class HoomanAcpAgent {
           // served it; once a request with usage runs unpriced, the total is
           // incomplete and cost reporting stops for the session.
           if ((additive.totalTokens ?? 0) > 0) {
-            if (rec.billing?.costs) {
+            if (rec.metadata?.costs) {
               rec.cumulativeCostUsd += computeUsageCostUsd(
                 additive,
-                rec.billing.costs,
+                rec.metadata.costs,
               );
             } else {
               rec.costUnpriced = true;
@@ -1877,8 +1880,8 @@ export class HoomanAcpAgent {
     setAskUserBackend(agent, createAcpAskUserBackend(client, sessionId));
 
     const activeLlm = (config as SessionConfig).llm;
-    const billing = await resolveLlmBilling(
-      activeLlm.billing,
+    const metadata = await resolveLlmMetadata(
+      activeLlm.metadata,
       activeLlm.llmOptions.model,
       activeLlm.provider,
       configuredLlmContext(activeLlm),
@@ -1902,7 +1905,7 @@ export class HoomanAcpAgent {
       pendingPersistModel: null,
       pendingPersistEffort: null,
       lastTurnUsage: createEmptyUsage(),
-      billing,
+      metadata,
       cumulativeCostUsd: 0,
       costUnpriced: false,
       lastContextTokens: undefined,

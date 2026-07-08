@@ -54,6 +54,10 @@ import {
   quietChatLogs,
   redirectLogs,
 } from "./core/utils/logging.js";
+import {
+  configuredLlmContext,
+  resolveLlmMetadata,
+} from "./core/utils/metadata.js";
 
 async function readPackageMeta(): Promise<{
   name: string;
@@ -423,6 +427,7 @@ program
     const session = options.session?.trim();
     const {
       agent,
+      config,
       mcp: { manager },
     } = await bootstrap(
       "daemon",
@@ -439,9 +444,16 @@ program
     );
     setAskUserBackend(agent, createDaemonAskUserBackend(manager, agent));
     try {
+      const metadata = await resolveLlmMetadata(
+        config.llm.metadata,
+        config.llm.llmOptions.model,
+        config.llm.provider,
+        configuredLlmContext(config.llm),
+      ).catch(() => null);
       await daemon({
         agent,
         manager,
+        metadata,
         session,
         debug: Boolean(options.debug),
       });

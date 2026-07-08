@@ -9,7 +9,7 @@ import type { Usage } from "@strands-agents/sdk";
  * - Total-inclusive (OpenAI, and every Vercel AI SDK adapter): `inputTokens`
  *   is the full prompt and `cacheReadInputTokens` is a *subset* of it.
  *
- * Model factories register total-inclusive instances here so billing meters
+ * Model factories register total-inclusive instances here so metadata meters
  * can convert their usage to the additive shape before summing. This is done
  * only at the meter feed points — the raw usage must stay untouched for the
  * Strands agent loop, which uses `usage.inputTokens` as the context size for

@@ -11,7 +11,7 @@ import { sessionState } from "../store";
  * here is always only the uncached portion and cached input (`cin`) is
  * surfaced separately, combining read + write.
  *
- * When the agent resolved the model's billing metadata (config `billing`
+ * When the agent resolved the model's metadata metadata (config `metadata`
  * block / models.dev), the right side adds a context-window gauge
  * (`usage_update.used`/`size`) and the cumulative session cost
  * (`usage_update.cost`). Both stay hidden while unresolved.

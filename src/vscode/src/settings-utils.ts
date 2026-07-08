@@ -54,7 +54,7 @@ type NamedLlmEntry = {
     context?: number;
     [key: string]: unknown;
   };
-  billing?: unknown;
+  metadata?: unknown;
   default: boolean;
 };
 
@@ -1085,7 +1085,7 @@ export function saveConfigLlm(
       name,
       provider,
       options: nextOptions,
-      billing: existing?.billing,
+      metadata: existing?.metadata,
       default: existing?.default === true,
     };
     doc.llms = originalName

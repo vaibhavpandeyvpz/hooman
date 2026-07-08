@@ -4,20 +4,14 @@ import type {
   ResourceLink,
   TextResourceContents,
 } from "@agentclientprotocol/sdk";
+import { Agent as StrandsAgent, Message, TextBlock } from "@strands-agents/sdk";
+import type { ContentBlock } from "@strands-agents/sdk";
+import type { ResolvedLlmMetadata } from "../core/utils/metadata.js";
 import {
-  Agent as StrandsAgent,
-  DocumentBlock,
-  ImageBlock,
-  Message,
-  TextBlock,
-  VideoBlock,
-} from "@strands-agents/sdk";
-import type {
-  ContentBlock,
-  DocumentFormat,
-  ImageFormat,
-  VideoFormat,
-} from "@strands-agents/sdk";
+  blobResourceToPromptBlocks,
+  binaryTargetToPromptBlocks,
+  imageFormatFromMime,
+} from "../core/utils/model-metadata.js";
 
 type AgentStreamInput = Parameters<
   InstanceType<typeof StrandsAgent>["stream"]
@@ -33,42 +27,6 @@ function basename(uri: string): string {
   return tail && tail.length > 0 ? tail : "attachment";
 }
 
-function imageFormatFromMime(mime: string): ImageFormat {
-  const m = mime.toLowerCase();
-  if (m.includes("jpeg") || m.includes("jpg")) return "jpeg";
-  if (m.includes("gif")) return "gif";
-  if (m.includes("webp")) return "webp";
-  return "png";
-}
-
-function videoFormatFromMime(mime: string): VideoFormat | undefined {
-  const m = mime.toLowerCase();
-  if (m.includes("mp4")) return "mp4";
-  if (m.includes("webm")) return "webm";
-  if (m.includes("quicktime") || m.includes("mov")) return "mov";
-  if (m.includes("matroska") || m.includes("mkv")) return "mkv";
-  if (m.includes("mpeg") || m.includes("mpg")) return "mpeg";
-  if (m.includes("flv")) return "flv";
-  if (m.includes("wmv")) return "wmv";
-  if (m.includes("3gp")) return "3gp";
-  return undefined;
-}
-
-function docFormatFromMime(mime: string): DocumentFormat {
-  const m = mime.toLowerCase();
-  if (m.includes("pdf")) return "pdf";
-  if (m.includes("csv")) return "csv";
-  if (m.includes("wordprocessingml") || m.endsWith("/docx")) return "docx";
-  if (m.includes("msword") || m.endsWith("/doc")) return "doc";
-  if (m.includes("spreadsheetml") || m.endsWith("/xlsx")) return "xlsx";
-  if (m.includes("ms-excel") || m.endsWith("/xls")) return "xls";
-  if (m.includes("html")) return "html";
-  if (m.includes("markdown") || m.endsWith("/md")) return "md";
-  if (m.includes("json")) return "json";
-  if (m.includes("xml")) return "xml";
-  return "txt";
-}
-
 /** Faithful representation of an embedded text resource (preserves its URI). */
 function textResourceToStrands(r: TextResourceContents): ContentBlock[] {
   const mime = r.mimeType ? ` (${r.mimeType})` : "";
@@ -76,31 +34,11 @@ function textResourceToStrands(r: TextResourceContents): ContentBlock[] {
 }
 
 /** Route an embedded binary resource to the closest Strands media block. */
-function blobResourceToStrands(r: BlobResourceContents): ContentBlock[] {
-  const bytes = decodeBase64(r.blob);
-  const mime = (r.mimeType ?? "application/octet-stream").toLowerCase();
-  if (mime.startsWith("image/")) {
-    return [
-      new ImageBlock({
-        format: imageFormatFromMime(mime),
-        source: { bytes },
-      }),
-    ];
-  }
-  if (mime.startsWith("video/")) {
-    const format = videoFormatFromMime(mime);
-    if (format) {
-      return [new VideoBlock({ format, source: { bytes } })];
-    }
-  }
-  return [
-    new DocumentBlock({
-      format: docFormatFromMime(mime),
-      name: basename(r.uri),
-      source: { bytes },
-      context: r.uri,
-    }),
-  ];
+function blobResourceToStrands(
+  r: BlobResourceContents,
+  metadata?: Pick<ResolvedLlmMetadata, "modality"> | null,
+): ContentBlock[] {
+  return blobResourceToPromptBlocks(r, metadata);
 }
 
 /** Text describing a resource link (metadata the agent may act on via tools). */
@@ -114,33 +52,43 @@ function resourceLinkText(block: ResourceLink): string {
   return `[resource_link ${label}](${block.uri})${suffix}${desc}`;
 }
 
-function acpBlockToStrands(block: AcpContentBlock): ContentBlock[] {
+function acpBlockToStrands(
+  block: AcpContentBlock,
+  metadata?: Pick<ResolvedLlmMetadata, "modality"> | null,
+): ContentBlock[] {
   switch (block.type) {
     case "text":
       return [new TextBlock(block.text)];
     case "image": {
       const bytes = decodeBase64(block.data);
-      return [
-        new ImageBlock({
-          format: imageFormatFromMime(block.mimeType),
-          source: { bytes },
-        }),
-      ];
+      return binaryTargetToPromptBlocks(
+        {
+          bytes,
+          label: `image.${imageFormatFromMime(block.mimeType)}`,
+          mimeType: block.mimeType,
+          sizeBytes: bytes.byteLength,
+        },
+        metadata,
+      );
     }
     case "audio": {
-      // Strands has no audio content block; surface a descriptive marker so the
-      // model is aware of the attachment without receiving unusable bytes.
       const bytes = decodeBase64(block.data);
-      return [
-        new TextBlock(
-          `[audio attachment mimeType=${JSON.stringify(block.mimeType)} bytes=${bytes.byteLength} — not forwarded to the model]`,
-        ),
-      ];
+      return binaryTargetToPromptBlocks(
+        {
+          bytes,
+          label: basename(
+            `attachment.${block.mimeType.split("/").pop() ?? "audio"}`,
+          ),
+          mimeType: block.mimeType,
+          sizeBytes: bytes.byteLength,
+        },
+        metadata,
+      );
     }
     case "resource":
       return "text" in block.resource
         ? textResourceToStrands(block.resource)
-        : blobResourceToStrands(block.resource);
+        : blobResourceToStrands(block.resource, metadata);
     case "resource_link":
       return [new TextBlock(resourceLinkText(block))];
     default:
@@ -157,10 +105,11 @@ function acpBlockToStrands(block: AcpContentBlock): ContentBlock[] {
  */
 export function acpPromptToInvokeArgs(
   prompt: AcpContentBlock[],
+  metadata?: Pick<ResolvedLlmMetadata, "modality"> | null,
 ): AgentStreamInput {
   const parts: ContentBlock[] = [];
   for (const block of prompt) {
-    parts.push(...acpBlockToStrands(block));
+    parts.push(...acpBlockToStrands(block, metadata));
   }
   return [new Message({ role: "user", content: parts })];
 }

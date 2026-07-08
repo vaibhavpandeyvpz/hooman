@@ -34,9 +34,9 @@ import {
   computeUsageCostUsd,
   configuredLlmContext,
   contextTokensFromUsage,
-  resolveLlmBilling,
-  type ResolvedLlmBilling,
-} from "../core/utils/billing.js";
+  resolveLlmMetadata,
+  type ResolvedLlmMetadata,
+} from "../core/utils/metadata.js";
 import {
   currentReasoningEffort,
   nextReasoningEffort,
@@ -86,7 +86,7 @@ function emptyTurnUsage(): TurnUsageStatus {
 }
 
 /**
- * Session billing meter: cumulative USD cost (accrued per request at the
+ * Session metadata meter: cumulative USD cost (accrued per request at the
  * rates of the model that served it) and the latest request's context tokens.
  * `unpriced` flips once a request with usage ran without resolved pricing —
  * the total would be incomplete, so cost display stops for the session.
@@ -481,31 +481,31 @@ export function ChatApp({
   const [turnStartedAt, setTurnStartedAt] = useState<number | null>(null);
   const [turnElapsedMs, setTurnElapsedMs] = useState(0);
   const [usage, setUsage] = useState<TurnUsageStatus>(emptyTurnUsage);
-  const [billing, setBilling] = useState<ResolvedLlmBilling | null>(null);
+  const [metadata, setMetadata] = useState<ResolvedLlmMetadata | null>(null);
   const [billingMeter, setBillingMeter] = useState<BillingMeter>({
     costUsd: 0,
     unpriced: false,
   });
-  const billingRef = useRef<ResolvedLlmBilling | null>(null);
-  // Resolve billing metadata (config `billing` block merged with the daily
+  const metadataRef = useRef<ResolvedLlmMetadata | null>(null);
+  // Resolve model metadata (config `metadata` block merged with the daily
   // models.dev catalog cache) for the active model; re-run on model switches.
-  const refreshBilling = useCallback(() => {
+  const refreshMetadata = useCallback(() => {
     const resolved = config.llm;
-    void resolveLlmBilling(
-      resolved.billing,
+    void resolveLlmMetadata(
+      resolved.metadata,
       resolved.llmOptions.model,
       resolved.provider,
       configuredLlmContext(resolved),
     )
       .catch(() => null)
       .then((next) => {
-        billingRef.current = next;
-        setBilling(next);
+        metadataRef.current = next;
+        setMetadata(next);
       });
   }, [config]);
   useEffect(() => {
-    refreshBilling();
-  }, [refreshBilling]);
+    refreshMetadata();
+  }, [refreshMetadata]);
   const [pendingApproval, setPendingApproval] =
     useState<ApprovalRequest | null>(null);
   const [pendingQuestion, setPendingQuestion] = useState<ChatQuestion | null>(
@@ -931,7 +931,7 @@ export function ChatApp({
               }
             : null,
         );
-        refreshBilling();
+        refreshMetadata();
       } catch (error) {
         config.update({
           llms: config.llms.map((entry) => ({
@@ -948,7 +948,7 @@ export function ChatApp({
         });
       }
     },
-    [agent, appendLine, config, refreshBilling],
+    [agent, appendLine, config, refreshMetadata],
   );
 
   const applyReasoningEffort = useCallback(
@@ -1316,6 +1316,7 @@ export function ChatApp({
       }
       const attachmentBlocks = await attachmentPathsToPromptBlocks(
         prompt.attachments,
+        { metadata: metadataRef.current },
       );
 
       runningRef.current = true;
@@ -1516,7 +1517,7 @@ export function ChatApp({
                   // Session cost accrues per request at the current model's
                   // resolved rates; once a request runs unpriced the total is
                   // incomplete and the cost display stops for the session.
-                  const rates = billingRef.current;
+                  const rates = metadataRef.current;
                   const contextUsed = contextTokensFromUsage(u);
                   const hasTokens = contextUsed + (u.outputTokens ?? 0) > 0;
                   if (hasTokens) {
@@ -1873,13 +1874,13 @@ export function ChatApp({
           mcpNeedsAttention={mcpNeedsAttention}
           usage={usage}
           contextUsage={
-            billing?.context !== undefined &&
+            metadata?.context !== undefined &&
             billingMeter.contextUsed !== undefined
-              ? { used: billingMeter.contextUsed, size: billing.context }
+              ? { used: billingMeter.contextUsed, size: metadata.context }
               : undefined
           }
           costUsd={
-            billing?.costs !== undefined &&
+            metadata?.costs !== undefined &&
             !billingMeter.unpriced &&
             billingMeter.contextUsed !== undefined
               ? billingMeter.costUsd

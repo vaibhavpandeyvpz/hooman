@@ -3,7 +3,7 @@ import { dirname } from "node:path";
 import { z } from "zod";
 import {
   LlmProvider,
-  type LlmBilling,
+  type LlmMetadata,
   type LlmOptions,
   type NamedLlmConfig,
   type NamedProviderConfig,
@@ -176,14 +176,14 @@ export type LlmConfig = {
   provider: LlmProvider;
   providerOptions: ProviderOptions;
   llmOptions: LlmOptions;
-  billing?: LlmBilling | null;
+  metadata?: LlmMetadata | null;
 };
 export type ResolvedNamedLlmConfig = {
   name: string;
   provider: LlmProvider;
   providerOptions: ProviderOptions;
   llmOptions: LlmOptions;
-  billing?: LlmBilling | null;
+  metadata?: LlmMetadata | null;
   default: boolean;
 };
 export type CompactionConfig = ConfigData["compaction"];
@@ -386,7 +386,7 @@ export class Config {
       provider: matched.provider,
       providerOptions: clone(matched.options),
       llmOptions: clone(entry.options),
-      billing: entry.billing != null ? clone(entry.billing) : entry.billing,
+      metadata: entry.metadata != null ? clone(entry.metadata) : entry.metadata,
       default: entry.default,
     };
   }
@@ -403,7 +403,7 @@ export class Config {
       provider: resolved.provider,
       providerOptions: resolved.providerOptions,
       llmOptions: resolved.llmOptions,
-      billing: resolved.billing,
+      metadata: resolved.metadata,
     };
   }
 

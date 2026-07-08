@@ -1,6 +1,6 @@
 ---
 title: Models
-description: The shared provider/LLM config shape, reasoning options, and billing metadata for cost/context tracking.
+description: The shared provider/LLM config shape, reasoning options, and metadata metadata for cost/context tracking.
 ---
 
 Hooman's `config.json` splits model configuration into two arrays: reusable `providers` (credentials and provider-level options) and `llms` (named model presets that reference a provider by name). Each provider page below covers its `options` fields, reasoning support, and one or two example configs.
@@ -54,7 +54,7 @@ All reasoning-capable providers additionally share a common optional `reasoning`
 
 ## Billing metadata
 
-Each LLM entry may carry an optional `billing` block used to display context-window utilization and cumulative session cost in the chat status bar, the VS Code extension footer, and via ACP `usage_update`:
+Each LLM entry may carry an optional `metadata` block used to display context-window utilization and cumulative session cost in the chat status bar, the VS Code extension footer, and via ACP `usage_update`:
 
 ```json
 {
@@ -70,7 +70,7 @@ Each LLM entry may carry an optional `billing` block used to display context-win
 }
 ```
 
-- `billing.name` is required when the block is present, and is the identifier looked up in the [models.dev](https://models.dev) catalog (cached under `~/.hooman/cache/`, refreshed at most once daily). When `billing` is omitted, `options.model` is used as the lookup name.
+- `billing.name` is required when the block is present, and is the identifier looked up in the [models.dev](https://models.dev) catalog (cached under `~/.hooman/cache/`, refreshed at most once daily). When `metadata` is omitted, `options.model` is used as the lookup name.
 - `context` (window size in tokens) and `costs` (USD per million tokens; `"cache/m"` prices cached-input reads) override whatever models.dev resolves.
 - If neither the config nor models.dev yields the data, context usage and cost are simply not shown.
 - For local providers (llama.cpp, MLX, Ollama), catalog costs are never applied — local inference is free, and the catalog prices the hosted API serving the same model id — so only the context window resolves and no `$` cost is displayed. An explicit `billing.costs` block still wins if you set one.

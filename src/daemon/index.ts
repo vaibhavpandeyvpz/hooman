@@ -17,11 +17,13 @@ import {
   subscribeModelDownloadProgress,
 } from "../core/models/download-progress.js";
 import { attachmentPathsToPromptBlocks } from "../core/utils/attachments.js";
+import { resolveLlmMetadata } from "../core/utils/metadata.js";
 import { createQueue } from "./queue.js";
 
 type RunDaemonOptions = {
   agent: Agent;
   manager: McpManager;
+  metadata?: Awaited<ReturnType<typeof resolveLlmMetadata>>;
   session?: string;
   debug?: boolean;
 };
@@ -69,6 +71,7 @@ function formatSubscriptions(
 
 async function toInvokeInput(
   message: ChannelMessage,
+  options: { metadata?: Awaited<ReturnType<typeof resolveLlmMetadata>> },
 ): Promise<string | Message[]> {
   if (message.attachments.length === 0) {
     return message.prompt;
@@ -78,6 +81,7 @@ async function toInvokeInput(
     message.attachments,
     {
       maxBytes: MAX_ATTACHMENT_BYTES,
+      metadata: options.metadata,
     },
   );
   blocks.push(...attachmentBlocks);
@@ -123,7 +127,9 @@ export async function main(options: RunDaemonOptions): Promise<void> {
 
       try {
         debug(`invoking agent → ${tag} session=${session} user=${user}`);
-        const invokeInput = await toInvokeInput(message);
+        const invokeInput = await toInvokeInput(message, {
+          metadata: options.metadata,
+        });
         if (typeof invokeInput === "string") {
           await runWithAgentMemoryScope(options.agent, () =>
             options.agent.invoke(invokeInput),
