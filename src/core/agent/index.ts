@@ -46,6 +46,7 @@ import {
   createAgentSkillsPlugin,
 } from "../skills/index.js";
 import { createPromptCachePlugin } from "./prompt-cache-plugin.js";
+import { createGitignoreGuardPlugin } from "./gitignore-guard-plugin.js";
 import {
   createSessionTitlePlugin,
   type SessionTitleCallback,
@@ -211,6 +212,7 @@ export async function create(
   const sessionTitlePlugin = createSessionTitlePlugin({
     onTitle: meta.onSessionTitle,
   });
+  const gitignoreGuardPlugin = createGitignoreGuardPlugin();
 
   async function buildBaseSystemPrompt(): Promise<string> {
     await system.reload();
@@ -243,6 +245,7 @@ export async function create(
       sessionModePlugin,
       promptCachePlugin,
       sessionTitlePlugin,
+      gitignoreGuardPlugin,
       ...contextPlugins,
     ],
     interventions: meta.interventions ?? [],

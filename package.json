@@ -96,6 +96,7 @@
     "fastq": "^1.20.1",
     "gray-matter": "^2.0.1",
     "handlebars": "^4.7.9",
+    "ignore": "^7.0.5",
     "ink": "^7.0.0",
     "ink-ansi": "^1.0.0",
     "ink-select-input": "^6.2.0",

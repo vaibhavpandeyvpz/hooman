@@ -17,6 +17,7 @@ import {
   unescapeModelText,
 } from "../utils/edit-replace.js";
 import { z } from "zod";
+import { createGitignorePredicate } from "../utils/gitignore.js";
 
 /**
  * Optional per-agent text filesystem backend.
@@ -684,6 +685,7 @@ async function walkDirectory(
   const recursive = options?.recursive ?? false;
   const maxDepth = options?.maxDepth ?? DEFAULT_TREE_DEPTH;
   const excludes = (options?.excludePatterns ?? []).map(globToRegExp);
+  const gitignore = await createGitignorePredicate(dirPath);
 
   async function visit(currentPath: string, depth: number): Promise<void> {
     const entries = await fs.readdir(currentPath, { withFileTypes: true });
@@ -695,6 +697,12 @@ async function walkDirectory(
       );
 
       if (excludes.some((pattern) => pattern.test(relative))) {
+        continue;
+      }
+
+      if (
+        gitignore.ignoresPath(fullPath, { isDirectory: entry.isDirectory() })
+      ) {
         continue;
       }
 
@@ -721,6 +729,7 @@ async function buildTree(
 ): Promise<TreeNode> {
   const excludes = (options?.excludePatterns ?? []).map(globToRegExp);
   const maxDepth = options?.maxDepth ?? DEFAULT_TREE_DEPTH;
+  const gitignore = await createGitignorePredicate(rootPath);
 
   async function build(currentPath: string, depth: number): Promise<TreeNode> {
     const stat = await fs.stat(currentPath);
@@ -744,6 +753,12 @@ async function buildTree(
       );
 
       if (excludes.some((pattern) => pattern.test(relative))) {
+        continue;
+      }
+
+      if (
+        gitignore.ignoresPath(fullPath, { isDirectory: entry.isDirectory() })
+      ) {
         continue;
       }
 
