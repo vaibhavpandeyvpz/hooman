@@ -41,8 +41,28 @@ const QUERY_SYNONYMS: Record<string, string[]> = {
   tickets: ["issue"],
 };
 
-function toJsonValue(value: unknown): JSONValue {
-  return JSON.parse(JSON.stringify(value)) as JSONValue;
+function serializeCatalogEntry(
+  entry: ToolCatalogEntry & {
+    active?: boolean;
+    activatable?: boolean;
+    score?: number;
+    why?: string[];
+  },
+): JSONValue {
+  return {
+    name: entry.name,
+    description: entry.description,
+    server: entry.server,
+    readOnly: entry.readOnly,
+    args: [...entry.args],
+    modes: [...entry.modes],
+    ...(entry.active !== undefined ? { active: entry.active } : {}),
+    ...(entry.activatable !== undefined
+      ? { activatable: entry.activatable }
+      : {}),
+    ...(entry.score !== undefined ? { score: entry.score } : {}),
+    ...(entry.why !== undefined ? { why: [...entry.why] } : {}),
+  } satisfies JSONValue;
 }
 
 function tokenize(value: string): string[] {
@@ -156,11 +176,11 @@ export function createMcpDiscoveryTools(registry: LazyToolRegistry) {
         const agent = context?.agent;
         const catalog = registry.hidden();
         if (!agent || catalog.length === 0) {
-          return toJsonValue({
+          return {
             query: input.query,
             results: [],
             message: "No MCP tools are available to search in this session.",
-          });
+          } as JSONValue;
         }
 
         const queryTokens = expandQueryTokens(input.query);
@@ -182,10 +202,10 @@ export function createMcpDiscoveryTools(registry: LazyToolRegistry) {
           .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name))
           .slice(0, limit);
 
-        return toJsonValue({
+        return {
           query: input.query,
-          results,
-        });
+          results: results.map((entry) => serializeCatalogEntry(entry)),
+        } as JSONValue;
       },
     }),
     tool({
@@ -218,11 +238,11 @@ export function createMcpDiscoveryTools(registry: LazyToolRegistry) {
           activateMcpTool(context.agent, name);
           activated.push(name);
         }
-        return toJsonValue({
+        return {
           activated,
           already_active: alreadyActive,
           skipped,
-        });
+        } satisfies JSONValue;
       },
     }),
   ];

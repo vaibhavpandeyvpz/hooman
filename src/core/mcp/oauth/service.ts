@@ -163,7 +163,11 @@ export class Service {
     if (!tokens) {
       return "unauthenticated";
     }
-    if (tokens.expires_in !== undefined && tokens.expires_in <= 0) {
+    if (
+      tokens.expires_in !== undefined &&
+      tokens.expires_in <= 0 &&
+      !tokens.refresh_token
+    ) {
       return "expired";
     }
     return "authenticated";

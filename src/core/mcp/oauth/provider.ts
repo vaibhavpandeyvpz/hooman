@@ -54,13 +54,20 @@ export class HoomanMcpOAuthProvider implements OAuthClientProvider {
   }
 
   public get redirectUrl(): string {
-    const url = this._redirectUrl ?? this.options.transport.oauth?.redirectUri;
-    if (!url) {
-      throw new Error(
-        "OAuth redirect URI is not initialized. Start the authorization flow before reading redirectUrl.",
-      );
+    // An interactive flow binds `_redirectUrl` to the live callback server; an
+    // explicit config redirect URI wins next. For background token refresh no
+    // callback server exists, but the MCP SDK still reads `redirectUrl` to gate
+    // interactive vs non-interactive auth (and only uses it if it has to start
+    // a fresh authorization). Returning a deterministic fallback keeps the
+    // refresh path working instead of throwing and aborting the whole connect.
+    const explicit =
+      this._redirectUrl ?? this.options.transport.oauth?.redirectUri;
+    if (explicit) {
+      return explicit;
     }
-    return url;
+    const port = this.options.transport.oauth?.callbackPort;
+    const host = port ? `127.0.0.1:${port}` : "127.0.0.1";
+    return `http://${host}/mcp/oauth/callback`;
   }
 
   public get clientMetadata(): OAuthClientMetadata {

@@ -1266,7 +1266,8 @@ function authStatusForServer(
   if (
     typeof entry.tokens.expiresAt === "number" &&
     Number.isFinite(entry.tokens.expiresAt) &&
-    entry.tokens.expiresAt <= Date.now()
+    entry.tokens.expiresAt <= Date.now() &&
+    !entry.tokens.refreshToken
   ) {
     return "expired";
   }
