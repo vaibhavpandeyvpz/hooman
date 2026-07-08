@@ -23,7 +23,7 @@ import { LazySessionManager } from "../sessions/lazy-session-manager.js";
 import { TolerantFileStorage } from "../sessions/tolerant-file-storage.js";
 import {
   createSubagentTools,
-  loadSubagentRegistry,
+  createSubagentRegistry,
 } from "../subagents/index.js";
 import {
   createAskUserTools,
@@ -38,6 +38,7 @@ import {
   createThinkingTools,
   createTimeTools,
   createWebSearchTools,
+  createMcpDiscoveryTools,
 } from "../tools/index.js";
 import { createSessionModePromptPlugin } from "../prompts/session-mode-appendix.js";
 import {
@@ -49,10 +50,10 @@ import {
   createSessionTitlePlugin,
   type SessionTitleCallback,
 } from "./session-title-plugin.js";
-import { ModeAwareToolRegistry } from "./mode-aware-tool-registry.js";
-import { applySessionMode } from "./sync-tool-registry-mode.js";
+import { LazyToolRegistry } from "./lazy-tool-registry.js";
 import { clearTodoState } from "../state/todos.js";
 import { MODE_STATE_KEY, type SessionMode } from "../state/session-mode.js";
+import { PrefixedMcpTool } from "../mcp/prefixed-mcp-tool.js";
 import { YOLO_STATE_KEY } from "../state/yolo.js";
 import {
   memoryPath,
@@ -68,6 +69,81 @@ const MEMORY_EXTRACTION_TURNS = 5;
 const MEMORY_MAX_SEARCH_RESULTS = 5;
 const agentConversationManagers = new WeakMap<Agent, ConversationManager>();
 const agentSessionManagers = new WeakMap<Agent, SessionManager>();
+
+type ToolRegistryContext = {
+  config: Config;
+  systemPrompt: string;
+  createModel: () => ReturnType<ModelProvider["create"]>;
+  manager: McpManager;
+};
+
+async function createToolRegistry({
+  config,
+  systemPrompt,
+  createModel,
+  manager,
+}: ToolRegistryContext): Promise<{
+  tools: Tool[];
+  registry: LazyToolRegistry;
+}> {
+  const tools: Tool[] = [
+    ...createTimeTools(),
+    ...(config.tools.sleep.enabled ? createSleepTools() : []),
+    ...(config.tools.todo.enabled ? createTodoTools() : []),
+    ...(config.tools.fetch.enabled ? createFetchTools() : []),
+    ...(config.tools.filesystem.enabled ? createFilesystemTools() : []),
+    ...(config.tools.filesystem.enabled ? createGrepTools() : []),
+    ...(config.tools.shell.enabled ? createShellTools() : []),
+    ...(config.search.enabled ? createWebSearchTools(config) : []),
+    ...createAskUserTools(),
+    ...createThinkingTools(),
+    ...createPlanTools(),
+  ];
+
+  const registry = new LazyToolRegistry(tools);
+  const discoveryTools = createMcpDiscoveryTools(registry);
+  tools.push(...discoveryTools);
+  registry.add(discoveryTools);
+
+  const prefixed = await manager.listPrefixedTools();
+  const prefixedMcpTools = prefixed.filter(
+    (tool): tool is PrefixedMcpTool => tool instanceof PrefixedMcpTool,
+  );
+
+  for (const tool of prefixedMcpTools) {
+    registry.hide(
+      tool,
+      LazyToolRegistry.buildMcpCatalogEntry(
+        tool,
+        tool.server,
+        tool.mcpReadOnlyHint,
+      ),
+    );
+  }
+
+  if (config.tools.subagents.enabled) {
+    const subagentRegistry = createSubagentRegistry(config, {
+      knownTools: tools.map((entry) => entry.name),
+      systemPrompt,
+    });
+    const subagentTools = createSubagentTools({
+      parent: config.name,
+      registry: subagentRegistry,
+      tools,
+      createModel,
+    });
+    tools.push(...subagentTools);
+    registry.add(subagentTools);
+  }
+
+  return { tools, registry };
+}
+
+function attachToolRegistry(agent: Agent, registry: LazyToolRegistry): void {
+  registry.attachAgent(agent as never);
+  (agent as unknown as { _toolRegistry: LazyToolRegistry })._toolRegistry =
+    registry;
+}
 
 export function getAgentConversationManager(
   agent: Agent,
@@ -123,7 +199,6 @@ export async function create(
     sessionManager,
     ...agentContext
   } = ctx;
-  const prefixed = await mcp.manager.listPrefixedTools();
   const skillsPlugin = createAgentSkillsPlugin();
   const sessionModePlugin = createSessionModePromptPlugin();
   // Insert prompt-cache breakpoints for providers that require them (Anthropic,
@@ -143,40 +218,19 @@ export async function create(
     return [system.content, ...appendNext].filter(Boolean).join(SECTION_BREAK);
   }
 
-  const base = await buildBaseSystemPrompt();
+  const systemPrompt = await buildBaseSystemPrompt();
   const model = createLiveModel();
 
-  const tools: Tool[] = [
-    ...createTimeTools(),
-    ...(config.tools.sleep.enabled ? createSleepTools() : []),
-    ...(config.tools.todo.enabled ? createTodoTools() : []),
-    ...(config.tools.fetch.enabled ? createFetchTools() : []),
-    ...(config.tools.filesystem.enabled ? createFilesystemTools() : []),
-    ...(config.tools.filesystem.enabled ? createGrepTools() : []),
-    ...(config.tools.shell.enabled ? createShellTools() : []),
-    ...(config.search.enabled ? createWebSearchTools(config) : []),
-    ...createAskUserTools(),
-    ...createThinkingTools(),
-    ...createPlanTools(),
-    ...prefixed,
-  ];
-  if (config.tools.subagents.enabled) {
-    const registry = loadSubagentRegistry(config, {
-      knownTools: tools.map((entry) => entry.name),
-      baseSystemPrompt: base,
-    });
-    tools.push(
-      ...createSubagentTools({
-        parent: config.name,
-        registry,
-        tools,
-        createModel: () => createLiveModel(),
-      }),
-    );
-  }
+  const { tools, registry } = await createToolRegistry({
+    config,
+    systemPrompt,
+    createModel: () => createLiveModel(),
+    manager: mcp.manager,
+  });
+
   const agent = new Agent({
     name: config.name,
-    systemPrompt: base,
+    systemPrompt,
     model,
     appState: {
       ...(userId ? { userId } : {}),
@@ -205,8 +259,7 @@ export async function create(
   if (sessionManager) {
     agentSessionManagers.set(agent, sessionManager);
   }
-  (agent as unknown as { _toolRegistry: ModeAwareToolRegistry })._toolRegistry =
-    new ModeAwareToolRegistry(agent.toolRegistry.list());
+  attachToolRegistry(agent, registry);
   await agent.initialize();
   agent.addHook(
     BeforeInvocationEvent,
@@ -218,7 +271,6 @@ export async function create(
     },
     { order: HookOrder.SDK_FIRST - 1 },
   );
-  applySessionMode(agent);
   return agent;
 }
 

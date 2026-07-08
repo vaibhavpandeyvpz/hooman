@@ -5,6 +5,8 @@ description: MCP server types, instructions, and OAuth (DCR/CIMD) for Hooman's M
 
 Hooman connects to Model Context Protocol (MCP) servers for on-demand tools, and to servers that advertise the experimental `hooman/channel` capability for event-driven automation via `hooman daemon` — see [Channels](/hooman/guides/mcp/channels/).
 
+When an MCP server exposes a large tool surface, Hooman keeps those MCP tools hidden by default to save context. The agent can discover them with `search_tools` and expose selected ones with `activate_tools`. Built-in Hooman tools remain available directly; the discovery/activation flow only applies to MCP-discovered tools.
+
 `mcp.json` is stored as:
 
 ```json
@@ -128,6 +130,17 @@ hooman mcp logout <server>              # Clear stored OAuth credentials
 hooman mcp logout <server> --scope all  # Scope: all, client, tokens, discovery
 hooman mcp auth-status                  # Show MCP server auth status
 ```
+
+## Lazy MCP tool discovery
+
+Connected MCP tools are listed once when the agent session starts and stored in a hidden MCP catalog.
+
+- Use `search_tools` to find relevant MCP tools by natural-language query.
+- Use `activate_tools` to make selected MCP tools available in the current session.
+- Activated MCP tools become available on the next model cycle.
+- Session modes still apply: if a tool is blocked in `ask` or `plan` mode, activation skips it instead of exposing it.
+
+This keeps large MCP setups usable without sending every tool schema to the model up front.
 
 ## Instructions
 

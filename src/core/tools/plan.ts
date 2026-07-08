@@ -4,7 +4,6 @@ import path from "node:path";
 import { tool } from "@strands-agents/sdk";
 import type { JSONValue, ToolContext } from "@strands-agents/sdk";
 import { z } from "zod";
-import { applySessionMode } from "../agent/sync-tool-registry-mode.js";
 import {
   clearPlanState,
   getLastPlanFile,
@@ -132,7 +131,6 @@ Re-entering after leaving reopens this session's most recent plan file so you ca
           enterReason: input.reason,
         });
         setLastPlanFile(agent, planFile);
-        applySessionMode(agent);
 
         return toJsonValue({
           mode: "plan",
@@ -187,7 +185,6 @@ Only call this after you have started planning with enter_plan_mode.`,
         setLastPlanFile(agent, planPath);
         clearModeToDefault(agent);
         clearPlanState(agent);
-        applySessionMode(agent);
 
         return toJsonValue({
           exited: true,

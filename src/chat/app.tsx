@@ -63,7 +63,6 @@ import {
   type SessionMode,
 } from "../core/state/session-mode.js";
 import { isYoloEnabled, setYoloEnabled } from "../core/state/yolo.js";
-import { applySessionMode } from "../core/agent/sync-tool-registry-mode.js";
 import {
   getAgentConversationManager,
   getAgentSessionManager,
@@ -1151,7 +1150,6 @@ export function ChatApp({
         return;
       }
       setSessionMode(agent, mode);
-      applySessionMode(agent);
       bumpSessionChrome();
     },
     [agent, appendLine, bumpSessionChrome],

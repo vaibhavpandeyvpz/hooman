@@ -45,6 +45,8 @@ export const MODE_DEFINITIONS: readonly ModeDefinition[] = [
       "write_file",
       "edit_file",
       "ask_user",
+      "search_tools",
+      "activate_tools",
       "enter_plan_mode",
       "exit_plan_mode",
     ],
@@ -78,6 +80,8 @@ export const MODE_DEFINITIONS: readonly ModeDefinition[] = [
       "write_file",
       "edit_file",
       "ask_user",
+      "search_tools",
+      "activate_tools",
     ],
   },
 ];

@@ -1,4 +1,4 @@
-import { McpClient, type Tool } from "@strands-agents/sdk";
+import { McpClient } from "@strands-agents/sdk";
 import { PrefixedMcpTool } from "./prefixed-mcp-tool.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
@@ -369,7 +369,7 @@ export class Manager {
    * Lists tools from every configured MCP client with names prefixed by a
    * slugified server config key (see {@link PrefixedMcpTool}).
    */
-  public async listPrefixedTools(): Promise<Tool[]> {
+  public async listPrefixedTools(): Promise<PrefixedMcpTool[]> {
     if (this.instances === null) {
       this.reload();
     }

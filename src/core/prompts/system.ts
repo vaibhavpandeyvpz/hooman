@@ -28,6 +28,7 @@ const STATIC_PROMPT_FILES = [
   "daemon.md",
   "skills.md",
   "subagents.md",
+  "mcp-discovery.md",
   "planning.md",
 ] as const;
 

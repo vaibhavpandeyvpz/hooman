@@ -48,7 +48,6 @@ import {
   type Usage,
 } from "@strands-agents/sdk";
 import { bootstrap } from "../core/index.js";
-import { applySessionMode } from "../core/agent/sync-tool-registry-mode.js";
 import { MODE_DEFINITIONS } from "../core/modes/definitions.js";
 import {
   DEFAULT_SESSION_MODE,
@@ -837,7 +836,6 @@ export class HoomanAcpAgent {
     setYoloEnabled(record.agent, existing.yolo === true);
     if (resolveSessionMode(getModeState(record.agent).mode) !== mode) {
       setSessionMode(record.agent, mode);
-      applySessionMode(record.agent);
     }
 
     if (options.replayHistory) {
@@ -1017,8 +1015,6 @@ export class HoomanAcpAgent {
     setSessionMode(rec.agent, mode);
     if (this.#isTurnActive(rec)) {
       rec.pendingModeReapply = true;
-    } else {
-      applySessionMode(rec.agent);
     }
     return true;
   }
@@ -1189,7 +1185,6 @@ export class HoomanAcpAgent {
   ): Promise<void> {
     if (rec.pendingModeReapply) {
       rec.pendingModeReapply = false;
-      applySessionMode(rec.agent);
     }
     if (rec.pendingModelRebuild) {
       rec.pendingModelRebuild = false;

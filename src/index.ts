@@ -75,8 +75,7 @@ export {
 } from "./core/utils/discover-files.js";
 
 export { create as createAgent } from "./core/agent/index.js";
-export { applySessionMode } from "./core/agent/sync-tool-registry-mode.js";
-export { ModeAwareToolRegistry } from "./core/agent/mode-aware-tool-registry.js";
+export { LazyToolRegistry } from "./core/agent/lazy-tool-registry.js";
 
 export {
   HOOMAN_CHANNEL,
@@ -257,7 +256,7 @@ export {
 export {
   SUBAGENT_TOOL_NAME_PREFIX,
   createSubagentTools,
-  loadSubagentRegistry,
+  createSubagentRegistry,
 } from "./core/subagents/index.js";
 export type {
   SubagentKindConfig,

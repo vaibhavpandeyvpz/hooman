@@ -20,6 +20,7 @@ function mcpServerPrefix(serverKey: string): string {
  * while delegating execution to the stock SDK tool (correct wire name).
  */
 export class PrefixedMcpTool extends Tool {
+  readonly server: string;
   name: string;
   description: string;
   toolSpec: ToolSpec;
@@ -32,6 +33,7 @@ export class PrefixedMcpTool extends Tool {
     mcpReadOnlyHint = false,
   ) {
     super();
+    this.server = serverKey;
     const prefix = mcpServerPrefix(serverKey);
     this.name = `${prefix}__${inner.name}`;
     this.description = `${inner.description} (MCP server: ${serverKey})`;

@@ -1,5 +1,5 @@
 export {
-  loadSubagentRegistry,
+  createSubagentRegistry,
   type SubagentKindConfig,
   type SubagentKindDefinition,
   type SubagentRegistry,

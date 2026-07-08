@@ -106,9 +106,9 @@ function renderInstructions(
   return instructions;
 }
 
-export function loadSubagentRegistry(
+export function createSubagentRegistry(
   config: Config,
-  options?: { knownTools?: readonly string[]; baseSystemPrompt?: string },
+  options?: { knownTools?: readonly string[]; systemPrompt?: string },
 ): SubagentRegistry {
   const knownTools = options?.knownTools;
   const kinds = BUILTIN_SUBAGENT_KINDS.map((kind) => {
@@ -118,7 +118,7 @@ export function loadSubagentRegistry(
     return {
       ...kind,
       allowedTools: filteredTools,
-      instructions: renderInstructions(config, kind, options?.baseSystemPrompt),
+      instructions: renderInstructions(config, kind, options?.systemPrompt),
     };
   });
   const byId = new Map<string, SubagentKindDefinition>();

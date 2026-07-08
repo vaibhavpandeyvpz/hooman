@@ -202,6 +202,27 @@ Always registered. The system prompt only carries the session-start date & time,
 | `convert_time`     | `time`            | string | yes      | Time to convert, 24-hour `HH:MM`.                   |
 | `convert_time`     | `target_timezone` | string | no       | Target IANA timezone. Defaults to local.            |
 
+## `search_tools`
+
+Search connected MCP tools using a short natural-language query. Built-in tools are already available directly; this tool only searches MCP-discovered tools that Hooman keeps hidden until activated to save context.
+
+| Argument | Type    | Required | Description                                             |
+| -------- | ------- | -------- | ------------------------------------------------------- |
+| `query`  | string  | yes      | Natural-language query for the MCP capability you need. |
+| `limit`  | integer | no       | Maximum results to return (default `5`, max `10`).      |
+
+Returns a ranked result list containing each MCP tool's `name`, `description`, `server`, `readOnly`, `args`, `modes`, plus whether it is already active.
+
+## `activate_tools`
+
+Activate one or more connected MCP tools by name so they become available on the next model cycle in the current session. This only applies to MCP-discovered tools; built-in tools do not need activation.
+
+| Argument | Type     | Required | Description                              |
+| -------- | -------- | -------- | ---------------------------------------- |
+| `names`  | string[] | yes      | MCP tool names to activate (1-10 names). |
+
+Activation is session-scoped. Tools that are blocked by the current session mode are skipped instead of being exposed.
+
 ## `ask_user`
 
 Always registered (no config toggle) — approval-exempt, since the question itself is the interaction. Lets the agent ask a multiple-choice question mid-task and wait for the answer; the user may pick an option, type a free-form answer, or dismiss.
@@ -255,7 +276,7 @@ All three take a single argument:
 
 ## Approvals
 
-By default, Hooman asks for approval before running tools that write, execute, or otherwise act with side effects (`shell`, `write_file`, `edit_file`, `create_directory`, `move_file`, `exit_plan_mode`, etc.). Read-only and internal tools — `think`, `update_todos`, `sleep`, `ask_user`, `get_current_time`, `convert_time`, `directory_tree`, `get_file_info`, `list_directory`, `grep`, `enter_plan_mode`, and the subagent tools — are always allowed and never prompt. Filesystem reads/writes under trusted app-home directories (`~/.hooman/projects/<uuid>/attachments`, and plan-mode writes under `~/.hooman/projects/<uuid>/plans`) are also implicitly allowed.
+By default, Hooman asks for approval before running tools that write, execute, or otherwise act with side effects (`shell`, `write_file`, `edit_file`, `create_directory`, `move_file`, `exit_plan_mode`, etc.). Read-only and internal tools — `think`, `update_todos`, `sleep`, `ask_user`, `search_tools`, `activate_tools`, `get_current_time`, `convert_time`, `directory_tree`, `get_file_info`, `list_directory`, `grep`, `enter_plan_mode`, and the subagent tools — are always allowed and never prompt. Filesystem reads/writes under trusted app-home directories (`~/.hooman/projects/<uuid>/attachments`, and plan-mode writes under `~/.hooman/projects/<uuid>/plans`) are also implicitly allowed.
 
 When a user approves with "always", Hooman persists a reusable rule to `~/.hooman/allowlist.json`: shell commands are broadened to a command-prefix pattern (e.g. `git log *`), filesystem tools are scoped to the exact resolved path, and argument-less tools are allowed tool-wide.
 
