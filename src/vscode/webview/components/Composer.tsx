@@ -15,6 +15,7 @@ import type { SessionConfigOption } from "@agentclientprotocol/sdk";
 import {
   addDataAttachment,
   clearEditDraft,
+  isActiveSessionLoading,
   openAttachment,
   pickFiles,
   removeAttachment,
@@ -74,6 +75,8 @@ export default function Composer() {
   const [dragging, setDragging] = createSignal(false);
   let textareaRef: HTMLTextAreaElement | undefined;
 
+  const loading = () => isActiveSessionLoading();
+
   const matchingCommands = createMemo(() => {
     const value = text();
     if (!value.startsWith("/") || value.includes("\n") || value.includes(" ")) {
@@ -122,6 +125,9 @@ export default function Composer() {
   });
 
   function submit() {
+    if (loading()) {
+      return;
+    }
     const value = text();
     if (!value.trim() && sessionState().attachments.length === 0) {
       return;
@@ -135,6 +141,9 @@ export default function Composer() {
   function onDrop(event: DragEvent) {
     event.preventDefault();
     setDragging(false);
+    if (loading()) {
+      return;
+    }
     const dataTransfer = event.dataTransfer;
     if (!dataTransfer) {
       return;
@@ -153,6 +162,9 @@ export default function Composer() {
   }
 
   function onPaste(event: ClipboardEvent) {
+    if (loading()) {
+      return;
+    }
     const files = Array.from(event.clipboardData?.files ?? []);
     if (files.length === 0) {
       return;
@@ -164,6 +176,9 @@ export default function Composer() {
   }
 
   function applySlashCommand(name: string) {
+    if (loading()) {
+      return;
+    }
     setText(`/${name} `);
     textareaRef?.focus();
   }
@@ -263,9 +278,14 @@ export default function Composer() {
           ref={textareaRef}
           rows={1}
           placeholder={
-            sessionState().busy ? "Queue a follow-up…" : "Ask Hooman…"
+            loading()
+              ? "Starting session…"
+              : sessionState().busy
+                ? "Queue a follow-up…"
+                : "Ask Hooman…"
           }
-          class="max-h-40 min-h-[22px] w-full resize-none border-none bg-transparent text-[13px] leading-relaxed text-input-foreground outline-none placeholder:text-muted"
+          disabled={loading()}
+          class="max-h-40 min-h-[22px] w-full resize-none border-none bg-transparent text-[13px] leading-relaxed text-input-foreground outline-none placeholder:text-muted disabled:cursor-not-allowed disabled:opacity-60"
           value={text()}
           onInput={(event) => {
             setText(event.currentTarget.value);
@@ -277,113 +297,133 @@ export default function Composer() {
         />
         <div class="flex items-center gap-1.5">
           <div class="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
-            <For each={selectOptions()}>
-              {(option) => {
-                const flat = flattenSelectOptions(option.options);
-                const isMode = option.id === CONFIG_ID_MODE;
-                const isEffort = option.id === CONFIG_ID_EFFORT;
-                const isModel = option.id === CONFIG_ID_MODEL;
+            <Show
+              when={!loading()}
+              fallback={
+                <>
+                  <div class="h-6 w-28 animate-pulse rounded-full border border-border bg-panel" />
+                  <div class="h-6 w-24 animate-pulse rounded-full border border-border bg-panel" />
+                  <div class="h-6 w-20 animate-pulse rounded-full border border-border bg-panel" />
+                </>
+              }
+            >
+              <For each={selectOptions()}>
+                {(option) => {
+                  const flat = flattenSelectOptions(option.options);
+                  const isMode = option.id === CONFIG_ID_MODE;
+                  const isEffort = option.id === CONFIG_ID_EFFORT;
+                  const isModel = option.id === CONFIG_ID_MODEL;
 
-                const pickerOptions = (): PickerOption[] =>
-                  flat.map((item) => {
-                    if (isMode) {
-                      const meta = modeMeta(item.value);
+                  const pickerOptions = (): PickerOption[] =>
+                    flat.map((item) => {
+                      if (isMode) {
+                        const meta = modeMeta(item.value);
+                        return {
+                          value: item.value,
+                          label: item.name,
+                          icon: (
+                            <Dynamic
+                              component={meta.icon}
+                              size={12}
+                              class={meta.className}
+                            />
+                          ),
+                        };
+                      }
+                      if (isEffort) {
+                        const meta = effortMeta(item.value);
+                        return {
+                          value: item.value,
+                          label: item.name,
+                          icon: (
+                            <EffortGauge
+                              bars={meta.bars}
+                              class={meta.className}
+                            />
+                          ),
+                        };
+                      }
                       return {
                         value: item.value,
                         label: item.name,
-                        icon: (
-                          <Dynamic
-                            component={meta.icon}
-                            size={12}
-                            class={meta.className}
-                          />
-                        ),
+                        description: item.description ?? undefined,
                       };
+                    });
+
+                  const triggerIcon = () => {
+                    if (isMode) {
+                      const meta = modeMeta(option.currentValue);
+                      return <Dynamic component={meta.icon} size={12} />;
                     }
                     if (isEffort) {
-                      const meta = effortMeta(item.value);
-                      return {
-                        value: item.value,
-                        label: item.name,
-                        icon: (
-                          <EffortGauge
-                            bars={meta.bars}
-                            class={meta.className}
-                          />
-                        ),
-                      };
+                      const meta = effortMeta(option.currentValue);
+                      return <EffortGauge bars={meta.bars} />;
                     }
-                    return {
-                      value: item.value,
-                      label: item.name,
-                      description: item.description ?? undefined,
-                    };
-                  });
+                    if (isModel) {
+                      return <Cpu size={12} />;
+                    }
+                    return undefined;
+                  };
 
-                const triggerIcon = () => {
-                  if (isMode) {
-                    const meta = modeMeta(option.currentValue);
-                    return <Dynamic component={meta.icon} size={12} />;
-                  }
-                  if (isEffort) {
-                    const meta = effortMeta(option.currentValue);
-                    return <EffortGauge bars={meta.bars} />;
-                  }
-                  if (isModel) {
-                    return <Cpu size={12} />;
-                  }
-                  return undefined;
-                };
+                  const triggerClass = () => {
+                    if (isMode) return modeMeta(option.currentValue).className;
+                    if (isEffort)
+                      return effortMeta(option.currentValue).className;
+                    return "";
+                  };
 
-                const triggerClass = () => {
-                  if (isMode) return modeMeta(option.currentValue).className;
-                  if (isEffort)
-                    return effortMeta(option.currentValue).className;
-                  return "";
-                };
+                  const currentLabel = () =>
+                    flat.find((item) => item.value === option.currentValue)
+                      ?.name ?? option.currentValue;
 
-                const currentLabel = () =>
-                  flat.find((item) => item.value === option.currentValue)
-                    ?.name ?? option.currentValue;
-
-                return (
-                  <Picker
-                    icon={triggerIcon()}
-                    className={triggerClass()}
-                    label={currentLabel()}
-                    value={option.currentValue}
-                    options={pickerOptions()}
+                  return (
+                    <Picker
+                      icon={triggerIcon()}
+                      className={triggerClass()}
+                      label={currentLabel()}
+                      value={option.currentValue}
+                      options={pickerOptions()}
+                      title={option.description ?? option.name}
+                      onSelect={(value) => {
+                        if (loading()) {
+                          return;
+                        }
+                        setConfigOption(option.id, value);
+                      }}
+                    />
+                  );
+                }}
+              </For>
+              <For each={booleanOptions()}>
+                {(option) => (
+                  <button
+                    type="button"
+                    class="flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-[11.5px] text-muted hover:bg-panel"
                     title={option.description ?? option.name}
-                    onSelect={(value) => setConfigOption(option.id, value)}
-                  />
-                );
-              }}
-            </For>
-            <For each={booleanOptions()}>
-              {(option) => (
-                <button
-                  type="button"
-                  class="flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-[11.5px] text-muted hover:bg-panel"
-                  title={option.description ?? option.name}
-                  onClick={() =>
-                    setConfigOption(option.id, !option.currentValue, true)
-                  }
-                >
-                  <Show
-                    when={option.currentValue}
-                    fallback={<ToggleLeft size={13} />}
+                    onClick={() => {
+                      if (loading()) {
+                        return;
+                      }
+                      setConfigOption(option.id, !option.currentValue, true);
+                    }}
                   >
-                    <ToggleRight size={13} class="text-accent" />
-                  </Show>
-                  {option.name}
-                </button>
-              )}
-            </For>
+                    <Show
+                      when={option.currentValue}
+                      fallback={<ToggleLeft size={13} />}
+                    >
+                      <ToggleRight size={13} class="text-accent" />
+                    </Show>
+                    {option.name}
+                  </button>
+                )}
+              </For>
+            </Show>
           </div>
           <button
             type="button"
-            class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-muted transition-colors hover:bg-panel hover:text-foreground"
+            class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-muted transition-colors hover:bg-panel hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
             title="Attach files"
+            disabled={loading()}
             onClick={() => pickFiles()}
           >
             <Paperclip size={14} />
@@ -391,7 +431,10 @@ export default function Composer() {
           <button
             type="button"
             class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-button text-button-foreground transition-colors hover:bg-button-hover disabled:opacity-40"
-            disabled={!text().trim() && sessionState().attachments.length === 0}
+            disabled={
+              loading() ||
+              (!text().trim() && sessionState().attachments.length === 0)
+            }
             title={
               sessionState().busy
                 ? "Queue (runs after the current turn)"

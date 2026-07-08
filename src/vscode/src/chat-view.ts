@@ -245,6 +245,38 @@ export class HoomanChatViewProvider
     };
   }
 
+  #createPendingSessionId(): string {
+    return `pending:${randomUUID()}`;
+  }
+
+  #isPendingSessionId(sessionId: string | null): sessionId is string {
+    return Boolean(sessionId?.startsWith("pending:"));
+  }
+
+  #replaceSessionId(previousSessionId: string, nextSessionId: string): void {
+    if (previousSessionId === nextSessionId) {
+      return;
+    }
+    const state = this.#sessions.get(previousSessionId);
+    if (!state) {
+      return;
+    }
+    const existing = this.#sessions.get(nextSessionId);
+    this.#sessions.delete(previousSessionId);
+    this.#sessions.set(nextSessionId, existing ?? state);
+    this.#tabs = this.#tabs.map((sessionId) =>
+      sessionId === previousSessionId ? nextSessionId : sessionId,
+    );
+    if (this.#sessionId === previousSessionId) {
+      this.#sessionId = nextSessionId;
+    }
+    for (const pending of this.#pendingPermissions.values()) {
+      if (pending.sessionId === previousSessionId) {
+        pending.sessionId = nextSessionId;
+      }
+    }
+  }
+
   #persistTabs(): void {
     const tabs = this.#tabs
       .map((sessionId) => {
@@ -299,6 +331,9 @@ export class HoomanChatViewProvider
   }
 
   async #ensureSessionLoaded(sessionId: string): Promise<void> {
+    if (this.#isPendingSessionId(sessionId)) {
+      return;
+    }
     const state = this.#sessions.get(sessionId);
     if (!state || state.loaded) {
       return;
@@ -346,6 +381,11 @@ export class HoomanChatViewProvider
       });
     } finally {
       this.#post({ type: "sessionLoading", sessionId, loading: false });
+      this.#post({
+        type: "tabs",
+        tabs: this.#tabInfo(),
+        activeSessionId: this.#sessionId,
+      });
       this.#persistTabs();
     }
   }
@@ -357,6 +397,7 @@ export class HoomanChatViewProvider
         sessionId,
         title: state?.title ?? sessionId,
         busy: state?.busy ?? false,
+        loading: !(state?.loaded ?? true),
         pendingPermissions: state?.pendingPermissionCount ?? 0,
         unread: state?.unread ?? false,
       };
@@ -432,7 +473,7 @@ export class HoomanChatViewProvider
     this.#syncStatus();
     this.focus();
     const state = this.#sessions.get(sessionId);
-    if (state && !state.loaded) {
+    if (state && !state.loaded && !this.#isPendingSessionId(sessionId)) {
       void this.#ensureSessionLoaded(sessionId);
     }
   }
@@ -503,14 +544,15 @@ export class HoomanChatViewProvider
     }
   }
 
-  /** Start a fresh session in a new tab, eagerly creating it so the pickers repopulate immediately. */
+  /** Start a fresh session in a new tab, showing it immediately while ACP bootstraps in the background. */
   newChat(): void {
     if (!this.#canOpenAnotherTab()) {
       this.#warnTabLimit();
       return;
     }
     this.#saveActiveSessionState();
-    this.#sessionId = null;
+    const sessionId = this.#createPendingSessionId();
+    this.#sessionId = sessionId;
     this.#sessionTitle = "New Chat";
     this.#cwd = defaultCwd();
     this.#pendingUpdates = [];
@@ -520,11 +562,35 @@ export class HoomanChatViewProvider
     this.#busy = false;
     this.#queue = [];
     this.#liveTerminals = new Map();
+    this.#sessions.set(
+      sessionId,
+      this.#createSessionState({
+        title: this.#sessionTitle,
+        cwd: this.#cwd,
+        loaded: false,
+      }),
+    );
+    this.#tabs.push(sessionId);
     if (this.#view) {
       this.#view.title = this.#sessionTitle;
     }
+    this.#post({
+      type: "tabs",
+      tabs: this.#tabInfo(),
+      activeSessionId: sessionId,
+    });
+    this.#postActiveState();
+    this.#postEdits();
+    this.#postQueue();
+    this.#post({
+      type: "sessionLoading",
+      sessionId,
+      loading: true,
+      title: this.#sessionTitle,
+    });
+    this.#persistTabs();
     this.#syncStatus();
-    void this.#ensureSession().catch((error) => {
+    void this.#ensureSession(sessionId).catch((error) => {
       this.outputChannel.warn(
         `[chat-view] eager session creation failed: ${describe(error)}`,
       );
@@ -635,7 +701,7 @@ export class HoomanChatViewProvider
     });
     this.#postActiveState();
     this.#persistTabs();
-    await this.#ensureSessionLoaded(sessionId);
+    void this.#ensureSessionLoaded(sessionId);
   }
 
   /**
@@ -723,14 +789,18 @@ export class HoomanChatViewProvider
           this.#postEdits();
           const state = this.#sessions.get(this.#sessionId);
           if (state && !state.loaded) {
-            void this.#ensureSessionLoaded(this.#sessionId);
+            if (this.#isPendingSessionId(this.#sessionId)) {
+              void this.#ensureSession(this.#sessionId).catch((error) => {
+                this.outputChannel.warn(
+                  `[chat-view] eager session creation failed: ${describe(error)}`,
+                );
+              });
+            } else {
+              void this.#ensureSessionLoaded(this.#sessionId);
+            }
           }
         } else {
-          void this.#ensureSession().catch((error) => {
-            this.outputChannel.warn(
-              `[chat-view] eager session creation failed: ${describe(error)}`,
-            );
-          });
+          this.newChat();
         }
         this.#flushPendingComposerAttachments();
         return;
@@ -954,67 +1024,85 @@ export class HoomanChatViewProvider
     });
   }
 
-  /** Create the ACP session for the active new-tab placeholder if one doesn't exist yet, without starting a turn. */
-  async #ensureSession(): Promise<void> {
-    if (this.#sessionId) {
+  /** Create the ACP session for a new-tab placeholder if one doesn't exist yet, without starting a turn. */
+  async #ensureSession(sessionId = this.#sessionId): Promise<void> {
+    if (!sessionId || !this.#isPendingSessionId(sessionId)) {
+      return;
+    }
+    const placeholderState = this.#sessions.get(sessionId);
+    if (!placeholderState) {
       return;
     }
     const agent = await this.client.ensureStarted();
-    if (this.#sessionId) {
+    if (!this.#sessions.has(sessionId)) {
       return;
     }
     const response = await agent.request(methods.agent.session.new, {
-      cwd: defaultCwd(),
+      cwd: placeholderState.cwd,
       mcpServers: [],
       _meta: { "hoomanjs/vscode": true },
     });
 
-    this.#adoptSession(response.sessionId);
-    this.#configOptions = response.configOptions ?? [];
-    const state = this.#sessions.get(response.sessionId);
-    if (state) {
-      state.loaded = true;
-      state.configOptions = [...this.#configOptions];
-    }
-    this.#post({
-      type: "configOptions",
-      sessionId: response.sessionId,
-      configOptions: this.#configOptions,
-    });
+    this.#adoptSession(
+      sessionId,
+      response.sessionId,
+      response.configOptions ?? [],
+    );
   }
 
-  /** Assign the just-created ACP session to the active new tab and replay buffered notifications. */
-  #adoptSession(sessionId: string): void {
-    const state = this.#createSessionState({
-      title: this.#sessionTitle,
-      cwd: this.#cwd,
-      configOptions: [...this.#configOptions],
-      commands: [...this.#commands],
-      busy: this.#busy,
-      queue: [...this.#queue],
-      pendingUpdates: [...this.#pendingUpdates],
-      pendingConfigOptions: new Map(this.#pendingConfigOptions),
-      liveTerminals: this.#liveTerminals,
-    });
-    state.loaded = true;
-    this.#sessions.set(sessionId, state);
-    if (!this.#tabs.includes(sessionId)) {
-      this.#tabs.push(sessionId);
+  /** Assign the just-created ACP session to a visible placeholder tab and replay buffered notifications. */
+  #adoptSession(
+    placeholderSessionId: string,
+    sessionId: string,
+    configOptions: SessionConfigOption[],
+  ): void {
+    const state = this.#sessions.get(placeholderSessionId);
+    if (!state) {
+      return;
     }
-    this.#sessionId = sessionId;
-    const pending = this.#pendingUpdates;
-    this.#pendingUpdates = [];
+    const pending = [...state.pendingUpdates, ...this.#pendingUpdates];
+    state.loaded = true;
+    state.configOptions = [...configOptions];
     state.pendingUpdates = [];
-    for (const notification of pending) {
-      if (notification.sessionId === sessionId) {
-        this.#deliverSessionUpdate(notification);
+    this.#pendingUpdates = [];
+    this.#replaceSessionId(placeholderSessionId, sessionId);
+    if (this.#sessionId === sessionId) {
+      this.#configOptions = [...configOptions];
+      this.#sessionTitle = state.title;
+      this.#cwd = state.cwd;
+      this.#commands = [...state.commands];
+      this.#busy = state.busy;
+      this.#queue = [...state.queue];
+      this.#pendingUpdates = [...state.pendingUpdates];
+      this.#pendingConfigOptions = new Map(state.pendingConfigOptions);
+      this.#liveTerminals = state.liveTerminals;
+      if (this.#view) {
+        this.#view.title = this.#sessionTitle;
       }
     }
+    for (const notification of pending) {
+      this.#deliverSessionUpdate({ ...notification, sessionId });
+    }
+    this.#post({ type: "clear", sessionId });
+    this.#post({
+      type: "sessionLoading",
+      sessionId,
+      loading: false,
+    });
     this.#post({
       type: "tabs",
       tabs: this.#tabInfo(),
       activeSessionId: sessionId,
     });
+    this.#post({
+      type: "configOptions",
+      sessionId,
+      configOptions,
+    });
+    this.#postEdits();
+    this.#postQueue();
+    this.#flushPendingComposerAttachments();
+    this.#persistTabs();
     this.#syncStatus();
     void this.#flushPendingConfigOptions();
   }
@@ -1079,11 +1167,11 @@ export class HoomanChatViewProvider
       });
     }
     try {
-      await this.#ensureSession();
-      if (!this.#sessionId) {
+      await this.#ensureSession(promptSessionId);
+      const sessionId = this.#sessionId;
+      if (!sessionId || this.#isPendingSessionId(sessionId)) {
         throw new Error("Session creation failed.");
       }
-      const sessionId = this.#sessionId;
       const agent = await this.client.ensureStarted();
       const result = await agent.request(methods.agent.session.prompt, {
         sessionId,
@@ -1162,7 +1250,41 @@ export class HoomanChatViewProvider
       }
       this.#cancelPendingPermissionsForSession(sessionId);
     }
-    if (state.busy) {
+    for (const timer of state.liveTerminals.values()) {
+      clearInterval(timer);
+    }
+    state.liveTerminals.clear();
+    this.#sessions.delete(sessionId);
+    this.#tabs = this.#tabs.filter((id) => id !== sessionId);
+    const closedActive = this.#sessionId === sessionId;
+    if (closedActive) {
+      const next = this.#tabs[this.#tabs.length - 1] ?? null;
+      if (next) {
+        this.#loadSessionState(next);
+        this.#postActiveState();
+        this.#postEdits();
+        this.#postQueue();
+      } else {
+        this.newChat();
+      }
+    }
+    if (!closedActive || this.#tabs.length > 0) {
+      this.#post({
+        type: "tabs",
+        tabs: this.#tabInfo(),
+        activeSessionId: this.#sessionId,
+      });
+      this.#persistTabs();
+      this.#syncStatus();
+    }
+    void this.#teardownClosedSession(sessionId, state.busy);
+  }
+
+  async #teardownClosedSession(
+    sessionId: string,
+    wasBusy: boolean,
+  ): Promise<void> {
+    if (!this.#isPendingSessionId(sessionId) && wasBusy) {
       try {
         const agent = await this.client.ensureStarted();
         await agent.notify(methods.agent.session.cancel, { sessionId });
@@ -1172,32 +1294,10 @@ export class HoomanChatViewProvider
         );
       }
     }
-    for (const timer of state.liveTerminals.values()) {
-      clearInterval(timer);
+    if (this.#isPendingSessionId(sessionId)) {
+      return;
     }
-    state.liveTerminals.clear();
     await this.#closeSession(sessionId);
-    this.#sessions.delete(sessionId);
-    this.#tabs = this.#tabs.filter((id) => id !== sessionId);
-    if (this.#sessionId === sessionId) {
-      const next = this.#tabs[this.#tabs.length - 1] ?? null;
-      if (next) {
-        this.#loadSessionState(next);
-        this.#postActiveState();
-        this.#postEdits();
-        this.#postQueue();
-      } else {
-        this.newChat();
-        return;
-      }
-    }
-    this.#post({
-      type: "tabs",
-      tabs: this.#tabInfo(),
-      activeSessionId: this.#sessionId,
-    });
-    this.#persistTabs();
-    this.#syncStatus();
   }
 
   /**
@@ -1514,7 +1614,7 @@ export class HoomanChatViewProvider
   async #setConfigOption(
     message: Extract<InboundMessage, { type: "setConfigOption" }>,
   ): Promise<void> {
-    if (!this.#sessionId) {
+    if (!this.#sessionId || this.#isPendingSessionId(this.#sessionId)) {
       // Session creation is still in flight — remember the pick and apply it
       // once the session exists (see #adoptSession).
       this.#pendingConfigOptions.set(message.configId, {

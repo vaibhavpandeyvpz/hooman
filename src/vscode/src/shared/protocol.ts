@@ -154,6 +154,7 @@ export interface TabInfo {
   sessionId: string;
   title: string;
   busy: boolean;
+  loading?: boolean;
   pendingPermissions?: number;
   unread?: boolean;
 }

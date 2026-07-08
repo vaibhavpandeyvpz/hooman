@@ -204,6 +204,19 @@ function activeSession(): SessionUiState {
     : createSessionState();
 }
 
+export function activeTab(): TabInfo | null {
+  const sessionId = activeSessionId();
+  if (!sessionId) {
+    return null;
+  }
+  return state.tabs.find((tab) => tab.sessionId === sessionId) ?? null;
+}
+
+export function isActiveSessionLoading(): boolean {
+  const tab = activeTab();
+  return Boolean(tab?.loading || sessionState().loadingSession);
+}
+
 export function sessionState(): SessionUiState {
   const sessionId = activeSessionId();
   if (!sessionId) {
@@ -706,7 +719,16 @@ onHostMessage((msg) => {
       setState({ tabs: msg.tabs, activeSessionId: msg.activeSessionId });
       for (const tab of msg.tabs) {
         ensureSession(tab.sessionId);
-        setState("sessions", tab.sessionId, "busy", tab.busy);
+        setState(
+          "sessions",
+          tab.sessionId,
+          produce((session) => {
+            session.busy = tab.busy;
+            session.loadingSession = tab.loading
+              ? (session.loadingSession ?? tab.title ?? "Starting session")
+              : null;
+          }),
+        );
       }
       break;
     case "route":
@@ -729,7 +751,18 @@ onHostMessage((msg) => {
       break;
     case "configOptions":
       ensureSession(msg.sessionId);
-      setState("sessions", msg.sessionId, "configOptions", msg.configOptions);
+      setState(
+        "sessions",
+        msg.sessionId,
+        produce((session) => {
+          session.configOptions = msg.configOptions;
+          // Receiving config options means the session finished bootstrapping
+          // (session/new or session/load resolved), so clear any lingering
+          // loading overlay even if a sessionLoading:false / tabs update was
+          // missed during the placeholder -> real session handoff.
+          session.loadingSession = null;
+        }),
+      );
       break;
     case "update":
       handleSessionUpdate(msg.sessionId, msg.update);

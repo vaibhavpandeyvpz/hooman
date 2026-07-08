@@ -45,7 +45,7 @@ export default function TabStrip() {
                   <Show when={active()}>
                     <span class="absolute inset-x-0 top-0 h-px bg-[var(--vscode-tab-activeBorderTop,var(--vscode-tab-activeBorder,var(--vscode-focusBorder)))]" />
                   </Show>
-                  <Show when={tab.busy}>
+                  <Show when={tab.busy || tab.loading}>
                     <Loader2
                       size={11}
                       class="shrink-0 animate-spin text-[var(--vscode-tab-activeBorder,var(--vscode-textLink-foreground))]"

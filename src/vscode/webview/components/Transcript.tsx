@@ -1,7 +1,12 @@
 import { createEffect, For, Match, Show, Switch } from "solid-js";
 import { CircleAlert } from "lucide-solid";
-import { latestCompletedAssistantId, sessionState } from "../store";
+import {
+  isActiveSessionLoading,
+  latestCompletedAssistantId,
+  sessionState,
+} from "../store";
 import EmptyState from "./EmptyState";
+import StartingSessionState from "./StartingSessionState";
 import UserMessage from "./UserMessage";
 import AssistantMessage from "./AssistantMessage";
 import ThoughtBlock from "./ThoughtBlock";
@@ -45,7 +50,9 @@ export default function Transcript() {
       class="scroll-thin flex flex-1 flex-col gap-2 overflow-y-auto p-2.5"
     >
       <Show when={sessionState().items.length === 0}>
-        <EmptyState />
+        <Show when={isActiveSessionLoading()} fallback={<EmptyState />}>
+          <StartingSessionState />
+        </Show>
       </Show>
       <For each={sessionState().items}>
         {(item) => (
