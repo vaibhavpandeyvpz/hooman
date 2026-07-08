@@ -2,6 +2,10 @@
 
 All notable changes to the Hooman VS Code extension are documented in this file.
 
+## [1.45.3]
+
+- No more `node`/`npx` on your PATH required to run the agent: the extension now resolves the Hooman ACP launcher through a three-step ladder -- (1) an explicit `hooman.acp.command`/`hooman.acp.args` override is honored verbatim, (2) otherwise `bunx`/`npx` on PATH is used to run `hoomanjs@<extension version>` (preferring Bun), and (3) if neither is available it downloads a prebuilt, self-contained CLI tarball for your platform from the matching GitHub release (checksum-verified, extracted to `~/.hooman/cli/<version>/`) and runs it with VS Code's own bundled Node runtime. The download happens once per version behind the usual session loader plus a "downloading agent runtime" progress notification, is shared across concurrent sessions, and surfaces as a normal session-load error if it fails. Local inference runtimes (`node-llama-cpp`, and `mlex.js` on Apple Silicon) ship inside the downloaded tarball, so MLX/llama.cpp models work fully offline without a separate install step.
+
 ## [1.45.2]
 
 - Make new tabs interactive immediately instead of waiting for ACP to bootstrap: clicking "+ new tab" or resuming a not-yet-loaded session now opens the tab right away with a dedicated **Starting session…** overlay (logo, spinner, and a three-line skeleton under a "Preparing your chat" header), the composer is disabled with its own "Starting session…" placeholder, the tab strip shows a spinner for tabs that are still bootstrapping (not just tabs that are busy with a turn), and the submit / drag-drop / paste / slash-command paths all stay quiet until the ACP session is ready -- so the chat feels responsive on cold start and queued prompts are no longer racing against the `session/new` roundtrip. The placeholder tab id is renamed to the real ACP session id once bootstrap completes, with no flicker of the empty state in between.
