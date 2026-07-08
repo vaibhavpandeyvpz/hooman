@@ -1,5 +1,6 @@
 import { homedir } from "os";
 import { join } from "path";
+import { getCwd } from "./cwd-context.js";
 import { projectPath } from "./project-registry.js";
 
 export const APP_FOLDER = ".hooman";
@@ -39,6 +40,9 @@ export const attachmentsPath = () => join(projectPath(), "attachments");
 export const plansPath = () => join(projectPath(), "plans");
 
 export const skillsPath = () => join(basePath(), "skills");
+
+export const localSkillsPath = (cwd: string = getCwd()) =>
+  join(cwd, APP_FOLDER, "skills");
 
 export const cachePath = () => join(basePath(), "cache");
 

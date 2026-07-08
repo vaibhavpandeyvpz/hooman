@@ -6,7 +6,7 @@ import {
   AgentSkills,
   type SkillSource,
 } from "@strands-agents/sdk/vended-plugins/skills";
-import { skillsPath } from "../utils/paths.js";
+import { localSkillsPath, skillsPath } from "../utils/paths.js";
 
 export const AGENT_SKILLS_STATE_KEY = "hooman.agentSkills";
 
@@ -24,6 +24,11 @@ export function createAgentSkillSources(): SkillSource[] {
   const installed = skillsPath();
   if (existsSync(installed)) {
     sources.push(installed);
+  }
+
+  const local = localSkillsPath();
+  if (existsSync(local)) {
+    sources.push(local);
   }
 
   return sources;

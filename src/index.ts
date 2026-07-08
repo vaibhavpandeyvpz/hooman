@@ -33,6 +33,7 @@ export {
   instructionsMdPath,
   mcpJsonPath,
   mcpOauthJsonPath,
+  localSkillsPath,
   memoryPath,
   offloadedContentPath,
   plansPath,
