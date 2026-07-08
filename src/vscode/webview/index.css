@@ -193,6 +193,28 @@ body {
   overflow-x: auto;
 }
 
+.markdown-body table {
+  display: block;
+  max-width: 100%;
+  width: max-content;
+  overflow-x: auto;
+  border-collapse: collapse;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  white-space: nowrap;
+}
+
+.markdown-body :where(th, td) {
+  padding: 0.45em 0.7em;
+  border: 1px solid var(--color-border);
+  white-space: nowrap;
+}
+
+.markdown-body th {
+  background: color-mix(in srgb, var(--color-panel) 72%, transparent);
+  font-weight: 600;
+}
+
 .markdown-body code {
   font-family: var(--font-mono);
   font-size: 0.95em;
