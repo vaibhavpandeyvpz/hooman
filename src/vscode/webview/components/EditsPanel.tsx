@@ -32,7 +32,7 @@ export default function EditsPanel() {
           <div class="flex shrink-0 items-center gap-0.5">
             <button
               type="button"
-              class="rounded px-2.5 py-1 text-[11px] text-muted hover:bg-panel hover:text-foreground"
+              class="rounded px-2 py-0.5 text-[11px] text-muted transition hover:bg-panel hover:text-foreground"
               title="Undo all changes"
               onClick={() => editAction("undoAll")}
             >
@@ -40,7 +40,7 @@ export default function EditsPanel() {
             </button>
             <button
               type="button"
-              class="inline-flex h-7 items-center rounded-full bg-button px-3 text-[11px] font-medium text-button-foreground hover:bg-button-hover"
+              class="inline-flex items-center rounded-full bg-button px-2.5 py-0.5 text-[11px] font-medium text-button-foreground transition hover:bg-button-hover"
               title="Keep all changes"
               onClick={() => editAction("keepAll")}
             >
