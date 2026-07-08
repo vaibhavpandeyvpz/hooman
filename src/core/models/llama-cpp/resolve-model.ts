@@ -3,7 +3,7 @@ import { homedir } from "os";
 import { isAbsolute, join, sep } from "path";
 import { listFiles } from "@huggingface/hub";
 import { cachePath } from "../../utils/paths.js";
-import { downloadFileWithProgress } from "../hub-download.js";
+import { downloadFileWithProgress } from "../../utils/hub-download.js";
 
 /** GGUF files are cached under `~/.hooman/cache/huggingface` (HF cache layout). */
 export const llamaCppCacheDir = () => join(cachePath(), "huggingface");

@@ -3,7 +3,7 @@ import { homedir } from "os";
 import { dirname, join, sep } from "path";
 import { listFiles, modelInfo } from "@huggingface/hub";
 import { cachePath } from "../../utils/paths.js";
-import { downloadFileWithProgress } from "../hub-download.js";
+import { downloadFileWithProgress } from "../../utils/hub-download.js";
 
 /**
  * MLX model repos are cached under `~/.hooman/cache/huggingface` (HF cache

@@ -2,7 +2,7 @@ import { createAnthropic } from "@ai-sdk/anthropic";
 import { VercelModel } from "@strands-agents/sdk/models/vercel";
 import type { VercelModelConfig } from "@strands-agents/sdk/models/vercel";
 import type { LlmOptions, MinimaxProviderOptions } from "./types.js";
-import { markTotalInclusiveInputUsage } from "./usage.js";
+import { markTotalInclusiveInputUsage } from "../utils/usage.js";
 
 const DEFAULT_BASE_URL = "https://api.minimax.io/anthropic";
 
@@ -47,6 +47,7 @@ export function create(
     ...(llmOptions.temperature !== undefined
       ? { temperature: llmOptions.temperature }
       : {}),
+    ...(llmOptions.topP !== undefined ? { topP: llmOptions.topP } : {}),
     ...(llmOptions.maxTokens !== undefined
       ? { maxTokens: llmOptions.maxTokens }
       : {}),

@@ -67,6 +67,7 @@ export interface ConfigLlmEntryState {
   options: {
     model: string;
     temperature?: number;
+    topP?: number;
     maxTokens?: number;
     context?: number;
   };
@@ -654,6 +655,12 @@ export const LLM_FIELD_DEFINITIONS: TypedFieldDefinition[] = [
     label: "Temperature",
     kind: "optionalNumber",
     placeholder: "0.7",
+  },
+  {
+    key: "topP",
+    label: "Top P",
+    kind: "optionalNumber",
+    placeholder: "0.95",
   },
   {
     key: "maxTokens",

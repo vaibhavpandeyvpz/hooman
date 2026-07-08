@@ -59,6 +59,7 @@ export const REASONING_BUDGET_TOKENS: Record<ReasoningEffort, number> = {
 export type LlmOptions = {
   model: string;
   temperature?: number;
+  topP?: number;
   maxTokens?: number;
   /**
    * Context size in tokens for this model. Only honored by the local
@@ -378,6 +379,7 @@ export const LlmOptionsSchema = z
   .object({
     model: NonEmptyStringSchema,
     temperature: z.number().finite().optional(),
+    topP: z.number().finite().optional(),
     maxTokens: z.number().int().positive().optional(),
     context: z.number().int().positive().optional(),
   })

@@ -50,6 +50,7 @@ type NamedLlmEntry = {
   options: {
     model: string;
     temperature?: number;
+    topP?: number;
     maxTokens?: number;
     context?: number;
     [key: string]: unknown;
@@ -516,6 +517,7 @@ function llmFieldMap(entry: NamedLlmEntry): Record<string, string> {
       entry.options.temperature === undefined
         ? ""
         : String(entry.options.temperature),
+    topP: entry.options.topP === undefined ? "" : String(entry.options.topP),
     maxTokens:
       entry.options.maxTokens === undefined
         ? ""
@@ -643,6 +645,7 @@ function configStateFromDoc(
         typeof llm.options.temperature === "number"
           ? llm.options.temperature
           : undefined,
+      topP: typeof llm.options.topP === "number" ? llm.options.topP : undefined,
       maxTokens:
         typeof llm.options.maxTokens === "number"
           ? llm.options.maxTokens
@@ -1063,6 +1066,7 @@ export function saveConfigLlm(
       ...(existing?.options ?? {}),
       model,
       temperature: parseOptionalNumber(fields.temperature ?? "", "Temperature"),
+      topP: parseOptionalNumber(fields.topP ?? "", "Top P"),
       maxTokens: parseOptionalNumber(fields.maxTokens ?? "", "Max tokens", {
         integer: true,
         min: 0,
@@ -1074,6 +1078,9 @@ export function saveConfigLlm(
     } as NamedLlmEntry["options"];
     if (nextOptions.temperature === undefined) {
       delete nextOptions.temperature;
+    }
+    if (nextOptions.topP === undefined) {
+      delete nextOptions.topP;
     }
     if (nextOptions.maxTokens === undefined) {
       delete nextOptions.maxTokens;

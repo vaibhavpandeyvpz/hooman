@@ -1,6 +1,6 @@
 import { StrandsMlxModel } from "./strands-mlx.js";
 import { REASONING_BUDGET_TOKENS } from "../types.js";
-import { markTotalInclusiveInputUsage } from "../usage.js";
+import { markTotalInclusiveInputUsage } from "../../utils/usage.js";
 import type { MlxProviderOptions, LlmOptions } from "../types.js";
 
 /**
@@ -41,6 +41,7 @@ export function create(
     ...(llmOptions.temperature !== undefined
       ? { temperature: llmOptions.temperature }
       : {}),
+    ...(llmOptions.topP !== undefined ? { topP: llmOptions.topP } : {}),
     ...(llmOptions.maxTokens !== undefined
       ? { maxTokens: llmOptions.maxTokens }
       : {}),

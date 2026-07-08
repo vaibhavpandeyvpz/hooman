@@ -3,7 +3,7 @@ import { VercelModel } from "@strands-agents/sdk/models/vercel";
 import type { GroqProviderSettings } from "@ai-sdk/groq";
 import type { VercelModelConfig } from "@strands-agents/sdk/models/vercel";
 import type { GroqProviderOptions, LlmOptions } from "./types.js";
-import { markTotalInclusiveInputUsage } from "./usage.js";
+import { markTotalInclusiveInputUsage } from "../utils/usage.js";
 
 export function create(
   providerOptions: GroqProviderOptions,
@@ -26,6 +26,7 @@ export function create(
     ...(llmOptions.temperature !== undefined
       ? { temperature: llmOptions.temperature }
       : {}),
+    ...(llmOptions.topP !== undefined ? { topP: llmOptions.topP } : {}),
     ...(llmOptions.maxTokens !== undefined
       ? { maxTokens: llmOptions.maxTokens }
       : {}),

@@ -717,6 +717,13 @@ const LLM_FIELD_DEFINITIONS: TypedFieldDefinition[] = [
     note: "Leave blank to clear.",
   },
   {
+    key: "topP",
+    label: "Top P",
+    kind: "optionalNumber",
+    placeholder: "0.95",
+    note: "Leave blank to clear.",
+  },
+  {
     key: "maxTokens",
     label: "Max tokens",
     kind: "optionalInteger",

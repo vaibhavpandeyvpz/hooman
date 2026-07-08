@@ -5,7 +5,7 @@ import type { VercelModelConfig } from "@strands-agents/sdk/models/vercel";
 import { Message } from "@strands-agents/sdk";
 import type { ContentBlock, StreamOptions } from "@strands-agents/sdk";
 import type { LlmOptions, MoonshotProviderOptions } from "./types.js";
-import { markTotalInclusiveInputUsage } from "./usage.js";
+import { markTotalInclusiveInputUsage } from "../utils/usage.js";
 
 const DEFAULT_BASE_URL = "https://api.moonshot.ai/v1";
 
@@ -28,6 +28,7 @@ export function create(
     ...(llmOptions.temperature !== undefined
       ? { temperature: llmOptions.temperature }
       : {}),
+    ...(llmOptions.topP !== undefined ? { topP: llmOptions.topP } : {}),
     ...(llmOptions.maxTokens !== undefined
       ? { maxTokens: llmOptions.maxTokens }
       : {}),

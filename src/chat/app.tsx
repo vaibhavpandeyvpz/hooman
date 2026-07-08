@@ -24,12 +24,12 @@ import { modelProviders } from "../core/models/index.js";
 import {
   subscribeModelDownloadProgress,
   type ModelDownloadProgress,
-} from "../core/models/download-progress.js";
+} from "../core/utils/download-progress.js";
 import {
   subscribeModelRetryProgress,
   type ModelRetryProgress,
 } from "../core/agent/retry-progress.js";
-import { toAdditiveUsage } from "../core/models/usage.js";
+import { toAdditiveUsage } from "../core/utils/usage.js";
 import {
   computeUsageCostUsd,
   configuredLlmContext,

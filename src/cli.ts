@@ -48,7 +48,7 @@ import {
 import {
   createModelDownloadLogger,
   subscribeModelDownloadProgress,
-} from "./core/models/download-progress.js";
+} from "./core/utils/download-progress.js";
 import {
   patchSdkLogger,
   quietChatLogs,

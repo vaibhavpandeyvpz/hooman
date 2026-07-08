@@ -37,6 +37,7 @@ export function create(
     ...(llmOptions.temperature !== undefined
       ? { temperature: llmOptions.temperature }
       : {}),
+    ...(llmOptions.topP !== undefined ? { topP: llmOptions.topP } : {}),
     ...(llmOptions.maxTokens !== undefined
       ? { maxTokens: llmOptions.maxTokens }
       : {}),

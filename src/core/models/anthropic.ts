@@ -66,10 +66,10 @@ export function create(
     };
   })();
 
-  // Anthropic requires `temperature` to be unset (or exactly 1) when thinking is
-  // enabled, so we drop any custom temperature on the thinking path.
-  const sendTemperature =
-    llmOptions.temperature !== undefined && params === undefined;
+  // Anthropic requires sampling controls like `temperature` / `top_p` to be
+  // unset (or left at defaults) when thinking is enabled, so we drop custom
+  // values on the thinking path.
+  const sendSamplingControls = params === undefined;
 
   return new AnthropicModel({
     modelId: llmOptions.model,
@@ -77,7 +77,12 @@ export function create(
     ...(clientConfig && Object.keys(clientConfig).length > 0
       ? { clientConfig }
       : {}),
-    ...(sendTemperature ? { temperature: llmOptions.temperature } : {}),
+    ...(sendSamplingControls && llmOptions.temperature !== undefined
+      ? { temperature: llmOptions.temperature }
+      : {}),
+    ...(sendSamplingControls && llmOptions.topP !== undefined
+      ? { top_p: llmOptions.topP }
+      : {}),
     ...(llmOptions.maxTokens !== undefined
       ? { maxTokens: llmOptions.maxTokens }
       : {}),

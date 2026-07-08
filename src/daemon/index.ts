@@ -15,7 +15,7 @@ import { runWithAgentMemoryScope } from "../core/memory/index.js";
 import {
   createModelDownloadLogger,
   subscribeModelDownloadProgress,
-} from "../core/models/download-progress.js";
+} from "../core/utils/download-progress.js";
 import { attachmentPathsToPromptBlocks } from "../core/utils/attachments.js";
 import { resolveLlmMetadata } from "../core/utils/metadata.js";
 import { createQueue } from "./queue.js";

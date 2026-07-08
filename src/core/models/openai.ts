@@ -2,7 +2,7 @@ import { OpenAIModel } from "@strands-agents/sdk/models/openai";
 import type { OpenAIModelOptions } from "@strands-agents/sdk/models/openai";
 import type { ClientOptions } from "openai";
 import type { LlmOptions, OpenAIProviderOptions } from "./types.js";
-import { markTotalInclusiveInputUsage } from "./usage.js";
+import { markTotalInclusiveInputUsage } from "../utils/usage.js";
 
 export type OpenAIModelParams = OpenAIProviderOptions & LlmOptions;
 
@@ -48,6 +48,7 @@ export function create(
     ...(llmOptions.temperature !== undefined
       ? { temperature: llmOptions.temperature }
       : {}),
+    ...(llmOptions.topP !== undefined ? { topP: llmOptions.topP } : {}),
     ...(llmOptions.maxTokens !== undefined
       ? { maxTokens: llmOptions.maxTokens }
       : {}),

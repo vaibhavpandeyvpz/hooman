@@ -6,7 +6,7 @@ import {
   formatEtaSeconds,
   renderDownloadBar,
   type ModelDownloadProgress,
-} from "../../core/models/download-progress.js";
+} from "../../core/utils/download-progress.js";
 
 /**
  * Transient chrome row shown while model weights are being downloaded (e.g.

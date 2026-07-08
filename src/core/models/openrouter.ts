@@ -3,7 +3,7 @@ import { VercelModel } from "@strands-agents/sdk/models/vercel";
 import type { OpenAICompatibleProviderSettings } from "@ai-sdk/openai-compatible";
 import type { VercelModelConfig } from "@strands-agents/sdk/models/vercel";
 import type { LlmOptions, OpenRouterProviderOptions } from "./types.js";
-import { markTotalInclusiveInputUsage } from "./usage.js";
+import { markTotalInclusiveInputUsage } from "../utils/usage.js";
 
 const DEFAULT_BASE_URL = "https://openrouter.ai/api/v1";
 // `providerOptionsName` is derived from the provider name, so reasoning options
@@ -31,6 +31,7 @@ export function create(
     ...(llmOptions.temperature !== undefined
       ? { temperature: llmOptions.temperature }
       : {}),
+    ...(llmOptions.topP !== undefined ? { topP: llmOptions.topP } : {}),
     ...(llmOptions.maxTokens !== undefined
       ? { maxTokens: llmOptions.maxTokens }
       : {}),

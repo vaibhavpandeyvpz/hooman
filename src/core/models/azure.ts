@@ -3,7 +3,7 @@ import type { AzureOpenAIProviderSettings } from "@ai-sdk/azure";
 import { VercelModel } from "@strands-agents/sdk/models/vercel";
 import type { VercelModelConfig } from "@strands-agents/sdk/models/vercel";
 import type { AzureProviderOptions, LlmOptions } from "./types.js";
-import { markTotalInclusiveInputUsage } from "./usage.js";
+import { markTotalInclusiveInputUsage } from "../utils/usage.js";
 
 export type AzureModelParams = AzureProviderOptions & LlmOptions;
 
@@ -37,6 +37,7 @@ export function create(
     ...(llmOptions.temperature !== undefined
       ? { temperature: llmOptions.temperature }
       : {}),
+    ...(llmOptions.topP !== undefined ? { topP: llmOptions.topP } : {}),
     ...(llmOptions.maxTokens !== undefined
       ? { maxTokens: llmOptions.maxTokens }
       : {}),

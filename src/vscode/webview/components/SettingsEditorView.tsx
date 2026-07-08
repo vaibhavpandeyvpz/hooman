@@ -496,6 +496,7 @@ function ConfigModeView(props: {
                     ? DEFAULT_MODEL_BY_PROVIDER[cfg().providers[0].provider]
                     : "",
                   temperature: undefined,
+                  topP: undefined,
                   maxTokens: undefined,
                   context: undefined,
                 },
@@ -506,6 +507,7 @@ function ConfigModeView(props: {
                     ? DEFAULT_MODEL_BY_PROVIDER[cfg().providers[0].provider]
                     : "",
                   temperature: "",
+                  topP: "",
                   maxTokens: "",
                   context: "",
                 },

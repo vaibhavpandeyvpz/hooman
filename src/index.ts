@@ -203,11 +203,11 @@ export {
   formatModelDownloadLine,
   renderDownloadBar,
   subscribeModelDownloadProgress,
-} from "./core/models/download-progress.js";
+} from "./core/utils/download-progress.js";
 export type {
   ModelDownloadProgress,
   ModelDownloadProgressListener,
-} from "./core/models/download-progress.js";
+} from "./core/utils/download-progress.js";
 export { subscribeModelRetryProgress } from "./core/agent/retry-progress.js";
 export type {
   ModelRetryProgress,

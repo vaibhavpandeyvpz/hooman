@@ -15,13 +15,17 @@ export function create(
   // effort onto a level (`minimal`/`low` -> `low`).
   const effort = providerOptions.reasoning?.effort;
   const think = effort === "minimal" ? "low" : effort;
+  const options = {
+    ...(llmOptions.temperature !== undefined
+      ? { temperature: llmOptions.temperature }
+      : {}),
+    ...(llmOptions.topP !== undefined ? { top_p: llmOptions.topP } : {}),
+  };
   return new StrandsOllamaModel({
     modelId: llmOptions.model,
     maxTokens,
     ...(providerOptions.baseURL ? { host: providerOptions.baseURL } : {}),
     ...(think !== undefined ? { think } : {}),
-    ...(llmOptions.temperature !== undefined
-      ? { options: { temperature: llmOptions.temperature } }
-      : {}),
+    ...(Object.keys(options).length > 0 ? { options } : {}),
   });
 }

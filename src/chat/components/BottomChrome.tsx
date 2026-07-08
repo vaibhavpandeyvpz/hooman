@@ -3,7 +3,7 @@ import type { Manager as McpManager } from "../../core/mcp/index.js";
 import type { TodoViewState } from "../../core/state/todos.js";
 import type { Config } from "../../core/config.js";
 import type { SessionMode } from "../../core/state/session-mode.js";
-import type { ModelDownloadProgress } from "../../core/models/download-progress.js";
+import type { ModelDownloadProgress } from "../../core/utils/download-progress.js";
 import { Composer } from "./Composer.js";
 import { ChromePicker, type ChatPicker } from "./ChromePicker.js";
 import { DownloadPanel } from "./DownloadPanel.js";
