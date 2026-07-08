@@ -26,7 +26,7 @@ export type McpAuthStatus =
   "unsupported" | "authenticated" | "expired" | "unauthenticated";
 
 export type ToolToggleKey =
-  "todo" | "fetch" | "filesystem" | "shell" | "sleep" | "subagents";
+  "todo" | "fetch" | "filesystem" | "shell" | "sleep" | "browser" | "subagents";
 
 export type PromptToggleKey =
   "behaviour" | "communication" | "execution" | "guardrails";

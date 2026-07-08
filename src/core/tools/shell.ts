@@ -1,4 +1,4 @@
-import { spawn, spawnSync, type ChildProcess } from "node:child_process";
+import { spawn, type ChildProcess } from "node:child_process";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
@@ -6,6 +6,7 @@ import { tool } from "@strands-agents/sdk";
 import type { JSONValue, ToolContext } from "@strands-agents/sdk";
 import { z } from "zod";
 import { getCwd } from "../utils/cwd-context.js";
+import { lookupCommandPath } from "../utils/command-path.js";
 
 /**
  * Optional per-agent terminal backend.
@@ -127,22 +128,7 @@ function trimOutput(output: string): string {
 }
 
 function which(command: string): string | undefined {
-  const lookup = process.platform === "win32" ? "where" : "which";
-  const result = spawnSync(lookup, [command], {
-    encoding: "utf8",
-    stdio: ["ignore", "pipe", "ignore"],
-  });
-
-  if (result.status !== 0) {
-    return undefined;
-  }
-
-  const first = result.stdout
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .find(Boolean);
-
-  return first || undefined;
+  return lookupCommandPath(command);
 }
 
 function shellName(file: string): string {

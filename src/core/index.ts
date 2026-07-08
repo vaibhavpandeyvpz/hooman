@@ -1,5 +1,6 @@
 import type { Agent, InterventionHandler } from "@strands-agents/sdk";
 import { Config } from "./config.js";
+import type { McpTransport } from "./mcp/types.js";
 import { create as createAgent } from "./agent/index.js";
 import type { SessionTitleCallback } from "./agent/session-title-plugin.js";
 import type { SessionMode } from "./state/session-mode.js";
@@ -17,6 +18,7 @@ import { createSkillsRegistry } from "./skills/index.js";
 import type { Registry } from "./skills/index.js";
 import { system as createSystemPrompt } from "./prompts/index.js";
 import { basePath, instructionsMdPath } from "./utils/paths.js";
+import { lookupCommandPath } from "./utils/command-path.js";
 
 export type BootstrapMeta = {
   userId?: string;
@@ -49,6 +51,22 @@ export type AcpMeta = {
   cwd?: string;
 };
 
+function defaultBrowserMcpServer(): NamedMcpTransport {
+  const command = lookupCommandPath("bunx") ? "bunx" : "npx";
+  return {
+    name: "playwright",
+    transport: {
+      type: "stdio",
+      command,
+      args: ["@playwright/mcp@latest"],
+    } satisfies McpTransport,
+  };
+}
+
+function defaultRuntimeMcpServers(config: Config): NamedMcpTransport[] {
+  return config.tools.browser.enabled ? [defaultBrowserMcpServer()] : [];
+}
+
 export async function bootstrap(
   mode: BootstrapMode,
   meta: BootstrapMeta,
@@ -65,11 +83,10 @@ export async function bootstrap(
   // the local mcp.json is skipped — unless the client is a trusted first-party
   // surface that asked for the regular local config to load as well.
   const skipLocalMcpConfig = mode === "acp" && meta.acp?.vscode !== true;
-  const mcpManager = createMcpManager(
-    mcpConfig,
-    skipLocalMcpConfig,
-    meta.acp?.mcpServers ?? [],
-  );
+  const mcpManager = createMcpManager(mcpConfig, skipLocalMcpConfig, [
+    ...defaultRuntimeMcpServers(config),
+    ...(meta.acp?.mcpServers ?? []),
+  ]);
   const mcp = { config: mcpConfig, manager: mcpManager };
   const registry = createSkillsRegistry(basePath());
   const system = await createSystemPrompt(instructionsMdPath(), config, mode);

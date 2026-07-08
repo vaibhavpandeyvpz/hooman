@@ -1,4 +1,4 @@
-import { execFile, spawnSync } from "node:child_process";
+import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
 import { createWriteStream } from "node:fs";
 import fs from "node:fs/promises";
@@ -8,6 +8,7 @@ import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import type { ReadableStream } from "node:stream/web";
 import { promisify } from "node:util";
+import { lookupCommandPath } from "../utils/command-path.js";
 import { binPath, ripgrepPath } from "../utils/paths.js";
 
 const execFileAsync = promisify(execFile);
@@ -66,24 +67,6 @@ const ARCHIVE_SHA256: Record<string, string> = {
 
 let resolvedRipgrepPath: Promise<string> | undefined;
 
-function lookupBinary(command: string): string | undefined {
-  const lookup = process.platform === "win32" ? "where" : "which";
-  const result = spawnSync(lookup, [command], {
-    encoding: "utf8",
-    stdio: ["ignore", "pipe", "ignore"],
-  });
-  if (result.status !== 0) {
-    return undefined;
-  }
-
-  const first = result.stdout
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .find(Boolean);
-
-  return first || undefined;
-}
-
 async function isExistingFile(filePath: string): Promise<boolean> {
   try {
     const stat = await fs.stat(filePath);
@@ -135,8 +118,8 @@ function selectPowerShell(): string {
     return "powershell.exe";
   }
   return (
-    lookupBinary("pwsh.exe") ||
-    lookupBinary("powershell.exe") ||
+    lookupCommandPath("pwsh.exe") ||
+    lookupCommandPath("powershell.exe") ||
     "powershell.exe"
   );
 }
@@ -229,7 +212,9 @@ export async function ensureRipgrepPath(): Promise<string> {
   }
 
   const pending = (async () => {
-    const system = lookupBinary(process.platform === "win32" ? "rg.exe" : "rg");
+    const system = lookupCommandPath(
+      process.platform === "win32" ? "rg.exe" : "rg",
+    );
     if (system && (await isExistingFile(system))) {
       return system;
     }

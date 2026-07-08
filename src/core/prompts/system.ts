@@ -24,6 +24,7 @@ const STATIC_PROMPT_FILES = [
   "filesystem.md",
   "fetch.md",
   "web-search.md",
+  "browser.md",
   "shell.md",
   "daemon.md",
   "skills.md",
@@ -83,6 +84,8 @@ export class System {
           return this.config.tools.todo.enabled;
         case "filesystem.md":
           return this.config.tools.filesystem.enabled;
+        case "browser.md":
+          return this.config.tools.browser.enabled;
         case "shell.md":
           return this.config.tools.shell.enabled;
         case "subagents.md":

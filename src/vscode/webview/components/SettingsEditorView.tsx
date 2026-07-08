@@ -292,6 +292,7 @@ function ConfigModeView(props: {
                 | "filesystem"
                 | "shell"
                 | "sleep"
+                | "browser"
                 | "subagents";
               return (
                 <ToggleRow

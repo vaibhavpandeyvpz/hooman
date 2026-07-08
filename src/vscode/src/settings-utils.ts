@@ -129,6 +129,7 @@ const DEFAULT_TOOLS: Record<ToolToggleKey, boolean> = {
   filesystem: true,
   shell: true,
   sleep: true,
+  browser: false,
   subagents: true,
 };
 
@@ -199,6 +200,7 @@ const DEFAULT_HOME_CONFIG: ConfigJson = {
     filesystem: { enabled: true },
     shell: { enabled: true },
     sleep: { enabled: true },
+    browser: { enabled: false },
     subagents: { enabled: true },
   },
   compaction: { ratio: 0.75, keep: 5 },
@@ -571,6 +573,11 @@ function configStateFromDoc(
       typeof (doc.tools?.sleep as JsonObject | undefined)?.enabled === "boolean"
         ? Boolean((doc.tools?.sleep as JsonObject).enabled)
         : DEFAULT_TOOLS.sleep,
+    browser:
+      typeof (doc.tools?.browser as JsonObject | undefined)?.enabled ===
+      "boolean"
+        ? Boolean((doc.tools?.browser as JsonObject).enabled)
+        : DEFAULT_TOOLS.browser,
     subagents:
       typeof (doc.tools?.subagents as JsonObject | undefined)?.enabled ===
       "boolean"

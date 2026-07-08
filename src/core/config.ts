@@ -66,6 +66,7 @@ const ToolsPartialSchema = z.object({
   filesystem: ToolTogglePartialSchema.optional(),
   shell: ToolTogglePartialSchema.optional(),
   sleep: ToolTogglePartialSchema.optional(),
+  browser: ToolTogglePartialSchema.optional(),
   subagents: SubagentsPartialSchema.optional(),
 });
 
@@ -144,6 +145,7 @@ const ConfigSchema = z
       filesystem: { enabled: input.tools?.filesystem?.enabled ?? true },
       shell: { enabled: input.tools?.shell?.enabled ?? true },
       sleep: { enabled: input.tools?.sleep?.enabled ?? true },
+      browser: { enabled: input.tools?.browser?.enabled ?? false },
       subagents: {
         enabled: input.tools?.subagents?.enabled ?? true,
       },
@@ -276,6 +278,7 @@ const defaultConfigData = (): ConfigData => ({
     filesystem: { enabled: true },
     shell: { enabled: true },
     sleep: { enabled: true },
+    browser: { enabled: false },
     subagents: { enabled: true },
   },
   compaction: {

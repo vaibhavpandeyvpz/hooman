@@ -1886,6 +1886,26 @@ export function ConfigureApp({
         },
       },
       {
+        label: `Browser tool • ${yesNo(configData.tools.browser.enabled)}`,
+        value: () => {
+          if (
+            updateConfig(
+              {
+                tools: {
+                  ...config.tools,
+                  browser: {
+                    enabled: !configData.tools.browser.enabled,
+                  },
+                },
+              },
+              `Browser tool ${configData.tools.browser.enabled ? "disabled" : "enabled"}.`,
+            )
+          ) {
+            setScreen({ kind: "config-tools" });
+          }
+        },
+      },
+      {
         label: `Subagents • ${yesNo(configData.tools.subagents.enabled)}`,
         value: () => {
           if (
