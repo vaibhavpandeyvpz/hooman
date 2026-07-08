@@ -2,6 +2,12 @@
 
 All notable changes to the Hooman VS Code extension are documented in this file.
 
+## [1.45.2]
+
+- Make new tabs interactive immediately instead of waiting for ACP to bootstrap: clicking "+ new tab" or resuming a not-yet-loaded session now opens the tab right away with a dedicated **Starting session…** overlay (logo, spinner, and a three-line skeleton under a "Preparing your chat" header), the composer is disabled with its own "Starting session…" placeholder, the tab strip shows a spinner for tabs that are still bootstrapping (not just tabs that are busy with a turn), and the submit / drag-drop / paste / slash-command paths all stay quiet until the ACP session is ready -- so the chat feels responsive on cold start and queued prompts are no longer racing against the `session/new` roundtrip. The placeholder tab id is renamed to the real ACP session id once bootstrap completes, with no flicker of the empty state in between.
+- Fix activated MCP tools that the agent could see in `search_tools` but couldn't actually call: `LazyToolRegistry.get()` now also looks up activated-by-name tools (respecting the active MCP tool set and current session mode) instead of only direct registry hits, so a tool that was activated via `activate_tools` resolves correctly the moment the agent tries to use it.
+- Display Markdown tables nicely in chat: tables from the assistant (and any rendered Markdown) now render as actual bordered tables inside a rounded card -- per-cell padding, a subtle header tint that picks up the editor's active chrome, and a horizontal scroll bar when a row is wider than the chat -- instead of a run of loose `<p>` blocks with `---` separators.
+
 ## [1.45.1]
 
 - Lazy MCP tool discovery to keep large servers off the prompt: connected MCP tools are no longer registered with the agent by default -- they are parked in a hidden catalog and exposed on demand via a new pair of read-only, approval-exempt tools, `search_tools` (natural-language query, default top-5 / max 10 results, with `name`, `description`, `server`, `readOnly`, `args`, `modes`, and per-tool `active` flag) and `activate_tools` (activate 1--10 named MCP tools for the current session, with per-tool `activatable` / `skipped` reasons). Activated MCP tools become available on the next model cycle, and a tool that is blocked by the current session mode (`ask` / `plan`) is skipped on activation rather than exposed. Built-in Hooman tools remain registered directly and bypass the discovery step.
