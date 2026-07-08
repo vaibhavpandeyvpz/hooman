@@ -15,7 +15,6 @@ import {
   ChevronDown,
   Circle,
   CircleDot,
-  Clock,
   Cpu,
   Edit3,
   FileText,
@@ -172,13 +171,6 @@ export default function PlanEditorView() {
               icon={Circle}
               label="Unsaved changes"
               variant="warning"
-            />
-          </Show>
-          <Show when={parsed().status}>
-            <StatusPill
-              icon={statusIcon(parsed().status)}
-              label={parsed().status ?? ""}
-              variant={statusVariant(parsed().status)}
             />
           </Show>
         </div>
@@ -408,42 +400,6 @@ function TaskRow(props: { task: PlanTaskItem }) {
       </div>
     </div>
   );
-}
-
-function statusIcon(status: string | undefined): IconComponent {
-  if (!status) return Circle;
-  const normalized = normalizeStatus(status);
-  switch (normalized) {
-    case "completed":
-      return CheckCircle2;
-    case "in_progress":
-      return CircleDot;
-    case "blocked":
-    case "error":
-      return AlertCircle;
-    case "pending":
-    default:
-      return Clock;
-  }
-}
-
-function statusVariant(
-  status: string | undefined,
-): "neutral" | "active" | "warning" | "success" | "error" {
-  if (!status) return "neutral";
-  const normalized = normalizeStatus(status);
-  switch (normalized) {
-    case "completed":
-      return "success";
-    case "in_progress":
-      return "active";
-    case "blocked":
-    case "error":
-      return "warning";
-    case "pending":
-    default:
-      return "neutral";
-  }
 }
 
 function normalizeStatus(

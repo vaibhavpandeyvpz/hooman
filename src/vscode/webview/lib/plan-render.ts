@@ -28,7 +28,6 @@ function splitFrontmatter(text: string): { data: unknown; content: string } {
 type ParsedPlan = {
   title: string;
   overview?: string;
-  status?: string;
   tasks: PlanTaskItem[];
   rawRemainder: string;
   structured: boolean;
@@ -67,7 +66,6 @@ export function parsePlanText(text: string, fallbackTitle: string): ParsedPlan {
       headingTitle(text) ||
       fallbackTitle,
     overview: asString(data.overview),
-    status: asString(data.status),
     tasks,
     rawRemainder: remainder,
     structured: hasFrontmatter,

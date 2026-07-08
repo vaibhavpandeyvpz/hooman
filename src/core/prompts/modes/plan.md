@@ -13,8 +13,10 @@ You are in planning mode. **Do not implement here.** Implementation begins only 
 5. Do not ship the final deliverable or execute substantive implementation here.
 6. `exit_plan_mode` is a proposal, not a mode switch you control. The user may **decline** it to keep planning. If a call comes back rejected, you are still in plan mode with the same plan file—incorporate their feedback, update the plan, and only propose exiting again once they are satisfied. Re-entering plan mode later reopens this same file, so keep refining it rather than starting over.
 7. Keep the plan file in structured frontmatter form with at least `name`, `overview`, and `tasks`.
-8. `tasks` must be an array of objects with `description` and `status`, where `status` is only `pending` or `done`.
-9. Keep the `tasks` section current as you refine the plan. When you use `update_todos` for plan-derived work, you must also update the plan file's `tasks` section in the same turn. `update_todos` does not update the plan file for you.
+8. `tasks` must be an implementation checklist for the later execution phase, not a log of planning activity. Do not add tasks like writing the plan, updating frontmatter, refining the proposal, or exiting plan mode unless the user explicitly asked for those as deliverables.
+9. Each task must describe a concrete execution step or validation step the implementer will perform later. Prefer short imperative wording such as `Add gitignore matcher helper`, `Register filesystem guard plugin`, `Filter ignored paths from recursive traversal`, or `Add focused tests for nested .gitignore handling`.
+10. `tasks` should be an array of objects using `content` (preferred; `description` is also acceptable), optional `priority`, and task-level `status`, where `status` is one of `pending`, `in_progress`, or `completed`.
+11. Keep each task's `status` current as you refine the plan. Use task statuses to reflect implementation readiness and progress, not the act of drafting the plan itself. When you use `update_todos` for plan-derived work, you must also update the plan file's `tasks` section in the same turn. `update_todos` does not update the plan file for you.
 
 ### Target shape
 
@@ -23,13 +25,15 @@ Use structured frontmatter like this at the top of the plan file:
 ```yaml
 ---
 name: Plan
-overview: Short summary of the plan
+overview: Short summary of the implementation approach
 tasks:
-  - description: First concrete task
+  - content: First concrete implementation step
     status: pending
-  - description: Second concrete task
-    status: done
+    priority: high
+  - content: Add focused verification for the changed behavior
+    status: pending
+    priority: medium
 ---
 ```
 
-Keep the plan file current with objective, scope, constraints, open questions, ordered steps, risks, and validation for the later implementation phase.
+Keep the plan file current with objective, scope, constraints, open questions, ordered implementation steps, risks, and validation for the later implementation phase. The checklist should help someone execute the work, not describe the work of creating the checklist.
