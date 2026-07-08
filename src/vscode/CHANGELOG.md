@@ -2,6 +2,13 @@
 
 All notable changes to the Hooman VS Code extension are documented in this file.
 
+## [1.45.1]
+
+- Lazy MCP tool discovery to keep large servers off the prompt: connected MCP tools are no longer registered with the agent by default -- they are parked in a hidden catalog and exposed on demand via a new pair of read-only, approval-exempt tools, `search_tools` (natural-language query, default top-5 / max 10 results, with `name`, `description`, `server`, `readOnly`, `args`, `modes`, and per-tool `active` flag) and `activate_tools` (activate 1--10 named MCP tools for the current session, with per-tool `activatable` / `skipped` reasons). Activated MCP tools become available on the next model cycle, and a tool that is blocked by the current session mode (`ask` / `plan`) is skipped on activation rather than exposed. Built-in Hooman tools remain registered directly and bypass the discovery step.
+- Fix MCP OAuth refresh logic so background reconnects no longer abort: the OAuth provider's `redirectUrl` now returns a deterministic `http://127.0.0.1[:<port>]/mcp/oauth/callback` fallback when no callback server is bound (instead of throwing), and the auth-status check in both the core service and the VS Code settings UI now considers a token "authenticated" when a `refresh_token` is present even if `expires_in` / `expiresAt` has elapsed -- so expired-but-refreshable tokens stop flashing "expired" and stop re-prompting the user to log in.
+- Make MCP discovery tool output deterministic and model-safe: `search_tools` now serializes each catalog entry through an explicit shape (`name`, `description`, `server`, `readOnly`, `args`, `modes`, optional `active`/`activatable`/`score`/`why`) instead of `JSON.parse(JSON.stringify(...))` round-trips, so live `Tool` instances can't leak through into tool results.
+- Compact the Changes-panel header: the per-file **Undo all** and primary **Keep all** pills in the VS Code chat's pinned Changes panel are now tighter (`px-2 py-0.5` / `px-2.5 py-0.5` with shared transitions on hover) so the header doesn't dominate the panel on long change lists.
+
 ## [1.45.0]
 
 - Custom editors for Hooman's own config files: `.hooman/config.json`, `.hooman/mcp.json`, and `.hooman/instructions.md` now open in dedicated VS Code custom-text-editor views (`Hooman Configuration`, `Hooman MCP`, `Hooman Instructions`) with a rich webview UI on top of the underlying JSON/Markdown, so settings can be edited visually without hand-writing the files.
