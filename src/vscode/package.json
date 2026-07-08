@@ -214,8 +214,8 @@
       "properties": {
         "hooman.acp.command": {
           "type": "string",
-          "default": "npx",
-          "description": "Executable used to launch the Hooman ACP agent. Defaults to `npx`, which resolves `hoomanjs` without requiring a global `npm link`/install. Set to an absolute path if you'd rather point at a specific `hooman` binary."
+          "default": "",
+          "description": "Executable used to launch the Hooman ACP agent. Leave empty (default) to auto-resolve: use `npx`/`bunx hoomanjs@<version>` when available, otherwise download a prebuilt, self-contained CLI and run it with VS Code's own Node runtime — no `node`/`npx` on your PATH required. Set to an absolute path (e.g. `node` or a `hooman` binary) to override, e.g. for local development."
         },
         "hooman.acp.args": {
           "type": "array",
@@ -226,7 +226,7 @@
             "hoomanjs",
             "acp"
           ],
-          "description": "Arguments passed to the command above."
+          "description": "Arguments passed to `hooman.acp.command` when an override command is set. A trailing `acp` is replaced with the actual subcommand. Ignored when the command is empty (bundled CLI)."
         }
       }
     }

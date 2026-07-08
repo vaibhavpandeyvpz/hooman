@@ -26,6 +26,7 @@ import type {
   MlexModel,
 } from "mlex.js";
 import { resolveModelDir } from "./resolve-model.js";
+import { mlxUnsupportedReason } from "./support.js";
 import type { MlxPromptCacheConfig } from "../types.js";
 
 export interface MlxModelConfig extends BaseModelConfig {
@@ -275,6 +276,13 @@ export class StrandsMlxModel extends Model<MlxModelConfig> {
     const modelId = this.config.modelId;
     if (!modelId) {
       throw new ModelError("MLX model is not configured");
+    }
+    // Bail out cleanly on unsupported systems before downloading weights,
+    // fetching the native package, or dlopen-ing it — loading mlex.js on an
+    // incompatible platform/macOS can abort the process rather than throw.
+    const unsupported = mlxUnsupportedReason();
+    if (unsupported) {
+      throw new ModelError(unsupported);
     }
     const modelDir = await resolveModelDir(modelId, this.config.hfToken);
     const promptCache = this.config.promptCache;

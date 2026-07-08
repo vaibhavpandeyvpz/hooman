@@ -14,6 +14,7 @@ import {
 import { FsBackend } from "./fs-backend";
 import { TerminalBackend } from "./terminal-backend";
 import { PermissionPrompts } from "./permissions";
+import { resolveHoomanLaunch } from "./cli-launch";
 import type {
   ModelDownloadNotification,
   ModelRetryNotification,
@@ -22,15 +23,6 @@ import type {
 /** `../package.json` relative to the compiled `out/acp-client.js`, i.e. this sub-package's manifest. */
 const EXTENSION_VERSION = (require("../package.json") as { version: string })
   .version;
-
-/** Reads `hooman.acp.command`/`hooman.acp.args` from workspace configuration. */
-function readAcpCommand(): { command: string; args: string[] } {
-  const config = vscode.workspace.getConfiguration("hooman");
-  return {
-    command: config.get<string>("acp.command", "npx"),
-    args: config.get<string[]>("acp.args", ["hoomanjs", "acp"]),
-  };
-}
 
 /**
  * Owns the `hooman acp` child process and the ACP client-role connection to
@@ -85,13 +77,16 @@ export class HoomanAcpClient implements vscode.Disposable {
   }
 
   async #start(): Promise<ClientContext> {
-    const { command, args } = readAcpCommand();
+    const { command, args, env } = await resolveHoomanLaunch(
+      ["acp"],
+      this.outputChannel,
+    );
     this.outputChannel.info(
       `Starting Hooman ACP agent: ${command} ${args.join(" ")}`,
     );
     const child = cp.spawn(command, args, {
       cwd: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? process.cwd(),
-      env: process.env,
+      env,
       stdio: ["pipe", "pipe", "pipe"],
     });
     this.#process = child;

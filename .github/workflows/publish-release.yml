@@ -1,0 +1,131 @@
+name: Publish CLI Release Bundles
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.target }}
+    runs-on: ${{ matrix.runner }}
+    defaults:
+      run:
+        shell: bash
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: darwin-arm64
+            runner: macos-14
+          - target: darwin-x64
+            runner: macos-13
+          - target: linux-x64
+            runner: ubuntu-latest
+          - target: linux-arm64
+            runner: ubuntu-24.04-arm
+          - target: win32-x64
+            runner: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Build (TypeScript -> dist)
+        run: |
+          npm ci
+          npm run build
+
+      - name: Install production dependencies only
+        # A clean production install so node_modules carries only runtime deps,
+        # including the platform-gated native runtimes for THIS os/arch.
+        run: |
+          rm -rf node_modules
+          npm ci --omit=dev --no-audit --no-fund
+
+      - name: Prune mlex.js on platforms where it cannot run
+        # mlex.js has no os/cpu constraints, so npm installs it everywhere, but
+        # it only works on Apple Silicon. Drop it elsewhere to avoid shipping a
+        # useless native binary.
+        if: matrix.target != 'darwin-arm64'
+        run: rm -rf node_modules/mlex.js
+
+      - name: Package tarball
+        # Ship dist/ + node_modules/ + package.json as siblings: the CLI reads
+        # ../package.json relative to dist/cli.js at startup, and Node resolves
+        # node_modules from the same root.
+        run: |
+          VERSION="$(node -p "require('./package.json').version")"
+          mkdir -p dist-bundles
+          tar -czf "dist-bundles/hoomanjs-cli-${VERSION}-${{ matrix.target }}.tar.gz" \
+            dist node_modules package.json
+
+      - name: Upload bundle artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bundle-${{ matrix.target }}
+          path: dist-bundles/*.tar.gz
+          if-no-files-found: error
+
+  release:
+    name: Create GitHub release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # Full history so the changelog can diff against the previous tag.
+          fetch-depth: 0
+
+      - name: Download all bundles
+        uses: actions/download-artifact@v4
+        with:
+          path: dist-bundles
+          pattern: bundle-*
+          merge-multiple: true
+
+      - name: Compute checksums
+        run: |
+          cd dist-bundles
+          for f in *.tar.gz; do
+            sha256sum "$f" > "$f.sha256"
+          done
+
+      - name: Generate changelog since last tag
+        run: |
+          CURRENT="${GITHUB_REF_NAME}"
+          PREVIOUS="$(git describe --tags --abbrev=0 "${CURRENT}^" 2>/dev/null || true)"
+          {
+            echo "## Changes"
+            echo
+            if [ -n "$PREVIOUS" ]; then
+              echo "Commits since \`${PREVIOUS}\`:"
+              echo
+              git log "${PREVIOUS}..${CURRENT}" --no-merges --pretty=format:'- %s (%h)'
+            else
+              echo "Initial release."
+              echo
+              git log "${CURRENT}" --no-merges --pretty=format:'- %s (%h)'
+            fi
+            echo
+          } > RELEASE_NOTES.md
+          cat RELEASE_NOTES.md
+
+      - name: Create GitHub release with bundles
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            dist-bundles/*.tar.gz \
+            dist-bundles/*.sha256 \
+            --title "${GITHUB_REF_NAME}" \
+            --notes-file RELEASE_NOTES.md

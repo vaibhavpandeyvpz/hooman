@@ -6,6 +6,9 @@ out
 dist
 *.tgz
 
+# CLI release bundles (per-platform tarballs)
+dist-bundles
+
 # code coverage
 coverage
 *.lcov

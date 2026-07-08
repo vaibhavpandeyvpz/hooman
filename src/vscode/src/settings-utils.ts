@@ -5,6 +5,7 @@ import { basename, dirname, join, resolve } from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import * as vscode from "vscode";
+import { resolveHoomanLaunch } from "./cli-launch";
 import type {
   ConfigEditorStateInfo,
   ConfigLlmEntryState,
@@ -1459,36 +1460,8 @@ export function deleteMcpServer(text: string, name: string): string {
   });
 }
 
-function hoomanCliCommand(
-  subcommand: string,
-  name: string,
-): {
-  command: string;
-  args: string[];
-} {
-  const config = vscode.workspace.getConfiguration("hooman");
-  const command = config.get<string>("acp.command") || "npx";
-  const args = config.get<string[]>("acp.args") || ["hoomanjs", "acp"];
-  if (args.length > 0 && args[args.length - 1] === "acp") {
-    return {
-      command,
-      args: [...args.slice(0, -1), "mcp", subcommand, name],
-    };
-  }
-  if (command.includes("hooman")) {
-    return {
-      command,
-      args: [...args, "mcp", subcommand, name],
-    };
-  }
-  return {
-    command: process.platform === "win32" ? "npx.cmd" : "npx",
-    args: ["hoomanjs", "mcp", subcommand, name],
-  };
-}
-
 export async function authenticateMcpServer(name: string): Promise<void> {
-  const invocation = hoomanCliCommand("auth", name);
+  const invocation = await resolveHoomanLaunch(["mcp", "auth", name]);
   await vscode.window.withProgress(
     {
       location: vscode.ProgressLocation.Notification,
@@ -1497,6 +1470,7 @@ export async function authenticateMcpServer(name: string): Promise<void> {
     },
     async () => {
       await execFileAsync(invocation.command, invocation.args, {
+        env: invocation.env,
         maxBuffer: 10 * 1024 * 1024,
       });
     },
