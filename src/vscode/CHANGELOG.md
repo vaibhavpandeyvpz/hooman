@@ -2,6 +2,20 @@
 
 All notable changes to the Hooman VS Code extension are documented in this file.
 
+## [1.47.0]
+
+- Run shell commands in the background: the `shell` tool now spawns long-running jobs through a new `ShellJobManager` (with `SHELL_OUTPUT_TOOL_NAME` / `SHELL_STOP_TOOL_NAME` companions), so the agent can keep working while a process is still producing output, peek at partial output, cancel a job, and resume from where it left off instead of waiting synchronously. The old `src/core/tools/shell.ts` path has moved to `src/core/shell/` and the public types (`ShellJobEvent`, `ShellJobInfo`, `ShellJobOutputSnapshot`, `ShellJobStatus`, `TerminalSpawnResult`) are re-exported from `hoomanjs`. The chat UI now shows a dedicated **Background jobs** panel, and the VS Code webview gets a complementary **Background jobs** bar in the tab strip that lists live jobs across the active session.
+- Auto-scroll the chat transcript to the latest turn when new content arrives, so streaming responses, tool events, and background-job updates stay in view without manual scrolling.
+- Revert the chat to an earlier in-memory prompt or checkpoint: ACP and the VS Code webview store per-message boundaries (`turn-boundaries`), the new edit-tracker hooks into pending file edits, and a **Restore to here** action on each user message rewinds the session state in place without touching disk.
+- Show fork and copy actions on every final assistant response in a chat (not just the most recent), so older turns can be reused or branched from.
+- Handle permission and tool cancellation per the ACP spec: the VS Code composer and status strip now surface cooperative cancel results from the agent, and the editor's pending-prompt state stays consistent when a permission request is withdrawn mid-turn.
+- Render `yolo` as a true boolean setting: the auto-approve toggle is now stored and displayed as a checkbox rather than as a sentinel string, and the corresponding `AGENTS.md` guidance has been updated.
+- Move "Reasoning Effort" into the `model_config` category so it lives alongside the rest of the per-model knobs in the Settings UI.
+- Use VS Code's native confirmation dialogs for destructive actions in the **Settings** view (e.g. removing an MCP server, deleting a skill, reverting to defaults), instead of rendering a custom in-webview confirm. The webview **Settings** editor is correspondingly simpler and faster to render.
+- Apply the shared brand tokens consistently across the CLI Ink UI, the VS Code webview, the docs site, and the AGENTS guidelines, so primary/secondary/warning/error/success/info/muted accents come from a single source of truth.
+- Render Mermaid diagrams in chat and in the planner, so fenced `mermaid` blocks from the assistant show as flowcharts/sequence/ER diagrams instead of raw source.
+- Refresh bundled documentation and built-in skills, including updates to the ACP, CLI, and VS Code guides and reworked release/CD workflows (`.github/workflows/cd.yml`, `ci.yml`, `docs.yml`).
+
 ## [1.46.0]
 
 - Add a richer Hooman settings experience in VS Code: the extension now exposes configurable settings for newly added root configuration fields, replaces the dedicated plan editor webview with a settings-focused editor experience, and keeps the shared ACP/settings protocol in sync with the expanded configuration surface.
