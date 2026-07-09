@@ -71,6 +71,22 @@ export interface ConfigLlmEntryState {
     maxTokens?: number;
     context?: number;
   };
+  metadata?: {
+    name: string;
+    context?: number;
+    costs?: {
+      "input/m": number;
+      "cache/m"?: number;
+      "output/m": number;
+    };
+    modality?: {
+      text?: boolean;
+      image?: boolean;
+      pdf?: boolean;
+      audio?: boolean;
+      video?: boolean;
+    };
+  };
   fields: Record<string, string>;
   default: boolean;
 }
@@ -673,6 +689,70 @@ export const LLM_FIELD_DEFINITIONS: TypedFieldDefinition[] = [
     label: "Context size",
     kind: "optionalInteger",
     placeholder: "32768",
+  },
+];
+
+export const LLM_METADATA_FIELD_DEFINITIONS: TypedFieldDefinition[] = [
+  {
+    key: "metadataName",
+    label: "Metadata model name",
+    kind: "string",
+    placeholder: "openai/gpt-5-mini",
+    note: "Optional override for models.dev lookup; leave blank to remove metadata.",
+  },
+  {
+    key: "metadataContext",
+    label: "Metadata context size",
+    kind: "optionalInteger",
+    placeholder: "200000",
+  },
+  {
+    key: "metadataCostInput",
+    label: "Metadata input cost / 1M",
+    kind: "optionalNumber",
+    placeholder: "0.25",
+  },
+  {
+    key: "metadataCostCache",
+    label: "Metadata cache cost / 1M",
+    kind: "optionalNumber",
+    placeholder: "0.025",
+  },
+  {
+    key: "metadataCostOutput",
+    label: "Metadata output cost / 1M",
+    kind: "optionalNumber",
+    placeholder: "2",
+  },
+  {
+    key: "metadataModalityText",
+    label: "Metadata modality: text",
+    kind: "optionalBoolean",
+    placeholder: "true",
+  },
+  {
+    key: "metadataModalityImage",
+    label: "Metadata modality: image",
+    kind: "optionalBoolean",
+    placeholder: "false",
+  },
+  {
+    key: "metadataModalityPdf",
+    label: "Metadata modality: pdf",
+    kind: "optionalBoolean",
+    placeholder: "false",
+  },
+  {
+    key: "metadataModalityAudio",
+    label: "Metadata modality: audio",
+    kind: "optionalBoolean",
+    placeholder: "false",
+  },
+  {
+    key: "metadataModalityVideo",
+    label: "Metadata modality: video",
+    kind: "optionalBoolean",
+    placeholder: "false",
   },
 ];
 

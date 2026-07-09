@@ -25,6 +25,7 @@ import type {
 import {
   DEFAULT_MODEL_BY_PROVIDER,
   LLM_FIELD_DEFINITIONS,
+  LLM_METADATA_FIELD_DEFINITIONS,
   PROMPT_LABELS,
   PROVIDER_FIELD_DEFINITIONS,
   SEARCH_PROVIDER_LABELS,
@@ -501,6 +502,7 @@ function ConfigModeView(props: {
                   maxTokens: undefined,
                   context: undefined,
                 },
+                metadata: undefined,
                 fields: {
                   name: llmDraftName() || "",
                   provider: cfg().providers[0]?.name ?? "",
@@ -511,7 +513,18 @@ function ConfigModeView(props: {
                   topP: "",
                   maxTokens: "",
                   context: "",
+                  metadataName: "",
+                  metadataContext: "",
+                  metadataCostInput: "",
+                  metadataCostCache: "",
+                  metadataCostOutput: "",
+                  metadataModalityText: "",
+                  metadataModalityImage: "",
+                  metadataModalityPdf: "",
+                  metadataModalityAudio: "",
+                  metadataModalityVideo: "",
                 },
+
                 default: false,
               })
             }
@@ -1133,6 +1146,26 @@ function LlmDrawer(props: {
         next[field.key] = `${field.label} must be a valid number.`;
       }
     }
+    for (const field of LLM_METADATA_FIELD_DEFINITIONS) {
+      const value = (draft()[field.key] ?? "").trim();
+      if (field.kind === "string") {
+        continue;
+      }
+      if (field.kind === "optionalBoolean") {
+        if (
+          value &&
+          !["true", "false", "yes", "no", "1", "0", "on", "off"].includes(
+            value.toLowerCase(),
+          )
+        ) {
+          next[field.key] = `${field.label} must be a boolean.`;
+        }
+        continue;
+      }
+      if (value && Number.isNaN(Number(value))) {
+        next[field.key] = `${field.label} must be a valid number.`;
+      }
+    }
     setErrors(next);
     return Object.keys(next).length === 0;
   };
@@ -1186,6 +1219,26 @@ function LlmDrawer(props: {
           />
         </Field>
         <For each={LLM_FIELD_DEFINITIONS}>
+          {(field) => (
+            <Field label={field.label} error={errors()[field.key]}>
+              <input
+                class={inputClassFor(errors()[field.key])}
+                value={draft()[field.key] ?? ""}
+                placeholder={field.placeholder}
+                onInput={(event) =>
+                  setDraft((current) => ({
+                    ...current,
+                    [field.key]: event.currentTarget.value,
+                  }))
+                }
+              />
+            </Field>
+          )}
+        </For>
+        <div class="md:col-span-2 mt-2 border-t border-border pt-3 text-xs font-semibold uppercase tracking-wide text-muted">
+          Metadata overrides
+        </div>
+        <For each={LLM_METADATA_FIELD_DEFINITIONS}>
           {(field) => (
             <Field label={field.label} error={errors()[field.key]}>
               <input

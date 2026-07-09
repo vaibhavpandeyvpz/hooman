@@ -739,6 +739,70 @@ const LLM_FIELD_DEFINITIONS: TypedFieldDefinition[] = [
   },
 ];
 
+const LLM_METADATA_FIELD_DEFINITIONS: TypedFieldDefinition[] = [
+  {
+    key: "metadataName",
+    label: "Metadata model name",
+    kind: "string",
+    placeholder: "openai/gpt-5-mini",
+    note: "Optional override for models.dev lookup; leave blank to remove metadata.",
+  },
+  {
+    key: "metadataContext",
+    label: "Metadata context size",
+    kind: "optionalInteger",
+    placeholder: "200000",
+  },
+  {
+    key: "metadataCostInput",
+    label: "Metadata input cost / 1M",
+    kind: "optionalNumber",
+    placeholder: "0.25",
+  },
+  {
+    key: "metadataCostCache",
+    label: "Metadata cache cost / 1M",
+    kind: "optionalNumber",
+    placeholder: "0.025",
+  },
+  {
+    key: "metadataCostOutput",
+    label: "Metadata output cost / 1M",
+    kind: "optionalNumber",
+    placeholder: "2",
+  },
+  {
+    key: "metadataModalityText",
+    label: "Metadata modality: text",
+    kind: "optionalBoolean",
+    placeholder: "true",
+  },
+  {
+    key: "metadataModalityImage",
+    label: "Metadata modality: image",
+    kind: "optionalBoolean",
+    placeholder: "false",
+  },
+  {
+    key: "metadataModalityPdf",
+    label: "Metadata modality: pdf",
+    kind: "optionalBoolean",
+    placeholder: "false",
+  },
+  {
+    key: "metadataModalityAudio",
+    label: "Metadata modality: audio",
+    kind: "optionalBoolean",
+    placeholder: "false",
+  },
+  {
+    key: "metadataModalityVideo",
+    label: "Metadata modality: video",
+    kind: "optionalBoolean",
+    placeholder: "false",
+  },
+];
+
 function formatTypedFieldValue(
   definition: TypedFieldDefinition,
   value: unknown,
@@ -756,6 +820,89 @@ function formatTypedFieldValue(
     return paramsPreview(value);
   }
   return truncate(String(value), 44);
+}
+
+function buildLlmMetadataFromFields(fields: Record<string, string>) {
+  const name = normalizeOptional(fields.metadataName ?? "");
+  const context = parseTypedFieldValue(
+    fields.metadataContext ?? "",
+    LLM_METADATA_FIELD_DEFINITIONS[1]!,
+  ) as number | undefined;
+  const inputCost = parseTypedFieldValue(
+    fields.metadataCostInput ?? "",
+    LLM_METADATA_FIELD_DEFINITIONS[2]!,
+  ) as number | undefined;
+  const cacheCost = parseTypedFieldValue(
+    fields.metadataCostCache ?? "",
+    LLM_METADATA_FIELD_DEFINITIONS[3]!,
+  ) as number | undefined;
+  const outputCost = parseTypedFieldValue(
+    fields.metadataCostOutput ?? "",
+    LLM_METADATA_FIELD_DEFINITIONS[4]!,
+  ) as number | undefined;
+  const text = parseTypedFieldValue(
+    fields.metadataModalityText ?? "",
+    LLM_METADATA_FIELD_DEFINITIONS[5]!,
+  ) as boolean | undefined;
+  const image = parseTypedFieldValue(
+    fields.metadataModalityImage ?? "",
+    LLM_METADATA_FIELD_DEFINITIONS[6]!,
+  ) as boolean | undefined;
+  const pdf = parseTypedFieldValue(
+    fields.metadataModalityPdf ?? "",
+    LLM_METADATA_FIELD_DEFINITIONS[7]!,
+  ) as boolean | undefined;
+  const audio = parseTypedFieldValue(
+    fields.metadataModalityAudio ?? "",
+    LLM_METADATA_FIELD_DEFINITIONS[8]!,
+  ) as boolean | undefined;
+  const video = parseTypedFieldValue(
+    fields.metadataModalityVideo ?? "",
+    LLM_METADATA_FIELD_DEFINITIONS[9]!,
+  ) as boolean | undefined;
+
+  if (
+    (inputCost !== undefined ||
+      cacheCost !== undefined ||
+      outputCost !== undefined) &&
+    (inputCost === undefined || outputCost === undefined)
+  ) {
+    throw new Error(
+      'Metadata costs require both "Metadata input cost / 1M" and "Metadata output cost / 1M".',
+    );
+  }
+
+  if (!name) {
+    return undefined;
+  }
+
+  const metadata: NonNullable<LlmEntry["metadata"]> = { name };
+  if (context !== undefined) {
+    metadata.context = context;
+  }
+  if (inputCost !== undefined && outputCost !== undefined) {
+    metadata.costs = {
+      "input/m": inputCost,
+      ...(cacheCost !== undefined ? { "cache/m": cacheCost } : {}),
+      "output/m": outputCost,
+    };
+  }
+  if (
+    text !== undefined ||
+    image !== undefined ||
+    pdf !== undefined ||
+    audio !== undefined ||
+    video !== undefined
+  ) {
+    metadata.modality = {
+      ...(text !== undefined ? { text } : {}),
+      ...(image !== undefined ? { image } : {}),
+      ...(pdf !== undefined ? { pdf } : {}),
+      ...(audio !== undefined ? { audio } : {}),
+      ...(video !== undefined ? { video } : {}),
+    };
+  }
+  return metadata;
 }
 
 function parseTypedFieldValue(
@@ -2800,8 +2947,19 @@ export function ConfigureApp({
             provider: providerName,
             model: defaultModelForProviderType(providerType),
             temperature: "",
+            topP: "",
             maxTokens: "",
             context: "",
+            metadataName: "",
+            metadataContext: "",
+            metadataCostInput: "",
+            metadataCostCache: "",
+            metadataCostOutput: "",
+            metadataModalityText: "",
+            metadataModalityImage: "",
+            metadataModalityPdf: "",
+            metadataModalityAudio: "",
+            metadataModalityVideo: "",
           });
           setScreen({ kind: "config-llm-create" });
         },
@@ -2870,6 +3028,25 @@ export function ConfigureApp({
             definition.note,
           ),
       })),
+      ...LLM_METADATA_FIELD_DEFINITIONS.map((definition) => ({
+        key: `llm-create-metadata:${definition.key}`,
+        label: `${definition.label} • ${formatDraftFieldValue(
+          {
+            key: definition.key,
+            label: definition.label,
+            placeholder: definition.placeholder,
+            note: definition.note,
+          },
+          llmDraft[definition.key],
+        )}`,
+        value: () =>
+          editLlmDraftField(
+            definition.label,
+            definition.key,
+            llmDraft[definition.key] ?? "",
+            definition.note,
+          ),
+      })),
       {
         label: "Save",
         value: () => {
@@ -2901,6 +3078,7 @@ export function ConfigureApp({
               definition,
             );
           }
+          const metadata = buildLlmMetadataFromFields(llmDraft);
           if (
             updateConfig(
               {
@@ -2908,6 +3086,7 @@ export function ConfigureApp({
                   name,
                   provider: providerName,
                   options: options as LlmEntry["options"],
+                  ...(metadata ? { metadata } : {}),
                   default: false,
                 }),
               },
@@ -2950,6 +3129,15 @@ export function ConfigureApp({
     const isOnly = config.llms.length === 1;
     const isDefault = entry.default;
     const llmOptions = entry.options as Record<string, unknown>;
+    const llmMetadata = (entry.metadata ?? {}) as Record<string, unknown>;
+    const llmMetadataCosts = (llmMetadata.costs ?? {}) as Record<
+      string,
+      unknown
+    >;
+    const llmMetadataModality = (llmMetadata.modality ?? {}) as Record<
+      string,
+      unknown
+    >;
 
     const items: MenuItem[] = [
       {
@@ -3045,6 +3233,166 @@ export function ConfigureApp({
                         llms: patchLlm(entry.name, {
                           [definition.key]: nextValue,
                         }),
+                      },
+                      `Updated ${definition.label.toLowerCase()} for "${entry.name}".`,
+                    )
+                  ) {
+                    setPrompt(null);
+                  }
+                },
+              }),
+          }) satisfies MenuItem,
+      ),
+      ...LLM_METADATA_FIELD_DEFINITIONS.map(
+        (definition) =>
+          ({
+            key: `llm-metadata-field:${entry.name}:${definition.key}`,
+            label: `${definition.label} • ${formatDraftFieldValue(
+              definition,
+              (() => {
+                switch (definition.key) {
+                  case "metadataName":
+                    return typeof llmMetadata.name === "string"
+                      ? llmMetadata.name
+                      : undefined;
+                  case "metadataContext":
+                    return llmMetadata.context !== undefined
+                      ? String(llmMetadata.context)
+                      : undefined;
+                  case "metadataCostInput":
+                    return llmMetadataCosts["input/m"] !== undefined
+                      ? String(llmMetadataCosts["input/m"])
+                      : undefined;
+                  case "metadataCostCache":
+                    return llmMetadataCosts["cache/m"] !== undefined
+                      ? String(llmMetadataCosts["cache/m"])
+                      : undefined;
+                  case "metadataCostOutput":
+                    return llmMetadataCosts["output/m"] !== undefined
+                      ? String(llmMetadataCosts["output/m"])
+                      : undefined;
+                  case "metadataModalityText":
+                    return llmMetadataModality.text !== undefined
+                      ? String(llmMetadataModality.text)
+                      : undefined;
+                  case "metadataModalityImage":
+                    return llmMetadataModality.image !== undefined
+                      ? String(llmMetadataModality.image)
+                      : undefined;
+                  case "metadataModalityPdf":
+                    return llmMetadataModality.pdf !== undefined
+                      ? String(llmMetadataModality.pdf)
+                      : undefined;
+                  case "metadataModalityAudio":
+                    return llmMetadataModality.audio !== undefined
+                      ? String(llmMetadataModality.audio)
+                      : undefined;
+                  case "metadataModalityVideo":
+                    return llmMetadataModality.video !== undefined
+                      ? String(llmMetadataModality.video)
+                      : undefined;
+                  default:
+                    return undefined;
+                }
+              })(),
+            )}`,
+            value: () =>
+              promptValue({
+                title: `Update ${definition.label}`,
+                label: definition.label,
+                initialValue:
+                  definition.key === "metadataName"
+                    ? typeof llmMetadata.name === "string"
+                      ? llmMetadata.name
+                      : ""
+                    : definition.key === "metadataContext"
+                      ? llmMetadata.context !== undefined
+                        ? String(llmMetadata.context)
+                        : ""
+                      : definition.key === "metadataCostInput"
+                        ? llmMetadataCosts["input/m"] !== undefined
+                          ? String(llmMetadataCosts["input/m"])
+                          : ""
+                        : definition.key === "metadataCostCache"
+                          ? llmMetadataCosts["cache/m"] !== undefined
+                            ? String(llmMetadataCosts["cache/m"])
+                            : ""
+                          : definition.key === "metadataCostOutput"
+                            ? llmMetadataCosts["output/m"] !== undefined
+                              ? String(llmMetadataCosts["output/m"])
+                              : ""
+                            : definition.key === "metadataModalityText"
+                              ? llmMetadataModality.text !== undefined
+                                ? String(llmMetadataModality.text)
+                                : ""
+                              : definition.key === "metadataModalityImage"
+                                ? llmMetadataModality.image !== undefined
+                                  ? String(llmMetadataModality.image)
+                                  : ""
+                                : definition.key === "metadataModalityPdf"
+                                  ? llmMetadataModality.pdf !== undefined
+                                    ? String(llmMetadataModality.pdf)
+                                    : ""
+                                  : definition.key === "metadataModalityAudio"
+                                    ? llmMetadataModality.audio !== undefined
+                                      ? String(llmMetadataModality.audio)
+                                      : ""
+                                    : llmMetadataModality.video !== undefined
+                                      ? String(llmMetadataModality.video)
+                                      : "",
+                placeholder: definition.placeholder,
+                note: definition.note,
+                onSubmit: async (value) => {
+                  const draftFields = {
+                    metadataName:
+                      typeof llmMetadata.name === "string"
+                        ? llmMetadata.name
+                        : "",
+                    metadataContext:
+                      llmMetadata.context !== undefined
+                        ? String(llmMetadata.context)
+                        : "",
+                    metadataCostInput:
+                      llmMetadataCosts["input/m"] !== undefined
+                        ? String(llmMetadataCosts["input/m"])
+                        : "",
+                    metadataCostCache:
+                      llmMetadataCosts["cache/m"] !== undefined
+                        ? String(llmMetadataCosts["cache/m"])
+                        : "",
+                    metadataCostOutput:
+                      llmMetadataCosts["output/m"] !== undefined
+                        ? String(llmMetadataCosts["output/m"])
+                        : "",
+                    metadataModalityText:
+                      llmMetadataModality.text !== undefined
+                        ? String(llmMetadataModality.text)
+                        : "",
+                    metadataModalityImage:
+                      llmMetadataModality.image !== undefined
+                        ? String(llmMetadataModality.image)
+                        : "",
+                    metadataModalityPdf:
+                      llmMetadataModality.pdf !== undefined
+                        ? String(llmMetadataModality.pdf)
+                        : "",
+                    metadataModalityAudio:
+                      llmMetadataModality.audio !== undefined
+                        ? String(llmMetadataModality.audio)
+                        : "",
+                    metadataModalityVideo:
+                      llmMetadataModality.video !== undefined
+                        ? String(llmMetadataModality.video)
+                        : "",
+                    [definition.key]: value,
+                  };
+                  const metadata = buildLlmMetadataFromFields(draftFields);
+                  if (
+                    updateConfig(
+                      {
+                        llms: config.llms.map((llm) =>
+                          llm.name === entry.name ? { ...llm, metadata } : llm,
+                        ),
                       },
                       `Updated ${definition.label.toLowerCase()} for "${entry.name}".`,
                     )

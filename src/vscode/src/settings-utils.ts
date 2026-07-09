@@ -24,6 +24,7 @@ import type {
 import {
   DEFAULT_MODEL_BY_PROVIDER,
   LLM_FIELD_DEFINITIONS,
+  LLM_METADATA_FIELD_DEFINITIONS,
   MCP_REMOTE_BASE_FIELDS,
   MCP_REMOTE_OAUTH_FIELDS,
   MCP_STDIO_FIELDS,
@@ -44,6 +45,23 @@ type NamedProviderEntry = {
   options: JsonObject;
 };
 
+type NamedLlmMetadata = {
+  name: string;
+  context?: number;
+  costs?: {
+    "input/m": number;
+    "cache/m"?: number;
+    "output/m": number;
+  };
+  modality?: {
+    text?: boolean;
+    image?: boolean;
+    pdf?: boolean;
+    audio?: boolean;
+    video?: boolean;
+  };
+};
+
 type NamedLlmEntry = {
   name: string;
   provider: string;
@@ -55,7 +73,7 @@ type NamedLlmEntry = {
     context?: number;
     [key: string]: unknown;
   };
-  metadata?: unknown;
+  metadata?: NamedLlmMetadata;
   default: boolean;
 };
 
@@ -511,6 +529,25 @@ function providerFieldMap(entry: NamedProviderEntry): Record<string, string> {
 }
 
 function llmFieldMap(entry: NamedLlmEntry): Record<string, string> {
+  const metadata =
+    entry.metadata &&
+    typeof entry.metadata === "object" &&
+    !Array.isArray(entry.metadata)
+      ? (entry.metadata as JsonObject)
+      : undefined;
+  const costs =
+    metadata?.costs &&
+    typeof metadata.costs === "object" &&
+    !Array.isArray(metadata.costs)
+      ? (metadata.costs as JsonObject)
+      : undefined;
+  const modality =
+    metadata?.modality &&
+    typeof metadata.modality === "object" &&
+    !Array.isArray(metadata.modality)
+      ? (metadata.modality as JsonObject)
+      : undefined;
+
   return {
     name: entry.name,
     provider: entry.provider,
@@ -526,6 +563,25 @@ function llmFieldMap(entry: NamedLlmEntry): Record<string, string> {
         : String(entry.options.maxTokens),
     context:
       entry.options.context === undefined ? "" : String(entry.options.context),
+    metadataName: typeof metadata?.name === "string" ? metadata.name : "",
+    metadataContext:
+      typeof metadata?.context === "number" ? String(metadata.context) : "",
+    metadataCostInput:
+      typeof costs?.["input/m"] === "number" ? String(costs["input/m"]) : "",
+    metadataCostCache:
+      typeof costs?.["cache/m"] === "number" ? String(costs["cache/m"]) : "",
+    metadataCostOutput:
+      typeof costs?.["output/m"] === "number" ? String(costs["output/m"]) : "",
+    metadataModalityText:
+      typeof modality?.text === "boolean" ? String(modality.text) : "",
+    metadataModalityImage:
+      typeof modality?.image === "boolean" ? String(modality.image) : "",
+    metadataModalityPdf:
+      typeof modality?.pdf === "boolean" ? String(modality.pdf) : "",
+    metadataModalityAudio:
+      typeof modality?.audio === "boolean" ? String(modality.audio) : "",
+    metadataModalityVideo:
+      typeof modality?.video === "boolean" ? String(modality.video) : "",
   };
 }
 
@@ -662,6 +718,14 @@ function configStateFromDoc(
           ? llm.options.context
           : undefined,
     },
+    metadata:
+      llm.metadata &&
+      typeof llm.metadata === "object" &&
+      !Array.isArray(llm.metadata)
+        ? structuredClone(
+            llm.metadata as Exclude<ConfigLlmEntryState["metadata"], undefined>,
+          )
+        : undefined,
     fields: llmFieldMap(llm),
     default: llm.default === true,
   }));
@@ -1095,11 +1159,111 @@ export function saveConfigLlm(
     if (nextOptions.context === undefined) {
       delete nextOptions.context;
     }
+    const metadataName = normalizeOptional(fields.metadataName ?? "");
+    const metadataContext = parseOptionalNumber(
+      fields.metadataContext ?? "",
+      "Metadata context size",
+      { integer: true, min: 1 },
+    );
+    const metadataCostInput = parseOptionalNumber(
+      fields.metadataCostInput ?? "",
+      "Metadata input cost / 1M",
+      { min: 0 },
+    );
+    const metadataCostCache = parseOptionalNumber(
+      fields.metadataCostCache ?? "",
+      "Metadata cache cost / 1M",
+      { min: 0 },
+    );
+    const metadataCostOutput = parseOptionalNumber(
+      fields.metadataCostOutput ?? "",
+      "Metadata output cost / 1M",
+      { min: 0 },
+    );
+    const metadataModalityText = parseOptionalBoolean(
+      fields.metadataModalityText ?? "",
+      "Metadata modality: text",
+    );
+    const metadataModalityImage = parseOptionalBoolean(
+      fields.metadataModalityImage ?? "",
+      "Metadata modality: image",
+    );
+    const metadataModalityPdf = parseOptionalBoolean(
+      fields.metadataModalityPdf ?? "",
+      "Metadata modality: pdf",
+    );
+    const metadataModalityAudio = parseOptionalBoolean(
+      fields.metadataModalityAudio ?? "",
+      "Metadata modality: audio",
+    );
+    const metadataModalityVideo = parseOptionalBoolean(
+      fields.metadataModalityVideo ?? "",
+      "Metadata modality: video",
+    );
+
+    if (
+      (metadataCostInput !== undefined ||
+        metadataCostCache !== undefined ||
+        metadataCostOutput !== undefined) &&
+      (metadataCostInput === undefined || metadataCostOutput === undefined)
+    ) {
+      throw new Error(
+        'Metadata costs require both "Metadata input cost / 1M" and "Metadata output cost / 1M".',
+      );
+    }
+
+    const nextMetadata = (() => {
+      if (!metadataName) {
+        return undefined;
+      }
+      const metadata: NonNullable<NamedLlmEntry["metadata"]> = {
+        name: metadataName,
+      };
+      if (metadataContext !== undefined) {
+        metadata.context = metadataContext;
+      }
+      if (metadataCostInput !== undefined && metadataCostOutput !== undefined) {
+        metadata.costs = {
+          "input/m": metadataCostInput,
+          ...(metadataCostCache !== undefined
+            ? { "cache/m": metadataCostCache }
+            : {}),
+          "output/m": metadataCostOutput,
+        };
+      }
+      if (
+        metadataModalityText !== undefined ||
+        metadataModalityImage !== undefined ||
+        metadataModalityPdf !== undefined ||
+        metadataModalityAudio !== undefined ||
+        metadataModalityVideo !== undefined
+      ) {
+        metadata.modality = {
+          ...(metadataModalityText !== undefined
+            ? { text: metadataModalityText }
+            : {}),
+          ...(metadataModalityImage !== undefined
+            ? { image: metadataModalityImage }
+            : {}),
+          ...(metadataModalityPdf !== undefined
+            ? { pdf: metadataModalityPdf }
+            : {}),
+          ...(metadataModalityAudio !== undefined
+            ? { audio: metadataModalityAudio }
+            : {}),
+          ...(metadataModalityVideo !== undefined
+            ? { video: metadataModalityVideo }
+            : {}),
+        };
+      }
+      return metadata;
+    })();
+
     const nextEntry: NamedLlmEntry = {
       name,
       provider,
       options: nextOptions,
-      metadata: existing?.metadata,
+      metadata: nextMetadata,
       default: existing?.default === true,
     };
     doc.llms = originalName
@@ -1537,7 +1701,7 @@ export function providerFields(
 }
 
 export function llmFields(): readonly TypedFieldDefinition[] {
-  return LLM_FIELD_DEFINITIONS;
+  return [...LLM_FIELD_DEFINITIONS, ...LLM_METADATA_FIELD_DEFINITIONS];
 }
 
 export function mcpStdioFields() {
