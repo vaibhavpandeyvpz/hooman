@@ -23,7 +23,7 @@ Install it from the **[VS Code Marketplace](https://marketplace.visualstudio.com
 - **Pill pickers** in the composer for mode (Agent / Plan / Ask / Yolo), model, and reasoning effort, plus `/` slash-command autocomplete (`/compact`, `/init`).
 - **Inline permission prompts**: the agent asks before running destructive tools; approve or reject right in the panel (Yolo mode auto-approves — except leaving plan mode, which always prompts).
 - **Status bar item** showing the current model and mode, with a spinner while a turn runs and a quick menu for all session controls.
-- **Token-usage footer** with real-time accumulated token counts for the in-flight turn plus the latest request's input / cached / output counts, a context-window gauge, and cumulative session cost — see [Billing metadata](/hooman/guides/configuration/models/#billing-metadata).
+- **Token-usage footer** with real-time accumulated token counts for the in-flight turn plus the latest request's input / cached / output counts, a context-window gauge, and cumulative session cost — see [LLM metadata](/hooman/guides/configuration/models/#llm-metadata).
 - **Model download strip**: when a local [llama.cpp](/hooman/guides/configuration/models/llama-cpp/) model downloads its weights on first use, a progress strip shows percent, size, speed, and ETA above the composer.
 - **Native settings editors**: dedicated custom editors for `config.json` (providers, models, prompts, tools, compaction), `mcp.json` (add/edit/remove servers with field-by-field forms), and `instructions.md`, plus a **Skills** panel to search, install, refresh, and remove skills — all without leaving VS Code. These read/write the same nearest project-local `.hooman/` overlay or `~/.hooman/` files the CLI uses.
 

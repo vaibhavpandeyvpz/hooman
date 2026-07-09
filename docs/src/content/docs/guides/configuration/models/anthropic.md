@@ -46,7 +46,7 @@ Anthropic without reasoning:
   "name": "Claude Sonnet",
   "provider": "Anthropic",
   "options": {
-    "model": "claude-sonnet-4-5"
+    "model": "claude-sonnet-4-6"
   },
   "default": true
 }
@@ -70,7 +70,7 @@ Anthropic with extended thinking:
   "name": "Claude Opus (thinking)",
   "provider": "Anthropic Thinking",
   "options": {
-    "model": "claude-opus-4-5"
+    "model": "claude-opus-4-7"
   }
 }
 ```

@@ -50,7 +50,7 @@ Using the AWS default credential chain:
   "name": "Claude Sonnet (Bedrock)",
   "provider": "Bedrock",
   "options": {
-    "model": "anthropic.claude-sonnet-4-5-20250929-v1:0"
+    "model": "anthropic.claude-sonnet-4-6"
   },
   "default": true
 }
@@ -76,7 +76,7 @@ With explicit credentials and reasoning display on Opus:
   "name": "Claude Opus (Bedrock, thinking)",
   "provider": "Bedrock Explicit",
   "options": {
-    "model": "anthropic.claude-opus-4-5-20250929-v1:0"
+    "model": "anthropic.claude-opus-4-7"
   }
 }
 ```

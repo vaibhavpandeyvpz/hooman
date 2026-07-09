@@ -273,11 +273,11 @@ export const DEFAULT_MODEL_BY_PROVIDER: Record<ProviderKind, string> = {
   "llama-cpp": "unsloth/gemma-4-E2B-it-GGUF:Q4_K_M",
   minimax: "MiniMax-M3",
   mlx: "mlx-community/gemma-4-e2b-it-OptiQ-4bit",
-  moonshot: "kimi-k2-0711-preview",
-  ollama: "qwen3:8b",
-  openai: "gpt-5-mini",
-  openrouter: "openai/gpt-5-mini",
-  xai: "grok-3-mini",
+  moonshot: "kimi-k2.7-code",
+  ollama: "gemma4:e4b",
+  openai: "gpt-5.5",
+  openrouter: "google/gemma-4-26b-a4b-it:free",
+  xai: "grok-4.3",
 };
 
 export const PROVIDER_FIELD_DEFINITIONS: Record<

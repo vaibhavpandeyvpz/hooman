@@ -1,6 +1,6 @@
 ---
 name: hooman-config
-description: Read and update Hooman's own ~/.hooman/config.json and instructions.md. Use when the user asks about Hooman's config, custom instructions, agent name, model providers, LLMs/models, API keys, reasoning options, web search settings, tool or prompt toggles, or compaction. Not for MCP servers (use hooman-mcp), channel integrations (hooman-channels), or installed skills (hooman-skills).
+description: Read and update Hooman's own ~/.hooman/config.json and instructions.md. Use when the user asks about Hooman's config, custom instructions, agent name, model providers, LLMs/models, API keys, reasoning options, global reasoning display, web search settings, tool or prompt toggles, or compaction. Not for MCP servers (use hooman-mcp), channel integrations (hooman-channels), or installed skills (hooman-skills).
 ---
 
 # Hooman Config
@@ -32,7 +32,7 @@ overlays walked from git root to the current directory). The command prints full
 
 1. Read the existing JSON first. Preserve user values, comments are not supported, and secrets such as API keys may be present.
 2. Make the smallest JSON edit that satisfies the request. Do not rewrite unrelated sections or normalize formatting beyond valid pretty JSON.
-3. `name`, `providers`, and `llms` are required. `providers` stores shared credentials/config, and `llms` must be a **non-empty array** of entries that reference provider names (see `providers.md`). `search`, `prompts`, `tools`, and `compaction` are optional in input, but Hooman expands them with defaults when loading.
+3. `name`, `providers`, and `llms` are required. `providers` stores shared credentials/config, and `llms` must be a **non-empty array** of entries that reference provider names (see `providers.md`). `search`, `prompts`, `tools`, `compaction`, and top-level `reasoning` are optional in input, but Hooman expands them with defaults when loading.
 4. Unknown keys are unsupported and may be dropped when Hooman parses and persists the config.
 5. `tools` only manages built-in runtime toggles exposed in `config.json`.
 6. Any change to `config.json` or `instructions.md` requires restarting the running Hooman agent/session before it takes effect. In an interactive `chat` session, running the `/config` command applies this automatically: it reloads config and re-bootstraps the session on exit.
@@ -117,12 +117,14 @@ This is the default shape Hooman writes when `~/.hooman/config.json` is missing:
     "filesystem": { "enabled": true },
     "shell": { "enabled": true },
     "sleep": { "enabled": true },
+    "browser": { "enabled": false },
     "subagents": { "enabled": true }
   },
   "compaction": {
     "ratio": 0.75,
     "keep": 5
-  }
+  },
+  "reasoning": "collapsed"
 }
 ```
 
@@ -132,11 +134,12 @@ Hooman fills all optional sections with defaults on load and persist, so a minim
 
 - `name`: non-empty display name for the agent.
 - `providers`: required reusable provider definitions. Each entry has `name`, runtime `provider`, and provider-specific `options`. Supported runtime providers: `anthropic`, `azure`, `bedrock`, `google`, `groq`, `llama-cpp`, `minimax`, `mlx`, `moonshot`, `ollama`, `openai`, `openrouter`, `xai` — details in `providers.md`.
-- `llms`: required non-empty list of named LLM configs. Each entry has `name`, provider reference `provider`, model `options` (`model`, optional `temperature`, optional `maxTokens`, optional `context` — local llama-cpp/mlx providers only), and `default` (mark exactly one entry `true`). Details in `providers.md`.
+- `llms`: required non-empty list of named LLM configs. Each entry has `name`, provider reference `provider`, model `options` (`model`, optional `temperature`, optional `topP`, optional `maxTokens`, optional `context` — local llama-cpp/mlx providers only), optional `metadata`, and `default` (mark exactly one entry `true`). Details in `providers.md`.
 - `search`: optional web search config; defaults to disabled Brave. Details in `search.md`.
 - `prompts`: optional built-in static prompt toggles; omitted fields default to `true`. Custom user instructions live in `~/.hooman/instructions.md`.
 - `tools`: optional tool toggles and tool-specific settings.
 - `compaction`: optional context compaction settings. `ratio` must be `0..1`; `keep` must be a non-negative integer.
+- top-level `reasoning`: optional global reasoning display setting. Supported values are `"collapsed"` and `"full"`.
 
 ## Prompts
 
@@ -144,7 +147,7 @@ Each prompt toggle (`behaviour`, `communication`, `execution`, `guardrails`) is 
 
 ## Tools
 
-Simple toggles, all enabled by default:
+Simple toggles. All are enabled by default except `browser`, which defaults to `false`:
 
 ```json
 {
@@ -154,6 +157,7 @@ Simple toggles, all enabled by default:
     "filesystem": { "enabled": true },
     "shell": { "enabled": true },
     "sleep": { "enabled": true },
+    "browser": { "enabled": false },
     "subagents": { "enabled": true }
   }
 }
@@ -164,6 +168,19 @@ MCP servers and installed skills are not controlled by these toggles; do not ins
 ## Instructions
 
 `~/.hooman/instructions.md` contains the user's custom instructions. Read or edit it only when the user asks about Hooman instructions, custom instructions, persistent guidance, or agent behavior that belongs outside `config.json`. Keep instruction edits focused and preserve existing wording unless the user asks for a rewrite.
+
+## Global reasoning display
+
+```json
+{
+  "reasoning": "collapsed"
+}
+```
+
+- `collapsed`: default; show reasoning in collapsed form when available.
+- `full`: show the full reasoning stream inline when available.
+
+This top-level setting controls **display in the UI**. It is separate from provider-level `options.reasoning`, which controls **whether/how a model thinks**.
 
 ## Compaction
 

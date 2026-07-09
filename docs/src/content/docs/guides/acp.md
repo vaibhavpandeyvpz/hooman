@@ -25,11 +25,11 @@ Session list titles are AI-generated from the first user prompt by a Strands plu
 
 Each turn ends with a `usage_update` carrying:
 
-- `used` / `size` — context-window utilization (`size` is `0` when the model's metadata metadata can't be resolved)
+- `used` / `size` — context-window utilization (`size` is `0` when the model's metadata can't be resolved)
 - `cost` — cumulative session cost (omitted when unresolved)
 - the latest request's token totals under `_meta["hoomanjs/tokens"]`
 
-`size` and `cost` come from the model's [billing metadata](/hooman/guides/configuration/models/#billing-metadata) (models.dev-backed). A model switch pushes a fresh `usage_update` immediately so clients can rescale right away.
+`size` and `cost` come from the model's [LLM metadata](/hooman/guides/configuration/models/#llm-metadata) (models.dev-backed). A model switch pushes a fresh `usage_update` immediately so clients can rescale right away.
 
 ## Ask-user questions
 
