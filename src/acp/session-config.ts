@@ -58,13 +58,16 @@ export function buildSessionConfigOptions(
   }
 
   // Reasoning effort applies to the active model's provider. The `off` value
-  // maps to "no reasoning" (see reasoning-effort helpers).
+  // maps to "no reasoning" (see reasoning-effort helpers). Tagged as
+  // `model_config`: per the model-config-category RFD this is a secondary
+  // model parameter that clients group alongside the primary `model` selector.
+  // https://agentclientprotocol.com/rfds/model-config-category
   if (modelValues.length > 0 && currentModel) {
     options.push({
       id: CONFIG_ID_EFFORT,
       name: "Reasoning Effort",
       description: "Reasoning/thinking effort for the active model",
-      category: "model",
+      category: "model_config",
       type: "select",
       currentValue: currentReasoningEffort(config) ?? REASONING_EFFORT_OFF,
       options: [
