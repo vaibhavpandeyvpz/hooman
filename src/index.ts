@@ -142,7 +142,6 @@ export {
   createFetchTools,
   createFilesystemTools,
   createGrepTools,
-  createShellTools,
   createSleepTools,
   createThinkingTools,
   createTimeTools,
@@ -159,12 +158,26 @@ export {
   type AskUserResponse,
 } from "./core/tools/ask-user.js";
 export {
+  clearShellJobManager,
+  createShellTools,
+  getShellJobManager,
   getTerminalBackend,
+  peekShellJobManager,
   setTerminalBackend,
+  ShellJobManager,
+  SHELL_OUTPUT_TOOL_NAME,
+  SHELL_STOP_TOOL_NAME,
+  SHELL_TOOL_NAME,
+  type ShellJobEvent,
+  type ShellJobInfo,
+  type ShellJobOutputSnapshot,
+  type ShellJobStatus,
   type TerminalBackend,
+  type TerminalOutputSnapshot,
   type TerminalRunRequest,
   type TerminalRunResult,
-} from "./core/tools/shell.js";
+  type TerminalSpawnResult,
+} from "./core/shell/index.js";
 export {
   getTextFsBackend,
   setTextFsBackend,

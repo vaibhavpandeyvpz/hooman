@@ -52,6 +52,26 @@ type SessionHostState = {
     { value: string | boolean; boolean: boolean }
   >;
   liveTerminals: Map<string, NodeJS.Timeout>;
+  /** toolCallId → host terminal id (for Stop when job meta omitted terminal_id). */
+  terminalByToolCall: Map<string, string>;
+  /** Active background shell jobs for this session (jobId → info). */
+  shellJobs: Map<
+    string,
+    {
+      jobId: string;
+      description: string;
+      status: string;
+      terminalId?: string;
+      toolCallId?: string;
+      stopping?: boolean;
+    }
+  >;
+  /**
+   * True while `session/load` is replaying transcript updates. Historical
+   * `shell` tool results with `status: "background"` must not reappear as
+   * live jobs — those processes are gone after close/reload.
+   */
+  replayingHistory: boolean;
 };
 
 type PersistedTabState = {
@@ -250,6 +270,9 @@ export class HoomanChatViewProvider
       pendingUpdates: [],
       pendingConfigOptions: new Map(),
       liveTerminals: new Map(),
+      terminalByToolCall: new Map(),
+      shellJobs: new Map(),
+      replayingHistory: false,
       ...overrides,
     };
   }
@@ -362,6 +385,9 @@ export class HoomanChatViewProvider
     });
     this.#post({ type: "clear", sessionId });
     this.#postQueue();
+    state.replayingHistory = true;
+    state.shellJobs.clear();
+    this.#postShellJobs(sessionId);
     try {
       const agent = await this.client.ensureStarted();
       const response = await agent.request(methods.agent.session.load, {
@@ -389,6 +415,12 @@ export class HoomanChatViewProvider
         message: `Failed to load session: ${describe(error)}`,
       });
     } finally {
+      // Drop any jobs that slipped through from replayed tool results.
+      state.replayingHistory = false;
+      if (state.shellJobs.size > 0) {
+        state.shellJobs.clear();
+        this.#postShellJobs(sessionId);
+      }
       this.#post({ type: "sessionLoading", sessionId, loading: false });
       this.#post({
         type: "tabs",
@@ -833,6 +865,9 @@ export class HoomanChatViewProvider
         return;
       case "cancel":
         await this.#cancel();
+        return;
+      case "stopShellJob":
+        await this.#stopShellJob(message.sessionId, message.jobId);
         return;
       case "setConfigOption":
         await this.#setConfigOption(message);
@@ -1829,6 +1864,7 @@ export class HoomanChatViewProvider
       }
       return;
     }
+    this.#handleShellJobMeta(sessionId, update);
     this.#trackLiveTerminal(sessionId, update);
     this.#post({
       type: "update",
@@ -1841,10 +1877,15 @@ export class HoomanChatViewProvider
    * Stream live terminal output: while a tool call embeds an unfinished
    * terminal, poll the captured output and push incremental tool_call_updates
    * so the webview shows the command's output as it runs (npm install, tests,
-   * ...). The agent re-embeds the terminal in the completed/failed update,
-   * which both stops the poll and delivers the final output.
+   * ...). For background jobs the poll continues after the tool call completes
+   * until the job is removed from `shellJobs` (via `_meta.hoomanjs/shell_job`).
    */
   #trackLiveTerminal(sessionId: string, update: SessionUpdate): void {
+    const hostState = this.#sessions.get(sessionId);
+    // Replayed terminals are historical — their processes are gone.
+    if (hostState?.replayingHistory) {
+      return;
+    }
     if (
       update.sessionUpdate !== "tool_call" &&
       update.sessionUpdate !== "tool_call_update"
@@ -1852,17 +1893,195 @@ export class HoomanChatViewProvider
       return;
     }
     if (update.status === "completed" || update.status === "failed") {
-      this.#stopTerminalPoll(sessionId, update.toolCallId);
+      const state = this.#sessions.get(sessionId);
+      const bgJob = state
+        ? [...state.shellJobs.values()].find(
+            (j) => j.toolCallId === update.toolCallId,
+          )
+        : undefined;
+      // Keep polling while a background job still owns this tool call.
+      if (!bgJob) {
+        this.#stopTerminalPoll(sessionId, update.toolCallId);
+      }
       return;
     }
     const terminal = update.content?.find((item) => item.type === "terminal");
     if (terminal) {
+      const state = this.#sessions.get(sessionId);
+      state?.terminalByToolCall.set(update.toolCallId, terminal.terminalId);
       this.#startTerminalPoll(
         sessionId,
         update.toolCallId,
         terminal.terminalId,
       );
     }
+  }
+
+  async #stopShellJob(sessionId: string, jobId: string): Promise<void> {
+    const state = this.#sessions.get(sessionId);
+    const job = state?.shellJobs.get(jobId);
+    if (!state || !job || job.stopping) {
+      return;
+    }
+
+    job.stopping = true;
+    job.status = "stopping";
+    if (job.toolCallId) {
+      this.#stopTerminalPoll(sessionId, job.toolCallId);
+    }
+    this.#postShellJobs(sessionId);
+
+    try {
+      const agent = await this.client.ensureStarted();
+      await agent.request<
+        { stopped: boolean },
+        { sessionId: string; jobId: string }
+      >("_hoomanjs/stop_shell_job", { sessionId, jobId });
+    } catch (error) {
+      this.outputChannel.warn(
+        `[chat-view] stopShellJob ${jobId}: ${describe(error)}`,
+      );
+      const current = state.shellJobs.get(jobId);
+      if (current) {
+        current.stopping = false;
+        current.status = "running";
+        this.#postShellJobs(sessionId);
+      }
+      return;
+    }
+
+    // Clear even when the agent returns stopped=false (ghost / already gone).
+    if (state.shellJobs.has(jobId)) {
+      state.shellJobs.delete(jobId);
+      this.#postShellJobs(sessionId);
+    }
+  }
+
+  #postShellJobs(sessionId: string): void {
+    const state = this.#sessions.get(sessionId);
+    if (!state) {
+      return;
+    }
+    this.#post({
+      type: "shellJobs",
+      sessionId,
+      jobs: [...state.shellJobs.values()].map((j) => ({
+        jobId: j.jobId,
+        description: j.description,
+        status: j.status,
+        terminalId: j.terminalId,
+        toolCallId: j.toolCallId,
+        stopping: j.stopping,
+      })),
+    });
+  }
+
+  #handleShellJobMeta(sessionId: string, update: SessionUpdate): void {
+    const state = this.#sessions.get(sessionId);
+    if (!state) {
+      return;
+    }
+    // History replay re-emits completed background shell tool results; those
+    // are not live processes. Only register jobs from live turns.
+    if (state.replayingHistory) {
+      return;
+    }
+
+    const meta = update._meta?.["hoomanjs/shell_job"] as
+      | {
+          event?: string;
+          job_id?: string;
+          description?: string;
+          status?: string;
+          terminal_id?: string;
+          tool_call_id?: string;
+        }
+      | undefined;
+    if (!meta?.job_id) {
+      // Also detect background start from tool_call rawOutput / content.
+      this.#maybeRegisterShellJobFromTool(sessionId, update);
+      return;
+    }
+
+    const event = meta.event ?? "";
+    if (event === "completed" || event === "stopped" || event === "failed") {
+      const existing = state.shellJobs.get(meta.job_id);
+      state.shellJobs.delete(meta.job_id);
+      if (existing?.toolCallId) {
+        this.#stopTerminalPoll(sessionId, existing.toolCallId);
+      }
+      this.#postShellJobs(sessionId);
+      return;
+    }
+
+    state.shellJobs.set(meta.job_id, {
+      jobId: meta.job_id,
+      description: meta.description ?? meta.job_id,
+      status: meta.status ?? event,
+      terminalId:
+        meta.terminal_id ??
+        (meta.tool_call_id
+          ? state.terminalByToolCall.get(meta.tool_call_id)
+          : undefined),
+      toolCallId: meta.tool_call_id,
+    });
+    const resolvedTerminalId = state.shellJobs.get(meta.job_id)?.terminalId;
+    if (resolvedTerminalId && meta.tool_call_id) {
+      state.terminalByToolCall.set(meta.tool_call_id, resolvedTerminalId);
+      this.#startTerminalPoll(sessionId, meta.tool_call_id, resolvedTerminalId);
+    }
+    this.#postShellJobs(sessionId);
+  }
+
+  /**
+   * When a shell tool completes with `status: "background"` and a job_id,
+   * register it so live polling and the jobs bar persist past the tool call.
+   *
+   * `rawOutput` is a Strands `ToolResultBlock.toJSON()` payload
+   * (`{ toolResult: { status, content: [{ json: {...} }] } }`), not the
+   * bare tool return value — unwrap before reading `job_id`.
+   */
+  #maybeRegisterShellJobFromTool(
+    sessionId: string,
+    update: SessionUpdate,
+  ): void {
+    if (
+      update.sessionUpdate !== "tool_call" &&
+      update.sessionUpdate !== "tool_call_update"
+    ) {
+      return;
+    }
+    if (update.status !== "completed" && update.status !== "failed") {
+      return;
+    }
+    const bg = extractBackgroundShellJob(update.rawOutput);
+    if (!bg) {
+      return;
+    }
+    const state = this.#sessions.get(sessionId);
+    if (!state || state.replayingHistory) {
+      return;
+    }
+    const terminal = update.content?.find((item) => item.type === "terminal");
+    if (terminal) {
+      state.terminalByToolCall.set(update.toolCallId, terminal.terminalId);
+    }
+    // Prefer an already-known terminal id (from an earlier in_progress update)
+    // when the completed tool_call_update omits terminal content.
+    const terminalId =
+      terminal?.terminalId ?? state.terminalByToolCall.get(update.toolCallId);
+    const existing = state.shellJobs.get(bg.jobId);
+    state.shellJobs.set(bg.jobId, {
+      jobId: bg.jobId,
+      description: bg.description ?? existing?.description ?? bg.jobId,
+      status: bg.jobStatus ?? existing?.status ?? "running",
+      terminalId: terminalId ?? existing?.terminalId,
+      toolCallId: update.toolCallId,
+    });
+    if (terminalId) {
+      this.#startTerminalPoll(sessionId, update.toolCallId, terminalId);
+    }
+    this.#postShellJobs(sessionId);
   }
 
   #startTerminalPoll(
@@ -1874,13 +2093,20 @@ export class HoomanChatViewProvider
     if (!state || state.liveTerminals.has(toolCallId)) {
       return;
     }
+    // Cap what we push to the webview. Commands like `top` grow past 1MB
+    // quickly; posting the full buffer every 300ms freezes the extension host.
+    const LIVE_TAIL_CHARS = 32_000;
     let lastOutput = "";
     const timer = setInterval(() => {
-      const output = this.client.terminal.outputText(terminalId)?.trimEnd();
-      if (!output || output === lastOutput) {
+      const full = this.client.terminal.outputText(terminalId)?.trimEnd();
+      if (!full || full === lastOutput) {
         return;
       }
-      lastOutput = output;
+      lastOutput = full;
+      const text =
+        full.length > LIVE_TAIL_CHARS
+          ? full.slice(full.length - LIVE_TAIL_CHARS)
+          : full;
       this.#post({
         type: "update",
         sessionId,
@@ -1888,9 +2114,7 @@ export class HoomanChatViewProvider
           sessionUpdate: "tool_call_update",
           toolCallId,
           _meta: { "hoomanjs/live": true },
-          content: [
-            { type: "content", content: { type: "text", text: output } },
-          ],
+          content: [{ type: "content", content: { type: "text", text } }],
         },
       });
     }, 300);
@@ -2272,5 +2496,62 @@ function findPlanFilePath(value: unknown): string | null {
       return planFile;
     }
   }
+  return null;
+}
+
+/**
+ * Pull `{ job_id, description, ... }` out of a shell tool's ACP `rawOutput`.
+ * Accepts the bare background payload or a Strands ToolResultBlock wrapper.
+ */
+function extractBackgroundShellJob(value: unknown): {
+  jobId: string;
+  description?: string;
+  jobStatus?: string;
+} | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+  const record = value as Record<string, unknown>;
+
+  if (record.status === "background" && typeof record.job_id === "string") {
+    return {
+      jobId: record.job_id,
+      description:
+        typeof record.description === "string" ? record.description : undefined,
+      jobStatus:
+        typeof record.job_status === "string" ? record.job_status : undefined,
+    };
+  }
+
+  const toolResult = record.toolResult;
+  if (toolResult && typeof toolResult === "object") {
+    const content = (toolResult as { content?: unknown }).content;
+    if (Array.isArray(content)) {
+      for (const block of content) {
+        if (!block || typeof block !== "object") {
+          continue;
+        }
+        const json = (block as { json?: unknown }).json;
+        const nested = extractBackgroundShellJob(json ?? block);
+        if (nested) {
+          return nested;
+        }
+      }
+    }
+  }
+
+  if (Array.isArray(record.content)) {
+    for (const block of record.content) {
+      if (!block || typeof block !== "object") {
+        continue;
+      }
+      const json = (block as { json?: unknown }).json;
+      const nested = extractBackgroundShellJob(json ?? block);
+      if (nested) {
+        return nested;
+      }
+    }
+  }
+
   return null;
 }

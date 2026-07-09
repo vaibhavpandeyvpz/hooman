@@ -4,16 +4,26 @@ import { useFileToolResult } from "./file-tool-diff/file-tool-result.js";
 import { compactInline, formatToolArgs } from "./shared.js";
 import { Spinner } from "./Spinner.js";
 import { ToolEventFileResult } from "./ToolEventFileResult.js";
+import { ShellToolEvent } from "./ShellToolEvent.js";
 import { theme } from "../../core/theme.js";
 
 type ToolEventProps = {
   line: ChatLine;
+  agent?: object;
 };
 
-export function ToolEvent({ line }: ToolEventProps) {
+export function ToolEvent({ line, agent }: ToolEventProps) {
   const fileToolResult = useFileToolResult(line);
   if (fileToolResult) {
     return <ToolEventFileResult line={line} result={fileToolResult} />;
+  }
+
+  if (
+    line.toolName === "shell" ||
+    line.toolName === "shell_output" ||
+    line.shellJobId
+  ) {
+    return <ShellToolEvent line={line} agent={agent} />;
   }
 
   const args = formatToolArgs(line.content)[0] ?? "";

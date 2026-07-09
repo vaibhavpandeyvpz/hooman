@@ -131,7 +131,12 @@ import {
   setTerminalBackend,
   type TerminalRunRequest,
   type TerminalRunResult,
-} from "../core/tools/shell.js";
+  type TerminalOutputSnapshot,
+  type TerminalSpawnResult,
+  clearShellJobManager,
+  getShellJobManager,
+  type ShellJobEvent,
+} from "../core/shell/index.js";
 import { createAcpToolApprovalIntervention } from "./approvals.js";
 import { createAcpAskUserBackend } from "./questions.js";
 import { extractAcpClientUserId } from "./meta/user-id.js";
@@ -184,6 +189,16 @@ export interface RewindSessionResponse {
   reverted: boolean;
 }
 
+/** Params/response for the custom `_hoomanjs/stop_shell_job` method. */
+export interface StopShellJobRequest {
+  sessionId: string;
+  jobId: string;
+}
+
+export interface StopShellJobResponse {
+  stopped: boolean;
+}
+
 /** In-memory state for one active session. */
 type SessionRecord = {
   cwd: string;
@@ -212,6 +227,13 @@ type SessionRecord = {
    * update keep showing the live terminal instead of a JSON result blob.
    */
   terminalByToolCall: Map<string, string>;
+  /**
+   * Background shell jobs hosted via the client's `terminal/*` API, keyed by
+   * `job_id`. Terminals are not released until the job stops or the session ends.
+   */
+  shellJobs: Map<string, { terminalId: string; toolCallId?: string }>;
+  /** Unsubscribe from ShellJobManager events for this session. */
+  shellJobUnsub: (() => void) | null;
   /** `messageId` shared by all `agent_message_chunk`/`agent_thought_chunk` updates for the in-flight assistant message. */
   currentAssistantMessageId: string | null;
   /** Re-apply the mode tool surface at the next turn boundary (deferred mid-turn). */
@@ -586,6 +608,7 @@ export class HoomanAcpAgent {
     if (record) {
       this.#sessions.delete(params.sessionId);
       record.turnAbort?.abort();
+      await this.#teardownShellJobs(params.sessionId, record);
       await record.mcpDisconnect();
     }
     await deleteSessionEntry(this.#acpRoot, params.sessionId);
@@ -628,6 +651,7 @@ export class HoomanAcpAgent {
       vscode,
     );
     this.#sessions.set(sessionId, record);
+    this.#subscribeShellJobs(record.agent, this.#requireClient(), sessionId);
     await this.#advertiseCommands(this.#requireClient(), sessionId);
 
     return {
@@ -771,6 +795,27 @@ export class HoomanAcpAgent {
     return { reverted: true };
   }
 
+  /**
+   * Custom `_hoomanjs/stop_shell_job`: stop a background shell job by id.
+   * Routes through {@link ShellJobManager.stop}, which kills the host terminal
+   * (process group) and emits the completion notification the UI listens for.
+   */
+  async stopShellJob(
+    params: StopShellJobRequest,
+  ): Promise<StopShellJobResponse> {
+    const rec = this.#sessions.get(params.sessionId);
+    if (!rec) {
+      throw RequestError.invalidParams({ sessionId: params.sessionId });
+    }
+    const manager = getShellJobManager(rec.agent);
+    const existing = manager.get(params.jobId);
+    if (!existing) {
+      return { stopped: false };
+    }
+    await manager.stop(params.jobId);
+    return { stopped: true };
+  }
+
   async loadSession(
     params: LoadSessionRequest,
     client: AgentContext,
@@ -837,6 +882,7 @@ export class HoomanAcpAgent {
     if (record) {
       this.#sessions.delete(params.sessionId);
       record.turnAbort?.abort();
+      await this.#teardownShellJobs(params.sessionId, record);
       await record.mcpDisconnect();
     }
     return {};
@@ -907,6 +953,7 @@ export class HoomanAcpAgent {
     }
 
     this.#sessions.set(params.sessionId, record);
+    this.#subscribeShellJobs(record.agent, client, params.sessionId);
 
     await patchSessionEntry(this.#acpRoot, params.sessionId, {
       cwd: params.cwd,
@@ -1496,7 +1543,17 @@ export class HoomanAcpAgent {
                 const terminalId = rec.terminalByToolCall.get(
                   ev.toolUse.toolUseId,
                 );
-                rec.terminalByToolCall.delete(ev.toolUse.toolUseId);
+                // Keep terminalByToolCall for background jobs so live polling
+                // can continue; only drop the mapping for foreground shells.
+                const bgJob = extractBackgroundShellFromResult(ev.result);
+                if (!bgJob) {
+                  rec.terminalByToolCall.delete(ev.toolUse.toolUseId);
+                } else if (terminalId) {
+                  rec.shellJobs.set(bgJob.jobId, {
+                    terminalId,
+                    toolCallId: ev.toolUse.toolUseId,
+                  });
+                }
                 const content: Array<ToolCallContent> =
                   terminalId !== undefined
                     ? [{ type: "terminal", terminalId }]
@@ -1509,6 +1566,20 @@ export class HoomanAcpAgent {
                   rawOutput: ev.result.toJSON() as unknown,
                   content,
                   ...(locations ? { locations } : {}),
+                  ...(bgJob
+                    ? {
+                        _meta: {
+                          "hoomanjs/shell_job": {
+                            event: "started",
+                            job_id: bgJob.jobId,
+                            description: bgJob.description,
+                            status: bgJob.jobStatus ?? "running",
+                            terminal_id: terminalId,
+                            tool_call_id: ev.toolUse.toolUseId,
+                          },
+                        },
+                      }
+                    : {}),
                 });
                 if (
                   ev.toolUse.name === UPDATE_TODOS_TOOL_NAME &&
@@ -1975,6 +2046,8 @@ export class HoomanAcpAgent {
       streamingToolInputJson: new Map(),
       lastStreamToolUseId: null,
       terminalByToolCall: new Map(),
+      shellJobs: new Map(),
+      shellJobUnsub: null,
       currentAssistantMessageId: null,
       pendingModeReapply: false,
       pendingModelRebuild: false,
@@ -2039,7 +2112,174 @@ export class HoomanAcpAgent {
     }
     setTerminalBackend(agent, {
       run: (request) => this.#runClientTerminal(client, sessionId, request),
+      spawn: (request) => this.#spawnClientTerminal(client, sessionId, request),
+      readOutput: (terminalId) =>
+        this.#readClientTerminal(client, sessionId, terminalId),
+      kill: (terminalId) =>
+        this.#killClientTerminal(client, sessionId, terminalId),
     });
+  }
+
+  /** Call after the SessionRecord is stored in `#sessions`. */
+  #subscribeShellJobs(
+    agent: object,
+    client: AgentContext,
+    sessionId: string,
+  ): void {
+    const record = this.#sessions.get(sessionId);
+    if (!record) {
+      return;
+    }
+    record.shellJobUnsub?.();
+    const manager = getShellJobManager(agent);
+    record.shellJobUnsub = manager.on((event) => {
+      void this.#onShellJobEvent(client, sessionId, event);
+    });
+  }
+
+  async #onShellJobEvent(
+    client: AgentContext,
+    sessionId: string,
+    event: ShellJobEvent,
+  ): Promise<void> {
+    if (
+      event.type !== "completed" &&
+      event.type !== "stopped" &&
+      event.type !== "failed"
+    ) {
+      return;
+    }
+
+    const job = event.job;
+    const meta = {
+      "hoomanjs/shell_job": {
+        event: event.type,
+        job_id: job.id,
+        description: job.description,
+        status: job.status,
+        ready: job.ready,
+        exit_code: job.exitCode,
+        signal: job.signal,
+        terminal_id: job.terminalId,
+        tool_call_id: job.toolUseId,
+      },
+    };
+
+    // Meta-only update for the jobs bar — empty text so nothing lands in the
+    // transcript. Fire-and-forget release: awaiting a nested terminal/* RPC
+    // from inside stop_shell_job deadlocks the ACP connection.
+    void this.#sendUpdate(client, sessionId, {
+      sessionUpdate: "agent_message_chunk",
+      content: {
+        type: "text",
+        text: "",
+      },
+      _meta: meta,
+    }).catch(() => undefined);
+
+    const record = this.#sessions.get(sessionId);
+    const hosted = record?.shellJobs.get(job.id);
+    if (hosted) {
+      record?.shellJobs.delete(job.id);
+      void client
+        .request(methods.client.terminal.release, {
+          sessionId,
+          terminalId: hosted.terminalId,
+        })
+        .catch(() => undefined);
+    }
+  }
+
+  async #spawnClientTerminal(
+    client: AgentContext,
+    sessionId: string,
+    request: TerminalRunRequest,
+  ): Promise<TerminalSpawnResult> {
+    const created = await client.request(
+      methods.client.terminal.create,
+      {
+        sessionId,
+        command: request.command,
+        args: request.args,
+        cwd: request.cwd,
+        ...(request.outputByteLimit !== undefined
+          ? { outputByteLimit: request.outputByteLimit }
+          : {}),
+      },
+      { cancellationSignal: request.cancelSignal },
+    );
+    const terminalId = created.terminalId;
+    const record = this.#sessions.get(sessionId);
+    if (request.jobId && record) {
+      record.shellJobs.set(request.jobId, {
+        terminalId,
+        toolCallId: request.toolUseId,
+      });
+    }
+    if (request.toolUseId) {
+      record?.terminalByToolCall.set(request.toolUseId, terminalId);
+      await this.#sendUpdate(client, sessionId, {
+        sessionUpdate: "tool_call_update",
+        toolCallId: request.toolUseId,
+        status: "in_progress",
+        content: [{ type: "terminal", terminalId }],
+      });
+    }
+    return { terminalId };
+  }
+
+  async #readClientTerminal(
+    client: AgentContext,
+    sessionId: string,
+    terminalId: string,
+  ): Promise<TerminalOutputSnapshot> {
+    const output = await client.request(methods.client.terminal.output, {
+      sessionId,
+      terminalId,
+    });
+    return {
+      output: output.output,
+      truncated: output.truncated,
+      exitCode: output.exitStatus?.exitCode ?? null,
+      signal: output.exitStatus?.signal ?? null,
+    };
+  }
+
+  async #killClientTerminal(
+    client: AgentContext,
+    sessionId: string,
+    terminalId: string,
+  ): Promise<void> {
+    await client
+      .request(methods.client.terminal.kill, { sessionId, terminalId })
+      .catch(() => undefined);
+  }
+
+  async #teardownShellJobs(
+    sessionId: string,
+    record: SessionRecord,
+  ): Promise<void> {
+    record.shellJobUnsub?.();
+    record.shellJobUnsub = null;
+    const client = this.#client;
+    for (const [jobId, hosted] of record.shellJobs) {
+      if (client) {
+        await client
+          .request(methods.client.terminal.kill, {
+            sessionId,
+            terminalId: hosted.terminalId,
+          })
+          .catch(() => undefined);
+        await client
+          .request(methods.client.terminal.release, {
+            sessionId,
+            terminalId: hosted.terminalId,
+          })
+          .catch(() => undefined);
+      }
+      record.shellJobs.delete(jobId);
+    }
+    await clearShellJobManager(record.agent).catch(() => undefined);
   }
 
   async #runClientTerminal(
@@ -2168,10 +2408,11 @@ export class HoomanAcpAgent {
   }
 
   async #disposeAll(): Promise<void> {
-    const records = [...this.#sessions.values()];
+    const entries = [...this.#sessions.entries()];
     this.#sessions.clear();
-    for (const record of records) {
+    for (const [sessionId, record] of entries) {
       record.turnAbort?.abort();
+      await this.#teardownShellJobs(sessionId, record);
       await record.mcpDisconnect();
     }
   }
@@ -2206,6 +2447,11 @@ export function createAcpApp(agent: HoomanAcpAgent): AgentApp {
       (params) => params as RewindSessionRequest,
       (ctx) => agent.rewindSession(ctx.params),
     )
+    .onRequest(
+      "_hoomanjs/stop_shell_job",
+      (params) => params as StopShellJobRequest,
+      (ctx) => agent.stopShellJob(ctx.params),
+    )
     .onRequest(methods.agent.session.setMode, (ctx) =>
       agent.setSessionMode(ctx.params, ctx.client),
     )
@@ -2227,4 +2473,79 @@ export async function runAcpStdio(): Promise<void> {
   );
   const connection = createAcpApp(new HoomanAcpAgent(identity)).connect(stream);
   await connection.closed;
+}
+
+/**
+ * Pull a background shell job payload out of a Strands tool result.
+ * The tool returns `{ status: "background", job_id, ... }` which the SDK wraps
+ * as a ToolResultBlock with a json content block.
+ */
+function extractBackgroundShellFromResult(result: {
+  content?: unknown;
+  toJSON?: () => unknown;
+}): { jobId: string; description?: string; jobStatus?: string } | null {
+  const fromValue = (
+    value: unknown,
+  ): { jobId: string; description?: string; jobStatus?: string } | null => {
+    if (!value || typeof value !== "object") {
+      return null;
+    }
+    const record = value as Record<string, unknown>;
+    if (record.status === "background" && typeof record.job_id === "string") {
+      return {
+        jobId: record.job_id,
+        description:
+          typeof record.description === "string"
+            ? record.description
+            : undefined,
+        jobStatus:
+          typeof record.job_status === "string" ? record.job_status : undefined,
+      };
+    }
+    return null;
+  };
+
+  if (Array.isArray(result.content)) {
+    for (const block of result.content) {
+      if (!block || typeof block !== "object") {
+        continue;
+      }
+      const json = (block as { json?: unknown; type?: string }).json;
+      const nested = fromValue(json ?? block);
+      if (nested) {
+        return nested;
+      }
+    }
+  }
+
+  try {
+    const serialized = result.toJSON?.();
+    if (serialized && typeof serialized === "object") {
+      const wrapped = serialized as {
+        toolResult?: { content?: unknown[] };
+        content?: unknown[];
+      };
+      const content = wrapped.toolResult?.content ?? wrapped.content;
+      if (Array.isArray(content)) {
+        for (const block of content) {
+          if (!block || typeof block !== "object") {
+            continue;
+          }
+          const json = (block as { json?: unknown }).json;
+          const nested = fromValue(json ?? block);
+          if (nested) {
+            return nested;
+          }
+        }
+      }
+      const direct = fromValue(serialized);
+      if (direct) {
+        return direct;
+      }
+    }
+  } catch {
+    // ignore serialization errors
+  }
+
+  return null;
 }

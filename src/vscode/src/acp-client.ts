@@ -135,14 +135,14 @@ export class HoomanAcpClient implements vscode.Disposable {
       .onRequest(methods.client.terminal.output, (ctx) =>
         this.terminal.output(ctx.params),
       )
-      .onRequest(methods.client.terminal.release, (ctx) => {
-        this.terminal.release(ctx.params);
+      .onRequest(methods.client.terminal.release, async (ctx) => {
+        await this.terminal.release(ctx.params);
       })
       .onRequest(methods.client.terminal.waitForExit, (ctx) =>
         this.terminal.waitForExit(ctx.params),
       )
-      .onRequest(methods.client.terminal.kill, (ctx) => {
-        this.terminal.kill(ctx.params);
+      .onRequest(methods.client.terminal.kill, async (ctx) => {
+        await this.terminal.kill(ctx.params);
       })
       .onNotification(methods.client.session.update, (ctx) => {
         this.#onSessionUpdate.fire(ctx.params);

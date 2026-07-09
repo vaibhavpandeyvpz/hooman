@@ -10,6 +10,7 @@ type TranscriptLineProps = {
   line: ChatLine;
   assistantName?: string;
   reasoningDisplay?: ReasoningDisplay;
+  agent?: object;
 };
 
 /** Renders a single transcript entry by role. Shared by the committed (Static) history and the live region. */
@@ -17,11 +18,12 @@ export function TranscriptLine({
   line,
   assistantName,
   reasoningDisplay,
+  agent,
 }: TranscriptLineProps) {
   return (
     <Box flexDirection="column" marginBottom={1} width="100%">
       {line.role === "tool" ? (
-        <ToolEvent line={line} />
+        <ToolEvent line={line} agent={agent} />
       ) : line.role === "thought" ? (
         <ThoughtEvent
           line={line}
@@ -41,6 +43,7 @@ type LiveTranscriptProps = {
   lines: ChatLine[];
   assistantName?: string;
   reasoningDisplay?: ReasoningDisplay;
+  agent?: object;
 };
 
 /**
@@ -53,6 +56,7 @@ export function LiveTranscript({
   lines,
   assistantName,
   reasoningDisplay,
+  agent,
 }: LiveTranscriptProps) {
   if (lines.length === 0) {
     return null;
@@ -65,6 +69,7 @@ export function LiveTranscript({
           line={line}
           assistantName={assistantName}
           reasoningDisplay={reasoningDisplay}
+          agent={agent}
         />
       ))}
     </Box>

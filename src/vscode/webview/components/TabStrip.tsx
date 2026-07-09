@@ -48,7 +48,8 @@ export default function TabStrip() {
                   <Show when={tab.busy || tab.loading}>
                     <Loader2
                       size={11}
-                      class="shrink-0 animate-spin text-[var(--vscode-tab-activeBorder,var(--vscode-textLink-foreground))]"
+                      class="shrink-0 animate-spin-slow text-accent"
+                      aria-label={tab.loading ? "Loading" : "Busy"}
                     />
                   </Show>
                   <span class="min-w-0 flex-1 truncate text-left leading-none">

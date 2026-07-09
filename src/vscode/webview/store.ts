@@ -17,6 +17,7 @@ import type {
   PlanEditorStateInfo,
   QueuedPromptInfo,
   SessionRowInfo,
+  ShellJobInfo,
   TabInfo,
   TokenTotals,
   WebviewRoute,
@@ -111,6 +112,7 @@ type SessionUiState = {
   editDraft: string | null;
   attachments: AttachmentInfo[];
   loadingSession: string | null;
+  shellJobs: ShellJobInfo[];
 };
 
 type SessionRuntime = {
@@ -155,6 +157,7 @@ function createSessionState(): SessionUiState {
     editDraft: null,
     attachments: [],
     loadingSession: null,
+    shellJobs: [],
   };
 }
 
@@ -494,7 +497,14 @@ function upsertToolCall(
     return;
   }
   breakStream(sessionId);
-  const live = Boolean(update._meta?.["hoomanjs/live"]);
+  const live =
+    Boolean(update._meta?.["hoomanjs/live"]) ||
+    // Keep tool cards expanded while a background job still owns this call.
+    Boolean(
+      state.sessions[sessionId]?.shellJobs.some(
+        (j) => j.toolCallId === update.toolCallId,
+      ),
+    );
   const index = itemIndex(sessionId, update.toolCallId);
   if (index === -1) {
     pushItem(sessionId, {
@@ -609,6 +619,11 @@ function handleSessionUpdate(
       break;
     }
     case "agent_message_chunk":
+      // Background shell job lifecycle updates carry `_meta` only — the jobs
+      // bar handles display; don't append noisy status lines to the transcript.
+      if (update._meta?.["hoomanjs/shell_job"]) {
+        break;
+      }
       if (update.content?.type === "text") {
         appendAssistantText(sessionId, update.content.text);
       }
@@ -867,6 +882,10 @@ onHostMessage((msg) => {
         msg.loading ? (msg.title ?? "Loading session") : null,
       );
       break;
+    case "shellJobs":
+      ensureSession(msg.sessionId);
+      setState("sessions", msg.sessionId, "shellJobs", msg.jobs);
+      break;
     case "error":
       ensureSession(msg.sessionId);
       breakStream(msg.sessionId);
@@ -952,6 +971,25 @@ export function cancelPrompt(): void {
   if (sessionId) {
     markUnfinishedToolCallsCancelled(sessionId);
   }
+}
+
+export function stopShellJob(sessionId: string, jobId: string): void {
+  // Optimistic loading state so the button disables immediately — don't wait
+  // for the host → ACP round-trip before showing "stopping".
+  const jobs = state.sessions[sessionId]?.shellJobs;
+  if (jobs) {
+    setState(
+      "sessions",
+      sessionId,
+      "shellJobs",
+      jobs.map((job) =>
+        job.jobId === jobId
+          ? { ...job, stopping: true, status: "stopping" }
+          : job,
+      ),
+    );
+  }
+  post({ type: "stopShellJob", sessionId, jobId });
 }
 
 /**

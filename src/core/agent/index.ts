@@ -34,12 +34,12 @@ import {
   clearReadTimeAgentInstructionState,
   createPlanTools,
   createSleepTools,
-  createShellTools,
   createThinkingTools,
   createTimeTools,
   createWebSearchTools,
   createMcpDiscoveryTools,
 } from "../tools/index.js";
+import { createShellTools } from "../shell/index.js";
 import { createSessionModePromptPlugin } from "../prompts/session-mode-appendix.js";
 import {
   clearAgentSkillsPromptInjectionState,

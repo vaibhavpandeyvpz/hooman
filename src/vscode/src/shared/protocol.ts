@@ -177,6 +177,17 @@ export interface PlanEditorStateInfo {
   dirty: boolean;
 }
 
+/** One active background shell job shown above the composer. */
+export interface ShellJobInfo {
+  jobId: string;
+  description: string;
+  status: string;
+  terminalId?: string;
+  toolCallId?: string;
+  /** True while a Stop click is awaiting `_hoomanjs/stop_shell_job`. */
+  stopping?: boolean;
+}
+
 /** Messages sent from the webview to the extension host. */
 export type InboundMessage =
   | { type: "ready" }
@@ -186,6 +197,7 @@ export type InboundMessage =
       attachments?: AttachmentInfo[];
     }
   | { type: "cancel" }
+  | { type: "stopShellJob"; sessionId: string; jobId: string }
   | {
       type: "revert";
       /** The turn's ACP `messageId` (agent-generated, per the MessageId RFD), captured client-side from that turn's `user_message_chunk` echo. */
@@ -302,5 +314,10 @@ export type OutboundMessage =
       sessionId: string;
       loading: boolean;
       title?: string;
+    }
+  | {
+      type: "shellJobs";
+      sessionId: string;
+      jobs: ShellJobInfo[];
     }
   | { type: "error"; sessionId: string; message: string };

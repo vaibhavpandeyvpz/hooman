@@ -10,6 +10,7 @@ import LoadingOverlay from "./components/LoadingOverlay";
 import DownloadStrip from "./components/DownloadStrip";
 import StatusStrip from "./components/StatusStrip";
 import UsageFooter from "./components/UsageFooter";
+import BackgroundJobsBar from "./components/BackgroundJobsBar";
 import Composer from "./components/Composer";
 import PlanEditorView from "./components/PlanEditorView";
 import SettingsEditorView from "./components/SettingsEditorView";
@@ -28,6 +29,7 @@ export default function App() {
           <DownloadStrip />
           <StatusStrip />
           <UsageFooter />
+          <BackgroundJobsBar />
           <Composer />
           <SessionsPanel />
           <LoadingOverlay />

@@ -13,6 +13,10 @@ export interface ChatLine {
   phase?: "running" | "done";
   resultContent?: string;
   fileToolDisplay?: FileToolDisplay;
+  /** Background shell job id when this tool line tracks a managed job. */
+  shellJobId?: string;
+  /** Live terminal scrollback for shell tools. */
+  liveOutput?: string;
   startedAt?: number;
   finishedAt?: number;
   estimatedTokens?: number;

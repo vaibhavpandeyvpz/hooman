@@ -1,6 +1,7 @@
 import { Text } from "ink";
 import type { Config } from "../../core/config.js";
 import { MODE_DEFINITIONS, type SessionMode } from "../../core/modes/index.js";
+import type { ShellJobInfo } from "../../core/shell/index.js";
 import {
   currentReasoningEffort,
   REASONING_EFFORT_LEVELS,
@@ -14,7 +15,14 @@ import type { ChatQuestion } from "../questions.js";
 import { theme } from "../../core/theme.js";
 
 export type ChatPicker =
-  null | "model" | "effort" | "yolo" | "mode" | "sessions";
+  | null
+  | "model"
+  | "effort"
+  | "yolo"
+  | "mode"
+  | "sessions"
+  | "tasks"
+  | "stop-task";
 
 type ChromePickerProps = {
   config: Config;
@@ -24,6 +32,8 @@ type ChromePickerProps = {
   picker: ChatPicker;
   yoloOn: boolean;
   sessionMode: SessionMode;
+  shellJobs: readonly ShellJobInfo[];
+  pendingStopJob: ShellJobInfo | null;
   onApprovalDecision: (decision: ApprovalDecision, reason?: string) => void;
   onQuestionAnswer: (answer: string) => void;
   onQuestionDismiss: () => void;
@@ -33,6 +43,8 @@ type ChromePickerProps = {
   onYoloSelect: (value: string) => void;
   onModeSelect: (value: string) => void;
   onSessionSelect: (value: string) => void;
+  onTaskSelect: (jobId: string) => void;
+  onStopTaskConfirm: (confirm: boolean) => void;
 };
 
 export function ChromePicker({
@@ -43,6 +55,8 @@ export function ChromePicker({
   picker,
   yoloOn,
   sessionMode,
+  shellJobs,
+  pendingStopJob,
   onApprovalDecision,
   onQuestionAnswer,
   onQuestionDismiss,
@@ -52,6 +66,8 @@ export function ChromePicker({
   onYoloSelect,
   onModeSelect,
   onSessionSelect,
+  onTaskSelect,
+  onStopTaskConfirm,
 }: ChromePickerProps) {
   if (pendingApproval) {
     return (
@@ -154,6 +170,35 @@ export function ChromePicker({
         title="Resume saved session"
         items={sessionItems}
         onSelect={onSessionSelect}
+      />
+    );
+  }
+
+  if (picker === "tasks") {
+    if (shellJobs.length === 0) {
+      return <Text color={theme.muted}>No background shell jobs running.</Text>;
+    }
+    return (
+      <SelectPicker
+        title="Background jobs — choose one to stop"
+        items={shellJobs.map((job) => ({
+          label: `${job.status} • ${job.description} • ${job.id}`,
+          value: job.id,
+        }))}
+        onSelect={onTaskSelect}
+      />
+    );
+  }
+
+  if (picker === "stop-task" && pendingStopJob) {
+    return (
+      <SelectPicker
+        title={`Stop “${pendingStopJob.description}” (${pendingStopJob.id})?`}
+        items={[
+          { label: "Stop this job", value: "stop" },
+          { label: "Keep running", value: "keep" },
+        ]}
+        onSelect={(value) => onStopTaskConfirm(value === "stop")}
       />
     );
   }

@@ -58,6 +58,11 @@ import { EmptyChatBanner } from "./components/EmptyChatBanner.js";
 import type { ApprovalRequest, ChatLine } from "./types.js";
 import { getTodoViewState, type TodoViewState } from "../core/state/todos.js";
 import {
+  getShellJobViewState,
+  type ShellJobViewState,
+} from "../core/state/shell-jobs.js";
+import { getShellJobManager, type ShellJobInfo } from "../core/shell/index.js";
+import {
   getModeState,
   setSessionMode,
   type SessionMode,
@@ -433,6 +438,10 @@ const SLASH_COMMANDS = [
     description: "Browse and resume saved sessions.",
   },
   {
+    name: "tasks",
+    description: "List background shell jobs and stop one.",
+  },
+  {
     name: "yolo",
     description: "Auto-approve tools (on|off).",
   },
@@ -525,6 +534,12 @@ export function ChatApp({
   >([]);
   const [todoState, setTodoState] = useState<TodoViewState>(() =>
     getTodoViewState(agent),
+  );
+  const [shellJobState, setShellJobState] = useState<ShellJobViewState>(() =>
+    getShellJobViewState(agent),
+  );
+  const [pendingStopJob, setPendingStopJob] = useState<ShellJobInfo | null>(
+    null,
   );
   // In-flight model weights download (llama.cpp GGUF fetched from the Hugging
   // Face Hub on first use); rendered as a transient progress row in the chrome.
@@ -643,12 +658,20 @@ export function ChatApp({
         return;
       }
       setTodoState(getTodoViewState(agent));
+      setShellJobState(getShellJobViewState(agent));
     };
     refresh();
     const timer = setInterval(refresh, running ? 200 : 800);
+    const manager = getShellJobManager(agent);
+    const unsub = manager.on(() => {
+      if (active) {
+        setShellJobState(getShellJobViewState(agent));
+      }
+    });
     return () => {
       active = false;
       clearInterval(timer);
+      unsub();
     };
   }, [agent, running]);
 
@@ -1411,11 +1434,26 @@ export function ChatApp({
                   }
                 }
                 if (toolLineId) {
+                  let shellJobId: string | undefined;
+                  try {
+                    const parsed = JSON.parse(resultContent) as {
+                      job_id?: string;
+                    };
+                    if (
+                      typeof parsed.job_id === "string" &&
+                      parsed.job_id.length > 0
+                    ) {
+                      shellJobId = parsed.job_id;
+                    }
+                  } catch {
+                    // not JSON
+                  }
                   updateLine(toolLineId, {
                     phase: "done",
                     done: true,
                     resultContent,
                     fileToolDisplay,
+                    ...(shellJobId ? { shellJobId } : {}),
                   });
                 } else {
                   appendLine({
@@ -1723,6 +1761,12 @@ export function ChatApp({
           setInput("");
           return;
         }
+        if (command.name === "tasks") {
+          setPendingStopJob(null);
+          setPicker("tasks");
+          setInput("");
+          return;
+        }
       }
       if (pushPrompt(value)) {
         setInput("");
@@ -1768,6 +1812,7 @@ export function ChatApp({
         }
         if (picker) {
           setPicker(null);
+          setPendingStopJob(null);
           return;
         }
         onExit();
@@ -1777,6 +1822,7 @@ export function ChatApp({
       if (key.escape) {
         if (picker) {
           setPicker(null);
+          setPendingStopJob(null);
           return;
         }
         if (runningRef.current) {
@@ -1840,6 +1886,7 @@ export function ChatApp({
               line={line}
               assistantName={config.name}
               reasoningDisplay={config.reasoning}
+              agent={agent}
             />
           </Box>
         )}
@@ -1859,6 +1906,7 @@ export function ChatApp({
           lines={liveLines}
           assistantName={config.name}
           reasoningDisplay={config.reasoning}
+          agent={agent}
         />
         <BottomChrome
           config={config}
@@ -1888,6 +1936,8 @@ export function ChatApp({
           }
           downloadProgress={downloadProgress}
           todoState={todoState}
+          shellJobs={shellJobState.jobs}
+          pendingStopJob={pendingStopJob}
           queuedPrompts={queuedPrompts}
           pendingApproval={Boolean(pendingApproval)}
           approvalRequest={pendingApproval}
@@ -1923,6 +1973,46 @@ export function ChatApp({
           onSessionSelect={(value) => {
             setPicker(null);
             handleResumeSessionCommand(value);
+          }}
+          onTaskSelect={(jobId) => {
+            const job = shellJobState.jobs.find((entry) => entry.id === jobId);
+            if (!job) {
+              setPicker(null);
+              setPendingStopJob(null);
+              return;
+            }
+            setPendingStopJob(job);
+            setPicker("stop-task");
+          }}
+          onStopTaskConfirm={(confirm) => {
+            const job = pendingStopJob;
+            setPicker(null);
+            setPendingStopJob(null);
+            if (!confirm || !job) {
+              return;
+            }
+            void (async () => {
+              try {
+                await getShellJobManager(agent).stop(job.id);
+                appendLine({
+                  id: nowId(),
+                  role: "system",
+                  title: "tasks",
+                  content: `Stopped ${job.id} (${job.description}).`,
+                  done: true,
+                });
+              } catch (error) {
+                appendLine({
+                  id: nowId(),
+                  role: "system",
+                  title: "tasks",
+                  content: `Failed to stop ${job.id}: ${
+                    error instanceof Error ? error.message : String(error)
+                  }`,
+                  done: true,
+                });
+              }
+            })();
           }}
           onInputChange={setInput}
           onSubmit={onSubmit}

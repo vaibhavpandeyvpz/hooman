@@ -43,6 +43,9 @@ export const INTERNAL_ALWAYS_ALLOWED = new Set([
   "subagent_test_investigator",
   // Sleep
   "sleep",
+  // Background shell job management (safe to use in any mode once a job exists)
+  "shell_output",
+  "shell_stop",
   // Asking the user a question IS the interaction — no separate approval gate.
   ASK_USER_TOOL,
   SEARCH_TOOLS_TOOL,

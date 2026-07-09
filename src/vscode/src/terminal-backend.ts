@@ -12,6 +12,8 @@ import type {
   WaitForTerminalExitResponse,
 } from "@agentclientprotocol/sdk";
 
+const SIGKILL_TIMEOUT_MS = 500;
+
 /**
  * Backs the ACP `terminal/*` client methods with plain child processes.
  *
@@ -20,6 +22,9 @@ import type {
  * enough across shells/platforms for this purpose. Output is captured
  * directly from the child process's stdio instead, which is simpler and
  * gives byte-accurate output/exit-code reporting to the agent.
+ *
+ * On Unix, children are spawned in their own process group so kill can tear
+ * down the whole tree (shell + `top`, servers, etc.).
  */
 export class TerminalBackend implements vscode.Disposable {
   readonly #terminals = new Map<string, TerminalState>();
@@ -37,6 +42,8 @@ export class TerminalBackend implements vscode.Disposable {
       cwd: request.cwd ?? undefined,
       env,
       shell: false,
+      detached: process.platform !== "win32",
+      windowsHide: true,
     });
     const state: TerminalState = {
       child,
@@ -45,6 +52,7 @@ export class TerminalBackend implements vscode.Disposable {
       byteLimit: request.outputByteLimit ?? undefined,
       exitStatus: null,
       exitWaiters: [],
+      killing: false,
     };
     this.#terminals.set(terminalId, state);
 
@@ -95,17 +103,36 @@ export class TerminalBackend implements vscode.Disposable {
     });
   }
 
-  kill(request: KillTerminalRequest): void {
+  async kill(request: KillTerminalRequest): Promise<void> {
     const state = this.#terminals.get(request.terminalId);
-    if (state && !state.exitStatus) {
-      state.child.kill();
+    if (!state || state.exitStatus) {
+      return;
     }
+    if (state.killing) {
+      // A prior kill/release is in flight — wait for it, then force another
+      // attempt if the process is somehow still alive.
+      await this.#waitForExit(state, 5_000);
+      if (!state.exitStatus) {
+        await this.#killTree(state);
+      }
+      return;
+    }
+    state.killing = true;
+    await this.#killTree(state);
   }
 
-  release(request: ReleaseTerminalRequest): void {
+  async release(request: ReleaseTerminalRequest): Promise<void> {
     const state = this.#terminals.get(request.terminalId);
     if (state && !state.exitStatus) {
-      state.child.kill();
+      if (!state.killing) {
+        state.killing = true;
+        await this.#killTree(state);
+      } else {
+        await this.#waitForExit(state, 5_000);
+        if (!state.exitStatus) {
+          await this.#killTree(state);
+        }
+      }
     }
     // Intentionally retained in the map: the agent references released
     // terminals in completed tool_call_update content (`type: "terminal"`),
@@ -119,8 +146,9 @@ export class TerminalBackend implements vscode.Disposable {
 
   dispose(): void {
     for (const state of this.#terminals.values()) {
-      if (!state.exitStatus) {
-        state.child.kill();
+      if (!state.exitStatus && !state.killing) {
+        state.killing = true;
+        void this.#killTree(state).catch(() => undefined);
       }
     }
     this.#terminals.clear();
@@ -157,6 +185,110 @@ export class TerminalBackend implements vscode.Disposable {
       waiter();
     }
   }
+
+  async #killTree(state: TerminalState): Promise<void> {
+    const proc = state.child;
+    const pid = proc.pid;
+    if (!pid || state.exitStatus) {
+      return;
+    }
+
+    if (process.platform === "win32") {
+      await new Promise<void>((resolve) => {
+        const killer = cp.spawn("taskkill", ["/pid", String(pid), "/f", "/t"], {
+          stdio: "ignore",
+          windowsHide: true,
+        });
+        killer.once("exit", () => resolve());
+        killer.once("error", () => resolve());
+      });
+      await this.#waitForExit(state, 2_000);
+      return;
+    }
+
+    // Prefer process-group signals (detached spawn). Fall back to the child
+    // handle, then to `/bin/kill` — Electron/extension hosts sometimes reject
+    // `process.kill(-pid)` with EPERM even when the process is ours.
+    this.#signalGroup(pid, "SIGTERM");
+    try {
+      proc.kill("SIGTERM");
+    } catch {
+      // already gone
+    }
+    if (await this.#waitForExit(state, SIGKILL_TIMEOUT_MS)) {
+      return;
+    }
+
+    this.#signalGroup(pid, "SIGKILL");
+    try {
+      proc.kill("SIGKILL");
+    } catch {
+      // already gone
+    }
+    if (await this.#waitForExit(state, SIGKILL_TIMEOUT_MS)) {
+      return;
+    }
+
+    await this.#shellKill(pid, "TERM");
+    if (await this.#waitForExit(state, SIGKILL_TIMEOUT_MS)) {
+      return;
+    }
+    await this.#shellKill(pid, "KILL");
+    await this.#waitForExit(state, 1_000);
+  }
+
+  /** Send a signal to a process group (`-pid`) and the leader pid. */
+  #signalGroup(pid: number, signal: NodeJS.Signals): void {
+    try {
+      process.kill(-pid, signal);
+    } catch {
+      // EPERM / ESRCH — try the leader alone below
+    }
+    try {
+      process.kill(pid, signal);
+    } catch {
+      // already gone
+    }
+  }
+
+  /** Last-resort kill via `/bin/kill` (works when Node's kill is restricted). */
+  async #shellKill(pid: number, signal: "TERM" | "KILL"): Promise<void> {
+    await new Promise<void>((resolve) => {
+      // Kill the process group first (`-pid`), then the leader pid.
+      const killer = cp.spawn(
+        "/bin/kill",
+        [`-${signal}`, `-${pid}`, String(pid)],
+        { stdio: "ignore" },
+      );
+      killer.once("exit", () => resolve());
+      killer.once("error", () => resolve());
+    });
+  }
+
+  #waitForExit(state: TerminalState, timeoutMs: number): Promise<boolean> {
+    if (state.exitStatus) {
+      return Promise.resolve(true);
+    }
+    return new Promise((resolve) => {
+      const timer = setTimeout(() => {
+        cleanup();
+        resolve(Boolean(state.exitStatus));
+      }, timeoutMs);
+      const onExit = () => {
+        cleanup();
+        resolve(true);
+      };
+      const cleanup = () => {
+        clearTimeout(timer);
+        state.child.off("exit", onExit);
+      };
+      state.child.once("exit", onExit);
+      if (state.exitStatus) {
+        cleanup();
+        resolve(true);
+      }
+    });
+  }
 }
 
 type TerminalState = {
@@ -166,4 +298,5 @@ type TerminalState = {
   byteLimit: number | undefined;
   exitStatus: TerminalExitStatus | null;
   exitWaiters: Array<() => void>;
+  killing: boolean;
 };

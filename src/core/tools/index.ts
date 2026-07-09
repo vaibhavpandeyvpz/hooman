@@ -7,7 +7,6 @@ export {
 export { createGrepTools } from "./grep.js";
 export { createFetchTools } from "./fetch.js";
 export { createSleepTools } from "./sleep.js";
-export { createShellTools } from "./shell.js";
 export { createThinkingTools } from "./thinking.js";
 export { createTimeTools } from "./time.js";
 export { createTodoTools } from "./todo.js";

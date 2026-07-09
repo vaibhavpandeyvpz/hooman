@@ -1,6 +1,7 @@
 import { Box } from "ink";
 import type { Manager as McpManager } from "../../core/mcp/index.js";
 import type { TodoViewState } from "../../core/state/todos.js";
+import type { ShellJobInfo } from "../../core/shell/index.js";
 import type { Config } from "../../core/config.js";
 import type { SessionMode } from "../../core/state/session-mode.js";
 import type { ModelDownloadProgress } from "../../core/utils/download-progress.js";
@@ -11,6 +12,7 @@ import { QueuedPrompts } from "./QueuedPrompts.js";
 import { SlashCommands } from "./SlashCommands.js";
 import { StatusBar } from "./StatusBar.js";
 import { TodoPanel } from "./TodoPanel.js";
+import { BackgroundJobsPanel } from "./BackgroundJobsPanel.js";
 import type { ApprovalDecision, ApprovalRequest } from "../types.js";
 import type { ChatQuestion } from "../questions.js";
 import type { PromptSubmission } from "./prompt-input/hooks/usePromptInputController.js";
@@ -49,6 +51,8 @@ type BottomChromeProps = {
   /** In-flight model weights download (llama.cpp GGUF fetch), if any. */
   downloadProgress: ModelDownloadProgress | null;
   todoState: TodoViewState;
+  shellJobs: readonly ShellJobInfo[];
+  pendingStopJob: ShellJobInfo | null;
   queuedPrompts: readonly QueuedPrompt[];
   pendingApproval: boolean;
   approvalRequest: ApprovalRequest | null;
@@ -68,6 +72,8 @@ type BottomChromeProps = {
   onYoloSelect: (value: string) => void;
   onModeSelect: (value: string) => void;
   onSessionSelect: (value: string) => void;
+  onTaskSelect: (jobId: string) => void;
+  onStopTaskConfirm: (confirm: boolean) => void;
   onInputChange: (value: string) => void;
   onSubmit: (value: PromptSubmission) => void;
 };
@@ -89,6 +95,8 @@ export function BottomChrome({
   costUsd,
   downloadProgress,
   todoState,
+  shellJobs,
+  pendingStopJob,
   queuedPrompts,
   pendingApproval,
   approvalRequest,
@@ -108,6 +116,8 @@ export function BottomChrome({
   onYoloSelect,
   onModeSelect,
   onSessionSelect,
+  onTaskSelect,
+  onStopTaskConfirm,
   onInputChange,
   onSubmit,
 }: BottomChromeProps) {
@@ -116,6 +126,8 @@ export function BottomChrome({
       {running && todoState.visible && todoState.todos.length > 0 ? (
         <TodoPanel todos={todoState.todos} />
       ) : null}
+
+      <BackgroundJobsPanel jobs={shellJobs} />
 
       <QueuedPrompts prompts={queuedPrompts} />
 
@@ -127,6 +139,8 @@ export function BottomChrome({
         picker={picker}
         yoloOn={yoloOn}
         sessionMode={sessionMode}
+        shellJobs={shellJobs}
+        pendingStopJob={pendingStopJob}
         onApprovalDecision={onApprovalDecision}
         onQuestionAnswer={onQuestionAnswer}
         onQuestionDismiss={onQuestionDismiss}
@@ -136,6 +150,8 @@ export function BottomChrome({
         onYoloSelect={onYoloSelect}
         onModeSelect={onModeSelect}
         onSessionSelect={onSessionSelect}
+        onTaskSelect={onTaskSelect}
+        onStopTaskConfirm={onStopTaskConfirm}
       />
 
       {!pendingApproval && !pendingQuestion && !picker ? (
