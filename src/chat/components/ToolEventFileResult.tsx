@@ -3,6 +3,7 @@ import type * as React from "react";
 import type { ChatLine } from "../types.js";
 import { compactInline, truncLine } from "./shared.js";
 import { Spinner } from "./Spinner.js";
+import { theme } from "../../core/theme.js";
 import {
   type FileToolResult,
   type StructuredPatchHunk,
@@ -22,18 +23,18 @@ export function ToolEventFileResult({
 }: ToolEventFileResultProps): React.ReactNode {
   return (
     <Box flexDirection="column" width="100%">
-      <Text color="yellow" bold>
+      <Text color={theme.warning} bold>
         Tool
       </Text>
       <Text>
         <Text bold>{result.toolName}</Text>
-        <Text color="gray">: </Text>
+        <Text color={theme.muted}>: </Text>
         <Text>{compactInline(result.path, 160)}</Text>
       </Text>
       {line.phase === "running" ? (
         <Box flexDirection="row">
-          <Spinner type="dots" color="yellow" />
-          <Text color="gray"> running...</Text>
+          <Spinner type="dots" color={theme.warning} />
+          <Text color={theme.muted}> running...</Text>
         </Box>
       ) : null}
       {line.phase === "done" ? <FileToolSummary result={result} /> : null}
@@ -48,7 +49,7 @@ function FileToolSummary({ result }: { result: FileToolResult }) {
   if (result.kind === "write") {
     const operation = result.appended ? "Appended" : "Wrote";
     return (
-      <Text color="gray">
+      <Text color={theme.muted}>
         {operation}
         {result.bytesWritten === undefined
           ? ""
@@ -70,7 +71,7 @@ function FileToolSummary({ result }: { result: FileToolResult }) {
         : " no changes";
 
   return (
-    <Text color="gray">
+    <Text color={theme.muted}>
       {mode} {edits}
       {changed}
     </Text>
@@ -94,7 +95,7 @@ function PatchPreview({ hunks }: { hunks: StructuredPatchHunk[] }) {
         </Text>
       ))}
       {hiddenLineCount > 0 ? (
-        <Text color="gray">
+        <Text color={theme.muted}>
           ... +{hiddenLineCount} {hiddenLineCount === 1 ? "line" : "lines"}
         </Text>
       ) : null}
@@ -104,13 +105,13 @@ function PatchPreview({ hunks }: { hunks: StructuredPatchHunk[] }) {
 
 function colorForPatchLine(line: string): string {
   if (line.startsWith("+")) {
-    return "green";
+    return theme.success;
   }
   if (line.startsWith("-")) {
-    return "red";
+    return theme.error;
   }
   if (line.startsWith("@@") || line === "...") {
-    return "gray";
+    return theme.muted;
   }
   return "white";
 }

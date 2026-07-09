@@ -1,10 +1,18 @@
 :root {
-  --hooman-cyan: #22d3ee;
-  --hooman-blue: #3b82f6;
-  --hooman-indigo: #6366f1;
-  --hooman-primary: #2563eb;
-  --hooman-face: #e0f2fe;
-  --hooman-blush: #7dd3fc;
+  --hooman-primary: #0091cd;
+  --hooman-secondary: #56a0d3;
+  --hooman-warning: #ecb731;
+  --hooman-error: #ee4c58;
+  --hooman-success: #8ec06c;
+  --hooman-info: #c4dff6;
+  --hooman-muted: #9ba5a8;
+
+  /* Back-compat aliases used by existing docs styles */
+  --hooman-cyan: #0091cd;
+  --hooman-blue: #56a0d3;
+  --hooman-indigo: #007bb0;
+  --hooman-face: #c4dff6;
+  --hooman-blush: #56a0d3;
 
   --hooman-ink-950: #05070d;
   --hooman-ink-900: #0a0e17;

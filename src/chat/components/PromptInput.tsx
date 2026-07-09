@@ -6,6 +6,7 @@ import {
   type PromptSubmission,
   type SlashCommandMenuProps,
 } from "./prompt-input/hooks/usePromptInputController.js";
+import { theme } from "../../core/theme.js";
 
 export type PromptInputProps = {
   value: string;
@@ -39,7 +40,7 @@ export function PromptInput({
     return (
       <Text>
         {focus ? <Text inverse> </Text> : null}
-        {placeholder ? <Text color="gray">{placeholder}</Text> : null}
+        {placeholder ? <Text color={theme.muted}>{placeholder}</Text> : null}
       </Text>
     );
   }

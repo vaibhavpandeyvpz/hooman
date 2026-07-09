@@ -3,6 +3,7 @@ import { Box, Text, useInput } from "ink";
 import SelectInput from "ink-select-input";
 import type { MenuAction, MenuActionErrorHandler, MenuItem } from "../types.js";
 import { SelectMenuItem } from "./SelectMenuItem.js";
+import { theme } from "../../core/theme.js";
 
 type MenuScreenProps = {
   title?: string;
@@ -95,7 +96,7 @@ export function MenuScreen({
   return (
     <Box flexDirection="column" marginTop={1}>
       {title?.trim() ? <Text bold>{title}</Text> : null}
-      {description ? <Text color="gray">{description}</Text> : null}
+      {description ? <Text color={theme.muted}>{description}</Text> : null}
       <Box marginTop={hasHeader ? 1 : 0}>
         <SelectInput<MenuAction>
           items={keyedItems}
@@ -114,7 +115,7 @@ export function MenuScreen({
         />
       </Box>
       <Box marginTop={1}>
-        <Text color="gray">{resolvedFooterHint}</Text>
+        <Text color={theme.muted}>{resolvedFooterHint}</Text>
       </Box>
     </Box>
   );

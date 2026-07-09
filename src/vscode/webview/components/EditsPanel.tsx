@@ -29,22 +29,22 @@ export default function EditsPanel() {
             <span class="font-medium">Changes</span>
             <span class="text-muted">{sessionState().edits.length}</span>
           </button>
-          <div class="flex shrink-0 items-center gap-0.5">
+          <div class="flex shrink-0 items-center gap-1">
             <button
               type="button"
-              class="rounded px-2 py-0.5 text-[11px] text-muted transition hover:bg-panel hover:text-foreground"
+              class="btn btn-ghost"
               title="Undo all changes"
               onClick={() => editAction("undoAll")}
             >
-              Undo All
+              Undo all
             </button>
             <button
               type="button"
-              class="inline-flex items-center rounded-full bg-button px-2.5 py-0.5 text-[11px] font-medium text-button-foreground transition hover:bg-button-hover"
+              class="btn btn-primary"
               title="Keep all changes"
               onClick={() => editAction("keepAll")}
             >
-              Keep All
+              Keep all
             </button>
           </div>
         </div>

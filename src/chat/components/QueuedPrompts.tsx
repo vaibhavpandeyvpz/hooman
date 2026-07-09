@@ -1,6 +1,7 @@
 import React from "react";
 import { Box, Text, useStdout } from "ink";
 import type { PromptSubmission } from "./prompt-input/hooks/usePromptInputController.js";
+import { theme } from "../../core/theme.js";
 
 type QueuedPromptsProps = {
   prompts: readonly { id: string; prompt: PromptSubmission }[];
@@ -53,10 +54,10 @@ export function QueuedPrompts({
     <Box
       flexDirection="column"
       borderStyle="round"
-      borderColor="gray"
+      borderColor={theme.muted}
       paddingX={1}
     >
-      <Text color="gray">
+      <Text color={theme.muted}>
         queued {prompts.length === 1 ? "prompt" : "prompts"}
       </Text>
       {prompts.map((item) => {
@@ -65,7 +66,7 @@ export function QueuedPrompts({
           maxPromptChars,
         );
         return (
-          <Text key={item.id} color="gray">
+          <Text key={item.id} color={theme.muted}>
             {"\u25cb "}
             {preview}
           </Text>

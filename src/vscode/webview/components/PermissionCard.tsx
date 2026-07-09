@@ -50,9 +50,9 @@ export default function PermissionCard(props: {
                 type="button"
                 class={`${
                   option.kind?.startsWith("allow")
-                    ? "rounded-md bg-button px-2.5 py-1 text-[12px] text-button-foreground hover:bg-button-hover"
-                    : "rounded-md border border-button-border bg-button-secondary px-2.5 py-1 text-[12px] text-button-secondary-foreground hover:bg-button-secondary-hover"
-                }${isQuestion() ? " text-left" : ""}`}
+                    ? "btn btn-primary"
+                    : "btn btn-secondary"
+                }${isQuestion() ? " justify-start text-left" : ""}`}
                 onClick={() =>
                   respondToPermission(
                     props.item.id,

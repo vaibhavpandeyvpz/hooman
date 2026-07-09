@@ -18,13 +18,13 @@ import {
 import { dateGroupLabel, formatRelativeTime } from "../lib/format";
 
 /** Group order for the history list; anything unknown sorts last. */
-const GROUP_ORDER = ["Today", "Yesterday", "Last 7 Days", "Older"];
+const GROUP_ORDER = ["Today", "Yesterday", "Last 7 days", "Older"];
 
 /**
  * Custom-rendered session history overlay covering the chat, opened from the
  * title-bar history button. Grouped by day, searchable, with
  * the ongoing session marked (spinner while a turn runs), click-to-open and
- * hover delete per row, and a New Chat action.
+ * hover delete per row, and a New chat action.
  */
 export default function SessionsPanel() {
   const [query, setQuery] = createSignal("");
@@ -78,12 +78,12 @@ export default function SessionsPanel() {
           </span>
           <button
             type="button"
-            class="flex shrink-0 items-center gap-1 rounded border border-button-border bg-button-secondary px-2 py-0.5 text-[11px] text-button-secondary-foreground hover:bg-button-secondary-hover"
+            class="btn btn-secondary"
             title="Start a new chat"
             onClick={() => newChatFromPanel()}
           >
             <Plus size={11} />
-            New Chat
+            New chat
           </button>
           <button
             type="button"

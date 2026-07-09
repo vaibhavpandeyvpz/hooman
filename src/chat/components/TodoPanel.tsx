@@ -1,5 +1,6 @@
 import { Box, Text, useStdout } from "ink";
 import type { TodoItem } from "../../core/state/todos.js";
+import { theme } from "../../core/theme.js";
 
 type TodoPanelProps = {
   todos: TodoItem[];
@@ -100,7 +101,7 @@ export function TodoPanel({ todos }: TodoPanelProps) {
 
   return (
     <Box flexDirection="column" marginTop={1}>
-      <Text bold color="cyan">
+      <Text bold color={theme.primary}>
         Todos
       </Text>
       {todos.map((todo, index) => {

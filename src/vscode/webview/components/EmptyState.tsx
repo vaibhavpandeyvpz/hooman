@@ -41,7 +41,7 @@ const STARTERS: Starter[] = [
   },
   {
     icon: FileText,
-    label: "Generate AGENTS.md",
+    label: "Generate agents.md",
     description: "Document this project for AI agents with /init",
     prompt: "/init",
   },

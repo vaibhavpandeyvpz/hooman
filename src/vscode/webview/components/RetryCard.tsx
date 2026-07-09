@@ -13,14 +13,14 @@ export default function RetryCard(props: {
   const detail = () => props.errorDetail?.trim() || props.error.trim();
 
   return (
-    <div class="self-stretch rounded-md border border-yellow-500/40 px-2.5 py-1.5 text-[12.5px] text-muted">
+    <div class="self-stretch rounded-md border border-warning/40 bg-warning-bg px-2.5 py-1.5 text-[12.5px] text-muted">
       <button
         type="button"
         class="flex w-full items-center gap-1.5 text-left hover:text-foreground"
         onClick={() => setExpanded((v) => !v)}
       >
         {expanded() ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
-        <AlertTriangle size={13} class="shrink-0 text-yellow-400" />
+        <AlertTriangle size={13} class="shrink-0 text-warning" />
         <span class="italic opacity-90">
           Request failed · retrying in{" "}
           {formatDuration(props.retryInSeconds * 1000)}

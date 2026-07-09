@@ -3,6 +3,7 @@ import { Box, Text } from "ink";
 import SelectInput from "ink-select-input";
 import TextInput from "ink-text-input";
 import type { ChatQuestion } from "../questions.js";
+import { theme } from "../../core/theme.js";
 
 const FREE_TEXT_VALUE = "__free_text__";
 const DISMISS_VALUE = "__dismiss__";
@@ -24,11 +25,11 @@ export function QuestionPrompt({
   if (freeTextMode) {
     return (
       <Box flexDirection="column">
-        <Text color="cyan" bold>
+        <Text color={theme.primary} bold>
           {question.question}
         </Text>
         <Box marginTop={1}>
-          <Text color="gray">{"> "}</Text>
+          <Text color={theme.muted}>{"> "}</Text>
           <TextInput
             value={freeText}
             onChange={setFreeText}
@@ -44,7 +45,7 @@ export function QuestionPrompt({
           />
         </Box>
         <Box marginTop={1}>
-          <Text color="gray">enter submit • empty answer dismisses</Text>
+          <Text color={theme.muted}>enter submit • empty answer dismisses</Text>
         </Box>
       </Box>
     );
@@ -52,7 +53,7 @@ export function QuestionPrompt({
 
   return (
     <Box flexDirection="column">
-      <Text color="cyan" bold>
+      <Text color={theme.primary} bold>
         {question.question}
       </Text>
       <SelectInput<string>
@@ -77,7 +78,7 @@ export function QuestionPrompt({
         }}
       />
       <Box marginTop={1}>
-        <Text color="gray">up/down - choose - enter select</Text>
+        <Text color={theme.muted}>up/down - choose - enter select</Text>
       </Box>
     </Box>
   );

@@ -4,6 +4,7 @@ import SelectInput from "ink-select-input";
 import TextInput from "ink-text-input";
 import { EXIT_PLAN_MODE_TOOL } from "../../core/state/tool-approvals.js";
 import type { ApprovalDecision, ApprovalRequest } from "../types.js";
+import { theme } from "../../core/theme.js";
 
 type ApprovalPromptProps = {
   request: ApprovalRequest | null;
@@ -22,17 +23,17 @@ function PlanPreview({ preview }: { preview: string }) {
     <Box
       flexDirection="column"
       borderStyle="round"
-      borderColor="gray"
+      borderColor={theme.muted}
       paddingX={1}
       marginBottom={1}
     >
       {shown.map((line, index) => (
-        <Text key={index} color="gray" wrap="truncate-end">
+        <Text key={index} color={theme.muted} wrap="truncate-end">
           {line.length > 0 ? line : " "}
         </Text>
       ))}
       {hidden > 0 ? (
-        <Text color="gray" dimColor>
+        <Text color={theme.muted} dimColor>
           … {hidden} more line{hidden === 1 ? "" : "s"}
         </Text>
       ) : null}
@@ -53,11 +54,11 @@ function ExitPlanApprovalPrompt({
   if (noteMode) {
     return (
       <Box flexDirection="column">
-        <Text color="yellow">
+        <Text color={theme.warning}>
           Keep planning — tell the agent what to refine:
         </Text>
         <Box marginTop={1}>
-          <Text color="gray">{"> "}</Text>
+          <Text color={theme.muted}>{"> "}</Text>
           <TextInput
             value={note}
             onChange={setNote}
@@ -73,7 +74,7 @@ function ExitPlanApprovalPrompt({
           />
         </Box>
         <Box marginTop={1}>
-          <Text color="gray">enter submit</Text>
+          <Text color={theme.muted}>enter submit</Text>
         </Box>
       </Box>
     );
@@ -81,7 +82,7 @@ function ExitPlanApprovalPrompt({
 
   return (
     <Box flexDirection="column">
-      <Text color="yellow">
+      <Text color={theme.warning}>
         The agent proposes leaving plan mode to start implementing.
       </Text>
       {request.preview ? <PlanPreview preview={request.preview} /> : null}
@@ -104,7 +105,7 @@ function ExitPlanApprovalPrompt({
         }}
       />
       <Box marginTop={1}>
-        <Text color="gray">up/down - choose - enter select</Text>
+        <Text color={theme.muted}>up/down - choose - enter select</Text>
       </Box>
     </Box>
   );
@@ -126,7 +127,7 @@ export function ApprovalPrompt({ request, onDecision }: ApprovalPromptProps) {
         onSelect={(item) => onDecision(item.value)}
       />
       <Box marginTop={1}>
-        <Text color="gray">up/down - choose - enter select</Text>
+        <Text color={theme.muted}>up/down - choose - enter select</Text>
       </Box>
     </Box>
   );

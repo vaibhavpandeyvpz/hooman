@@ -143,6 +143,40 @@ npm run build
 - Prompt and skill Markdown files under `src/core/prompts/` and `src/core/skills/built-in/` are runtime assets and must stay in sync with code that loads them.
 - Prefer editing existing modules over creating parallel abstractions unless the repository already has a clear sibling pattern.
 
+## UI design guidelines
+
+Apply these consistently across CLI Ink (`src/chat/`, `src/configure/`), the VS Code extension webview and host chrome (`src/vscode/`), and docs brand tokens (`docs/`).
+
+Brand palette (do not invent ad-hoc accents):
+
+| Role      | Hex       |
+| --------- | --------- |
+| Primary   | `#0091cd` |
+| Secondary | `#56a0d3` |
+| Warning   | `#ecb731` |
+| Error     | `#ee4c58` |
+| Success   | `#8ec06c` |
+| Info      | `#c4dff6` |
+| Muted     | `#9ba5a8` |
+
+Token sources of truth:
+
+- CLI Ink: `src/core/theme.ts` (`theme.primary`, `theme.secondary`, …) — import and use these instead of named ANSI colors like `"cyan"` / `"red"`
+- VS Code webview: `src/vscode/webview/index.css` (`@theme` + `.btn` / `.btn-primary` / `.btn-secondary` / `.btn-ghost`)
+- Docs: `docs/src/styles/tokens.css`
+
+Component rules:
+
+- Prefer **compact** controls (small padding, `text-[11px]`–`text-xs` for chrome actions)
+- Prefer **small rounded** corners (`rounded-md` / `0.375rem`); avoid pill buttons (`rounded-full`) for actions — reserve full rounding for dots, progress bars, and decorative blurs
+- Prefer **sentence case** for user-facing labels and commands (`Keep all`, `New chat`, `Open settings…`), not Title Case
+- Keep primary vs secondary button roles consistent: solid primary for the main affirmative action, secondary/outline for supporting actions, ghost for low-emphasis text actions
+- In settings/MCP/skills toolbars, keep adjacent inputs and buttons the same height (`h-8` / shared control classes in `SettingsEditorView`)
+- Open `instructions.md` in VS Code’s default Markdown editor (not a custom webview editor)
+- When adding UI, reuse existing button/token classes rather than hardcoding hex or one-off Tailwind color utilities (`text-cyan-400`, `bg-yellow-500`, etc.)
+- Surfaces (backgrounds, borders, fonts) in the VS Code webview may still follow host `--vscode-*` chrome; semantic accents (buttons, success/error/warning/info, muted, links) should use the brand tokens above
+- Use muted (`#9ba5a8` / `theme.muted` / `text-muted`) for secondary labels, hints, chrome text, and other low-emphasis surface elements — not host gray or ANSI `"gray"`
+
 ## Runtime and operational notes
 
 - `AGENTS.md` files are discovered by walking from the git root down to the current working directory. Keep this file concise and high-signal because it is prompt input.

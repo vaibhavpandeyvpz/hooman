@@ -1,6 +1,7 @@
 import React from "react";
 import { Box, Text } from "ink";
 import { ASCII_ART } from "./ascii-logo.js";
+import { theme } from "../../core/theme.js";
 
 export function EmptyChatBanner(): React.JSX.Element {
   return (
@@ -13,7 +14,7 @@ export function EmptyChatBanner(): React.JSX.Element {
       >
         <Box flexDirection="column">
           {ASCII_ART.map((line, i) => (
-            <Text key={i} color="cyan" bold>
+            <Text key={i} color={theme.primary} bold>
               {line}
             </Text>
           ))}

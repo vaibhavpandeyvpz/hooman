@@ -1,8 +1,8 @@
 import * as vscode from "vscode";
 
 /**
- * Floating "Add Selection to Hooman Chat" / "Add Selection to New Hooman
- * Chat" CodeLens,
+ * Floating "Add selection to Hooman chat" / "Add selection to new Hooman
+ * chat" CodeLens,
  * shown above the first line of a non-empty editor selection — the closest
  * public-API equivalent of Cursor's floating selection toolbar.
  */
@@ -39,11 +39,11 @@ export class SelectionActionsCodeLensProvider
     );
     return [
       new vscode.CodeLens(range, {
-        title: "Add Selection to Hooman Chat",
+        title: "Add selection to Hooman chat",
         command: "hooman.addSelectionToChat",
       }),
       new vscode.CodeLens(range, {
-        title: "Add Selection to New Hooman Chat",
+        title: "Add selection to new Hooman chat",
         command: "hooman.addSelectionToNewChat",
       }),
     ];

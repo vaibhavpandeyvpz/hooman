@@ -1,5 +1,6 @@
 import { Box, Text } from "ink";
 import SelectInput from "ink-select-input";
+import { theme } from "../../core/theme.js";
 
 export type SelectPickerItem = {
   label: string;
@@ -21,7 +22,9 @@ export function SelectPicker({ title, items, onSelect }: SelectPickerProps) {
         onSelect={(item) => onSelect(item.value)}
       />
       <Box marginTop={1}>
-        <Text color="gray">up/down choose • enter select • esc cancel</Text>
+        <Text color={theme.muted}>
+          up/down choose • enter select • esc cancel
+        </Text>
       </Box>
     </Box>
   );

@@ -6,8 +6,6 @@ import type {
 import type {
   ConfigEditorAction,
   ConfigEditorStateInfo,
-  InstructionsEditorAction,
-  InstructionsEditorStateInfo,
   McpEditorAction,
   McpEditorStateInfo,
   SkillsViewAction,
@@ -166,7 +164,6 @@ export type WebviewRoute =
   | `/plans/${string}`
   | `/config/${string}`
   | `/mcp/${string}`
-  | `/instructions/${string}`
   | "/skills";
 
 /** State for the custom `.plan.md` surface rendered by the shared webview app. */
@@ -228,7 +225,6 @@ export type InboundMessage =
   | { type: "refresh" }
   | { type: "configEditorAction"; action: ConfigEditorAction }
   | { type: "mcpEditorAction"; action: McpEditorAction }
-  | { type: "instructionsEditorAction"; action: InstructionsEditorAction }
   | { type: "skillsViewAction"; action: SkillsViewAction };
 
 /** Messages sent from the extension host to the webview. */
@@ -245,7 +241,6 @@ export type OutboundMessage =
   | { type: "planState"; state: PlanEditorStateInfo }
   | { type: "configEditorState"; state: ConfigEditorStateInfo }
   | { type: "mcpEditorState"; state: McpEditorStateInfo }
-  | { type: "instructionsEditorState"; state: InstructionsEditorStateInfo }
   | { type: "skillsViewState"; state: SkillsViewStateInfo }
   | {
       type: "tabs";

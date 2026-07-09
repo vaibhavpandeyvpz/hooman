@@ -23,7 +23,6 @@ import type {
 } from "../src/shared/protocol";
 import type {
   ConfigEditorStateInfo,
-  InstructionsEditorStateInfo,
   McpEditorStateInfo,
   SkillsViewStateInfo,
 } from "../src/shared/settings";
@@ -129,7 +128,6 @@ interface State {
   planView: PlanEditorStateInfo | null;
   configEditorView: ConfigEditorStateInfo | null;
   mcpEditorView: McpEditorStateInfo | null;
-  instructionsEditorView: InstructionsEditorStateInfo | null;
   skillsView: SkillsViewStateInfo | null;
   activeSessionId: string | null;
   tabs: TabInfo[];
@@ -177,7 +175,6 @@ const [state, setState] = createStore<State>({
   planView: null,
   configEditorView: null,
   mcpEditorView: null,
-  instructionsEditorView: null,
   skillsView: null,
   activeSessionId: null,
   tabs: [],
@@ -762,9 +759,6 @@ onHostMessage((msg) => {
     case "mcpEditorState":
       setState("mcpEditorView", msg.state);
       break;
-    case "instructionsEditorState":
-      setState("instructionsEditorView", msg.state);
-      break;
     case "skillsViewState":
       setState("skillsView", msg.state);
       break;
@@ -1083,12 +1077,6 @@ export function sendMcpEditorAction(
   action: import("../src/shared/settings").McpEditorAction,
 ): void {
   post({ type: "mcpEditorAction", action });
-}
-
-export function sendInstructionsEditorAction(
-  action: import("../src/shared/settings").InstructionsEditorAction,
-): void {
-  post({ type: "instructionsEditorAction", action });
 }
 
 export function sendSkillsViewAction(

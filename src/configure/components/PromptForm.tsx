@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Box, Text } from "ink";
 import TextInput from "ink-text-input";
 import type { PromptState } from "../types.js";
+import { theme } from "../../core/theme.js";
 
 type PromptFormProps = {
   prompt: PromptState;
@@ -21,10 +22,15 @@ export function PromptForm({
   return (
     <Box flexDirection="column" marginTop={1}>
       <Text bold>{prompt.title}</Text>
-      <Text color="gray">{prompt.label}</Text>
-      {prompt.note ? <Text color="gray">{prompt.note}</Text> : null}
-      <Box marginTop={1} borderStyle="round" borderColor="cyan" paddingX={1}>
-        <Text color="gray">{"> "}</Text>
+      <Text color={theme.muted}>{prompt.label}</Text>
+      {prompt.note ? <Text color={theme.muted}>{prompt.note}</Text> : null}
+      <Box
+        marginTop={1}
+        borderStyle="round"
+        borderColor={theme.primary}
+        paddingX={1}
+      >
+        <Text color={theme.muted}>{"> "}</Text>
         <TextInput
           value={value}
           onChange={setValue}
@@ -33,7 +39,9 @@ export function PromptForm({
         />
       </Box>
       <Box marginTop={1}>
-        <Text color="gray">enter: submit | esc: cancel | ctrl+c: exit</Text>
+        <Text color={theme.muted}>
+          enter: submit | esc: cancel | ctrl+c: exit
+        </Text>
       </Box>
     </Box>
   );

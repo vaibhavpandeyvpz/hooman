@@ -1,5 +1,6 @@
 import { Box, Text, useWindowSize } from "ink";
 import { wrapTextToLines } from "./shared.js";
+import { theme } from "../../core/theme.js";
 
 type ReasoningStripProps = {
   text: string;
@@ -23,7 +24,7 @@ export function ReasoningStrip({
   return (
     <Box flexDirection="column">
       {visibleLines.map((line, index) => (
-        <Text key={index} color="gray" wrap="wrap">
+        <Text key={index} color={theme.muted} wrap="wrap">
           {line || " "}
         </Text>
       ))}

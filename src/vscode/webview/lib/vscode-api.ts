@@ -21,8 +21,7 @@ function isWebviewRoute(value: string | undefined): value is WebviewRoute {
     value === "/skills" ||
     !!value?.startsWith("/plans/") ||
     !!value?.startsWith("/config/") ||
-    !!value?.startsWith("/mcp/") ||
-    !!value?.startsWith("/instructions/")
+    !!value?.startsWith("/mcp/")
   );
 }
 

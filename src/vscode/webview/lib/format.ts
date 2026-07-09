@@ -134,7 +134,7 @@ export function dateGroupLabel(iso: string | undefined): string {
     return "Yesterday";
   }
   if (day >= today - 7 * dayMs) {
-    return "Last 7 Days";
+    return "Last 7 days";
   }
   return "Older";
 }

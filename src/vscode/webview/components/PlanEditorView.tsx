@@ -97,7 +97,7 @@ export default function PlanEditorView() {
             >
               <button
                 type="button"
-                class="group flex h-7 items-center gap-1 rounded-full border border-border px-3 text-[11.5px] text-muted transition hover:bg-panel"
+                class="group flex h-7 items-center gap-1 rounded-md border border-border px-2.5 text-[11.5px] text-muted transition hover:bg-panel"
                 onClick={() => post({ type: "pickModel" })}
                 title="Choose model"
               >
@@ -114,7 +114,7 @@ export default function PlanEditorView() {
               <button
                 type="button"
                 disabled={buildDisabled()}
-                class="inline-flex h-7 items-center gap-1.5 rounded-l-full bg-button px-3 text-[11.5px] font-medium text-button-foreground transition hover:bg-button-hover disabled:cursor-not-allowed disabled:opacity-50"
+                class="btn btn-primary h-7 !rounded-r-none gap-1.5 px-2.5 text-[11.5px]"
                 onClick={triggerBuild}
                 title="Build this plan now"
               >
@@ -129,7 +129,7 @@ export default function PlanEditorView() {
               <button
                 type="button"
                 disabled={buildDisabled()}
-                class="inline-flex h-7 items-center rounded-r-full border-l border-button-foreground/15 bg-button px-1.5 text-button-foreground transition hover:bg-button-hover disabled:cursor-not-allowed disabled:opacity-50"
+                class="btn btn-primary h-7 !rounded-l-none border-l border-button-foreground/15 !px-1.5"
                 onClick={() => setBuildOpen((v) => !v)}
                 title="More build actions"
                 aria-haspopup="true"
@@ -150,7 +150,7 @@ export default function PlanEditorView() {
                   />
                   <DropdownItem
                     icon={Edit3}
-                    label="Edit Markdown"
+                    label="Edit markdown"
                     onClick={triggerEditMarkdown}
                   />
                   <DropdownItem
@@ -184,8 +184,8 @@ export default function PlanEditorView() {
             <Show
               when={state.planView?.text.trim()}
               fallback={
-                <div class="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-panel/30 py-20 text-center">
-                  <div class="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-panel">
+                <div class="flex flex-col items-center justify-center rounded-lg border border-dashed border-border bg-panel/30 py-20 text-center">
+                  <div class="mb-4 flex h-12 w-12 items-center justify-center rounded-md bg-panel">
                     <FileText size={22} class="text-muted" />
                   </div>
                   <h3 class="text-base font-medium text-foreground">
@@ -197,18 +197,18 @@ export default function PlanEditorView() {
                   </p>
                   <button
                     type="button"
-                    class="mt-5 flex items-center gap-2 rounded-lg bg-button px-4 py-2 text-sm font-medium text-button-foreground hover:bg-button-hover"
+                    class="btn btn-primary mt-5 gap-2 px-3 py-1.5 text-sm"
                     onClick={() => post({ type: "editMarkdown" })}
                   >
                     <Edit3 size={14} />
-                    Edit Markdown
+                    Edit markdown
                   </button>
                 </div>
               }
             >
               {/* Structured plan overview */}
               <Show when={parsed().structured}>
-                <section class="mb-6 hidden rounded-2xl border border-border/80 bg-panel/40 p-5 lg:block">
+                <section class="mb-6 hidden rounded-lg border border-border/80 bg-panel/40 p-5 lg:block">
                   <div class="mb-4 flex items-center gap-2 text-sm font-medium text-foreground">
                     <Sparkles size={15} class="text-accent" />
                     Plan overview
@@ -245,7 +245,7 @@ export default function PlanEditorView() {
 
               {/* Raw markdown remainder */}
               <Show when={parsed().rawRemainder || !parsed().structured}>
-                <article class="rounded-2xl border border-border/80 bg-panel/35 p-6">
+                <article class="rounded-lg border border-border/80 bg-panel/35 p-6">
                   <Markdown class="text-[14px] leading-7 text-[var(--vscode-editor-foreground)]">
                     {parsed().rawRemainder || state.planView?.text || ""}
                   </Markdown>
@@ -257,7 +257,7 @@ export default function PlanEditorView() {
           {/* Task checklist sidebar */}
           <Show when={parsed().tasks.length > 0}>
             <aside class="w-full shrink-0 lg:w-[22rem]">
-              <div class="sticky top-0 rounded-2xl border border-border/80 bg-panel/50 p-5 shadow-sm">
+              <div class="sticky top-0 rounded-lg border border-border/80 bg-panel/50 p-5 shadow-sm">
                 <div class="mb-4 flex items-center justify-between">
                   <div class="flex items-center gap-2 text-sm font-semibold text-foreground">
                     <CheckCircle2 size={15} class="text-accent" />
@@ -331,17 +331,15 @@ function StatusPill(props: {
   const Icon = props.icon;
   const variantClasses = {
     neutral: "border-border bg-panel/70 text-muted",
-    active:
-      "border-[var(--vscode-textLink-foreground)]/30 bg-[var(--vscode-textLink-foreground)]/10 text-[var(--vscode-textLink-foreground)]",
+    active: "border-primary/30 bg-primary/10 text-primary",
     warning: "border-warning/30 bg-warning-bg text-warning",
-    success:
-      "border-success/30 bg-[var(--vscode-testing-iconPassed)]/10 text-success",
-    error: "border-error/30 bg-[var(--vscode-errorForeground)]/10 text-error",
+    success: "border-success/30 bg-success/10 text-success",
+    error: "border-error/30 bg-error/10 text-error",
   };
 
   return (
     <span
-      class={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium ${variantClasses[props.variant]}`}
+      class={`inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-[11px] font-medium ${variantClasses[props.variant]}`}
     >
       <Icon size={12} class={props.spinning ? "animate-spin-slow" : ""} />
       {props.label}
@@ -351,7 +349,7 @@ function StatusPill(props: {
 
 function StatBox(props: { label: string; value: string }) {
   return (
-    <div class="rounded-xl border border-border/60 bg-[var(--vscode-editor-background)] px-3 py-2.5 text-center">
+    <div class="rounded-md border border-border/60 bg-[var(--vscode-editor-background)] px-3 py-2.5 text-center">
       <div class="text-lg font-semibold leading-none text-foreground">
         {props.value}
       </div>
@@ -365,7 +363,7 @@ function StatBox(props: { label: string; value: string }) {
 function TaskRow(props: { task: PlanTaskItem }) {
   const status = normalizeStatus(props.task.status);
   return (
-    <div class="group flex items-start gap-3 rounded-xl border border-border/60 bg-[var(--vscode-editor-background)] px-3 py-3 transition hover:border-border">
+    <div class="group flex items-start gap-3 rounded-md border border-border/60 bg-[var(--vscode-editor-background)] px-3 py-3 transition hover:border-border">
       <div class="mt-0.5 shrink-0">
         <Switch>
           <Match when={status === "completed"}>

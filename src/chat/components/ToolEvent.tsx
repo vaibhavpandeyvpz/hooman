@@ -4,6 +4,7 @@ import { useFileToolResult } from "./file-tool-diff/file-tool-result.js";
 import { compactInline, formatToolArgs } from "./shared.js";
 import { Spinner } from "./Spinner.js";
 import { ToolEventFileResult } from "./ToolEventFileResult.js";
+import { theme } from "../../core/theme.js";
 
 type ToolEventProps = {
   line: ChatLine;
@@ -22,7 +23,7 @@ export function ToolEvent({ line }: ToolEventProps) {
 
   return (
     <Box flexDirection="column" width="100%">
-      <Text color="yellow" bold>
+      <Text color={theme.warning} bold>
         Tool
       </Text>
       <Text>
@@ -31,11 +32,11 @@ export function ToolEvent({ line }: ToolEventProps) {
       </Text>
       {line.phase === "running" ? (
         <Box flexDirection="row">
-          <Spinner type="dots" color="yellow" />
-          <Text color="gray"> running...</Text>
+          <Spinner type="dots" color={theme.warning} />
+          <Text color={theme.muted}> running...</Text>
         </Box>
       ) : null}
-      {result ? <Text color="gray">{result}</Text> : null}
+      {result ? <Text color={theme.muted}>{result}</Text> : null}
     </Box>
   );
 }

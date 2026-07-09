@@ -41,7 +41,7 @@ export default function QueuePanel() {
           </button>
           <button
             type="button"
-            class="flex shrink-0 items-center gap-1 rounded border border-button-border bg-button-secondary px-2 py-0.5 text-[11px] text-button-secondary-foreground hover:bg-button-secondary-hover"
+            class="btn btn-secondary"
             title="Inject all queued prompts as guidance for the turn that's running now"
             onClick={() => steerQueue()}
           >

@@ -1,4 +1,5 @@
 import { Box, Text } from "ink";
+import { theme } from "../../core/theme.js";
 import {
   downloadRatio,
   formatBytes,
@@ -26,28 +27,28 @@ export function DownloadPanel({
   return (
     <Box marginTop={1}>
       <Text wrap="truncate-end">
-        <Text color="gray">downloading </Text>
+        <Text color={theme.muted}>downloading </Text>
         <Text bold>{progress.file}</Text>
         {progress.shard ? (
-          <Text color="gray">
+          <Text color={theme.muted}>
             {` (shard ${progress.shard.index}/${progress.shard.total})`}
           </Text>
         ) : null}
         {ratio !== undefined ? (
           <>
-            <Text color="cyan"> {renderDownloadBar(ratio)}</Text>
+            <Text color={theme.primary}> {renderDownloadBar(ratio)}</Text>
             <Text> {Math.floor(ratio * 100)}%</Text>
           </>
         ) : null}
-        <Text color="gray"> • {size}</Text>
+        <Text color={theme.muted}> • {size}</Text>
         {progress.bytesPerSecond !== undefined ? (
-          <Text color="gray">
+          <Text color={theme.muted}>
             {" • "}
             {formatBytesPerSecond(progress.bytesPerSecond)}
           </Text>
         ) : null}
         {progress.etaSeconds !== undefined ? (
-          <Text color="gray">
+          <Text color={theme.muted}>
             {" "}
             • eta {formatEtaSeconds(progress.etaSeconds)}
           </Text>

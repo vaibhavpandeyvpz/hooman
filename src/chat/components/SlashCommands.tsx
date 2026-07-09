@@ -1,4 +1,5 @@
 import { Box, Text } from "ink";
+import { theme } from "../../core/theme.js";
 
 type SlashCommandItem = {
   name: string;
@@ -29,7 +30,7 @@ export function SlashCommands({ items, highlightIndex }: SlashCommandsProps) {
             <Text dimColor>{desc}</Text>
           </Text>
         ) : (
-          <Text key={item.name} color="gray">
+          <Text key={item.name} color={theme.muted}>
             <Text bold>{cmd}</Text>
             <Text dimColor>{desc}</Text>
           </Text>

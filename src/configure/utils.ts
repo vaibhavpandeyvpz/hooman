@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { McpOAuthConfig } from "../core/mcp/oauth/types.js";
 import type { McpTransport } from "../core/mcp/types.js";
 import type { SkillListEntry } from "../core/skills/registry.js";
+import { theme } from "../core/theme.js";
 import type { Notice } from "./types.js";
 
 const StringArraySchema = z.array(z.string());
@@ -147,11 +148,11 @@ function formatOAuthSummary(oauth: McpOAuthConfig | undefined): string {
 export function noticeColor(kind: Notice["kind"]): string {
   switch (kind) {
     case "success":
-      return "green";
+      return theme.success;
     case "error":
-      return "red";
+      return theme.error;
     case "info":
     default:
-      return "cyan";
+      return theme.info;
   }
 }

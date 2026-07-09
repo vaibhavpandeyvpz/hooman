@@ -21,7 +21,7 @@ export default function StartingSessionState() {
         </div>
       </div>
 
-      <div class="flex w-full flex-col gap-2 rounded-xl border border-border bg-panel px-4 py-3">
+      <div class="flex w-full flex-col gap-2 rounded-lg border border-border bg-panel px-4 py-3">
         <div class="text-[11px] font-medium uppercase tracking-[0.08em] text-muted">
           Preparing your chat
         </div>

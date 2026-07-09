@@ -1,6 +1,7 @@
 import { Box, Text } from "ink";
 import type { ChatLine } from "../types.js";
 import { ReasoningStrip } from "./ReasoningStrip.js";
+import { theme } from "../../core/theme.js";
 
 export function RetryEvent({ line }: { line: ChatLine }) {
   const retryIn = Math.max(0, line.retryInSeconds ?? 0);
@@ -11,10 +12,10 @@ export function RetryEvent({ line }: { line: ChatLine }) {
   return (
     <Box flexDirection="column" width="100%">
       <Box flexDirection="row" width="100%">
-        <Text bold color="yellow">
+        <Text bold color={theme.warning}>
           Request failed
         </Text>
-        <Text color="gray">
+        <Text color={theme.muted}>
           {` · retrying in ${retryIn}s · attempt ${attempt}/${maxAttempts}`}
         </Text>
       </Box>

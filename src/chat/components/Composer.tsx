@@ -4,6 +4,7 @@ import type {
   PromptSubmission,
   SlashCommandMenuProps,
 } from "./prompt-input/hooks/usePromptInputController.js";
+import { theme } from "../../core/theme.js";
 
 type ComposerProps = {
   input: string;
@@ -28,7 +29,7 @@ export function Composer({
     <>
       <Box
         borderStyle="single"
-        borderColor="gray"
+        borderColor={theme.muted}
         borderTop
         borderBottom
         borderLeft={false}
@@ -52,7 +53,7 @@ export function Composer({
       </Box>
 
       <Box>
-        <Text color="gray">{hint}</Text>
+        <Text color={theme.muted}>{hint}</Text>
       </Box>
     </>
   );

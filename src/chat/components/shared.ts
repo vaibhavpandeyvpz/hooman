@@ -1,19 +1,20 @@
 import type { ChatLine } from "../types.js";
+import { theme } from "../../core/theme.js";
 
 export function lineColor(line: ChatLine): string {
   switch (line.role) {
     case "user":
-      return "cyan";
+      return theme.primary;
     case "assistant":
-      return "blue";
+      return theme.secondary;
     case "thought":
-      return "gray";
+      return theme.muted;
     case "tool":
-      return "gray";
+      return theme.muted;
     case "system":
-      return "red";
+      return theme.error;
     default:
-      return "gray";
+      return theme.muted;
   }
 }
 

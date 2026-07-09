@@ -227,7 +227,7 @@ export default function Composer() {
         onSelect={(cmd) => applySlashCommand(cmd.name)}
       />
       <div
-        class={`flex flex-col gap-2 rounded-2xl border bg-input px-3 py-2 focus-within:border-focus ${
+        class={`flex flex-col gap-2 rounded-lg border bg-input px-3 py-2 focus-within:border-focus ${
           dragging() ? "border-focus" : "border-input-border"
         }`}
         onDragOver={(event) => {
@@ -303,9 +303,9 @@ export default function Composer() {
               when={!loading()}
               fallback={
                 <>
-                  <div class="h-6 w-28 animate-pulse rounded-full border border-border bg-panel" />
-                  <div class="h-6 w-24 animate-pulse rounded-full border border-border bg-panel" />
-                  <div class="h-6 w-20 animate-pulse rounded-full border border-border bg-panel" />
+                  <div class="h-6 w-28 animate-pulse rounded-md border border-border bg-panel" />
+                  <div class="h-6 w-24 animate-pulse rounded-md border border-border bg-panel" />
+                  <div class="h-6 w-20 animate-pulse rounded-md border border-border bg-panel" />
                 </>
               }
             >
@@ -400,7 +400,7 @@ export default function Composer() {
                 {(option) => (
                   <button
                     type="button"
-                    class="flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-[11.5px] text-muted hover:bg-panel"
+                    class="flex items-center gap-1 rounded-md border border-border px-2 py-0.5 text-[11.5px] text-muted hover:bg-panel"
                     title={option.description ?? option.name}
                     onClick={() => {
                       if (loading()) {
@@ -423,7 +423,7 @@ export default function Composer() {
           </div>
           <button
             type="button"
-            class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-muted transition-colors hover:bg-panel hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
+            class="btn-icon h-7 w-7 shrink-0"
             title="Attach files"
             disabled={loading()}
             onClick={() => pickFiles()}
@@ -439,7 +439,7 @@ export default function Composer() {
             fallback={
               <button
                 type="button"
-                class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-button text-button-foreground transition-colors hover:bg-button-hover disabled:opacity-40"
+                class="btn btn-primary h-7 w-7 shrink-0 !rounded-md !px-0"
                 disabled={
                   loading() ||
                   (!text().trim() && sessionState().attachments.length === 0)
@@ -457,7 +457,7 @@ export default function Composer() {
           >
             <button
               type="button"
-              class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-button text-button-foreground transition-colors hover:bg-button-hover"
+              class="btn btn-primary h-7 w-7 shrink-0 !rounded-md !px-0"
               title="Stop the current turn"
               onClick={() => cancelPrompt()}
             >

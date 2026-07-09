@@ -11,6 +11,7 @@ import { QuestionPrompt } from "./QuestionPrompt.js";
 import { SelectPicker } from "./SelectPicker.js";
 import type { ApprovalDecision, ApprovalRequest } from "../types.js";
 import type { ChatQuestion } from "../questions.js";
+import { theme } from "../../core/theme.js";
 
 export type ChatPicker =
   null | "model" | "effort" | "yolo" | "mode" | "sessions";
@@ -143,7 +144,9 @@ export function ChromePicker({
   if (picker === "sessions") {
     if (sessionItems.length === 0) {
       return (
-        <Text color="gray">No saved sessions found for this directory.</Text>
+        <Text color={theme.muted}>
+          No saved sessions found for this directory.
+        </Text>
       );
     }
     return (

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Text } from "ink";
 import cliSpinners, { type SpinnerName } from "cli-spinners";
+import { theme } from "../../core/theme.js";
 
 type SpinnerProps = {
   type?: SpinnerName;
@@ -10,7 +11,7 @@ type SpinnerProps = {
 
 export function Spinner({
   type = "star",
-  color = "cyan",
+  color = theme.primary,
   bold = true,
 }: SpinnerProps) {
   const spinner = cliSpinners[type] || cliSpinners.dots;

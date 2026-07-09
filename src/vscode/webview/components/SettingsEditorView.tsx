@@ -33,19 +33,16 @@ import {
 } from "../../src/shared/settings";
 import {
   sendConfigEditorAction,
-  sendInstructionsEditorAction,
   sendMcpEditorAction,
   sendSkillsViewAction,
   state,
 } from "../store";
-import { Markdown } from "../lib/markdown";
 
-type Mode = "config" | "mcp" | "instructions" | "skills";
+type Mode = "config" | "mcp" | "skills";
 
 export default function SettingsEditorView(props: { mode: Mode }) {
   const configState = createMemo(() => state.configEditorView);
   const mcpState = createMemo(() => state.mcpEditorView);
-  const instructionsState = createMemo(() => state.instructionsEditorView);
   const skillsState = createMemo(() => state.skillsView);
 
   return (
@@ -61,11 +58,6 @@ export default function SettingsEditorView(props: { mode: Mode }) {
         <Show when={props.mode === "mcp" && mcpState()}>
           {(mcp) => <McpModeView state={mcp()} />}
         </Show>
-        <Show when={props.mode === "instructions" && instructionsState()}>
-          {(instructions) => (
-            <InstructionsModeView text={instructions().text} />
-          )}
-        </Show>
         <Show when={props.mode === "skills" && skillsState()}>
           {(skills) => <SkillsModeView state={skills()} />}
         </Show>
@@ -77,19 +69,16 @@ export default function SettingsEditorView(props: { mode: Mode }) {
 function Header(props: { mode: Mode }) {
   const configState = createMemo(() => state.configEditorView);
   const mcpState = createMemo(() => state.mcpEditorView);
-  const instructionsState = createMemo(() => state.instructionsEditorView);
   const skillsState = createMemo(() => state.skillsView);
 
   const title = createMemo(() => {
     switch (props.mode) {
       case "config":
-        return "Hooman Configuration";
+        return "Hooman configuration";
       case "mcp":
         return "Hooman MCP";
-      case "instructions":
-        return "Hooman Instructions";
       case "skills":
-        return "Hooman Skills";
+        return "Hooman skills";
     }
   });
 
@@ -99,8 +88,6 @@ function Header(props: { mode: Mode }) {
         return configState()?.path;
       case "mcp":
         return mcpState()?.path;
-      case "instructions":
-        return instructionsState()?.path;
       case "skills":
         return skillsState()?.homePath;
     }
@@ -115,7 +102,7 @@ function Header(props: { mode: Mode }) {
       <div class="flex items-center gap-2">
         <button
           type="button"
-          class="rounded-md border border-border px-2.5 py-1.5 text-xs hover:bg-panel"
+          class={ghostButtonClass}
           onClick={() => {
             switch (props.mode) {
               case "config":
@@ -124,23 +111,18 @@ function Header(props: { mode: Mode }) {
               case "mcp":
                 sendMcpEditorAction({ type: "refresh" });
                 return;
-              case "instructions":
-                sendInstructionsEditorAction({ type: "refresh" });
-                return;
               case "skills":
                 sendSkillsViewAction({ type: "refresh" });
                 return;
             }
           }}
         >
-          <span class="inline-flex items-center gap-1.5">
-            <RefreshCw size={13} /> Refresh
-          </span>
+          <RefreshCw size={13} /> Refresh
         </button>
         <Show when={props.mode !== "skills"}>
           <button
             type="button"
-            class="rounded-md border border-border px-2.5 py-1.5 text-xs hover:bg-panel"
+            class={ghostButtonClass}
             onClick={() => {
               switch (props.mode) {
                 case "config":
@@ -149,17 +131,12 @@ function Header(props: { mode: Mode }) {
                 case "mcp":
                   sendMcpEditorAction({ type: "openRaw" });
                   return;
-                case "instructions":
-                  sendInstructionsEditorAction({ type: "openRaw" });
-                  return;
                 case "skills":
                   return;
               }
             }}
           >
-            <span class="inline-flex items-center gap-1.5">
-              <FileCode2 size={13} /> Open raw
-            </span>
+            <FileCode2 size={13} /> Open raw
           </button>
         </Show>
       </div>
@@ -278,7 +255,7 @@ function ConfigModeView(props: {
         </div>
       </Section>
 
-      <Section title="Tools & Search">
+      <Section title="Tools & search">
         <div class="grid gap-2 md:grid-cols-2">
           <For each={Object.entries(cfg().tools)}>
             {([key, value]) => {
@@ -412,7 +389,7 @@ function ConfigModeView(props: {
       </Section>
 
       <Section title="Providers" icon={<Plug size={15} class="text-accent" />}>
-        <div class="mb-3 flex items-center gap-2">
+        <div class="mb-3 flex items-stretch gap-2">
           <input
             class={`${inputClass} max-w-56`}
             placeholder="New provider name"
@@ -469,9 +446,9 @@ function ConfigModeView(props: {
       </Section>
 
       <Section title="LLMs" icon={<Cpu size={15} class="text-accent" />}>
-        <div class="mb-3 flex items-center gap-2">
+        <div class="mb-3 flex items-stretch gap-2">
           <input
-            class={`${inputClass} max-w-56`}
+            class={`${inputClass} min-w-0 max-w-56 flex-1`}
             placeholder="New LLM name"
             value={llmDraftName()}
             onInput={(event) => setLlmDraftName(event.currentTarget.value)}
@@ -614,9 +591,9 @@ function McpModeView(props: {
         title="MCP servers"
         icon={<Shield size={15} class="text-accent" />}
       >
-        <div class="mb-3 flex items-center gap-2">
+        <div class="mb-3 flex items-stretch gap-2">
           <input
-            class={`${inputClass} max-w-56`}
+            class={`${inputClass} min-w-0 max-w-56 flex-1`}
             placeholder="New server name"
             value={serverDraftName()}
             onInput={(event) => setServerDraftName(event.currentTarget.value)}
@@ -720,62 +697,6 @@ function McpModeView(props: {
   );
 }
 
-function InstructionsModeView(props: { text: string }) {
-  const [draft, setDraft] = createSignal(props.text);
-  return (
-    <div class="mx-auto flex max-w-6xl flex-col gap-5">
-      <Section
-        title="Instructions"
-        icon={<FileCode2 size={15} class="text-accent" />}
-      >
-        <div class="grid gap-4 lg:grid-cols-2">
-          <div class="flex min-h-[30rem] flex-col rounded-xl border border-border bg-panel/25">
-            <div class="border-b border-border px-4 py-3 text-xs font-medium text-muted">
-              Markdown editor
-            </div>
-            <textarea
-              class="min-h-[28rem] flex-1 resize-none bg-transparent px-4 py-4 font-mono text-[13px] leading-6 text-input-foreground outline-none"
-              value={draft()}
-              onInput={(event) => setDraft(event.currentTarget.value)}
-            />
-          </div>
-          <div class="flex min-h-[30rem] flex-col rounded-xl border border-border bg-panel/25">
-            <div class="border-b border-border px-4 py-3 text-xs font-medium text-muted">
-              Preview
-            </div>
-            <div class="scroll-thin min-h-[28rem] flex-1 overflow-y-auto px-4 py-4">
-              <Show
-                when={draft().trim()}
-                fallback={
-                  <div class="text-sm text-muted">
-                    Start writing instructions to preview the rendered Markdown
-                    here.
-                  </div>
-                }
-              >
-                <Markdown class="text-[14px] leading-7 text-[var(--vscode-editor-foreground)]">
-                  {draft()}
-                </Markdown>
-              </Show>
-            </div>
-          </div>
-        </div>
-        <div class="mt-3 flex justify-end">
-          <button
-            type="button"
-            class={primaryButtonClass}
-            onClick={() =>
-              sendInstructionsEditorAction({ type: "saveText", text: draft() })
-            }
-          >
-            <Check size={14} /> Save instructions
-          </button>
-        </div>
-      </Section>
-    </div>
-  );
-}
-
 function SkillsModeView(props: {
   state: NonNullable<typeof state.skillsView>;
 }) {
@@ -788,16 +709,16 @@ function SkillsModeView(props: {
         title="Search and install"
         icon={<Search size={15} class="text-accent" />}
       >
-        <div class="flex flex-wrap items-center gap-2">
+        <div class="flex items-stretch gap-2">
           <input
-            class={`${inputClass} min-w-[16rem] flex-1`}
+            class={`${inputClass} min-w-0 flex-1`}
             placeholder="Search skills catalog"
             value={query()}
             onInput={(event) => setQuery(event.currentTarget.value)}
           />
           <button
             type="button"
-            class={primaryButtonClass}
+            class={`${primaryButtonClass} shrink-0`}
             onClick={() =>
               sendSkillsViewAction({ type: "search", query: query() })
             }
@@ -805,16 +726,16 @@ function SkillsModeView(props: {
             <Search size={14} /> Search
           </button>
         </div>
-        <div class="mt-4 flex flex-wrap items-center gap-2">
+        <div class="mt-3 flex items-stretch gap-2">
           <input
-            class={`${inputClass} min-w-[16rem] flex-1`}
+            class={`${inputClass} min-w-0 flex-1`}
             placeholder="owner/repo, GitHub URL, or local path"
             value={source()}
             onInput={(event) => setSource(event.currentTarget.value)}
           />
           <button
             type="button"
-            class={primaryButtonClass}
+            class={`${primaryButtonClass} shrink-0`}
             onClick={() =>
               sendSkillsViewAction({ type: "installSource", source: source() })
             }
@@ -888,7 +809,7 @@ function SummaryCard(props: {
   extraAction?: { label: string; onClick: () => void; disabled?: boolean };
 }) {
   return (
-    <div class="rounded-xl border border-border bg-panel/40 p-4">
+    <div class="rounded-lg border border-border bg-panel/40 p-4">
       <div class="flex items-start justify-between gap-3">
         <div class="min-w-0 flex-1">
           <div class="truncate text-sm font-medium">{props.title}</div>
@@ -904,7 +825,7 @@ function SummaryCard(props: {
             {(action) => (
               <button
                 type="button"
-                class="rounded-md border border-border px-2 py-1 text-xs hover:bg-panel disabled:opacity-50"
+                class={ghostButtonClass}
                 disabled={action().disabled}
                 onClick={action().onClick}
               >
@@ -912,23 +833,15 @@ function SummaryCard(props: {
               </button>
             )}
           </Show>
-          <button
-            type="button"
-            class="rounded-md border border-border px-2 py-1 text-xs hover:bg-panel"
-            onClick={props.onEdit}
-          >
-            <span class="inline-flex items-center gap-1.5">
-              <Pencil size={13} /> Edit
-            </span>
+          <button type="button" class={ghostButtonClass} onClick={props.onEdit}>
+            <Pencil size={13} /> Edit
           </button>
           <button
             type="button"
-            class="rounded-md border border-border px-2 py-1 text-xs text-error hover:bg-panel"
+            class={`${ghostButtonClass} text-error`}
             onClick={props.onDelete}
           >
-            <span class="inline-flex items-center gap-1.5">
-              <Trash2 size={13} /> Delete
-            </span>
+            <Trash2 size={13} /> Delete
           </button>
         </div>
       </div>
@@ -1593,11 +1506,7 @@ function Drawer(props: {
 function DrawerActions(props: { onCancel: () => void; onSave: () => void }) {
   return (
     <div class="mt-5 flex justify-end gap-2 border-t border-border pt-4">
-      <button
-        type="button"
-        class="rounded-md border border-border px-3 py-2 text-xs hover:bg-panel"
-        onClick={props.onCancel}
-      >
+      <button type="button" class={ghostButtonClass} onClick={props.onCancel}>
         Cancel
       </button>
       <button type="button" class={primaryButtonClass} onClick={props.onSave}>
@@ -1609,7 +1518,7 @@ function DrawerActions(props: { onCancel: () => void; onSave: () => void }) {
 
 function SkillSearchCard(props: { result: SkillSearchResultInfo }) {
   return (
-    <div class="rounded-xl border border-border bg-panel/40 p-4">
+    <div class="rounded-lg border border-border bg-panel/40 p-4">
       <div class="flex items-start justify-between gap-3">
         <div class="min-w-0 flex-1">
           <div class="truncate text-sm font-medium">{props.result.name}</div>
@@ -1643,7 +1552,7 @@ function InstalledSkillCard(props: {
   onRemove: () => void;
 }) {
   return (
-    <div class="rounded-xl border border-border bg-panel/40 p-4">
+    <div class="rounded-lg border border-border bg-panel/40 p-4">
       <div class="flex items-start justify-between gap-3">
         <div class="min-w-0 flex-1">
           <div class="truncate text-sm font-medium">{props.skill.name}</div>
@@ -1657,7 +1566,7 @@ function InstalledSkillCard(props: {
         <div class="flex shrink-0 items-center gap-2">
           <button
             type="button"
-            class="rounded-md border border-border px-2 py-1 text-xs hover:bg-panel"
+            class={ghostButtonClass}
             onClick={() =>
               sendSkillsViewAction({
                 type: "openSkill",
@@ -1669,12 +1578,10 @@ function InstalledSkillCard(props: {
           </button>
           <button
             type="button"
-            class="rounded-md border border-border px-2 py-1 text-xs text-error hover:bg-panel"
+            class={`${ghostButtonClass} text-error`}
             onClick={props.onRemove}
           >
-            <span class="inline-flex items-center gap-1.5">
-              <Trash2 size={13} /> Remove
-            </span>
+            <Trash2 size={13} /> Remove
           </button>
         </div>
       </div>
@@ -1688,20 +1595,18 @@ function RelatedFileCard(props: {
   onOpen: () => void;
 }) {
   return (
-    <div class="rounded-xl border border-border bg-panel/40 p-4">
+    <div class="rounded-lg border border-border bg-panel/40 p-4">
       <div class="mb-1 text-sm font-medium">{props.label}</div>
       <div class="min-h-[2.5rem] truncate text-xs leading-5 text-muted">
         {props.path ?? "Not available"}
       </div>
       <button
         type="button"
-        class="mt-3 rounded-md border border-border px-2 py-1 text-xs hover:bg-panel disabled:opacity-50"
+        class={`${ghostButtonClass} mt-3`}
         disabled={!props.path}
         onClick={props.onOpen}
       >
-        <span class="inline-flex items-center gap-1.5">
-          <ArrowUpRight size={13} /> Open related file
-        </span>
+        <ArrowUpRight size={13} /> Open related file
       </button>
     </div>
   );
@@ -1713,7 +1618,7 @@ function Section(props: {
   children: import("solid-js").JSX.Element;
 }) {
   return (
-    <section class="rounded-2xl border border-border/80 bg-panel/35 p-5">
+    <section class="rounded-lg border border-border/80 bg-panel/35 p-5">
       <div class="mb-4 flex items-center gap-2 text-sm font-medium text-foreground">
         {props.icon}
         <span>{props.title}</span>
@@ -1729,7 +1634,7 @@ function Subsection(props: {
   children: import("solid-js").JSX.Element;
 }) {
   return (
-    <section class="rounded-xl border border-border/70 bg-panel/25 p-4">
+    <section class="rounded-lg border border-border/70 bg-panel/25 p-4">
       <div class="mb-3">
         <div class="text-sm font-medium text-foreground">{props.title}</div>
         <Show when={props.description}>
@@ -1776,7 +1681,7 @@ function ToggleRow(props: {
     >
       <span class="capitalize">{props.label}</span>
       <span
-        class={`rounded-full px-2 py-0.5 text-[11px] ${props.checked ? "bg-button text-button-foreground" : "bg-button-secondary text-button-secondary-foreground"}`}
+        class={`rounded-md px-2 py-0.5 text-[11px] ${props.checked ? "bg-button text-button-foreground" : "bg-button-secondary text-button-secondary-foreground"}`}
       >
         {props.checked ? "Enabled" : "Disabled"}
       </span>
@@ -1784,10 +1689,13 @@ function ToggleRow(props: {
   );
 }
 
+/** Shared compact control height for settings toolbar rows (input + adjacent button). */
 const inputClass =
-  "w-full rounded-md border border-input-border bg-input px-3 py-2 text-sm text-input-foreground outline-none focus:border-focus";
+  "box-border h-8 w-full rounded-md border border-input-border bg-input px-2.5 text-xs leading-none text-input-foreground outline-none focus:border-focus";
 const primaryButtonClass =
-  "inline-flex items-center gap-1.5 rounded-md bg-button px-3 py-2 text-xs font-medium text-button-foreground hover:bg-button-hover";
+  "btn btn-primary box-border h-8 shrink-0 gap-1.5 px-2.5 text-xs";
+const ghostButtonClass =
+  "btn btn-ghost box-border h-8 shrink-0 gap-1.5 border border-border px-2.5 text-xs hover:bg-panel";
 
 function inputClassFor(error?: string): string {
   return error ? `${inputClass} border-error focus:border-error` : inputClass;

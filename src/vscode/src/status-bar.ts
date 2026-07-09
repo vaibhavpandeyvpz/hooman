@@ -30,7 +30,7 @@ export class HoomanStatusBar implements vscode.Disposable {
   static readonly menuCommand = "hooman.statusMenu";
 
   readonly #item: vscode.StatusBarItem;
-  #state: StatusState = { title: "New Chat", configOptions: [], busy: false };
+  #state: StatusState = { title: "New chat", configOptions: [], busy: false };
 
   constructor(private readonly actions: StatusBarActions) {
     this.#item = vscode.window.createStatusBarItem(
@@ -68,24 +68,24 @@ export class HoomanStatusBar implements vscode.Disposable {
     }
     items.push(
       {
-        label: "$(comment-discussion) Focus Chat",
+        label: "$(comment-discussion) Focus chat",
         action: () => this.actions.focusChat(),
       },
       {
-        label: "$(add) New Chat",
+        label: "$(add) New chat",
         action: () => this.actions.newChat(),
       },
       {
-        label: "$(history) Open Session…",
+        label: "$(history) Open session…",
         action: () => this.actions.pickSession(),
       },
       {
-        label: "$(gear) Open Settings…",
+        label: "$(gear) Open settings…",
         action: () => this.actions.openConfig(),
       },
       { label: "", kind: vscode.QuickPickItemKind.Separator },
       {
-        label: "$(output) Show Output Channel",
+        label: "$(output) Show output channel",
         action: () => this.actions.showOutput(),
       },
     );
@@ -137,7 +137,7 @@ export class HoomanStatusBar implements vscode.Disposable {
       this.#item.text = summary ? `$(hubot) ${summary}` : "$(hubot) Hooman";
     }
     const lines = [
-      `Hooman — ${this.#state.title || "New Chat"}`,
+      `Hooman — ${this.#state.title || "New chat"}`,
       ...this.#state.configOptions.map(
         (option) => `${option.name}: ${currentValueLabel(option)}`,
       ),

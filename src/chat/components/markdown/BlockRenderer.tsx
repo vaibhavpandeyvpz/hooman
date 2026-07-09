@@ -4,6 +4,7 @@ import type { Token, Tokens } from "marked";
 import { CodeBlock } from "./CodeBlock.js";
 import { inlineToPlainText, renderInlineTokens } from "./InlineRenderer.js";
 import { MarkdownTable } from "./MarkdownTable.js";
+import { theme } from "../../../core/theme.js";
 
 type BlockRendererProps = {
   tokens: Token[];
@@ -89,7 +90,7 @@ function renderBlock(
       return (
         <Box key={key} flexDirection="column" marginBottom={mb}>
           {lines.map((line, index) => (
-            <Text key={`${key}-${index}`} color="gray" italic>
+            <Text key={`${key}-${index}`} color={theme.muted} italic>
               {`│ ${line || " "}`}
             </Text>
           ))}
@@ -178,7 +179,7 @@ function renderBlock(
     case "hr":
       return (
         <Box key={key} marginBottom={mb}>
-          <Text color="gray">
+          <Text color={theme.muted}>
             {"─".repeat(Math.max(8, Math.min(columns - 4, 48)))}
           </Text>
         </Box>

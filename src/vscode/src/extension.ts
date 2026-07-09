@@ -11,10 +11,6 @@ import {
   openHoomanMcpEditor,
 } from "./config-editor";
 import { BASELINE_SCHEME, EditTracker } from "./edit-tracker";
-import {
-  HoomanInstructionsEditorProvider,
-  openHoomanInstructionsEditor,
-} from "./instructions-editor";
 import { PlanEditorProvider } from "./plan-editor";
 import { PlanFileActions } from "./plan-actions";
 import { PermissionPrompts } from "./permissions";
@@ -38,8 +34,7 @@ type LauncherAction =
   | "open-instructions"
   | "open-skills"
   | "open-raw-config"
-  | "open-raw-mcp"
-  | "open-raw-instructions";
+  | "open-raw-mcp";
 
 async function ensureTextFile(path: string, scaffold: string): Promise<void> {
   try {
@@ -53,7 +48,7 @@ async function ensureTextFile(path: string, scaffold: string): Promise<void> {
 async function pickLauncherAction(): Promise<LauncherAction | undefined> {
   const items: Array<vscode.QuickPickItem & { value: LauncherAction }> = [
     {
-      label: "$(settings-gear) Open Hooman Configuration",
+      label: "$(settings-gear) Open Hooman configuration",
       description: "Visual editor for .hooman/config.json",
       value: "open-config",
     },
@@ -63,12 +58,12 @@ async function pickLauncherAction(): Promise<LauncherAction | undefined> {
       value: "open-mcp",
     },
     {
-      label: "$(book) Open Instructions",
-      description: "Visual editor for ~/.hooman/instructions.md",
+      label: "$(book) Open instructions",
+      description: "Edit ~/.hooman/instructions.md in the default editor",
       value: "open-instructions",
     },
     {
-      label: "$(extensions) Open Skills Manager",
+      label: "$(extensions) Open skills manager",
       description: "Search, install, and remove Hooman skills",
       value: "open-skills",
     },
@@ -83,11 +78,6 @@ async function pickLauncherAction(): Promise<LauncherAction | undefined> {
       label: "$(json) Open raw mcp.json",
       description: "Open ~/.hooman/mcp.json in text editor",
       value: "open-raw-mcp",
-    },
-    {
-      label: "$(markdown) Open raw instructions.md",
-      description: "Open ~/.hooman/instructions.md in text editor",
-      value: "open-raw-instructions",
     },
   );
   const picked = await vscode.window.showQuickPick(items, {
@@ -112,12 +102,8 @@ async function openMcpSurface(
   await openHoomanMcpEditor(mcpEditor, vscode.Uri.file(path));
 }
 
-async function openInstructions(
-  instructionsEditor: HoomanInstructionsEditorProvider | undefined,
-): Promise<void> {
-  const path = homeInstructionsPath();
-  await ensureTextFile(path, "# Hooman Instructions\n");
-  await openHoomanInstructionsEditor(instructionsEditor, vscode.Uri.file(path));
+async function openInstructions(): Promise<void> {
+  await openRaw(homeInstructionsPath(), "# Hooman Instructions\n");
 }
 
 async function openRaw(path: string, scaffold: string): Promise<void> {
@@ -169,13 +155,11 @@ export function activate(context: vscode.ExtensionContext): void {
   const planEditor = new PlanEditorProvider(context, chatView);
   const configEditor = new HoomanConfigEditorProvider(context);
   const mcpEditor = new HoomanMcpEditorProvider(context);
-  const instructionsEditor = new HoomanInstructionsEditorProvider(context);
   const skillsPanel = new HoomanSkillsPanel(context);
   context.subscriptions.push(
     planEditor,
     configEditor,
     mcpEditor,
-    instructionsEditor,
     skillsPanel,
     vscode.window.registerCustomEditorProvider(
       PlanEditorProvider.viewType,
@@ -194,13 +178,6 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.window.registerCustomEditorProvider(
       HoomanMcpEditorProvider.viewType,
       mcpEditor,
-      {
-        webviewOptions: { retainContextWhenHidden: true },
-      },
-    ),
-    vscode.window.registerCustomEditorProvider(
-      HoomanInstructionsEditorProvider.viewType,
-      instructionsEditor,
       {
         webviewOptions: { retainContextWhenHidden: true },
       },
@@ -225,7 +202,7 @@ export function activate(context: vscode.ExtensionContext): void {
           await openMcpSurface(mcpEditor);
           return;
         case "open-instructions":
-          await openInstructions(instructionsEditor);
+          await openInstructions();
           return;
         case "open-skills":
           await skillsPanel.show();
@@ -235,9 +212,6 @@ export function activate(context: vscode.ExtensionContext): void {
           return;
         case "open-raw-mcp":
           await openRaw(homeMcpPath(), defaultMcpScaffold());
-          return;
-        case "open-raw-instructions":
-          await openRaw(homeInstructionsPath(), "# Hooman Instructions\n");
           return;
         default:
           return;
@@ -340,9 +314,9 @@ export function activate(context: vscode.ExtensionContext): void {
       const confirm = await vscode.window.showWarningMessage(
         "Delete all Hooman chat sessions? This cannot be undone.",
         { modal: true },
-        "Delete All",
+        "Delete all",
       );
-      if (confirm !== "Delete All") {
+      if (confirm !== "Delete all") {
         return;
       }
       try {

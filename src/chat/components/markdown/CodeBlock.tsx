@@ -3,6 +3,7 @@ import type React from "react";
 import { useMemo } from "react";
 import { Box, Text } from "ink";
 import { highlight, supportsLanguage } from "cli-highlight";
+import { theme } from "../../../core/theme.js";
 
 type CodeBlockProps = {
   code: string;
@@ -79,7 +80,7 @@ export function CodeBlock({
     const InkAnsiText = getInkAnsi();
     return (
       <Box flexDirection="column" marginBottom={omitBottomMargin ? 0 : 1}>
-        <Text color="gray">{`\`\`\`${trimmedLanguage}`}</Text>
+        <Text color={theme.muted}>{`\`\`\`${trimmedLanguage}`}</Text>
         {highlightedLines.map((line, index) =>
           InkAnsiText ? (
             <InkAnsiText key={index}>{line || " "}</InkAnsiText>
@@ -87,16 +88,16 @@ export function CodeBlock({
             <Text key={index}>{stripAnsi(line) || " "}</Text>
           ),
         )}
-        <Text color="gray">```</Text>
+        <Text color={theme.muted}>```</Text>
       </Box>
     );
   }
 
   return (
     <Box flexDirection="column" marginBottom={omitBottomMargin ? 0 : 1}>
-      <Text color="gray">{`\`\`\`${trimmedLanguage ?? ""}`}</Text>
+      <Text color={theme.muted}>{`\`\`\`${trimmedLanguage ?? ""}`}</Text>
       {renderCodeLines(plainLines, "white")}
-      <Text color="gray">```</Text>
+      <Text color={theme.muted}>```</Text>
     </Box>
   );
 }

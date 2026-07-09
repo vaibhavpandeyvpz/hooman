@@ -137,13 +137,6 @@ export interface McpEditorStateInfo {
   servers: McpServerEntryState[];
 }
 
-export interface InstructionsEditorStateInfo {
-  path: string;
-  name: string;
-  dirty: boolean;
-  text: string;
-}
-
 export interface SkillInstalledEntryInfo {
   name: string;
   description?: string;
@@ -218,11 +211,6 @@ export type McpEditorAction =
   | { type: "deleteServer"; name: string }
   | { type: "authenticate"; name: string }
   | { type: "logout"; name: string };
-
-export type InstructionsEditorAction =
-  | { type: "refresh" }
-  | { type: "openRaw" }
-  | { type: "saveText"; text: string };
 
 export type SkillsViewAction =
   | { type: "refresh" }

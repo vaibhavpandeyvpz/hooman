@@ -2,6 +2,7 @@ import { Fragment, type ReactNode } from "react";
 import { Box, Text } from "ink";
 import { millify } from "millify";
 import type { Manager as McpManager } from "../../core/mcp/index.js";
+import { theme } from "../../core/theme.js";
 
 const TOKEN_MILLIFY_OPTS = {
   lowercase: true,
@@ -33,12 +34,12 @@ function formatCostUsd(amount: number): string {
 /** Color the context-utilization percentage as it approaches the window limit. */
 function contextUsageColor(ratio: number): string {
   if (ratio >= 0.9) {
-    return "red";
+    return theme.error;
   }
   if (ratio >= 0.7) {
-    return "yellow";
+    return theme.warning;
   }
-  return "green";
+  return theme.success;
 }
 
 type StatusBarProps = {
@@ -70,27 +71,27 @@ type StatusBarProps = {
 function sessionModeValueColor(mode: string): string | undefined {
   const normalized = mode.trim().toLowerCase();
   if (normalized === "plan") {
-    return "#FFA500";
+    return theme.warning;
   }
   if (normalized === "ask") {
-    return "cyan";
+    return theme.primary;
   }
   return undefined;
 }
 
-/** Ink color for the reasoning effort/level token (labels stay `gray`). */
+/** Ink color for the reasoning effort/level token (labels stay muted). */
 function reasoningEffortColor(effort: string): string {
   switch (effort.trim().toLowerCase()) {
     case "minimal":
-      return "gray";
+      return theme.muted;
     case "low":
-      return "cyan";
+      return theme.primary;
     case "medium":
-      return "yellow";
+      return theme.warning;
     case "high":
-      return "red";
+      return theme.error;
     default:
-      return "magenta";
+      return theme.secondary;
   }
 }
 
@@ -140,11 +141,11 @@ export function StatusBar({
   if (contextUsage && contextRatio !== null) {
     usageSegments.push(
       <Fragment>
-        <Text color="gray">context: </Text>
+        <Text color={theme.muted}>context: </Text>
         <Text color={contextUsageColor(contextRatio)}>
           {Math.min(100, Math.round(contextRatio * 100))}%
         </Text>
-        <Text color="gray">
+        <Text color={theme.muted}>
           {" "}
           ({formatTokenCount(contextUsage.used)}/
           {formatTokenCount(contextUsage.size)})
@@ -153,45 +154,47 @@ export function StatusBar({
     );
   }
   if (hasTokens) {
-    usageSegments.push(<Text color="gray">tokens: {tokensLabel}</Text>);
+    usageSegments.push(<Text color={theme.muted}>tokens: {tokensLabel}</Text>);
   }
   if (costUsd !== undefined) {
     usageSegments.push(
-      <Text color="gray">cost: {formatCostUsd(costUsd)}</Text>,
+      <Text color={theme.muted}>cost: {formatCostUsd(costUsd)}</Text>,
     );
   }
   return (
     <Box marginTop={1} flexDirection="column">
       <Text>
-        <Text color="gray">model: </Text>
+        <Text color={theme.muted}>model: </Text>
         <Text bold>{currentModel}</Text>
         {reasoningEffort ? (
           <>
-            <Text color="gray"> • effort: </Text>
+            <Text color={theme.muted}> • effort: </Text>
             <Text color={reasoningEffortColor(reasoningEffort)}>
               {reasoningEffort}
             </Text>
           </>
         ) : null}
-        <Text color="gray"> • mode: </Text>
+        <Text color={theme.muted}> • mode: </Text>
         <Text color={sessionModeValueColor(sessionMode)}>{sessionMode}</Text>
-        <Text color="gray"> • yolo: </Text>
-        <Text color={yoloOn ? "red" : "green"}>{yoloOn ? "on" : "off"}</Text>
+        <Text color={theme.muted}> • yolo: </Text>
+        <Text color={yoloOn ? theme.error : theme.success}>
+          {yoloOn ? "on" : "off"}
+        </Text>
       </Text>
       {usageSegments.length > 0 ? (
         <Text>
           {usageSegments.map((segment, index) => (
             <Fragment key={index}>
-              {index > 0 ? <Text color="gray"> • </Text> : null}
+              {index > 0 ? <Text color={theme.muted}> • </Text> : null}
               {segment}
             </Fragment>
           ))}
         </Text>
       ) : null}
-      <Text color="gray">
+      <Text color={theme.muted}>
         {`mcp servers: ${manager.clients.size}`}
         {mcpNeedsAttention ? (
-          <Text color="yellow"> (needs attention)</Text>
+          <Text color={theme.warning}> (needs attention)</Text>
         ) : null}
         {` • tools: ${totalTools} • skills: ${skillsFound}`}
         {running ? ` • elapsed ${elapsedLabel}` : ""}

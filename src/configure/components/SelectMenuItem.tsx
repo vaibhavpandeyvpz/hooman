@@ -1,5 +1,6 @@
 import React from "react";
 import { Text } from "ink";
+import { theme } from "../../core/theme.js";
 
 /** Custom row for `ink-select-input` so we can bold part of the label. */
 export function SelectMenuItem(props: {
@@ -9,7 +10,7 @@ export function SelectMenuItem(props: {
   oauthStatus?: "authenticated" | "expired" | "unauthenticated";
 }): React.JSX.Element {
   const { isSelected, label, boldSubstring, oauthStatus } = props;
-  const color = isSelected ? "blue" : undefined;
+  const color = isSelected ? theme.secondary : undefined;
   const oauthMatch = label.match(/^(.*)( • oauth(?: needed)?)$/);
   const oauthSegment = oauthMatch?.[2];
   const baseLabel = oauthMatch?.[1] ?? label;
@@ -40,7 +41,11 @@ export function SelectMenuItem(props: {
       <Text color={color}>
         {baseLabel}
         {oauthSegment ? (
-          <Text color={oauthStatus === "authenticated" ? "green" : "red"}>
+          <Text
+            color={
+              oauthStatus === "authenticated" ? theme.success : theme.error
+            }
+          >
             {oauthSegment}
           </Text>
         ) : null}
@@ -51,7 +56,9 @@ export function SelectMenuItem(props: {
     <Text color={color}>
       {renderLabel(baseLabel)}
       {oauthSegment ? (
-        <Text color={oauthStatus === "authenticated" ? "green" : "red"}>
+        <Text
+          color={oauthStatus === "authenticated" ? theme.success : theme.error}
+        >
           {oauthSegment}
         </Text>
       ) : null}

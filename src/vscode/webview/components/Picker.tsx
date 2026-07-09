@@ -67,7 +67,7 @@ export default function Picker(props: {
       <button
         type="button"
         title={props.title}
-        class={`flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-[11.5px] hover:bg-panel ${props.className ?? ""}`}
+        class={`flex items-center gap-1 rounded-md border border-border px-2 py-0.5 text-[11.5px] hover:bg-panel ${props.className ?? ""}`}
         onClick={toggle}
       >
         {props.icon}

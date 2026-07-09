@@ -1,6 +1,7 @@
 import React from "react";
 import { Text } from "ink";
 import type { Token } from "marked";
+import { theme } from "../../../core/theme.js";
 
 function plainFromToken(token: Token): string {
   switch (token.type) {
@@ -55,7 +56,7 @@ export function renderInlineTokens(
         return [token.text ?? token.raw ?? ""];
       case "codespan":
         return [
-          <Text key={key} color="green">
+          <Text key={key} color={theme.success}>
             {token.text ?? ""}
           </Text>,
         ];
@@ -83,12 +84,12 @@ export function renderInlineTokens(
         const label = text || href;
         const shouldShowHref = Boolean(href) && label !== href;
         return [
-          <Text key={`${key}-label`} color="blue" underline>
+          <Text key={`${key}-label`} color={theme.secondary} underline>
             {label}
           </Text>,
           ...(shouldShowHref
             ? [
-                <Text key={`${key}-href`} color="gray">
+                <Text key={`${key}-href`} color={theme.muted}>
                   {` (${href})`}
                 </Text>,
               ]
@@ -99,12 +100,12 @@ export function renderInlineTokens(
         const label = token.text?.trim() || "image";
         const href = token.href ?? "";
         return [
-          <Text key={`${key}-img-label`} color="magenta">
+          <Text key={`${key}-img-label`} color={theme.info}>
             {`[${label}]`}
           </Text>,
           ...(href
             ? [
-                <Text key={`${key}-img-href`} color="gray">
+                <Text key={`${key}-img-href`} color={theme.muted}>
                   {` (${href})`}
                 </Text>,
               ]

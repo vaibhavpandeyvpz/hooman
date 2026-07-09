@@ -9,8 +9,8 @@ import { formatClock } from "../lib/format";
 import { sessionState } from "../store";
 import { THINKING_VERBS } from "../lib/thinking-verbs";
 
-/** Cycling accent hues for the shimmering status label: cyan → sky → blue, matching the logo. */
-const HUES = [187, 200, 217];
+/** Cycling brand accents for the shimmering status label: primary → secondary → info. */
+const SHIMMER = ["#0091cd", "#56a0d3", "#c4dff6"];
 
 function pickVerbIndex(previous: number): number {
   if (THINKING_VERBS.length <= 1) return 0;
@@ -26,10 +26,10 @@ export default function StatusStrip() {
   const [verbIndex, setVerbIndex] = createSignal(
     Math.floor(Math.random() * THINKING_VERBS.length),
   );
-  const [hueIndex, setHueIndex] = createSignal(0);
+  const [shimmerIndex, setShimmerIndex] = createSignal(0);
   let clock: ReturnType<typeof setInterval> | undefined;
   let verbTimer: ReturnType<typeof setInterval> | undefined;
-  let hueTimer: ReturnType<typeof setInterval> | undefined;
+  let shimmerTimer: ReturnType<typeof setInterval> | undefined;
 
   createEffect(() => {
     if (sessionState().busy && !clock) {
@@ -53,21 +53,21 @@ export default function StatusStrip() {
   });
 
   createEffect(() => {
-    if (sessionState().busy && !hueTimer) {
-      hueTimer = setInterval(
-        () => setHueIndex((value) => (value + 1) % HUES.length),
+    if (sessionState().busy && !shimmerTimer) {
+      shimmerTimer = setInterval(
+        () => setShimmerIndex((value) => (value + 1) % SHIMMER.length),
         900,
       );
-    } else if (!sessionState().busy && hueTimer) {
-      clearInterval(hueTimer);
-      hueTimer = undefined;
+    } else if (!sessionState().busy && shimmerTimer) {
+      clearInterval(shimmerTimer);
+      shimmerTimer = undefined;
     }
   });
 
   onCleanup(() => {
     clock && clearInterval(clock);
     verbTimer && clearInterval(verbTimer);
-    hueTimer && clearInterval(hueTimer);
+    shimmerTimer && clearInterval(shimmerTimer);
   });
 
   const elapsed = createMemo(() => {
@@ -81,7 +81,7 @@ export default function StatusStrip() {
   );
 
   const shimmerStyle = createMemo(() => ({
-    color: `hsl(${HUES[hueIndex()]}, 85%, 65%)`,
+    color: SHIMMER[shimmerIndex()] ?? "#0091cd",
     transition: "color 0.9s ease-in-out",
   }));
 

@@ -13,7 +13,7 @@ export default function UserMessage(props: {
 }) {
   return (
     <div class="flex w-full flex-col items-end">
-      <div class="max-w-[92%] rounded-xl border border-border bg-input px-3.5 py-2 text-[13px] leading-relaxed">
+      <div class="max-w-[92%] rounded-md border border-border bg-input px-3.5 py-2 text-[13px] leading-relaxed">
         <Show when={props.text}>
           <div class="whitespace-pre-wrap break-words">{props.text}</div>
         </Show>

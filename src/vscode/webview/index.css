@@ -1,9 +1,10 @@
 @import "tailwindcss";
 
 /*
- * Maps Tailwind's default color/font palette onto VS Code theme tokens so
- * utility classes (bg-background, text-foreground, border-border, ...)
- * follow whatever theme the host editor is using, light or dark.
+ * Brand palette + VS Code theme chrome.
+ * Semantic accents (primary/success/error/…) use Hooman brand hex values so
+ * the extension looks consistent across host themes. Surfaces (background,
+ * borders, inputs, fonts) still follow the editor theme.
  */
 @theme {
   --font-sans: var(--vscode-font-family);
@@ -11,7 +12,7 @@
 
   --color-background: var(--vscode-sideBar-background);
   --color-foreground: var(--vscode-foreground);
-  --color-muted: var(--vscode-descriptionForeground);
+  --color-muted: #9ba5a8;
 
   --color-border: var(--vscode-widget-border, var(--vscode-panel-border));
   --color-panel: var(--vscode-editorWidget-background, transparent);
@@ -20,30 +21,36 @@
   --color-input-border: var(--vscode-input-border, transparent);
   --color-input-foreground: var(--vscode-input-foreground);
 
-  --color-accent: var(--vscode-textLink-foreground);
-  --color-focus: var(--vscode-focusBorder);
+  /* Brand: primary #0091cd, secondary #56a0d3, info #c4dff6 */
+  --color-primary: #0091cd;
+  --color-secondary: #56a0d3;
+  --color-info: #c4dff6;
+  --color-accent: #0091cd;
+  --color-focus: #0091cd;
 
-  --color-button: var(--vscode-button-background);
-  --color-button-foreground: var(--vscode-button-foreground);
-  --color-button-hover: var(--vscode-button-hoverBackground);
-  --color-button-border: var(--vscode-button-border, transparent);
-  --color-button-secondary: var(--vscode-button-secondaryBackground);
-  --color-button-secondary-foreground: var(--vscode-button-secondaryForeground);
-  --color-button-secondary-hover: var(--vscode-button-secondaryHoverBackground);
-
-  --color-success: var(--vscode-testing-iconPassed, #73c991);
-  --color-error: var(--vscode-errorForeground);
-  --color-warning: var(--vscode-inputValidation-warningBorder, #cca700);
-  --color-warning-bg: var(
-    --vscode-inputValidation-warningBackground,
-    transparent
+  --color-button: #0091cd;
+  --color-button-foreground: #ffffff;
+  --color-button-hover: #007bb0;
+  --color-button-border: color-mix(in srgb, #0091cd 45%, transparent);
+  --color-button-secondary: color-mix(
+    in srgb,
+    #56a0d3 18%,
+    var(--vscode-editorWidget-background, transparent)
+  );
+  --color-button-secondary-foreground: var(--vscode-foreground);
+  --color-button-secondary-hover: color-mix(
+    in srgb,
+    #56a0d3 28%,
+    var(--vscode-editorWidget-background, transparent)
   );
 
-  --color-added: var(--vscode-gitDecoration-addedResourceForeground, #81b88b);
-  --color-removed: var(
-    --vscode-gitDecoration-deletedResourceForeground,
-    #c74e39
-  );
+  --color-success: #8ec06c;
+  --color-error: #ee4c58;
+  --color-warning: #ecb731;
+  --color-warning-bg: color-mix(in srgb, #ecb731 14%, transparent);
+
+  --color-added: #8ec06c;
+  --color-removed: #ee4c58;
 
   --color-code-bg: var(--vscode-textCodeBlock-background);
 
@@ -71,6 +78,78 @@ body {
   height: 100%;
   display: flex;
   flex-direction: column;
+}
+
+/* Compact shared button primitives — small radius, sentence-case labels. */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  border-radius: 0.375rem; /* rounded-md */
+  padding: 0.125rem 0.5rem;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.25;
+  transition:
+    background-color 0.12s ease,
+    color 0.12s ease,
+    border-color 0.12s ease;
+}
+
+.btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.btn-primary {
+  background: var(--color-button);
+  color: var(--color-button-foreground);
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--color-button-hover);
+}
+
+.btn-secondary {
+  border: 1px solid var(--color-button-border);
+  background: var(--color-button-secondary);
+  color: var(--color-button-secondary-foreground);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: var(--color-button-secondary-hover);
+}
+
+.btn-ghost {
+  color: var(--color-muted);
+}
+
+.btn-ghost:hover:not(:disabled) {
+  background: var(--color-panel);
+  color: var(--color-foreground);
+}
+
+.btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.375rem;
+  padding: 0.25rem;
+  color: var(--color-muted);
+  transition:
+    background-color 0.12s ease,
+    color 0.12s ease;
+}
+
+.btn-icon:hover:not(:disabled) {
+  background: var(--color-panel);
+  color: var(--color-foreground);
+}
+
+.btn-icon:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
 }
 
 /* Thin, theme-matched scrollbars for transcript/panel overflow areas. */

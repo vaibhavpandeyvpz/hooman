@@ -4,6 +4,7 @@ import type { ReasoningDisplay } from "../../core/config.js";
 import type { ChatLine } from "../types.js";
 import { ReasoningStrip } from "./ReasoningStrip.js";
 import { ThinkingStatus } from "./ThinkingStatus.js";
+import { theme } from "../../core/theme.js";
 
 const TOKEN_MILLIFY_OPTS = {
   lowercase: true,
@@ -50,11 +51,11 @@ export function ThoughtEvent({
   return (
     <Box flexDirection="column" width="100%">
       <Box flexDirection="row" width="100%">
-        <Text bold color="blue">
+        <Text bold color={theme.secondary}>
           {assistantName}
         </Text>
         {line.done ? (
-          <Text color="gray">
+          <Text color={theme.muted}>
             {` thought for ${formatDuration(durationMs)}${formatEstimatedTokens(line.estimatedTokens)}`}
           </Text>
         ) : (

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Box, Text } from "ink";
 import { Spinner } from "./Spinner.js";
+import { theme } from "../../core/theme.js";
 
 const THINKING_VERBS = [
   "is thinking",
@@ -121,8 +122,8 @@ export function ThinkingStatus() {
 
   return (
     <Box marginLeft={1}>
-      <Spinner type="star" color="cyan" />
-      <Text color="gray">{` ${THINKING_VERBS[verbIndex]}...`}</Text>
+      <Spinner type="star" color={theme.primary} />
+      <Text color={theme.muted}>{` ${THINKING_VERBS[verbIndex]}...`}</Text>
     </Box>
   );
 }

@@ -39,8 +39,7 @@
     "onStartupFinished",
     "onCustomEditor:hooman.planEditor",
     "onCustomEditor:hooman.configEditor",
-    "onCustomEditor:hooman.mcpEditor",
-    "onCustomEditor:hooman.instructionsEditor"
+    "onCustomEditor:hooman.mcpEditor"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -76,7 +75,7 @@
       },
       {
         "viewType": "hooman.configEditor",
-        "displayName": "Hooman Configuration",
+        "displayName": "Hooman configuration",
         "selector": [
           {
             "filenamePattern": "**/.hooman/config.json"
@@ -96,19 +95,6 @@
           },
           {
             "filenamePattern": ".hooman/mcp.json"
-          }
-        ],
-        "priority": "default"
-      },
-      {
-        "viewType": "hooman.instructionsEditor",
-        "displayName": "Hooman Instructions",
-        "selector": [
-          {
-            "filenamePattern": "**/.hooman/instructions.md"
-          },
-          {
-            "filenamePattern": ".hooman/instructions.md"
           }
         ],
         "priority": "default"
@@ -161,42 +147,42 @@
     "commands": [
       {
         "command": "hooman.newChat",
-        "title": "Hooman: New Chat",
+        "title": "Hooman: New chat",
         "icon": "$(add)"
       },
       {
         "command": "hooman.pickSession",
-        "title": "Hooman: Open Session…",
+        "title": "Hooman: Open session…",
         "icon": "$(history)"
       },
       {
         "command": "hooman.openConfig",
-        "title": "Hooman: Open Settings…",
+        "title": "Hooman: Open settings…",
         "icon": "$(gear)"
       },
       {
         "command": "hooman.addExplorerSelectionToChat",
-        "title": "Add to Hooman Chat"
+        "title": "Add to Hooman chat"
       },
       {
         "command": "hooman.addExplorerSelectionToNewChat",
-        "title": "Add to New Hooman Chat"
+        "title": "Add to new Hooman chat"
       },
       {
         "command": "hooman.addSelectionToChat",
-        "title": "Add Selection to Hooman Chat"
+        "title": "Add selection to Hooman chat"
       },
       {
         "command": "hooman.addSelectionToNewChat",
-        "title": "Add Selection to New Hooman Chat"
+        "title": "Add selection to new Hooman chat"
       },
       {
         "command": "hooman.deleteAllSessions",
-        "title": "Hooman: Delete All Sessions"
+        "title": "Hooman: Delete all sessions"
       },
       {
         "command": "hooman.showOutput",
-        "title": "Hooman: Show Output Channel"
+        "title": "Hooman: Show output channel"
       },
       {
         "command": "hooman.plan.pickModel",

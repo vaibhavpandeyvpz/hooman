@@ -69,7 +69,7 @@ export class HoomanChatViewProvider
   #view: vscode.WebviewView | undefined;
   #webviewReady = false;
   #sessionId: string | null = null;
-  #sessionTitle = "New Chat";
+  #sessionTitle = "New chat";
   #tabs: string[] = [];
   #sessions = new Map<string, SessionHostState>();
   /** Working directory of the active session, used to resolve relative Markdown links clicked in chat/plan text. */
@@ -238,7 +238,7 @@ export class HoomanChatViewProvider
 
   #createSessionState(overrides?: Partial<SessionHostState>): SessionHostState {
     return {
-      title: "New Chat",
+      title: "New chat",
       cwd: defaultCwd(),
       loaded: false,
       configOptions: [],
@@ -562,7 +562,7 @@ export class HoomanChatViewProvider
     this.#saveActiveSessionState();
     const sessionId = this.#createPendingSessionId();
     this.#sessionId = sessionId;
-    this.#sessionTitle = "New Chat";
+    this.#sessionTitle = "New chat";
     this.#cwd = defaultCwd();
     this.#pendingUpdates = [];
     this.#pendingConfigOptions = new Map();
@@ -1309,9 +1309,9 @@ export class HoomanChatViewProvider
           detail:
             "Closing the tab will cancel those pending prompts for this session.",
         },
-        "Close Tab",
+        "Close tab",
       );
-      if (confirm !== "Close Tab") {
+      if (confirm !== "Close tab") {
         return;
       }
       this.#cancelPendingPermissionsForSession(sessionId);
