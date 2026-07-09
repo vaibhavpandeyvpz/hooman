@@ -183,11 +183,6 @@ function ConfigModeView(props: {
   const [editingLlm, setEditingLlm] = createSignal<ConfigLlmEntryState | null>(
     null,
   );
-  const [confirmDelete, setConfirmDelete] = createSignal<{
-    title: string;
-    description: string;
-    onConfirm: () => void;
-  } | null>(null);
 
   return (
     <div class="mx-auto flex max-w-6xl flex-col gap-5">
@@ -461,17 +456,12 @@ function ConfigModeView(props: {
                 title={provider.name}
                 subtitle={`${providerKindLabel(provider.provider)} • ${provider.usageCount} model(s)`}
                 onEdit={() => setEditingProvider(provider)}
-                onDelete={() => {
-                  setConfirmDelete({
-                    title: `Delete provider “${provider.name}”?`,
-                    description: "This removes the provider from config.json.",
-                    onConfirm: () =>
-                      sendConfigEditorAction({
-                        type: "deleteProvider",
-                        name: provider.name,
-                      }),
-                  });
-                }}
+                onDelete={() =>
+                  sendConfigEditorAction({
+                    type: "deleteProvider",
+                    name: provider.name,
+                  })
+                }
               />
             )}
           </For>
@@ -542,14 +532,9 @@ function ConfigModeView(props: {
                 onEdit={() => setEditingLlm(llm)}
                 onDelete={() => {
                   if (!llm.default) {
-                    setConfirmDelete({
-                      title: `Delete model “${llm.name}”?`,
-                      description: "This removes the model from config.json.",
-                      onConfirm: () =>
-                        sendConfigEditorAction({
-                          type: "deleteLlm",
-                          name: llm.name,
-                        }),
+                    sendConfigEditorAction({
+                      type: "deleteLlm",
+                      name: llm.name,
                     });
                   }
                 }}
@@ -611,19 +596,6 @@ function ConfigModeView(props: {
           />
         )}
       </Show>
-      <Show when={confirmDelete()}>
-        {(confirm) => (
-          <ConfirmDialog
-            title={confirm().title}
-            description={confirm().description}
-            onCancel={() => setConfirmDelete(null)}
-            onConfirm={() => {
-              confirm().onConfirm();
-              setConfirmDelete(null);
-            }}
-          />
-        )}
-      </Show>
     </div>
   );
 }
@@ -635,11 +607,6 @@ function McpModeView(props: {
   const [serverDraftName, setServerDraftName] = createSignal("");
   const [editingServer, setEditingServer] =
     createSignal<McpServerEntryState | null>(null);
-  const [confirmDelete, setConfirmDelete] = createSignal<{
-    title: string;
-    description: string;
-    onConfirm: () => void;
-  } | null>(null);
 
   return (
     <div class="mx-auto flex max-w-5xl flex-col gap-5">
@@ -685,17 +652,12 @@ function McpModeView(props: {
                 subtitle={`${transportTypeLabel(server.transportType)} • ${server.summary}`}
                 accent={displayMcpAuthStatus(server)}
                 onEdit={() => setEditingServer(server)}
-                onDelete={() => {
-                  setConfirmDelete({
-                    title: `Delete MCP server “${server.name}”?`,
-                    description: "This removes the server from mcp.json.",
-                    onConfirm: () =>
-                      sendMcpEditorAction({
-                        type: "deleteServer",
-                        name: server.name,
-                      }),
-                  });
-                }}
+                onDelete={() =>
+                  sendMcpEditorAction({
+                    type: "deleteServer",
+                    name: server.name,
+                  })
+                }
                 extraAction={
                   server.transportType !== "stdio" &&
                   server.authStatus !== "unsupported"
@@ -750,19 +712,6 @@ function McpModeView(props: {
                 fields,
               });
               setEditingServer(null);
-            }}
-          />
-        )}
-      </Show>
-      <Show when={confirmDelete()}>
-        {(confirm) => (
-          <ConfirmDialog
-            title={confirm().title}
-            description={confirm().description}
-            onCancel={() => setConfirmDelete(null)}
-            onConfirm={() => {
-              confirm().onConfirm();
-              setConfirmDelete(null);
             }}
           />
         )}
@@ -833,11 +782,6 @@ function SkillsModeView(props: {
   const skills = () => props.state;
   const [query, setQuery] = createSignal(skills().query ?? "");
   const [source, setSource] = createSignal("");
-  const [confirmDelete, setConfirmDelete] = createSignal<{
-    title: string;
-    description: string;
-    onConfirm: () => void;
-  } | null>(null);
   return (
     <div class="mx-auto flex max-w-6xl flex-col gap-5">
       <Section
@@ -919,16 +863,10 @@ function SkillsModeView(props: {
                 <InstalledSkillCard
                   skill={skill}
                   onRemove={() =>
-                    setConfirmDelete({
-                      title: `Remove skill “${skill.name}”?`,
-                      description:
-                        "This removes the installed skill from ~/.hooman/skills.",
-                      onConfirm: () =>
-                        sendSkillsViewAction({
-                          type: "remove",
-                          folder: skill.folder,
-                          displayName: skill.name,
-                        }),
+                    sendSkillsViewAction({
+                      type: "remove",
+                      folder: skill.folder,
+                      displayName: skill.name,
                     })
                   }
                 />
@@ -937,19 +875,6 @@ function SkillsModeView(props: {
           </div>
         </Show>
       </Section>
-      <Show when={confirmDelete()}>
-        {(confirm) => (
-          <ConfirmDialog
-            title={confirm().title}
-            description={confirm().description}
-            onCancel={() => setConfirmDelete(null)}
-            onConfirm={() => {
-              confirm().onConfirm();
-              setConfirmDelete(null);
-            }}
-          />
-        )}
-      </Show>
     </div>
   );
 }
@@ -1678,38 +1603,6 @@ function DrawerActions(props: { onCancel: () => void; onSave: () => void }) {
       <button type="button" class={primaryButtonClass} onClick={props.onSave}>
         <Check size={14} /> Save
       </button>
-    </div>
-  );
-}
-
-function ConfirmDialog(props: {
-  title: string;
-  description: string;
-  onCancel: () => void;
-  onConfirm: () => void;
-}) {
-  return (
-    <div class="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 px-4">
-      <div class="w-full max-w-md rounded-2xl border border-border bg-[var(--vscode-editor-background)] p-5 shadow-2xl">
-        <div class="text-base font-semibold text-foreground">{props.title}</div>
-        <div class="mt-2 text-sm leading-6 text-muted">{props.description}</div>
-        <div class="mt-5 flex justify-end gap-2">
-          <button
-            type="button"
-            class="rounded-md border border-border px-3 py-2 text-xs hover:bg-panel"
-            onClick={props.onCancel}
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            class="inline-flex items-center gap-1.5 rounded-md border border-error/40 px-3 py-2 text-xs font-medium text-error hover:bg-panel"
-            onClick={props.onConfirm}
-          >
-            <Trash2 size={14} /> Delete
-          </button>
-        </div>
-      </div>
     </div>
   );
 }

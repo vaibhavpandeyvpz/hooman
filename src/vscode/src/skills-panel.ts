@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import * as vscode from "vscode";
+import { confirmModal } from "./confirm";
 import type { OutboundMessage } from "./shared/protocol";
 import type {
   SkillInstalledEntryInfo,
@@ -214,6 +215,15 @@ export class HoomanSkillsPanel implements vscode.Disposable {
           });
           return;
         case "remove":
+          if (
+            !(await confirmModal(
+              `Remove skill "${action.displayName}"?`,
+              "This removes the installed skill from ~/.hooman/skills.",
+              "Remove",
+            ))
+          ) {
+            return;
+          }
           await this.#withBusy(`Removing ${action.displayName}…`, async () => {
             await runNpxSkills(
               ["remove", action.folder, "-y"],

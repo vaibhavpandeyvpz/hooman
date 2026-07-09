@@ -14,6 +14,7 @@ import {
   type SetSessionConfigOptionRequest,
 } from "@agentclientprotocol/sdk";
 import type { HoomanAcpClient } from "./acp-client";
+import { confirmModal } from "./confirm";
 import type { EditTracker } from "./edit-tracker";
 import type { PermissionPrompts } from "./permissions";
 import { isPlanFilePath, openFile, openPlanFile } from "./plan-file";
@@ -1042,16 +1043,12 @@ export class HoomanChatViewProvider
     // gate their destructive actions. The webview holds off trimming the
     // transcript until we echo back a `reverted` message, so cancelling
     // here leaves the conversation untouched.
-    const confirm = await vscode.window.showWarningMessage(
+    const confirmed = await confirmModal(
       "Revert to before this message?",
-      {
-        modal: true,
-        detail:
-          "This undoes the file changes made from this message onward and returns the message to the composer. This cannot be undone.",
-      },
+      "This undoes the file changes made from this message onward and returns the message to the composer. This cannot be undone.",
       "Revert",
     );
-    if (confirm !== "Revert") {
+    if (!confirmed) {
       return;
     }
     if (this.#sessionId !== sessionId || this.#busy) {

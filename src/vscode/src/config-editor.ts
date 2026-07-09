@@ -1,5 +1,6 @@
 import { basename } from "node:path";
 import * as vscode from "vscode";
+import { confirmDelete } from "./confirm";
 import type { ConfigEditorAction, McpEditorAction } from "./shared/settings";
 import type { OutboundMessage, WebviewRoute } from "./shared/protocol";
 import type {
@@ -218,6 +219,14 @@ export class HoomanConfigEditorProvider
         );
         return;
       case "deleteProvider":
+        if (
+          !(await confirmDelete(
+            `Delete provider "${action.name}"?`,
+            "This removes the provider from config.json.",
+          ))
+        ) {
+          return;
+        }
         await this.#replaceDocumentText(
           document,
           deleteConfigProvider(document.getText(), action.name),
@@ -230,6 +239,14 @@ export class HoomanConfigEditorProvider
         );
         return;
       case "deleteLlm":
+        if (
+          !(await confirmDelete(
+            `Delete model "${action.name}"?`,
+            "This removes the model from config.json.",
+          ))
+        ) {
+          return;
+        }
         await this.#replaceDocumentText(
           document,
           deleteConfigLlm(document.getText(), action.name),
@@ -464,6 +481,14 @@ export class HoomanMcpEditorProvider
         );
         return;
       case "deleteServer":
+        if (
+          !(await confirmDelete(
+            `Delete MCP server "${action.name}"?`,
+            "This removes the server from mcp.json.",
+          ))
+        ) {
+          return;
+        }
         await this.#replaceDocumentText(
           document,
           deleteMcpServer(document.getText(), action.name),
