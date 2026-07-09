@@ -16,7 +16,7 @@ Runtime provider id: `xai`. Talks to the xAI (Grok) API.
 
 ## Reasoning
 
-`reasoning.effort` maps to xAI's `reasoning_effort` (`low`/`high`; `minimal` -> `low`, `medium` -> `high`). Only reasoning models (e.g. `grok-3-mini`) support it. Omit to leave reasoning at the default. `summary`/`display` are not used by xAI.
+`reasoning.effort` maps to xAI's `reasoning_effort` (`low`/`high`; `minimal` -> `low`, `medium` -> `high`). Only reasoning models (for example `grok-3-mini`) support it. Omit to leave reasoning at the default. `summary`/`display` are not used by xAI.
 
 ## Example configs
 
@@ -32,10 +32,10 @@ Runtime provider id: `xai`. Talks to the xAI (Grok) API.
 
 ```json
 {
-  "name": "Grok 3",
+  "name": "Grok 4.3",
   "provider": "xAI",
   "options": {
-    "model": "grok-3"
+    "model": "grok-4.3"
   },
   "default": true
 }

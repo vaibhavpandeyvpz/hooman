@@ -1,6 +1,6 @@
 ---
 title: Models
-description: The shared provider/LLM config shape, reasoning options, and metadata metadata for cost/context tracking.
+description: The shared provider/LLM config shape, reasoning options, and metadata for cost/context tracking.
 ---
 
 Hooman's `config.json` splits model configuration into two arrays: reusable `providers` (credentials and provider-level options) and `llms` (named model presets that reference a provider by name). Each provider page below covers its `options` fields, reasoning support, and one or two example configs.
@@ -48,11 +48,27 @@ Hooman's `config.json` splits model configuration into two arrays: reusable `pro
 }
 ```
 
-Every `llms` entry, regardless of provider, carries the same normalized `options` shape: `model` (required), optional `temperature`, optional `maxTokens` (Google maps this to the SDK's `maxOutputTokens`), and optional `context` (context size in tokens — only honored by the local [llama.cpp](/hooman/guides/configuration/models/llama-cpp/) and [MLX](/hooman/guides/configuration/models/mlx/) providers, where it overrides the provider-level `context` and feeds the context-usage gauge; other providers ignore it).
+Every `llms` entry, regardless of provider, carries the same normalized `options` shape: `model` (required), optional `temperature`, optional `topP`, optional `maxTokens` (Google maps this to the SDK's `maxOutputTokens`), and optional `context` (context size in tokens — only honored by the local [llama.cpp](/hooman/guides/configuration/models/llama-cpp/) and [MLX](/hooman/guides/configuration/models/mlx/) providers, where it overrides the provider-level `context` and feeds the context-usage gauge; other providers ignore it).
 
 All reasoning-capable providers additionally share a common optional `reasoning` object on the **provider** `options`: `{ effort?, summary?, display? }`. `effort` (`"minimal" | "low" | "medium" | "high"`) enables thinking; `summary` (OpenAI/Azure Responses API only) controls summary verbosity; `display` (Bedrock Claude / MiniMax only) controls whether the reasoning trace is returned. Each provider page documents its exact mapping.
 
-## Billing metadata
+## Reasoning options
+
+Provider-level `options.reasoning` uses the same normalized shape everywhere, even though each backend maps it differently:
+
+| Field     | Type          | Used by    |
+| --------- | ------------- | ---------- |
+| `effort`  | `"minimal"    | "low"      | "medium"                         | "high"` | All reasoning-capable providers; enables thinking when present. |
+| `summary` | `"auto"       | "concise"  | "detailed"                       | "none"` | OpenAI / Azure Responses API only.                              |
+| `display` | `"summarized" | "omitted"` | Bedrock Claude and MiniMax only. |
+
+Notes:
+
+- `reasoning` belongs on the **provider** entry, not the per-LLM `options` block.
+- top-level [`reasoning` in `config.json`](/hooman/guides/configuration/#global-reasoning-display) is separate: it controls how reasoning is displayed in the UI, not whether the model reasons.
+- Providers that do not support a given field simply ignore it or reject it as documented on their provider page.
+
+## LLM metadata
 
 Each LLM entry may carry an optional `metadata` block used to display context-window utilization and cumulative session cost in the chat status bar, the VS Code extension footer, and via ACP `usage_update`:
 
@@ -60,21 +76,23 @@ Each LLM entry may carry an optional `metadata` block used to display context-wi
 {
   "name": "Haiku 4.5",
   "provider": "LiteLLM Anthropic",
-  "billing": {
+  "metadata": {
     "name": "claude-haiku-4.5",
     "context": 200000,
-    "costs": { "input/m": 1, "cache/m": 0.1, "output/m": 5 }
+    "costs": { "input/m": 1, "cache/m": 0.1, "output/m": 5 },
+    "modality": { "text": true, "image": true, "pdf": true }
   },
   "options": { "model": "claude-haiku-4.5" },
   "default": true
 }
 ```
 
-- `billing.name` is required when the block is present, and is the identifier looked up in the [models.dev](https://models.dev) catalog (cached under `~/.hooman/cache/`, refreshed at most once daily). When `metadata` is omitted, `options.model` is used as the lookup name.
-- `context` (window size in tokens) and `costs` (USD per million tokens; `"cache/m"` prices cached-input reads) override whatever models.dev resolves.
+- `metadata.name` is required when the block is present, and is the identifier looked up in the [models.dev](https://models.dev) catalog (cached under `~/.hooman/cache/`, refreshed at most once daily). When `metadata` is omitted, `options.model` is used as the lookup name.
+- `metadata.context` (window size in tokens) and `metadata.costs` (USD per million tokens; `"cache/m"` prices cached-input reads) override whatever models.dev resolves.
+- `metadata.modality` can explicitly override the model's advertised input modalities (`text`, `image`, `pdf`, `audio`, `video`).
 - If neither the config nor models.dev yields the data, context usage and cost are simply not shown.
-- For local providers (llama.cpp, MLX, Ollama), catalog costs are never applied — local inference is free, and the catalog prices the hosted API serving the same model id — so only the context window resolves and no `$` cost is displayed. An explicit `billing.costs` block still wins if you set one.
+- For local providers (llama.cpp, MLX, Ollama), catalog costs are never applied — local inference is free, and the catalog prices the hosted API serving the same model id — so only the context window resolves and no `$` cost is displayed. An explicit `metadata.costs` block still wins if you set one.
 
-Resolution merges config-provided fields over the models.dev catalog: model ids are matched with separator normalization plus boundary containment (so `claude-haiku-4.5`, `anthropic/claude-sonnet-4-5`, and Bedrock's region-prefixed ids all resolve), preferring the provider whose id equals the model's canonical lab. Per-request cost is computed from additive-shape usage and accumulated at the rates of the model that served each request; once a request with usage runs unpriced, cost reporting stops for the session rather than under-reporting.
+Resolution merges config-provided metadata over the models.dev catalog: model ids are matched with separator normalization plus boundary containment (so `claude-haiku-4.5`, `anthropic/claude-sonnet-4-5`, and Bedrock's region-prefixed ids all resolve), preferring the provider whose id equals the model's canonical lab. Per-request cost is computed from additive-shape usage and accumulated at the rates of the model that served each request; once a request with usage runs unpriced, cost reporting stops for the session rather than under-reporting.
 
 Context usage is a property of the conversation, not the model: switching models carries the `used` tokens over and rescales them against the new model's window, while accrued cost is kept.

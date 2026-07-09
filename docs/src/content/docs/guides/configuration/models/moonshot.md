@@ -32,10 +32,10 @@ Setting `reasoning.effort` enables Kimi thinking (`thinking: { type: "enabled" }
 
 ```json
 {
-  "name": "Kimi K2",
+  "name": "Kimi K2.7 Code",
   "provider": "Moonshot",
   "options": {
-    "model": "kimi-k2-0905-preview"
+    "model": "kimi-k2.7-code"
   },
   "default": true
 }

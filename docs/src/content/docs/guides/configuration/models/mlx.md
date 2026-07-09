@@ -52,7 +52,7 @@ The LLM entry's `options.model` accepts:
 
 An optional `hf:` prefix is accepted and stripped.
 
-LLM entries also support `temperature`, `maxTokens`, and `context` (context window in tokens; overrides the provider-level `context` and feeds the context-usage gauge — an explicit `billing.context` still wins over both).
+LLM entries also support `temperature`, `topP`, `maxTokens`, and `context` (context window in tokens; overrides the provider-level `context` and feeds the context-usage gauge — an explicit `metadata.context` still wins over both).
 
 ## Reasoning
 

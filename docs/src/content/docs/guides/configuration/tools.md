@@ -3,7 +3,7 @@ title: Tools
 description: Enable or disable built-in tools via the tools block in config.json.
 ---
 
-The `tools` block toggles built-in runtime tools. Each toggle is optional and defaults to `true`; omitted fields are filled in with defaults on load.
+The `tools` block toggles built-in runtime tools. Each toggle is optional; omitted fields are filled in with defaults on load. All tool toggles default to `true` except `browser.enabled`, which defaults to `false`.
 
 ## Fields
 
@@ -14,6 +14,7 @@ The `tools` block toggles built-in runtime tools. Each toggle is optional and de
 | `filesystem.enabled` | `true`  | `filesystem` tools (`read_file`, `write_file`, `edit_file`, etc.) **and** `grep`, which is bundled under this same toggle. |
 | `shell.enabled`      | `true`  | `shell` — running shell commands.                                                                                          |
 | `sleep.enabled`      | `true`  | `sleep` — pausing execution for a duration.                                                                                |
+| `browser.enabled`    | `false` | `browser` — browser automation and page interaction tooling.                                                               |
 | `subagents.enabled`  | `true`  | `subagent_research`, `subagent_review`, `subagent_test_investigator` — built-in read-only subagent tools.                  |
 
 `think`, `ask_user`, `get_current_time`/`convert_time`, and `enter_plan_mode`/`exit_plan_mode` are always registered and have no config toggle. `web_search` is controlled separately by [`search.enabled`](/hooman/guides/configuration/search/), not by this block. MCP-provided tools and installed skills aren't affected by `tools` either — see [MCP](/hooman/guides/mcp/) and [Skills](/hooman/guides/skills/).
@@ -32,6 +33,7 @@ Defaults (all tools on — equivalent to omitting `tools` entirely):
     "filesystem": { "enabled": true },
     "shell": { "enabled": true },
     "sleep": { "enabled": true },
+    "browser": { "enabled": false },
     "subagents": { "enabled": true }
   }
 }

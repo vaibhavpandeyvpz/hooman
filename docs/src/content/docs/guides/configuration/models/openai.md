@@ -39,11 +39,21 @@ Reasoning controls only apply to the Responses API (`api: "responses"`):
 
 ```json
 {
-  "name": "GPT-5",
-  "provider": "OpenAI",
+  "name": "OpenAI Reasoning",
+  "provider": "openai",
   "options": {
-    "model": "gpt-5",
+    "apiKey": "sk-...",
     "reasoning": { "effort": "high", "summary": "detailed" }
+  }
+}
+```
+
+```json
+{
+  "name": "GPT-5",
+  "provider": "OpenAI Reasoning",
+  "options": {
+    "model": "gpt-5"
   },
   "default": true
 }

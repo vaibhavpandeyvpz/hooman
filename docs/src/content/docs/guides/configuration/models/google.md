@@ -32,10 +32,10 @@ Setting `reasoning.effort` enables Gemini thinking (`thinkingConfig: { includeTh
 
 ```json
 {
-  "name": "Gemini Pro",
+  "name": "Gemini Flash",
   "provider": "Google",
   "options": {
-    "model": "gemini-3-pro",
+    "model": "gemini-2.5-flash",
     "maxTokens": 8192
   },
   "default": true
@@ -57,10 +57,10 @@ With thinking enabled:
 
 ```json
 {
-  "name": "Gemini Pro (thinking)",
+  "name": "Gemini Flash (thinking)",
   "provider": "Google Thinking",
   "options": {
-    "model": "gemini-3-pro"
+    "model": "gemini-2.5-flash"
   }
 }
 ```

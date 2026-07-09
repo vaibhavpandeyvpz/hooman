@@ -14,7 +14,7 @@ Runtime provider id: `openrouter`. Uses the openai-compatible adapter, so reason
 | `headers`   | `Record<string, string>` | Optional. Extra HTTP headers.                                                      |
 | `reasoning` | object                   | Optional. See [Reasoning](/hooman/guides/configuration/models/#reasoning-options). |
 
-Model names are usually provider-qualified ids such as `anthropic/claude-3.5-sonnet`.
+Model names are usually provider-qualified ids such as `anthropic/claude-sonnet-4-5`.
 
 ## Reasoning
 
@@ -34,10 +34,10 @@ Model names are usually provider-qualified ids such as `anthropic/claude-3.5-son
 
 ```json
 {
-  "name": "Claude via OpenRouter",
+  "name": "Gemma via OpenRouter",
   "provider": "OpenRouter",
   "options": {
-    "model": "anthropic/claude-3.5-sonnet"
+    "model": "google/gemma-4-26b-a4b-it:free"
   },
   "default": true
 }

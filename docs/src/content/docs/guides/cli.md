@@ -49,7 +49,7 @@ hooman chat --mode ask
 The status bar under the composer has three rows:
 
 - model / effort / mode / yolo
-- a usage row — `context: N% (used/size)`, the latest request's `tokens` (`in`/`cin`/`out`), and cumulative session `cost: $…` — each segment only appears once it has data (context and cost require resolvable [billing metadata](/hooman/guides/configuration/models/#billing-metadata))
+- a usage row — `context: N% (used/size)`, the latest request's `tokens` (`in`/`cin`/`out`), and cumulative session `cost: $…` — each segment only appears once it has data (context and cost require resolvable [LLM metadata](/hooman/guides/configuration/models/#llm-metadata))
 - an mcp/tools/skills row, with a live `elapsed` timer while a turn runs
 
 ### Chat commands
@@ -152,7 +152,7 @@ Runtime tool and prompt switches, controlled from `config.json` (see [Configurat
 
 - `search.enabled`, `search.provider` (`brave`, `exa`, `firecrawl`, `litellm`, `serper`, or `tavily`), plus per-provider options — see [Search](/hooman/guides/configuration/search/)
 - `prompts.behaviour`, `prompts.communication`, `prompts.execution`, `prompts.guardrails` — see [Prompts](/hooman/guides/configuration/prompts/)
-- `tools.todo.enabled`, `tools.fetch.enabled`, `tools.filesystem.enabled`, `tools.shell.enabled`, `tools.sleep.enabled`, `tools.subagents.enabled` — see [Tools](/hooman/guides/configuration/tools/)
+- `tools.todo.enabled`, `tools.fetch.enabled`, `tools.filesystem.enabled`, `tools.shell.enabled`, `tools.sleep.enabled`, `tools.browser.enabled`, `tools.subagents.enabled` — see [Tools](/hooman/guides/configuration/tools/)
 
 ## `/config`
 
@@ -164,8 +164,8 @@ The interactive configuration workflow is launched from inside a `chat` session 
 
 It currently lets you:
 
-- manage general settings such as name, prompts, tools, and compaction
-- manage models and providers with field-by-field editors
+- manage general settings such as name, prompts, tools, compaction, and global reasoning display
+- manage models and providers with field-by-field editors, including per-LLM metadata overrides
 - choose a search provider and set its API key
 - toggle bundled harness prompts (`behaviour`, `communication`, `execution`, `guardrails`)
 - edit `instructions.md` in your `$VISUAL` / `$EDITOR` (cross-platform fallback included)

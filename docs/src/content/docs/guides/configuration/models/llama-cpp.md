@@ -65,7 +65,7 @@ Bundled presets from the Hub (matches the out-of-the-box `config.json`):
 ]
 ```
 
-Each preset pins `options.context` to the model's full training window (128K for Gemma 4 E2B, 256K for Qwen3.5 2B). The per-LLM `context` is honored by the local providers (this one and [MLX](/hooman/guides/configuration/models/mlx/)) and overrides the provider-level `context`; the configured value also feeds the context-usage gauge, taking precedence over the models.dev catalog (an explicit `billing.context` still wins).
+Each preset pins `options.context` to the model's full training window (128K for Gemma 4 E2B, 256K for Qwen3.5 2B). The per-LLM `context` is honored by the local providers (this one and [MLX](/hooman/guides/configuration/models/mlx/)) and overrides the provider-level `context`; the configured value also feeds the context-usage gauge, taking precedence over the models.dev catalog (an explicit `metadata.context` still wins).
 
 :::note
 Google's official `google/gemma-4-E2B-it-qat-q4_0-gguf` GGUF currently ships a malformed metadata entry (an empty key) that llama.cpp's parser rejects (`GGML_ASSERT(!key.empty())`), crashing the process on load — use the unsloth conversion above instead.

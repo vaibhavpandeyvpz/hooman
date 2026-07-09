@@ -17,7 +17,7 @@ A non-empty display name for the agent. It's the only required scalar field — 
 
 ## Minimal example
 
-A minimal valid `config.json` needs `name`, `providers`, and a non-empty `llms` array; every other section (`search`, `prompts`, `tools`, `compaction`) is optional and filled in with defaults on load:
+A minimal valid `config.json` needs `name`, `providers`, and a non-empty `llms` array; every other section (`search`, `prompts`, `tools`, `compaction`, `reasoning`) is optional and filled in with defaults on load:
 
 ```json
 {
@@ -52,30 +52,31 @@ A minimal valid `config.json` needs `name`, `providers`, and a non-empty `llms` 
 
 ## Configuration reference
 
-| Section                                                | Covers                                                                    |
-| ------------------------------------------------------ | ------------------------------------------------------------------------- |
-| [Models](/hooman/guides/configuration/models/)         | `providers` / `llms` — credentials, model options, reasoning, billing.    |
-| [Search](/hooman/guides/configuration/search/)         | `search` — enabling `web_search` and picking/configuring a provider.      |
-| [Prompts](/hooman/guides/configuration/prompts/)       | `prompts` — toggling bundled harness prompt sections.                     |
-| [Tools](/hooman/guides/configuration/tools/)           | `tools` — enabling/disabling built-in tools.                              |
-| [Compaction](/hooman/guides/configuration/compaction/) | `compaction` — context-compaction tuning.                                 |
-| [Instructions](#instructions)                          | `instructions.md` — free-form custom instructions, outside `config.json`. |
+| Section                                                | Covers                                                                                                          |
+| ------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------- |
+| [Models](/hooman/guides/configuration/models/)         | `providers` / `llms` — credentials, model options, reasoning, and metadata overrides for cost/context tracking. |
+| [Search](/hooman/guides/configuration/search/)         | `search` — enabling `web_search` and picking/configuring a provider.                                            |
+| [Prompts](/hooman/guides/configuration/prompts/)       | `prompts` — toggling bundled harness prompt sections.                                                           |
+| [Tools](/hooman/guides/configuration/tools/)           | `tools` — enabling/disabling built-in tools.                                                                    |
+| [Compaction](/hooman/guides/configuration/compaction/) | `compaction` — context-compaction tuning.                                                                       |
+| [`reasoning`](#global-reasoning-display)               | global reasoning display in the CLI/chat UI (`collapsed` or `full`).                                            |
+| [Instructions](#instructions)                          | `instructions.md` — free-form custom instructions, outside `config.json`.                                       |
 
 Tool approvals are session-scoped and are **not** persisted in `config.json` — see [Tools](/hooman/guides/tools/#approvals).
 
 ## `~/.hooman` layout
 
-| Path               | Purpose                                                                                                            |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------ |
-| `config.json`      | App name, reusable provider configs, model configs, tool flags, and compaction.                                    |
-| `instructions.md`  | System instructions used to build the agent prompt.                                                                |
-| `mcp.json`         | MCP server definitions.                                                                                            |
-| `mcp-oauth.json`   | Stored OAuth credentials for remote MCP servers.                                                                   |
-| `skills/`          | Installed [skills](/hooman/guides/skills/).                                                                        |
-| `bin/`             | Runtime-managed helper binaries (including bootstrapped `rg` for the `grep` tool when system `rg` is unavailable). |
-| `cache/`           | Runtime caches used by tools and subsystems.                                                                       |
-| `projects.json`    | Registry mapping each project root to a stable UUID.                                                               |
-| `projects/<uuid>/` | Per-project storage, scoped to the project (git root, falling back to cwd) the session runs in.                    |
+| Path               | Purpose                                                                                                                 |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------- |
+| `config.json`      | App name, reusable provider configs, model configs, search/prompt/tool flags, compaction, and global reasoning display. |
+| `instructions.md`  | System instructions used to build the agent prompt.                                                                     |
+| `mcp.json`         | MCP server definitions.                                                                                                 |
+| `mcp-oauth.json`   | Stored OAuth credentials for remote MCP servers.                                                                        |
+| `skills/`          | Installed [skills](/hooman/guides/skills/).                                                                             |
+| `bin/`             | Runtime-managed helper binaries (including bootstrapped `rg` for the `grep` tool when system `rg` is unavailable).      |
+| `cache/`           | Runtime caches used by tools and subsystems.                                                                            |
+| `projects.json`    | Registry mapping each project root to a stable UUID.                                                                    |
+| `projects/<uuid>/` | Per-project storage, scoped to the project (git root, falling back to cwd) the session runs in.                         |
 
 Inside each `projects/<uuid>/` directory:
 
@@ -88,6 +89,28 @@ Inside each `projects/<uuid>/` directory:
 `sessions`, `memory`, `attachments`, and `plans` are scoped per project rather than shared globally. On first use in a working directory, Hooman resolves the project root (the nearest git root, falling back to the cwd), mints a UUID for it, and records the mapping in `~/.hooman/projects.json`. Config and MCP resolution are unaffected by this — see the overlays below.
 
 Hooman enables the Strands `ContextOffloader` by default with file-backed storage under the project-scoped `~/.hooman/projects/<uuid>/offloaded-content`, so large tool results can be previewed in-context and retrieved later without bloating the active conversation window.
+
+## Global reasoning display
+
+Top-level `reasoning` controls how model thinking is displayed in the chat UI when a provider returns reasoning content.
+
+| Value       | Default     | Meaning                                                |
+| ----------- | ----------- | ------------------------------------------------------ |
+| `collapsed` | `collapsed` | Show reasoning in a collapsed/summary form by default. |
+| `full`      |             | Show the full reasoning stream inline when available.  |
+
+Example:
+
+```json
+{
+  "reasoning": "full"
+}
+```
+
+This is separate from provider-level `options.reasoning` on model providers:
+
+- top-level `reasoning` controls **display in the UI**
+- provider-level `options.reasoning` controls **whether/how the model thinks**
 
 ## Instructions
 
