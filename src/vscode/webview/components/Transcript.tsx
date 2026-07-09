@@ -1,6 +1,7 @@
-import { createEffect, For, Match, Show, Switch } from "solid-js";
+import { createEffect, createMemo, For, Match, Show, Switch } from "solid-js";
 import { CircleAlert } from "lucide-solid";
 import {
+  finalAssistantResponseIds,
   isActiveSessionLoading,
   latestCompletedAssistantId,
   sessionState,
@@ -44,6 +45,13 @@ export default function Transcript() {
     }
   });
 
+  // Surface fork/copy actions on the final response of every turn. While the
+  // agent is streaming, hide them on the response that is still being written.
+  const finalResponseIds = createMemo(() => finalAssistantResponseIds());
+  const streamingAssistantId = createMemo(() =>
+    sessionState().busy ? latestCompletedAssistantId() : null,
+  );
+
   return (
     <div
       ref={containerRef}
@@ -72,8 +80,8 @@ export default function Transcript() {
                   text={assistant().text}
                   copied={assistant().copied}
                   showActions={
-                    !sessionState().busy &&
-                    latestCompletedAssistantId() === assistant().id
+                    finalResponseIds().has(assistant().id) &&
+                    streamingAssistantId() !== assistant().id
                   }
                 />
               )}

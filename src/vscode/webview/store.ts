@@ -34,11 +34,7 @@ import { estimateTokens } from "./lib/format";
 // a client-local UI state we apply when the user aborts a turn (the protocol
 // has no cancelled tool status); it is never sent over the wire.
 export type ToolCallStatusUi =
-  | "pending"
-  | "in_progress"
-  | "completed"
-  | "failed"
-  | "cancelled";
+  "pending" | "in_progress" | "completed" | "failed" | "cancelled";
 
 export type TranscriptItem =
   | { kind: "user"; id: string; text: string; attachments?: AttachmentInfo[] }
@@ -1155,6 +1151,38 @@ export function latestCompletedAssistantId(
     }
   }
   return null;
+}
+
+/**
+ * An assistant message is the "final response" of its turn when no other
+ * assistant message follows it before the next user message. Returns the set of
+ * such assistant ids so the transcript can surface fork/copy actions on the last
+ * response of every turn, not just the most recent one.
+ */
+export function finalAssistantResponseIds(
+  sessionId?: string | null,
+): Set<string> {
+  const target = sessionId ?? activeSessionId();
+  const result = new Set<string>();
+  if (!target) {
+    return result;
+  }
+  const items = state.sessions[target]?.items ?? [];
+  let seenAssistant: string | null = null;
+  for (const item of items) {
+    if (item.kind === "assistant") {
+      seenAssistant = item.id;
+    } else if (item.kind === "user") {
+      if (seenAssistant) {
+        result.add(seenAssistant);
+      }
+      seenAssistant = null;
+    }
+  }
+  if (seenAssistant) {
+    result.add(seenAssistant);
+  }
+  return result;
 }
 
 export function activateTab(sessionId: string): void {
