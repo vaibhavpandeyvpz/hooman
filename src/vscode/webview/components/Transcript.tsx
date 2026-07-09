@@ -51,6 +51,9 @@ export default function Transcript() {
   const streamingAssistantId = createMemo(() =>
     sessionState().busy ? latestCompletedAssistantId() : null,
   );
+  // Revert requires the session to be idle (undoing files and trimming
+  // history while a turn is streaming would race the live update).
+  const canRevert = createMemo(() => !sessionState().busy);
 
   return (
     <div
@@ -70,6 +73,8 @@ export default function Transcript() {
                 <UserMessage
                   text={user().text}
                   attachments={user().attachments}
+                  messageId={user().messageId}
+                  canRevert={canRevert()}
                 />
               )}
             </Match>

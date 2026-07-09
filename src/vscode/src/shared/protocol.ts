@@ -183,8 +183,17 @@ export interface PlanEditorStateInfo {
 /** Messages sent from the webview to the extension host. */
 export type InboundMessage =
   | { type: "ready" }
-  | { type: "prompt"; text: string; attachments?: AttachmentInfo[] }
+  | {
+      type: "prompt";
+      text: string;
+      attachments?: AttachmentInfo[];
+    }
   | { type: "cancel" }
+  | {
+      type: "revert";
+      /** The turn's ACP `messageId` (agent-generated, per the MessageId RFD), captured client-side from that turn's `user_message_chunk` echo. */
+      messageId: string;
+    }
   | {
       type: "setConfigOption";
       configId: string;
@@ -252,6 +261,12 @@ export type OutboundMessage =
   | { type: "promptStart"; sessionId: string }
   | { type: "promptEnd"; sessionId: string; stopReason?: string }
   | {
+      type: "turnStarted";
+      sessionId: string;
+      /** The agent-generated ACP `messageId` (MessageId RFD) for the turn that just started, so the webview can stamp its already-rendered optimistic user message for revert. */
+      messageId: string;
+    }
+  | {
       type: "permission";
       sessionId: string;
       requestId: string;
@@ -268,6 +283,12 @@ export type OutboundMessage =
       note?: string;
     }
   | { type: "clear"; sessionId: string }
+  | {
+      type: "reverted";
+      sessionId: string;
+      /** The reverted turn's ACP `messageId`; the webview trims back to this message and restores it to the composer. */
+      messageId: string;
+    }
   | { type: "edits"; sessionId: string; edits: EditInfo[] }
   | { type: "queue"; sessionId: string; items: QueuedPromptInfo[] }
   | {

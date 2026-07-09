@@ -37,7 +37,19 @@ export type ToolCallStatusUi =
   "pending" | "in_progress" | "completed" | "failed" | "cancelled";
 
 export type TranscriptItem =
-  | { kind: "user"; id: string; text: string; attachments?: AttachmentInfo[] }
+  | {
+      kind: "user";
+      id: string;
+      text: string;
+      attachments?: AttachmentInfo[];
+      /**
+       * This turn's ACP `messageId` (agent-generated, per the MessageId
+       * RFD), stamped once the host forwards the agent's own echo — see
+       * `"turnStarted"` below. Undefined for replayed history, so revert is
+       * only offered for turns run in this extension host session.
+       */
+      messageId?: string;
+    }
   | { kind: "assistant"; id: string; text: string; copied?: boolean }
   | {
       kind: "thought";
@@ -292,7 +304,11 @@ function appendToUserMessage(
   if (!isContinuation) {
     breakStream(sessionId);
     const id = crypto.randomUUID();
-    pushItem(sessionId, { kind: "user", id, text: "" });
+    pushItem(sessionId, {
+      kind: "user",
+      id,
+      text: "",
+    });
     runtime.openUserItemId = id;
     runtime.openUserMessageId = messageId ?? null;
   }
@@ -779,6 +795,9 @@ onHostMessage((msg) => {
         activity: { type: "thinking" },
       });
       break;
+    case "turnStarted":
+      setTurnStarted(msg.sessionId, msg.messageId);
+      break;
     case "promptEnd":
       ensureSession(msg.sessionId);
       breakStream(msg.sessionId);
@@ -810,6 +829,9 @@ onHostMessage((msg) => {
       break;
     case "clear":
       clearChat(msg.sessionId);
+      break;
+    case "reverted":
+      applyRevert(msg.sessionId, msg.messageId);
       break;
     case "edits":
       ensureSession(msg.sessionId);
@@ -898,6 +920,36 @@ export function submitPrompt(text: string): void {
   }
   setState("sessions", sessionId, "attachments", []);
   post({ type: "prompt", text: trimmed, attachments });
+}
+
+/**
+ * Stamp the most recently pushed, not-yet-stamped user message in
+ * `sessionId` with the agent-generated ACP `messageId` (MessageId RFD) for
+ * the turn that just started, so it becomes revertable. Turns in this panel
+ * run one at a time, so the last unstamped "user" item is always the one
+ * `#prompt()` just echoed for this session.
+ */
+function setTurnStarted(sessionId: string, messageId: string): void {
+  const items = state.sessions[sessionId]?.items ?? [];
+  for (let index = items.length - 1; index >= 0; index -= 1) {
+    const item = items[index];
+    if (item?.kind === "user") {
+      if (!item.messageId) {
+        setState(
+          "sessions",
+          sessionId,
+          "items",
+          index,
+          produce((draft) => {
+            if (draft.kind === "user") {
+              draft.messageId = messageId;
+            }
+          }),
+        );
+      }
+      return;
+    }
+  }
 }
 
 export function cancelPrompt(): void {
@@ -1112,6 +1164,45 @@ export function newChatFromPanel(): void {
 
 export function forkChatFromPanel(): void {
   post({ type: "forkChat" });
+}
+
+/**
+ * Cursor-style revert: ask the host to undo the file changes made from the
+ * turn identified by `messageId` (the agent-generated ACP id, per the
+ * MessageId RFD) onward. The host confirms via a native modal, and only if
+ * confirmed echoes back a `reverted` message that {@link applyRevert} acts
+ * on — so the transcript is left untouched if the user cancels.
+ */
+export function revertTurn(messageId: string): void {
+  if (!activeSessionId()) {
+    return;
+  }
+  post({ type: "revert", messageId });
+}
+
+/**
+ * Apply a host-confirmed revert: trim the transcript back to (and including)
+ * that turn's user message and restore its original text/attachments into
+ * the composer so the user can edit and resend.
+ */
+function applyRevert(sessionId: string, messageId: string): void {
+  const items = state.sessions[sessionId]?.items ?? [];
+  const index = items.findIndex(
+    (item) => item.kind === "user" && item.messageId === messageId,
+  );
+  const userItem = items[index];
+  if (index === -1 || userItem?.kind !== "user") {
+    return;
+  }
+  const text = userItem.text;
+  const attachments = userItem.attachments ? [...userItem.attachments] : [];
+  setState("sessions", sessionId, "items", (current) =>
+    current.slice(0, index),
+  );
+  setState("sessions", sessionId, "editDraft", text);
+  if (attachments.length > 0) {
+    setState("sessions", sessionId, "attachments", attachments);
+  }
 }
 
 export function setAssistantCopied(id: string, copied: boolean): void {

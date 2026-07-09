@@ -57,6 +57,11 @@ import {
 import { getModeState, setSessionMode } from "../core/state/session-mode.js";
 import { isYoloEnabled, setYoloEnabled } from "../core/state/yolo.js";
 import {
+  dropTurnBoundariesFrom,
+  getTurnBoundary,
+  recordTurnBoundary,
+} from "../core/state/turn-boundaries.js";
+import {
   ChatTurnSteeringController,
   createChatTurnSteeringIntervention,
 } from "../core/agent/turn-steering.js";
@@ -160,6 +165,24 @@ const INIT_AGENTS_PROMPT = readBundledPrompt("static", "init.md");
 
 /** Name + version reported to the client in `agentInfo`. */
 type AgentIdentity = { name: string; version: string };
+
+/**
+ * Params/response for the custom `_hoomanjs/rewind_session` method (Cursor-
+ * style revert). Not part of the ACP spec — registered as a custom request
+ * via `AgentApp.onRequest(method: string, parser, handler)`. `messageId` is
+ * the agent-generated ACP id (see the MessageId RFD) of the turn's user
+ * message, captured by the client from that message's `user_message_chunk`
+ * echo — never minted by the client itself.
+ */
+export interface RewindSessionRequest {
+  sessionId: string;
+  messageId: string;
+}
+
+export interface RewindSessionResponse {
+  /** False when `messageId` has no recorded boundary (e.g. session reloaded since that turn ran). */
+  reverted: boolean;
+}
 
 /** In-memory state for one active session. */
 type SessionRecord = {
@@ -709,6 +732,43 @@ export class HoomanAcpAgent {
         sourceEntry.yolo === true,
       ),
     };
+  }
+
+  /**
+   * Cursor-style revert (custom `_hoomanjs/rewind_session` method, not part
+   * of the ACP spec): splice `agent.messages` back to the message index
+   * bookmarked for `messageId` (see {@link recordTurnBoundary}), dropping
+   * that turn and every turn after it, then persist the trimmed history.
+   *
+   * Returns `reverted: false` instead of erroring when `messageId` has no
+   * recorded boundary — e.g. the session was reloaded since that turn ran,
+   * so its in-memory bookmark (and the client's matching file-edit
+   * baselines) no longer exist.
+   */
+  async rewindSession(
+    params: RewindSessionRequest,
+  ): Promise<RewindSessionResponse> {
+    const rec = this.#sessions.get(params.sessionId);
+    if (!rec) {
+      throw RequestError.invalidParams({ sessionId: params.sessionId });
+    }
+    if (this.#isTurnActive(rec)) {
+      throw RequestError.invalidParams({
+        sessionId: params.sessionId,
+        message: "Cannot rewind a session while a turn is still running.",
+      });
+    }
+    const boundary = getTurnBoundary(rec.agent, params.messageId);
+    if (boundary === undefined) {
+      return { reverted: false };
+    }
+    rec.agent.messages.length = boundary;
+    dropTurnBoundariesFrom(rec.agent, params.messageId);
+    await getAgentSessionManager(rec.agent)?.saveSnapshot({
+      target: rec.agent,
+      isLatest: true,
+    });
+    return { reverted: true };
   }
 
   async loadSession(
@@ -1340,11 +1400,13 @@ export class HoomanAcpAgent {
 
     try {
       const echo = acpPromptEchoText(params.prompt);
+      let turnMessageId: string | undefined;
       if (echo.length > 0) {
+        turnMessageId = crypto.randomUUID();
         await this.#sendUpdate(client, params.sessionId, {
           sessionUpdate: "user_message_chunk",
           content: { type: "text", text: echo },
-          messageId: crypto.randomUUID(),
+          messageId: turnMessageId,
         });
         await this.#maybeDeriveTitle(client, params.sessionId, echo);
       }
@@ -1378,6 +1440,16 @@ export class HoomanAcpAgent {
               rec.metadata,
             )
           : acpPromptToInvokeArgs(params.prompt, rec.metadata);
+
+      // The `messageId` we just generated for this turn's user_message_chunk
+      // echo (see the ACP MessageId RFD) doubles as a durable handle for
+      // Cursor-style revert: bookmark where this turn's messages start,
+      // before `agent.stream(...)` appends them, so a later `rewindSession`
+      // can splice history back to exactly this point.
+      if (turnMessageId) {
+        recordTurnBoundary(rec.agent, turnMessageId, rec.agent.messages.length);
+      }
+
       const signals: AbortSignal[] = [turnAbort.signal];
       if (this.#connectionSignal) {
         signals.push(this.#connectionSignal);
@@ -2128,6 +2200,11 @@ export function createAcpApp(agent: HoomanAcpAgent): AgentApp {
     )
     .onRequest(methods.agent.session.fork, (ctx) =>
       agent.forkSession(ctx.params, ctx.client),
+    )
+    .onRequest(
+      "_hoomanjs/rewind_session",
+      (params) => params as RewindSessionRequest,
+      (ctx) => agent.rewindSession(ctx.params),
     )
     .onRequest(methods.agent.session.setMode, (ctx) =>
       agent.setSessionMode(ctx.params, ctx.client),

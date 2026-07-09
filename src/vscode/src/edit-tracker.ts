@@ -23,6 +23,17 @@ type TrackedFile = {
 };
 
 /**
+ * One prompt turn's per-file baselines, in write order, for turn-scoped
+ * revert. Keyed by the turn's `messageId` — the ACP MessageId RFD's
+ * agent-generated id for the turn's user message, not a client-minted one.
+ */
+type TrackedTurn = {
+  messageId: string;
+  /** Baseline (pre-write) content per file, captured on that file's first write in this turn. */
+  baselines: Map<string, string | null>;
+};
+
+/**
  * Tracks files modified by the agent through the ACP `fs/write_text_file`
  * backend, keeping a per-session baseline snapshot so each edit can be
  * reviewed as a native diff and kept or undone — the "pending edits" model
@@ -36,6 +47,11 @@ export class EditTracker
 {
   readonly #files = new Map<string, TrackedFile>();
 
+  /** Ordered per-session turn history, oldest first, for turn-scoped revert. */
+  readonly #turns = new Map<string, TrackedTurn[]>();
+  /** The turn currently receiving writes, per session. */
+  readonly #currentTurn = new Map<string, string>();
+
   readonly #onDidChangeEdits = new vscode.EventEmitter<string>();
   /** Fires with the sessionId whose tracked edits changed. */
   readonly onDidChangeEdits = this.#onDidChangeEdits.event;
@@ -43,6 +59,26 @@ export class EditTracker
   readonly #onDidChange = new vscode.EventEmitter<vscode.Uri>();
   /** TextDocumentContentProvider change feed (baseline never mutates, but undo removes it). */
   readonly onDidChange = this.#onDidChange.event;
+
+  /**
+   * Start tracking a new prompt turn for a session, identified by the ACP
+   * `messageId` the agent generated for that turn's user message (see the
+   * MessageId RFD). Subsequent writes are attributed to `messageId` until
+   * the next `beginTurn` call, so a later {@link revertToTurn} can undo
+   * exactly the files touched from that turn onward.
+   */
+  beginTurn(sessionId: string, messageId: string): void {
+    const turns = this.#turns.get(sessionId) ?? [];
+    turns.push({ messageId, baselines: new Map() });
+    this.#turns.set(sessionId, turns);
+    this.#currentTurn.set(sessionId, messageId);
+  }
+
+  /** Drop all turn history for a session (e.g. on tab close/session switch). */
+  clearTurns(sessionId: string): void {
+    this.#turns.delete(sessionId);
+    this.#currentTurn.delete(sessionId);
+  }
 
   /**
    * Record one agent write. The first write per file/session captures the
@@ -73,6 +109,17 @@ export class EditTracker
     } else {
       this.#files.set(fsPath, { sessionId, baseline: before, current: after });
     }
+
+    const messageId = this.#currentTurn.get(sessionId);
+    if (messageId) {
+      const turn = this.#turns
+        .get(sessionId)
+        ?.find((entry) => entry.messageId === messageId);
+      if (turn && !turn.baselines.has(fsPath)) {
+        turn.baselines.set(fsPath, before);
+      }
+    }
+
     this.#onDidChangeEdits.fire(sessionId);
   }
 
@@ -161,6 +208,70 @@ export class EditTracker
     }
   }
 
+  /**
+   * Revert every file touched by the turn whose user message carries
+   * `messageId`, and any later turn, back to its state immediately before
+   * that turn started, then discard those turns from history (they can no
+   * longer be reverted individually).
+   *
+   * For each file the earliest baseline across the reverted turns wins,
+   * since that is the state the file was in right before the turn began.
+   */
+  async revertToTurn(sessionId: string, messageId: string): Promise<void> {
+    const turns = this.#turns.get(sessionId);
+    if (!turns) {
+      return;
+    }
+    const startIndex = turns.findIndex(
+      (entry) => entry.messageId === messageId,
+    );
+    if (startIndex === -1) {
+      return;
+    }
+    const reverted = turns.slice(startIndex);
+
+    const baselineByPath = new Map<string, string | null>();
+    for (const turn of reverted) {
+      for (const [fsPath, baseline] of turn.baselines) {
+        if (!baselineByPath.has(fsPath)) {
+          baselineByPath.set(fsPath, baseline);
+        }
+      }
+    }
+
+    for (const [fsPath, baseline] of baselineByPath) {
+      await restoreFile(fsPath, baseline);
+      const file = this.#files.get(fsPath);
+      if (file && file.sessionId === sessionId) {
+        // The file now reads back as `baseline`. If that matches the
+        // session-wide baseline (pre-dating this turn) there is no longer a
+        // net change to show in the Changes panel; otherwise keep the entry
+        // with its current content updated to the restored text.
+        if (file.baseline === baseline) {
+          this.#files.delete(fsPath);
+        } else {
+          file.current = baseline ?? "";
+        }
+      }
+      this.#onDidChange.fire(
+        vscode.Uri.file(fsPath).with({ scheme: BASELINE_SCHEME }),
+      );
+    }
+
+    const remaining = turns.slice(0, startIndex);
+    this.#turns.set(sessionId, remaining);
+    const last = remaining[remaining.length - 1];
+    if (last) {
+      this.#currentTurn.set(sessionId, last.messageId);
+    } else {
+      this.#currentTurn.delete(sessionId);
+    }
+
+    if (baselineByPath.size > 0) {
+      this.#onDidChangeEdits.fire(sessionId);
+    }
+  }
+
   provideTextDocumentContent(uri: vscode.Uri): string {
     return this.#files.get(uri.fsPath)?.baseline ?? "";
   }
@@ -169,6 +280,8 @@ export class EditTracker
     this.#onDidChangeEdits.dispose();
     this.#onDidChange.dispose();
     this.#files.clear();
+    this.#turns.clear();
+    this.#currentTurn.clear();
   }
 }
 
