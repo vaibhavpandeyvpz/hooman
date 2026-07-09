@@ -237,3 +237,19 @@ body {
 .markdown-body > *:last-child {
   margin-bottom: 0;
 }
+
+.markdown-body .mermaid-diagram {
+  min-height: 2.5rem;
+}
+
+.markdown-body .mermaid-diagram svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+.markdown-body .mermaid-diagram svg text,
+.markdown-body .mermaid-diagram svg tspan,
+.markdown-body .mermaid-diagram svg foreignObject {
+  font-family: var(--font-sans) !important;
+}
