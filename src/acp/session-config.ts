@@ -14,8 +14,8 @@ export const CONFIG_ID_MODE = "mode";
 export const CONFIG_ID_MODEL = "model";
 /** Config option id for the reasoning-effort selector. */
 export const CONFIG_ID_EFFORT = "effort";
-/** Synthetic value in the mode selector's options that means "agent mode + yolo on". */
-export const MODE_VALUE_YOLO = "yolo";
+/** Config option id for the yolo (auto-approve) boolean toggle. */
+export const CONFIG_ID_YOLO = "yolo";
 
 /** Name of the currently-active (default) named LLM, if any are configured. */
 export function currentModelName(config: Config): string | undefined {
@@ -91,22 +91,24 @@ export function buildSessionConfigOptions(
     description: "Controls the tool surface and permission behaviour",
     category: "mode",
     type: "select",
-    // Yolo is agent mode with auto-approval on; surfaced as a distinct
-    // selector value so it renders as a peer of Agent/Plan/Ask rather than a
-    // separate toggle (selecting any other value turns yolo back off).
-    currentValue: yoloOn ? MODE_VALUE_YOLO : currentMode,
-    options: [
-      ...MODE_DEFINITIONS.map((mode) => ({
-        value: mode.id,
-        name: mode.name,
-        description: mode.description,
-      })),
-      {
-        value: MODE_VALUE_YOLO,
-        name: "Yolo",
-        description: "Agent mode, auto-approving tool calls without prompting",
-      },
-    ],
+    currentValue: currentMode,
+    options: MODE_DEFINITIONS.map((mode) => ({
+      value: mode.id,
+      name: mode.name,
+      description: mode.description,
+    })),
+  });
+
+  // Yolo (auto-approve all tool calls) is a boolean toggle rather than a mode
+  // value. Tagged `model_config` so clients group it alongside the other
+  // per-session model controls instead of the mode selector.
+  options.push({
+    id: CONFIG_ID_YOLO,
+    name: "Yolo",
+    description: "Auto-approve tool calls without prompting",
+    category: "model_config",
+    type: "boolean",
+    currentValue: yoloOn,
   });
 
   return options;

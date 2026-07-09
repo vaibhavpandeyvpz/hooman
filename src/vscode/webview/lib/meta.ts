@@ -8,10 +8,10 @@ import {
 
 /**
  * Icon + accent color for each ACP session mode, mirroring the CLI TUI's
- * `StatusBar` palette. `yolo` is agent mode with auto-approval on, surfaced
- * as a peer mode-selector value rather than a separate toggle (see
- * `CONFIG_ID_MODE`/`MODE_VALUE_YOLO` in `session-config.ts`); its red accent
- * matches the CLI's `yolo: on` indicator.
+ * `StatusBar` palette. `yolo` (auto-approval on) is advertised as a standalone
+ * boolean config option under the `model_config` category (see `CONFIG_ID_YOLO`
+ * in `session-config.ts`) rather than a mode value; its red accent matches the
+ * CLI's `yolo: on` indicator.
  */
 export const MODE_META: Record<
   string,

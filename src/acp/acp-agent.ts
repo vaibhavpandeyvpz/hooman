@@ -88,7 +88,7 @@ import {
   CONFIG_ID_EFFORT,
   CONFIG_ID_MODE,
   CONFIG_ID_MODEL,
-  MODE_VALUE_YOLO,
+  CONFIG_ID_YOLO,
 } from "./session-config.js";
 import {
   activeProviderName,
@@ -911,6 +911,32 @@ export class HoomanAcpAgent {
     if (!rec) {
       throw RequestError.invalidParams({ sessionId: params.sessionId });
     }
+    // Yolo is a boolean toggle (auto-approve all tool calls), so it carries a
+    // boolean value rather than a string one; handle it before the string
+    // guard below that the select-style options rely on.
+    if (params.configId === CONFIG_ID_YOLO) {
+      if (typeof params.value !== "boolean") {
+        throw RequestError.invalidParams({
+          configId: params.configId,
+          message: `Config option "${params.configId}" expects a boolean value`,
+        });
+      }
+      const enabled = params.value;
+      if (isYoloEnabled(rec.agent) !== enabled) {
+        setYoloEnabled(rec.agent, enabled);
+        await patchSessionEntry(this.#acpRoot, params.sessionId, {
+          yolo: enabled,
+        });
+      }
+      return {
+        configOptions: buildSessionConfigOptions(
+          rec.config,
+          resolveSessionMode(getModeState(rec.agent).mode),
+          isYoloEnabled(rec.agent),
+        ),
+      };
+    }
+
     if (typeof params.value !== "string") {
       throw RequestError.invalidParams({
         configId: params.configId,
@@ -920,38 +946,16 @@ export class HoomanAcpAgent {
     const value = params.value;
 
     if (params.configId === CONFIG_ID_MODE) {
-      if (value === MODE_VALUE_YOLO) {
-        // Yolo is agent mode with auto-approval on, not a distinct SessionMode.
-        if (this.#transitionMode(rec, "agent")) {
-          // Keep the legacy `modes` surface in sync too (see Session Config
-          // Options spec: "Agents SHOULD keep both in sync").
-          await this.#syncCurrentMode(client, params.sessionId, rec);
-        }
-        if (!isYoloEnabled(rec.agent)) {
-          setYoloEnabled(rec.agent, true);
-          await patchSessionEntry(this.#acpRoot, params.sessionId, {
-            yolo: true,
-          });
-        }
-      } else {
-        if (!isKnownSessionMode(value)) {
-          throw RequestError.invalidParams({
-            value,
-            message: `Unknown mode "${value}"`,
-          });
-        }
-        if (this.#transitionMode(rec, value)) {
-          // Keep the legacy `modes` surface in sync too (see Session Config
-          // Options spec: "Agents SHOULD keep both in sync").
-          await this.#syncCurrentMode(client, params.sessionId, rec);
-        }
-        // Selecting a plain mode always turns yolo back off.
-        if (isYoloEnabled(rec.agent)) {
-          setYoloEnabled(rec.agent, false);
-          await patchSessionEntry(this.#acpRoot, params.sessionId, {
-            yolo: false,
-          });
-        }
+      if (!isKnownSessionMode(value)) {
+        throw RequestError.invalidParams({
+          value,
+          message: `Unknown mode "${value}"`,
+        });
+      }
+      if (this.#transitionMode(rec, value)) {
+        // Keep the legacy `modes` surface in sync too (see Session Config
+        // Options spec: "Agents SHOULD keep both in sync").
+        await this.#syncCurrentMode(client, params.sessionId, rec);
       }
     } else if (params.configId === CONFIG_ID_MODEL) {
       await this.#applyModelChange(rec, value);

@@ -165,6 +165,9 @@ npm run build
 
 ## Practical guidance for agents
 
+- After making any code changes, you MUST rebuild the affected package(s) before considering the task done:
+  - Root package (`src/**` outside `src/vscode/` and `docs/`): run `npm run build` in the project root. The VS Code extension runs the compiled `dist/cli.js` (via `hooman.acp.command`), so `src/` edits are not picked up until `dist/` is rebuilt.
+  - VS Code extension (`src/vscode/**`): run `npm run compile` from `src/vscode/`.
 - For normal root-package code changes, verify with `npm run typecheck` and `npm run build`.
 - If you touch `src/vscode/`, verify from `src/vscode/` separately.
 - If you touch `docs/`, verify from `docs/` separately.
