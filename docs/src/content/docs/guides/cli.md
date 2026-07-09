@@ -66,7 +66,10 @@ Type `/` inside a chat session to discover slash commands:
 | `/compact`  | Compact the conversation history now and persist the result.                                   |
 | `/new`      | Start a fresh chat session.                                                                    |
 | `/sessions` | Browse and resume saved sessions.                                                              |
+| `/tasks`    | List active [background shell jobs](/hooman/guides/tools/#shell) and stop one.                 |
 | `/config`   | Launch the [configuration workflow](#config).                                                  |
+
+While background jobs are running, the composer chrome also shows a compact count (`N background jobs · /tasks to stop`).
 
 ## `hooman exec`
 

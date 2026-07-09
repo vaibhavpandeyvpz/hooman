@@ -11,7 +11,8 @@ description: Repository layout, build/typecheck commands, and the release workfl
 | `src/index.ts`                    | Public library API exported by the npm package.                                                                                            |
 | `src/core/`                       | Core configuration, memory, state, context, and skills registry.                                                                           |
 | `src/core/agent/`                 | Agent bootstrap and invocation loop.                                                                                                       |
-| `src/core/tools/`                 | Built-in tool definitions (filesystem, shell, web_search, fetch, etc.).                                                                    |
+| `src/core/tools/`                 | Built-in tool definitions (filesystem, web_search, fetch, etc.).                                                                           |
+| `src/core/shell/`                 | Shell tool plus background job manager (`shell` / `shell_output` / `shell_stop`).                                                          |
 | `src/core/modes/`                 | Session mode logic (`agent`, `ask`, `plan`).                                                                                               |
 | `src/core/mcp/`                   | MCP client configuration, connection, OAuth auth, and tool bridging.                                                                       |
 | `src/core/approvals/`             | Tool-call approval system for `exec`, `chat`, and `daemon`.                                                                                |

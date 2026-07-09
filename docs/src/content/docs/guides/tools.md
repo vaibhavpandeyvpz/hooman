@@ -129,15 +129,42 @@ Enabled via `tools.filesystem.enabled` (bundled with the filesystem toggle, not 
 
 ## `shell`
 
-Enabled via `tools.shell.enabled`. Executes shell commands on the local machine (or through an ACP host's terminal backend when advertised). Supports single or multiple commands, sequential or parallel execution, per-command options, working directories, stdin, and timeouts.
+Enabled via `tools.shell.enabled` (also registers `shell_output` and `shell_stop` below). Executes shell commands on the local machine (or through an ACP host's terminal backend when advertised). Supports single or multiple commands, sequential or parallel execution, per-command options, working directories, stdin, and timeouts — plus background jobs for long-running processes.
 
-| Argument        | Type                                       | Required | Description                                           |
-| --------------- | ------------------------------------------ | -------- | ----------------------------------------------------- |
-| `command`       | string, command object, or array of either | yes      | `{ command, timeout?, work_dir?, stdin? }` per entry. |
-| `parallel`      | boolean                                    | no       | Execute multiple commands in parallel.                |
-| `ignore_errors` | boolean                                    | no       | Continue executing even if a command fails.           |
-| `timeout`       | number (seconds)                           | no       | Default timeout for each command (900s default).      |
-| `work_dir`      | string                                     | no       | Base working directory for command execution.         |
+| Argument           | Type                                       | Required | Description                                                                                          |
+| ------------------ | ------------------------------------------ | -------- | ---------------------------------------------------------------------------------------------------- |
+| `command`          | string, command object, or array of either | yes      | `{ command, timeout?, work_dir?, stdin? }` per entry.                                                |
+| `parallel`         | boolean                                    | no       | Execute multiple commands in parallel.                                                               |
+| `ignore_errors`    | boolean                                    | no       | Continue executing even if a command fails.                                                          |
+| `timeout`          | number (seconds)                           | no       | Default timeout for each command (900s default).                                                     |
+| `work_dir`         | string                                     | no       | Base working directory for command execution.                                                        |
+| `run_in_background`| boolean                                    | no       | Run a **single** command as a background job and return a `job_id` immediately. Requires `description`. |
+| `description`      | string                                     | no\*     | Short label for a background job (\*required when `run_in_background` is true or `block_until_ms` is `0`). |
+| `block_until_ms`   | number                                     | no       | Max ms to wait before returning a background handle. `0` = same as immediate background.             |
+| `notify_on_output` | `{ pattern, debounce_ms? }`                | no       | Block until a regex matches output, then return a `job_id` while the process keeps running.          |
+| `ready`            | `{ pattern?, port?, timeout_ms? }`         | no       | Wait for a readiness probe (regex and/or local TCP port) before returning a background handle.       |
+
+Background mode supports a single command only (not command arrays) and does not support `stdin`. Active jobs appear in the [CLI](/hooman/guides/cli/) (`/tasks`) and [VS Code](/hooman/guides/vscode/) background-jobs strip so you can stop them without waiting for the agent.
+
+### `shell_output`
+
+Read output from a background job started with `shell`. Approval-exempt; available in `ask` / `plan` as well as `agent` once a job exists.
+
+| Argument     | Type    | Required | Description                                                                 |
+| ------------ | ------- | -------- | --------------------------------------------------------------------------- |
+| `job_id`     | string  | yes      | Background job id returned by `shell`.                                      |
+| `block`      | boolean | no       | When true (default), wait for the job to exit. Ignored when `pattern` is set. |
+| `timeout_ms` | number  | no       | Max wait time in milliseconds (default 30000).                              |
+| `pattern`    | string  | no       | Wait for this JavaScript regex to match **new** output since the last read. |
+| `tail_lines` | integer | no       | Return only the last N lines of output.                                     |
+
+### `shell_stop`
+
+Stop a background job by `job_id` (process-group kill). Approval-exempt, same mode availability as `shell_output`.
+
+| Argument | Type   | Required | Description                            |
+| -------- | ------ | -------- | -------------------------------------- |
+| `job_id` | string | yes      | Background job id returned by `shell`. |
 
 ## `fetch`
 
@@ -308,7 +335,7 @@ All three take a single argument:
 
 ## Approvals
 
-By default, Hooman asks for approval before running tools that write, execute, or otherwise act with side effects (`shell`, `write_file`, `edit_file`, `create_directory`, `move_file`, `exit_plan_mode`, etc.). Read-only and internal tools — `think`, `update_todos`, `sleep`, `ask_user`, `search_tools`, `activate_tools`, `get_current_time`, `convert_time`, `directory_tree`, `get_file_info`, `list_directory`, `grep`, `enter_plan_mode`, and the subagent tools — are always allowed and never prompt. Filesystem reads/writes under trusted app-home directories (`~/.hooman/projects/<uuid>/attachments`, and plan-mode writes under `~/.hooman/projects/<uuid>/plans`) are also implicitly allowed.
+By default, Hooman asks for approval before running tools that write, execute, or otherwise act with side effects (`shell`, `write_file`, `edit_file`, `create_directory`, `move_file`, `exit_plan_mode`, etc.). Read-only and internal tools — `think`, `update_todos`, `sleep`, `ask_user`, `search_tools`, `activate_tools`, `shell_output`, `shell_stop`, `get_current_time`, `convert_time`, `directory_tree`, `get_file_info`, `list_directory`, `grep`, `enter_plan_mode`, and the subagent tools — are always allowed and never prompt. Filesystem reads/writes under trusted app-home directories (`~/.hooman/projects/<uuid>/attachments`, and plan-mode writes under `~/.hooman/projects/<uuid>/plans`) are also implicitly allowed.
 
 When a user approves with "always", Hooman persists a reusable rule to `~/.hooman/allowlist.json`: shell commands are broadened to a command-prefix pattern (e.g. `git log *`), filesystem tools are scoped to the exact resolved path, and argument-less tools are allowed tool-wide.
 

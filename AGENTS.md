@@ -24,7 +24,8 @@ Main surfaces:
 - `src/index.ts` — flat public library API
 - `src/core/` — shared runtime code
   - `agent/` — bootstrap and invocation loop
-  - `tools/` — built-in tools (filesystem, shell, grep, fetch, web search, time, todo, etc.)
+  - `tools/` — built-in tools (filesystem, grep, fetch, web search, time, todo, etc.)
+  - `shell/` — shell tool and background job manager (`shell` / `shell_output` / `shell_stop`)
   - `models/` — provider integrations
   - `mcp/` — MCP config, transports, OAuth, tool bridging
   - `modes/` — `agent`, `ask`, and `plan` mode logic

@@ -59,10 +59,13 @@ The built-in `ask_user` tool is presented as a `session/request_permission` requ
 
 Hooman also exposes a small set of `_hoomanjs/*` extensions used by the VS Code client (and available to other clients that opt in):
 
-| Method                     | Purpose                                                                                                   |
-| -------------------------- | --------------------------------------------------------------------------------------------------------- |
-| `_hoomanjs/rewind_session` | Cursor-style revert: splice agent history back to a prior user turn's in-memory checkpoint (`messageId`). |
-| `_hoomanjs/model_download` | Notification stream for local llama.cpp weight downloads (progress for the download strip in VS Code).    |
+| Method                       | Purpose                                                                                                   |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `_hoomanjs/rewind_session`   | Cursor-style revert: splice agent history back to a prior user turn's in-memory checkpoint (`messageId`). |
+| `_hoomanjs/model_download`   | Notification stream for local llama.cpp weight downloads (progress for the download strip in VS Code).    |
+| `_hoomanjs/stop_shell_job`   | Stop a [background shell job](/hooman/guides/tools/#shell) by `jobId` (used by the VS Code Stop control).  |
+
+Background shell job lifecycle updates are also pushed on tool/`session/update` traffic under `_meta["hoomanjs/shell_job"]` so clients can render an active-jobs strip without polling.
 
 Rewind only works for turns that still have an in-memory checkpoint (not for replayed history). The VS Code extension pairs it with restoring workspace file edits from that turn onward — see [VS Code](/hooman/guides/vscode/).
 

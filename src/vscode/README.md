@@ -19,7 +19,7 @@ Hooman adds a chat panel to your activity bar, powered by the [Hooman CLI](https
 
 - **Streaming chat** with full markdown rendering (including tables and live Mermaid diagrams) and collapsible thinking (with a "thought for Xs · ~N tokens" summary).
 - **Multi-tab sessions**: work several chats side by side via a tab strip — open, switch, reorder, and close without losing an in-flight turn.
-- **Tool-call cards** with live status — shell commands stream their output into the card as they run. Stopping a turn cancels pending permission prompts and marks unfinished tools as cancelled.
+- **Tool-call cards** with live status — shell commands stream their output into the card as they run. Long-running commands can detach as **background terminals**; a strip above the composer lists them with status and a **Stop** control. Stopping a turn cancels pending permission prompts and marks unfinished tools as cancelled.
 - **Review every edit**: files the agent writes appear in a pinned **Changes** panel. Click a file to open a native diff against its pre-edit baseline, then **Keep** or **Undo** each change (or all at once). Edits go through undo-able workspace edits, and the agent sees your unsaved buffers.
 - **Plan checklist** pinned above the transcript, updated live as the agent works through it, with a dedicated plan editor for `*.plan.md` files. Leaving plan mode always requires explicit approval, even with Yolo on.
 - **Message actions**: copy any message, or **fork the chat** from each turn's final assistant reply. On a user message with an in-memory checkpoint, **Revert** restores files from that turn onward, rewinds agent history, and puts the prompt back in the composer.

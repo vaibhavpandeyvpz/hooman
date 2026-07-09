@@ -43,9 +43,9 @@ Or install globally (`npm i -g hoomanjs`), or via Bun (`bunx hoomanjs`). Then ru
 - Session modes (`agent` / `plan` / `ask`) plus a separate Yolo auto-approve toggle — see [CLI](https://vaibhavpandey.com/hooman/guides/cli/#session-mode)
 - MCP server support (`stdio`, `streamable-http`, `sse`) with OAuth (DCR + CIMD), lazy MCP tool discovery via `search_tools` / `activate_tools`, optional browser automation via Playwright MCP (`tools.browser.enabled`), and channel-driven automation via `hooman daemon` — see [MCP](https://vaibhavpandey.com/hooman/guides/mcp/)
 - Runtime [Skills](https://vaibhavpandey.com/hooman/guides/skills/): bundled built-ins, a local `~/.hooman/skills` catalog, and optional project-local `.hooman/skills`
-- Built-in read-only subagents, a ripgrep-backed `grep` tool, filesystem tools that respect `.gitignore`, and an `ask_user` tool for mid-task questions — see [Tools](https://vaibhavpandey.com/hooman/guides/tools/)
+- Built-in read-only subagents, a ripgrep-backed `grep` tool, filesystem tools that respect `.gitignore`, background shell jobs (`run_in_background` / `shell_output` / `shell_stop`), and an `ask_user` tool for mid-task questions — see [Tools](https://vaibhavpandey.com/hooman/guides/tools/)
 - Context-window utilization and session-cost tracking backed by [models.dev](https://models.dev), shown live in every surface
-- Interactive terminal UI for chat and configuration, plus a native [VS Code chat panel](https://vaibhavpandey.com/hooman/guides/vscode/) with Mermaid diagrams, plan checklists, Changes keep/undo, fork/copy, and Cursor-style revert
+- Interactive terminal UI for chat and configuration, plus a native [VS Code chat panel](https://vaibhavpandey.com/hooman/guides/vscode/) with Mermaid diagrams, plan checklists, Changes keep/undo, fork/copy, Cursor-style revert, and a background-terminals strip
 
 See the [full documentation](https://vaibhavpandey.com/hooman/) for CLI commands, configuration layout, provider setup, and more.
 
