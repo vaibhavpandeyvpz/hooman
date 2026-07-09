@@ -1,4 +1,4 @@
-name: Publish Docs to GitHub Pages
+name: Docs
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
       - main
     paths:
       - "docs/**"
-      - ".github/workflows/publish-pages.yml"
+      - ".github/workflows/docs.yml"
   workflow_dispatch:
 
 permissions:

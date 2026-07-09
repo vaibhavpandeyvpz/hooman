@@ -131,18 +131,18 @@ Enabled via `tools.filesystem.enabled` (bundled with the filesystem toggle, not 
 
 Enabled via `tools.shell.enabled` (also registers `shell_output` and `shell_stop` below). Executes shell commands on the local machine (or through an ACP host's terminal backend when advertised). Supports single or multiple commands, sequential or parallel execution, per-command options, working directories, stdin, and timeouts — plus background jobs for long-running processes.
 
-| Argument           | Type                                       | Required | Description                                                                                          |
-| ------------------ | ------------------------------------------ | -------- | ---------------------------------------------------------------------------------------------------- |
-| `command`          | string, command object, or array of either | yes      | `{ command, timeout?, work_dir?, stdin? }` per entry.                                                |
-| `parallel`         | boolean                                    | no       | Execute multiple commands in parallel.                                                               |
-| `ignore_errors`    | boolean                                    | no       | Continue executing even if a command fails.                                                          |
-| `timeout`          | number (seconds)                           | no       | Default timeout for each command (900s default).                                                     |
-| `work_dir`         | string                                     | no       | Base working directory for command execution.                                                        |
-| `run_in_background`| boolean                                    | no       | Run a **single** command as a background job and return a `job_id` immediately. Requires `description`. |
-| `description`      | string                                     | no\*     | Short label for a background job (\*required when `run_in_background` is true or `block_until_ms` is `0`). |
-| `block_until_ms`   | number                                     | no       | Max ms to wait before returning a background handle. `0` = same as immediate background.             |
-| `notify_on_output` | `{ pattern, debounce_ms? }`                | no       | Block until a regex matches output, then return a `job_id` while the process keeps running.          |
-| `ready`            | `{ pattern?, port?, timeout_ms? }`         | no       | Wait for a readiness probe (regex and/or local TCP port) before returning a background handle.       |
+| Argument            | Type                                       | Required | Description                                                                                                |
+| ------------------- | ------------------------------------------ | -------- | ---------------------------------------------------------------------------------------------------------- |
+| `command`           | string, command object, or array of either | yes      | `{ command, timeout?, work_dir?, stdin? }` per entry.                                                      |
+| `parallel`          | boolean                                    | no       | Execute multiple commands in parallel.                                                                     |
+| `ignore_errors`     | boolean                                    | no       | Continue executing even if a command fails.                                                                |
+| `timeout`           | number (seconds)                           | no       | Default timeout for each command (900s default).                                                           |
+| `work_dir`          | string                                     | no       | Base working directory for command execution.                                                              |
+| `run_in_background` | boolean                                    | no       | Run a **single** command as a background job and return a `job_id` immediately. Requires `description`.    |
+| `description`       | string                                     | no\*     | Short label for a background job (\*required when `run_in_background` is true or `block_until_ms` is `0`). |
+| `block_until_ms`    | number                                     | no       | Max ms to wait before returning a background handle. `0` = same as immediate background.                   |
+| `notify_on_output`  | `{ pattern, debounce_ms? }`                | no       | Block until a regex matches output, then return a `job_id` while the process keeps running.                |
+| `ready`             | `{ pattern?, port?, timeout_ms? }`         | no       | Wait for a readiness probe (regex and/or local TCP port) before returning a background handle.             |
 
 Background mode supports a single command only (not command arrays) and does not support `stdin`. Active jobs appear in the [CLI](/hooman/guides/cli/) (`/tasks`) and [VS Code](/hooman/guides/vscode/) background-jobs strip so you can stop them without waiting for the agent.
 
@@ -150,13 +150,13 @@ Background mode supports a single command only (not command arrays) and does not
 
 Read output from a background job started with `shell`. Approval-exempt; available in `ask` / `plan` as well as `agent` once a job exists.
 
-| Argument     | Type    | Required | Description                                                                 |
-| ------------ | ------- | -------- | --------------------------------------------------------------------------- |
-| `job_id`     | string  | yes      | Background job id returned by `shell`.                                      |
+| Argument     | Type    | Required | Description                                                                   |
+| ------------ | ------- | -------- | ----------------------------------------------------------------------------- |
+| `job_id`     | string  | yes      | Background job id returned by `shell`.                                        |
 | `block`      | boolean | no       | When true (default), wait for the job to exit. Ignored when `pattern` is set. |
-| `timeout_ms` | number  | no       | Max wait time in milliseconds (default 30000).                              |
-| `pattern`    | string  | no       | Wait for this JavaScript regex to match **new** output since the last read. |
-| `tail_lines` | integer | no       | Return only the last N lines of output.                                     |
+| `timeout_ms` | number  | no       | Max wait time in milliseconds (default 30000).                                |
+| `pattern`    | string  | no       | Wait for this JavaScript regex to match **new** output since the last read.   |
+| `tail_lines` | integer | no       | Return only the last N lines of output.                                       |
 
 ### `shell_stop`
 

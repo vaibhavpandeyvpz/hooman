@@ -8,7 +8,8 @@
     <a href="https://nodejs.org"><img src="https://img.shields.io/badge/runtime-Node.js-5FA04E?logo=nodedotjs&logoColor=white" alt="Node.js" /></a>
     <a href="https://www.typescriptlang.org/"><img src="https://img.shields.io/badge/language-TypeScript-3178C6?logo=typescript&logoColor=white" alt="TypeScript" /></a>
     <a href="https://github.com/vadimdemedes/ink"><img src="https://img.shields.io/badge/ui-Ink-6f42c1" alt="Ink" /></a>
-    <a href="https://github.com/vaibhavpandeyvpz/hooman/actions/workflows/publish-npm.yml"><img src="https://img.shields.io/github/actions/workflow/status/vaibhavpandeyvpz/hooman/publish-npm.yml?branch=main&label=build" alt="Build" /></a>
+    <a href="https://github.com/vaibhavpandeyvpz/hooman/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/vaibhavpandeyvpz/hooman/ci.yml?branch=main&label=ci" alt="CI" /></a>
+    <a href="https://github.com/vaibhavpandeyvpz/hooman/actions/workflows/docs.yml"><img src="https://img.shields.io/github/actions/workflow/status/vaibhavpandeyvpz/hooman/docs.yml?branch=main&label=docs" alt="Docs" /></a>
     <a href="https://github.com/vaibhavpandeyvpz/hooman/stargazers"><img src="https://img.shields.io/github/stars/vaibhavpandeyvpz/hooman?style=flat" alt="GitHub Repo stars" /></a>
     <a href="https://github.com/vaibhavpandeyvpz/hooman/commits/main"><img src="https://img.shields.io/github/last-commit/vaibhavpandeyvpz/hooman" alt="GitHub last commit" /></a>
   </p>

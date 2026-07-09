@@ -58,9 +58,9 @@ Sub-packages:
 
 CI/workflows:
 
-- `.github/workflows/publish-npm.yml` — builds on pushes to `main`; publishes to npm on `v*` tags
-- `.github/workflows/publish-pages.yml` — builds and deploys `docs/` to GitHub Pages
-- `.github/workflows/publish-vscode.yml` — packages VS Code extension on `main`; publishes on `v*` tags
+- `.github/workflows/ci.yml` — typecheck, Prettier check, root build, and VS Code compile on pushes to `main` (and manual dispatch)
+- `.github/workflows/docs.yml` — builds and deploys `docs/` to GitHub Pages on pushes to `main` that touch `docs/**`
+- `.github/workflows/cd.yml` — on `v*` tags: publish npm, VS Code Marketplace, and CLI release bundles / GitHub release in parallel
 
 ## Build and run commands
 
@@ -193,10 +193,9 @@ Component rules:
 ## Security and release notes
 
 - Do not commit secrets. The repo contains configuration paths that may reference local credentials, but secrets belong in user-local config under `~/.hooman/` or environment variables, not source files.
-- Publishing is tag-driven:
-  - npm package publishes from `v*` tags via `.github/workflows/publish-npm.yml`
-  - VS Code extension publishes from `v*` tags via `.github/workflows/publish-vscode.yml`
-- Docs deploy from `main` when `docs/**` changes via `.github/workflows/publish-pages.yml`
+- Publishing is tag-driven (only docs and CI run on push to `main`):
+  - npm, VS Code Marketplace, and CLI release bundles publish from `v*` tags via `.github/workflows/cd.yml`
+- Docs deploy from `main` when `docs/**` changes via `.github/workflows/docs.yml`
 
 ## Practical guidance for agents
 

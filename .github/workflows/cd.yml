@@ -1,4 +1,4 @@
-name: Publish CLI Release Bundles
+name: CD
 
 on:
   push:
@@ -7,10 +7,64 @@ on:
   workflow_dispatch:
 
 permissions:
+  id-token: write
   contents: write
 
 jobs:
-  build:
+  npm:
+    name: Publish npm
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Publish to npm
+        run: npm publish --access public --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  vscode:
+    name: Publish VS Code extension
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src/vscode
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Package
+        run: npx vsce package
+
+      - name: Publish to Visual Studio Marketplace
+        run: npx vsce publish --pat "$VSCE_PAT"
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+
+  cli-bundles:
     name: Build ${{ matrix.target }}
     runs-on: ${{ matrix.runner }}
     defaults:
@@ -75,9 +129,9 @@ jobs:
           path: dist-bundles/*.tar.gz
           if-no-files-found: error
 
-  release:
+  github-release:
     name: Create GitHub release
-    needs: build
+    needs: cli-bundles
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

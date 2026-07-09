@@ -77,14 +77,18 @@ npm run dev     # local preview
 npm run build   # -> docs/dist/
 ```
 
-It's deployed to GitHub Pages by `.github/workflows/publish-pages.yml` on pushes to `main` that touch `docs/**`.
+It's deployed to GitHub Pages by `.github/workflows/docs.yml` on pushes to `main` that touch `docs/**`.
+
+## Continuous integration
+
+`.github/workflows/ci.yml` runs on every push to `main` (and manual dispatch): root + VS Code `npm ci`, typecheck for both packages, `npx prettier . --check`, root `npm run build`, and VS Code `npm run compile`.
 
 ## Release workflow
 
-Publishing to npm is handled by `.github/workflows/publish-npm.yml`:
+Releases are tag-driven via `.github/workflows/cd.yml` (also supports manual dispatch). Push a matching `v*` Git tag after bumping versions (root and VS Code extension stay in lockstep). Parallel jobs:
 
-- Triggers on pushes to `main`, tags matching `v*`, and manual dispatch.
-- Runs `npm ci` and `npm run build`.
-- Publishes to npm with provenance only when the ref is a `refs/tags/v*` tag.
+- **Publish npm** — `npm ci`, `npm run build`, then publish to npm with provenance.
+- **Publish VS Code extension** — typecheck, package, and publish to the Visual Studio Marketplace.
+- **Build CLI bundles** — platform matrix (`darwin-arm64`, `darwin-x64`, `linux-x64`, `linux-arm64`, `win32-x64`), then **Create GitHub release** attaches the tarballs + checksums.
 
-Bump the version in `package.json` and push a matching Git tag to release. The VS Code extension is versioned and released in lockstep via `.github/workflows/publish-vscode.yml`.
+Docs are separate: `.github/workflows/docs.yml` deploys from pushes to `main` that touch `docs/**` (and manual dispatch). It does not publish packages.

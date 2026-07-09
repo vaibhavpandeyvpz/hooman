@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Install VS Code extension dependencies
+        working-directory: src/vscode
+        run: npm ci
+
+      - name: Typecheck root
+        run: npm run typecheck
+
+      - name: Typecheck VS Code extension
+        working-directory: src/vscode
+        run: npm run typecheck
+
+      - name: Prettier check
+        run: npx prettier . --check
+
+      - name: Build root
+        run: npm run build
+
+      - name: Compile VS Code extension
+        working-directory: src/vscode
+        run: npm run compile
