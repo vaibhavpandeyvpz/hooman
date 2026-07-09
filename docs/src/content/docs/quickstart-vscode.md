@@ -34,7 +34,7 @@ code --install-extension VPZ.hooman-vscode
 
    See [Configuration](/hooman/guides/configuration/) and [Models](/hooman/guides/configuration/models/) for the full schema.
 
-3. Explore the panel: streaming markdown, tool-call cards, a pinned **Changes** panel with diff/keep/undo, plan checklists, and slash commands.
+3. Explore the panel: streaming markdown and Mermaid, tool-call cards, a pinned **Changes** panel with diff/keep/undo, plan checklists, fork/copy on each turn's final reply, Cursor-style revert, and slash commands.
 
 ## Next steps
 

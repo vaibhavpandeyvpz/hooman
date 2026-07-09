@@ -40,11 +40,12 @@ Or install globally (`npm i -g hoomanjs`), or via Bun (`bunx hoomanjs`). Then ru
 ## Features
 
 - Multiple LLM providers: `anthropic`, `azure`, `bedrock`, `google`, `groq`, `llama-cpp` (local GGUF, the default), `minimax`, `mlx` (local, Apple Silicon), `moonshot`, `ollama`, `openai`, `openrouter`, `xai` — see [Models](https://vaibhavpandey.com/hooman/guides/configuration/models/)
-- MCP server support (`stdio`, `streamable-http`, `sse`) with OAuth (DCR + CIMD), lazy MCP tool discovery via `search_tools` / `activate_tools`, and channel-driven automation via `hooman daemon` — see [MCP](https://vaibhavpandey.com/hooman/guides/mcp/)
-- Runtime [Skills](https://vaibhavpandey.com/hooman/guides/skills/): bundled built-ins plus a local `~/.hooman/skills` catalog
-- Built-in read-only subagents, a ripgrep-backed `grep` tool, and an `ask_user` tool for mid-task questions — see [Tools](https://vaibhavpandey.com/hooman/guides/tools/)
+- Session modes (`agent` / `plan` / `ask`) plus a separate Yolo auto-approve toggle — see [CLI](https://vaibhavpandey.com/hooman/guides/cli/#session-mode)
+- MCP server support (`stdio`, `streamable-http`, `sse`) with OAuth (DCR + CIMD), lazy MCP tool discovery via `search_tools` / `activate_tools`, optional browser automation via Playwright MCP (`tools.browser.enabled`), and channel-driven automation via `hooman daemon` — see [MCP](https://vaibhavpandey.com/hooman/guides/mcp/)
+- Runtime [Skills](https://vaibhavpandey.com/hooman/guides/skills/): bundled built-ins, a local `~/.hooman/skills` catalog, and optional project-local `.hooman/skills`
+- Built-in read-only subagents, a ripgrep-backed `grep` tool, filesystem tools that respect `.gitignore`, and an `ask_user` tool for mid-task questions — see [Tools](https://vaibhavpandey.com/hooman/guides/tools/)
 - Context-window utilization and session-cost tracking backed by [models.dev](https://models.dev), shown live in every surface
-- Interactive terminal UI for chat and configuration, plus a native [VS Code chat panel](https://vaibhavpandey.com/hooman/guides/vscode/)
+- Interactive terminal UI for chat and configuration, plus a native [VS Code chat panel](https://vaibhavpandey.com/hooman/guides/vscode/) with Mermaid diagrams, plan checklists, Changes keep/undo, fork/copy, and Cursor-style revert
 
 See the [full documentation](https://vaibhavpandey.com/hooman/) for CLI commands, configuration layout, provider setup, and more.
 

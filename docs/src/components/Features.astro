@@ -14,7 +14,7 @@ const features = [
   },
   {
     title: "Skills",
-    description: "Bundled built-in skills plus a local ~/.hooman/skills catalog the agent activates on demand.",
+    description: "Bundled built-ins plus ~/.hooman/skills and optional project-local .hooman/skills the agent activates on demand.",
     href: `${base}/guides/skills/`,
   },
   {
@@ -24,7 +24,7 @@ const features = [
   },
   {
     title: "Tool approvals",
-    description: "Every destructive tool call is approved by default — chat, exec, and ACP each render an approval prompt; --yolo skips it.",
+    description: "Destructive tool calls need approval by default — chat, exec, and ACP each prompt; Yolo / --yolo auto-approves (except leaving plan mode).",
     href: `${base}/guides/tools/#approvals`,
   },
   {

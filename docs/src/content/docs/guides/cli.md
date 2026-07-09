@@ -128,7 +128,7 @@ hooman daemon --debug
 - **`plan`** — planning workflow with a reduced tool surface plus `enter_plan_mode` / `exit_plan_mode`.
 - **`ask`** — read-oriented, narrower surface (similar to interactive plan mode) but without the plan lifecycle tools.
 
-In `chat`, `/mode` switches between `agent`, `ask`, and `plan`. ACP sessions can set `hooman.sessionMode` to the same three values.
+In `chat`, `/mode` switches between `agent`, `ask`, and `plan`. ACP and the VS Code extension expose the same three values as a session config option; **Yolo** is a separate boolean (CLI `/yolo` / `--yolo`, ACP `yolo`) and is not a mode.
 
 ## `hooman sessions`
 

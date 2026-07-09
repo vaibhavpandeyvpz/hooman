@@ -89,7 +89,7 @@ Each LLM entry may carry an optional `metadata` block used to display context-wi
 
 - `metadata.name` is required when the block is present, and is the identifier looked up in the [models.dev](https://models.dev) catalog (cached under `~/.hooman/cache/`, refreshed at most once daily). When `metadata` is omitted, `options.model` is used as the lookup name.
 - `metadata.context` (window size in tokens) and `metadata.costs` (USD per million tokens; `"cache/m"` prices cached-input reads) override whatever models.dev resolves.
-- `metadata.modality` can explicitly override the model's advertised input modalities (`text`, `image`, `pdf`, `audio`, `video`).
+- `metadata.modality` can explicitly override the model's advertised input modalities (`text`, `image`, `pdf`, `audio`, `video`). At runtime, attachments and ACP image/audio/blob blocks are converted using the resolved modality (config override → models.dev → text-only). Unsupported modalities become diagnostics/text instead of forcing media blocks the model cannot accept. Editable from `/config` and the VS Code settings editor.
 - If neither the config nor models.dev yields the data, context usage and cost are simply not shown.
 - For local providers (llama.cpp, MLX, Ollama), catalog costs are never applied — local inference is free, and the catalog prices the hosted API serving the same model id — so only the context window resolves and no `$` cost is displayed. An explicit `metadata.costs` block still wins if you set one.
 

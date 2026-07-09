@@ -66,17 +66,17 @@ Tool approvals are session-scoped and are **not** persisted in `config.json` —
 
 ## `~/.hooman` layout
 
-| Path               | Purpose                                                                                                                 |
-| ------------------ | ----------------------------------------------------------------------------------------------------------------------- |
-| `config.json`      | App name, reusable provider configs, model configs, search/prompt/tool flags, compaction, and global reasoning display. |
-| `instructions.md`  | System instructions used to build the agent prompt.                                                                     |
-| `mcp.json`         | MCP server definitions.                                                                                                 |
-| `mcp-oauth.json`   | Stored OAuth credentials for remote MCP servers.                                                                        |
-| `skills/`          | Installed [skills](/hooman/guides/skills/).                                                                             |
-| `bin/`             | Runtime-managed helper binaries (including bootstrapped `rg` for the `grep` tool when system `rg` is unavailable).      |
-| `cache/`           | Runtime caches used by tools and subsystems.                                                                            |
-| `projects.json`    | Registry mapping each project root to a stable UUID.                                                                    |
-| `projects/<uuid>/` | Per-project storage, scoped to the project (git root, falling back to cwd) the session runs in.                         |
+| Path               | Purpose                                                                                                                       |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
+| `config.json`      | App name, reusable provider configs, model configs, search/prompt/tool flags, compaction, and global reasoning display.       |
+| `instructions.md`  | System instructions used to build the agent prompt.                                                                           |
+| `mcp.json`         | MCP server definitions.                                                                                                       |
+| `mcp-oauth.json`   | Stored OAuth credentials for remote MCP servers.                                                                              |
+| `skills/`          | Installed [skills](/hooman/guides/skills/) (global catalog; project-local skills may also live under `<cwd>/.hooman/skills`). |
+| `bin/`             | Runtime-managed helper binaries (including bootstrapped `rg` for the `grep` tool when system `rg` is unavailable).            |
+| `cache/`           | Runtime caches used by tools and subsystems.                                                                                  |
+| `projects.json`    | Registry mapping each project root to a stable UUID.                                                                          |
+| `projects/<uuid>/` | Per-project storage, scoped to the project (git root, falling back to cwd) the session runs in.                               |
 
 Inside each `projects/<uuid>/` directory:
 
@@ -164,6 +164,7 @@ Notes:
 - `hooman config` prints only the merged effective `config.json` shape, with credential-like values redacted.
 - The `/config` UI and `hooman mcp auth/logout/auth-status` still target home config (`~/.hooman/*`) directly.
 - Keep secrets in home config unless you explicitly want project-scoped credentials.
+- Skills are additive rather than deep-merged: built-ins, `~/.hooman/skills`, and `<cwd>/.hooman/skills` (when present) are all loaded — see [Skills](/hooman/guides/skills/).
 
 `AGENTS.md` instruction files are a separate mechanism and are **not** nested under `.hooman/`: they are discovered as bare `AGENTS.md` files walked from the git root down to the current directory.
 

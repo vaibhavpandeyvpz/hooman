@@ -17,18 +17,21 @@ Hooman adds a chat panel to your activity bar, powered by the [Hooman CLI](https
 
 ## Features
 
-- **Streaming chat** with full markdown rendering and collapsible thinking (with a "thought for Xs · ~N tokens" summary).
-- **Tool-call cards** with live status — shell commands stream their output into the card as they run.
+- **Streaming chat** with full markdown rendering (including tables and live Mermaid diagrams) and collapsible thinking (with a "thought for Xs · ~N tokens" summary).
+- **Multi-tab sessions**: work several chats side by side via a tab strip — open, switch, reorder, and close without losing an in-flight turn.
+- **Tool-call cards** with live status — shell commands stream their output into the card as they run. Stopping a turn cancels pending permission prompts and marks unfinished tools as cancelled.
 - **Review every edit**: files the agent writes appear in a pinned **Changes** panel. Click a file to open a native diff against its pre-edit baseline, then **Keep** or **Undo** each change (or all at once). Edits go through undo-able workspace edits, and the agent sees your unsaved buffers.
-- **Plan checklist** pinned above the transcript, updated live as the agent works through it.
+- **Plan checklist** pinned above the transcript, updated live as the agent works through it, with a dedicated plan editor for `*.plan.md` files. Leaving plan mode always requires explicit approval, even with Yolo on.
+- **Message actions**: copy any message, or **fork the chat** from each turn's final assistant reply. On a user message with an in-memory checkpoint, **Revert** restores files from that turn onward, rewinds agent history, and puts the prompt back in the composer.
 - **Queue and steer**: follow-ups sent mid-turn don't interrupt — they land in a **Queued** panel where you can edit, remove, or **Send now**. **Steer now** injects the queue as guidance into the running turn instead of waiting for it to finish.
-- **Attachments**: add files, folders, and images via the paperclip button, drag & drop (from the OS or the Explorer), or paste from the clipboard.
+- **Attachments**: add files, folders, and images via the paperclip button, drag & drop (from the OS or the Explorer), or paste from the clipboard. Explorer and selection context-menu commands send files or selected text straight into the panel.
 - **Sessions persist**: the history button in the panel's title bar opens a **Sessions** overlay — saved sessions grouped by day (Today / Yesterday / …) with search, the ongoing one marked (spinner while a turn runs), click-to-open, per-session delete, and a New Chat action.
-- **Pill pickers** in the composer for mode (Agent / Plan / Ask / Yolo), model, and reasoning effort — plus `/` slash-command autocomplete (`/compact`, `/init`).
-- **Inline permission prompts**: the agent asks before running destructive tools; approve or reject right in the panel (Yolo mode auto-approves).
+- **Composer controls** for session mode (Agent / Plan / Ask), model, reasoning effort, and a separate **Yolo** toggle (auto-approve tool calls), plus `/` slash-command autocomplete (`/compact`, `/init`).
+- **Inline permission prompts**: the agent asks before running destructive tools; approve or reject right in the panel (Yolo auto-approves — except leaving plan mode).
 - **Status bar item** showing the current model and mode, with a spinner while a turn runs and a quick menu for all session controls.
 - **Token-usage footer** with the latest request's input / cached / output token counts, plus a context-window gauge and cumulative session cost when the agent can resolve the model's metadata (from the LLM config's `metadata` block or the models.dev catalog).
 - **Model download strip**: when a local llama.cpp model downloads its GGUF weights on first use, a progress strip above the composer shows percent, size, speed, and ETA.
+- **Native settings editors** for `config.json` and `mcp.json`, plus a **Skills** panel; `instructions.md` opens in the default Markdown editor.
 
 ## Quick start
 
@@ -43,9 +46,11 @@ Hooman adds a chat panel to your activity bar, powered by the [Hooman CLI](https
 
 ## Commands
 
-- **Hooman: New Chat** — start a fresh session in the chat panel.
+- **Hooman: New Chat** — start a fresh session (new tab) in the chat panel.
 - **Hooman: Open Session…** — opens the Sessions overlay in the chat panel: saved sessions grouped by day, searchable, with the ongoing one marked (spinner while busy), click-to-open, and per-session delete.
-- **Hooman: Open Settings…** — opens `config.json` or `mcp.json` from `~/.hooman/` (or `$HOOMAN_HOME/`) in an editor tab, scaffolding it first if it doesn't exist yet.
+- **Hooman: Open Settings…** — opens the native Configuration editor for `config.json`, scaffolding it first if needed.
+- **Add to Hooman Chat** / **Add to New Hooman Chat** — Explorer context-menu commands that send the selected file(s) into the current or a new chat tab.
+- **Add Selection to Hooman Chat** / **Add Selection to New Hooman Chat** — editor context-menu commands (shown when text is selected) that send the selection into the current or a new chat tab.
 - **Hooman: Show Output Channel** — opens the "Hooman" output channel with the agent's logs.
 - **Hooman: Delete All Sessions** — deletes every persisted session after a confirmation prompt.
 
@@ -89,7 +94,7 @@ npm run package   # -> hooman-vscode-<version>.vsix (fully bundled, no node_modu
 
 To debug, open the repository root in VS Code (after running `npm install` in `src/vscode/` at least once) and press **F5** — the root [`.vscode/launch.json`](https://github.com/vaibhavpandeyvpz/hooman/blob/main/.vscode/launch.json) and [`.vscode/tasks.json`](https://github.com/vaibhavpandeyvpz/hooman/blob/main/.vscode/tasks.json) point at `src/vscode` so there's no need to `cd` in or open it as a separate workspace.
 
-Architecture in brief: one `hooman acp` process serves the panel for the extension's lifetime, with every chat session multiplexed over it as an ACP session. The extension implements the client-side ACP `fs/*` capabilities against VS Code's workspace APIs (so the agent sees dirty buffers and edits are undo-able) and `terminal/*` via child processes (for byte-accurate output). The panel UI is a SolidJS + Tailwind webview bundled by Vite; the extension host is bundled by esbuild. See the [repository docs](https://github.com/vaibhavpandeyvpz/hooman/blob/main/AGENTS.md) for the full breakdown.
+Architecture in brief: one `hooman acp` process serves the panel for the extension's lifetime, with every chat session multiplexed over it as an ACP session. The extension implements the client-side ACP `fs/*` capabilities against VS Code's workspace APIs (so the agent sees dirty buffers and edits are undo-able) and `terminal/*` via child processes (for byte-accurate output). The panel UI is a SolidJS + Tailwind webview bundled by Vite; the extension host is bundled by esbuild. See the [full VS Code guide](https://vaibhavpandey.com/hooman/guides/vscode/) and [`AGENTS.md`](https://github.com/vaibhavpandeyvpz/hooman/blob/main/AGENTS.md) for the breakdown.
 
 ## License
 

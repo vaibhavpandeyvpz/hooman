@@ -9,6 +9,12 @@ This page documents the tools Hooman implements itself (not tools vended by the 
 
 Enabled via `tools.filesystem.enabled` (also gates `grep` below).
 
+### Gitignored paths
+
+Filesystem tools refuse paths that match the repository's `.gitignore` (and nested ignore rules). Denied calls return an access-denied error rather than reading or writing the ignored path. Directory listings and trees also skip ignored entries. This guard applies to `read_file`, `read_multiple_files`, `write_file`, `edit_file`, `create_directory`, `list_directory`, `directory_tree`, `move_file`, and `get_file_info`.
+
+`grep` still follows ripgrep's own ignore behaviour; pass `no_ignore: true` when you intentionally need to search ignored files.
+
 ### `read_file`
 
 Read a file. Defaults to UTF-8 text with optional line offset/limit. `binary: true` returns images/videos/documents as multimodal content blocks forwarded to the active provider natively where supported (Bedrock for all; Anthropic/Google for images + docs; OpenAI/Ollama for images), or base64 for other binary files.
@@ -256,7 +262,33 @@ Always registered, but only usable in `agent`/`plan` [session mode](/hooman/guid
 | `enter_plan_mode` | `fresh`  | boolean | no       | Start a brand-new plan document instead of reopening the session's last one. |
 | `exit_plan_mode`  | —        | —       | —        | No arguments.                                                                |
 
-`enter_plan_mode` is approval-exempt; `exit_plan_mode` flows through the approval prompt below (with the drafted plan shown as a preview) so the user can approve or decline before implementation starts.
+`enter_plan_mode` is approval-exempt; `exit_plan_mode` flows through the approval prompt below (with the drafted plan shown as a preview) so the user can approve or decline before implementation starts. Leaving plan mode always requires that explicit approval — Yolo / auto-approve never skips it.
+
+### Plan file shape
+
+Plan documents use YAML frontmatter with at least `name`, `overview`, and an implementation `tasks` checklist (not a log of planning activity). Each task prefers `content` (or `description`), optional `priority`, and `status` of `pending` / `in_progress` / `completed`:
+
+```yaml
+---
+name: Plan
+overview: Short summary of the implementation approach
+tasks:
+  - content: First concrete implementation step
+    status: pending
+    priority: high
+  - content: Add focused verification for the changed behavior
+    status: pending
+    priority: medium
+---
+```
+
+In agent mode, those tasks seed `update_todos` so the chat checklist stays aligned with the plan. The [VS Code](/hooman/guides/vscode/) plan editor surfaces the same checklist live.
+
+## Browser (Playwright MCP)
+
+Enabled via `tools.browser.enabled` (default **`false`**). When on, Hooman injects a default [Playwright MCP](https://github.com/microsoft/playwright-mcp) server (`@playwright/mcp`) into the session and includes browser-oriented guidance in the system prompt. There is no separate first-party `browser_*` tool API — the agent uses the MCP tools that Playwright exposes (navigate, click, snapshot, and so on), discovered and activated like any other MCP tools via `search_tools` / `activate_tools`.
+
+See [Configuration → Tools](/hooman/guides/configuration/tools/) to flip the toggle, and [MCP](/hooman/guides/mcp/) for how lazy MCP discovery works.
 
 ## Subagents
 
@@ -287,7 +319,7 @@ When a user approves with "always", Hooman persists a reusable rule to `~/.hooma
 - **ACP clients** (Zed, the VS Code extension) receive a `session/request_permission` request, rendered as a permission card.
 - **`daemon`** has no local human to prompt: it relays the approval request back to the originating MCP server if that server supports `hooman/channel/permission`; otherwise the tool call is denied. See [MCP Channels](/hooman/guides/mcp/channels/).
 
-`--yolo` on `exec`, `chat`, or `daemon` bypasses all of the above and auto-approves every tool call — use only in trusted environments and with prompts you trust. Tool approvals (including the on-disk allowlist) are session/machine-scoped and are **not** persisted in `config.json`.
+`--yolo` on `exec`, `chat`, or `daemon` (and the ACP/VS Code **Yolo** boolean toggle) bypasses all of the above and auto-approves every tool call — use only in trusted environments and with prompts you trust. The one exception is `exit_plan_mode`, which always prompts. Tool approvals (including the on-disk allowlist) are session/machine-scoped and are **not** persisted in `config.json`.
 
 ### MCP channels
 
