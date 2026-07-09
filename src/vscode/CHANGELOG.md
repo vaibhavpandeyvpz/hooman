@@ -2,6 +2,12 @@
 
 All notable changes to the Hooman VS Code extension are documented in this file.
 
+## [1.46.0]
+
+- Add a richer Hooman settings experience in VS Code: the extension now exposes configurable settings for newly added root configuration fields, replaces the dedicated plan editor webview with a settings-focused editor experience, and keeps the shared ACP/settings protocol in sync with the expanded configuration surface.
+- Improve core agent and CLI capabilities used by the extension: Hooman now supports working-directory skills, browser-related tool toggles, `topP` model configuration, modality-aware input blocks, gitignored-path protection for filesystem access, and improved plan-task/checklist handling.
+- Refresh bundled documentation and built-in skills, including the new bump-and-release workflow used for repository releases.
+
 ## [1.45.4]
 
 - CI/CD fixes only.
