@@ -1,3 +1,4 @@
+import { createSignal } from "solid-js";
 import { createStore, produce } from "solid-js/store";
 import type {
   PlanEntry,
@@ -29,6 +30,21 @@ import type {
 } from "../src/shared/settings";
 import { initialRoute, onHostMessage, post } from "./lib/vscode-api";
 import { estimateTokens } from "./lib/format";
+
+/**
+ * Bumped to ask the transcript to smooth-scroll to the bottom (prompt submit,
+ * session load/resume, tab switch). Streaming stickiness is separate and only
+ * follows when the user is already near the bottom.
+ */
+const [stickToBottomRequest, setStickToBottomRequest] = createSignal(0);
+
+export function stickToBottomRequestId(): number {
+  return stickToBottomRequest();
+}
+
+export function requestStickToBottom(): void {
+  setStickToBottomRequest((n) => n + 1);
+}
 
 // ACP `ToolCallStatus` is pending/in_progress/completed/failed. `cancelled` is
 // a client-local UI state we apply when the user aborts a turn (the protocol
@@ -779,18 +795,26 @@ onHostMessage((msg) => {
       break;
     case "configOptions":
       ensureSession(msg.sessionId);
-      setState(
-        "sessions",
-        msg.sessionId,
-        produce((session) => {
-          session.configOptions = msg.configOptions;
-          // Receiving config options means the session finished bootstrapping
-          // (session/new or session/load resolved), so clear any lingering
-          // loading overlay even if a sessionLoading:false / tabs update was
-          // missed during the placeholder -> real session handoff.
-          session.loadingSession = null;
-        }),
-      );
+      {
+        const wasLoading = Boolean(
+          state.sessions[msg.sessionId]?.loadingSession,
+        );
+        setState(
+          "sessions",
+          msg.sessionId,
+          produce((session) => {
+            session.configOptions = msg.configOptions;
+            // Receiving config options means the session finished bootstrapping
+            // (session/new or session/load resolved), so clear any lingering
+            // loading overlay even if a sessionLoading:false / tabs update was
+            // missed during the placeholder -> real session handoff.
+            session.loadingSession = null;
+          }),
+        );
+        if (wasLoading && msg.sessionId === state.activeSessionId) {
+          requestStickToBottom();
+        }
+      }
       break;
     case "update":
       handleSessionUpdate(msg.sessionId, msg.update);
@@ -881,6 +905,10 @@ onHostMessage((msg) => {
         "loadingSession",
         msg.loading ? (msg.title ?? "Loading session") : null,
       );
+      // History replay finished — pin the viewport to the latest message.
+      if (!msg.loading && msg.sessionId === state.activeSessionId) {
+        requestStickToBottom();
+      }
       break;
     case "shellJobs":
       ensureSession(msg.sessionId);
@@ -932,6 +960,7 @@ export function submitPrompt(text: string): void {
     addUserMessage(sessionId, trimmed, attachments);
   }
   setState("sessions", sessionId, "attachments", []);
+  requestStickToBottom();
   post({ type: "prompt", text: trimmed, attachments });
 }
 

@@ -5,6 +5,8 @@ import {
   isActiveSessionLoading,
   latestCompletedAssistantId,
   sessionState,
+  state,
+  stickToBottomRequestId,
 } from "../store";
 import EmptyState from "./EmptyState";
 import StartingSessionState from "./StartingSessionState";
@@ -30,6 +32,26 @@ export default function Transcript() {
     );
   };
 
+  const scrollToBottom = (behavior: ScrollBehavior) => {
+    if (!containerRef) {
+      return;
+    }
+    containerRef.scrollTo({ top: containerRef.scrollHeight, behavior });
+  };
+
+  // Smooth-scroll on prompt submit, session load/resume, and tab switch —
+  // always, even if the user had scrolled up. Double rAF waits for Solid to
+  // paint (and for history replay height to settle) before measuring.
+  createEffect(() => {
+    stickToBottomRequestId();
+    void state.activeSessionId;
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        scrollToBottom("smooth");
+      });
+    });
+  });
+
   // Stick to the bottom only when the user is already there, so streaming
   // updates (assistant text, live terminal output) don't fight manual
   // scrollback.
@@ -40,8 +62,8 @@ export default function Transcript() {
     void (last?.kind === "assistant" || last?.kind === "thought"
       ? last.text
       : items.length);
-    if (containerRef && isNearBottom()) {
-      containerRef.scrollTop = containerRef.scrollHeight;
+    if (isNearBottom()) {
+      scrollToBottom("auto");
     }
   });
 
