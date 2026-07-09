@@ -30,8 +30,15 @@ import type {
 import { initialRoute, onHostMessage, post } from "./lib/vscode-api";
 import { estimateTokens } from "./lib/format";
 
+// ACP `ToolCallStatus` is pending/in_progress/completed/failed. `cancelled` is
+// a client-local UI state we apply when the user aborts a turn (the protocol
+// has no cancelled tool status); it is never sent over the wire.
 export type ToolCallStatusUi =
-  "pending" | "in_progress" | "completed" | "failed";
+  | "pending"
+  | "in_progress"
+  | "completed"
+  | "failed"
+  | "cancelled";
 
 export type TranscriptItem =
   | { kind: "user"; id: string; text: string; attachments?: AttachmentInfo[] }
@@ -898,7 +905,41 @@ export function submitPrompt(text: string): void {
 }
 
 export function cancelPrompt(): void {
+  const sessionId = activeSessionId();
   post({ type: "cancel" });
+  if (sessionId) {
+    markUnfinishedToolCallsCancelled(sessionId);
+  }
+}
+
+/**
+ * ACP cancellation: the client SHOULD preemptively mark all non-finished tool
+ * calls for the turn as cancelled as soon as it sends `session/cancel`, so the
+ * transcript stops showing spinners while the agent winds down. Any late,
+ * authoritative update from the agent (completed/failed) still wins, since the
+ * spec asks clients to keep accepting tool-call updates after cancelling.
+ */
+function markUnfinishedToolCallsCancelled(sessionId: string): void {
+  const items = state.sessions[sessionId]?.items ?? [];
+  items.forEach((item, index) => {
+    if (
+      item.kind === "tool" &&
+      (item.status === "pending" || item.status === "in_progress")
+    ) {
+      setState(
+        "sessions",
+        sessionId,
+        "items",
+        index,
+        produce((draft) => {
+          if (draft.kind === "tool") {
+            draft.status = "cancelled";
+            draft.live = false;
+          }
+        }),
+      );
+    }
+  });
 }
 
 export function queueDeletePrompt(id: string): void {

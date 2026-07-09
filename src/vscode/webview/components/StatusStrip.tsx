@@ -5,9 +5,8 @@ import {
   onCleanup,
   Show,
 } from "solid-js";
-import { Square } from "lucide-solid";
 import { formatClock } from "../lib/format";
-import { cancelPrompt, sessionState } from "../store";
+import { sessionState } from "../store";
 import { THINKING_VERBS } from "../lib/thinking-verbs";
 
 /** Cycling accent hues for the shimmering status label: cyan → sky → blue, matching the logo. */
@@ -100,15 +99,6 @@ export default function StatusStrip() {
         <span class="ml-auto font-mono tabular-nums">
           {formatClock(elapsed())}
         </span>
-        <button
-          type="button"
-          class="flex items-center gap-1 rounded border border-border px-1.5 py-0.5 text-[11px] hover:bg-panel"
-          title="Stop the current turn"
-          onClick={() => cancelPrompt()}
-        >
-          <Square size={9} fill="currentColor" />
-          Stop
-        </button>
       </div>
     </Show>
   );

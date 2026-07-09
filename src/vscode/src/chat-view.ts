@@ -1201,14 +1201,18 @@ export class HoomanChatViewProvider
   }
 
   async #cancel(): Promise<void> {
-    if (!this.#sessionId) {
+    const sessionId = this.#sessionId;
+    if (!sessionId) {
       return;
     }
+    // ACP cancellation: the client MUST respond to all pending
+    // `session/request_permission` requests with the `cancelled` outcome as
+    // soon as it sends `session/cancel`, rather than waiting for the agent to
+    // cascade a `$/cancel_request` back.
+    this.#cancelPendingPermissionsForSession(sessionId);
     try {
       const agent = await this.client.ensureStarted();
-      await agent.notify(methods.agent.session.cancel, {
-        sessionId: this.#sessionId,
-      });
+      await agent.notify(methods.agent.session.cancel, { sessionId });
     } catch (error) {
       this.outputChannel.warn(`[chat-view] cancel failed: ${describe(error)}`);
     }

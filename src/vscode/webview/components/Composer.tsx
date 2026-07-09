@@ -7,6 +7,7 @@ import {
   FileText,
   Image as ImageIcon,
   Paperclip,
+  Square,
   ToggleLeft,
   ToggleRight,
   X,
@@ -14,6 +15,7 @@ import {
 import type { SessionConfigOption } from "@agentclientprotocol/sdk";
 import {
   addDataAttachment,
+  cancelPrompt,
   clearEditDraft,
   isActiveSessionLoading,
   openAttachment,
@@ -428,22 +430,40 @@ export default function Composer() {
           >
             <Paperclip size={14} />
           </button>
-          <button
-            type="button"
-            class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-button text-button-foreground transition-colors hover:bg-button-hover disabled:opacity-40"
-            disabled={
-              loading() ||
-              (!text().trim() && sessionState().attachments.length === 0)
+          <Show
+            when={
+              sessionState().busy &&
+              !text().trim() &&
+              sessionState().attachments.length === 0
             }
-            title={
-              sessionState().busy
-                ? "Queue (runs after the current turn)"
-                : "Send"
+            fallback={
+              <button
+                type="button"
+                class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-button text-button-foreground transition-colors hover:bg-button-hover disabled:opacity-40"
+                disabled={
+                  loading() ||
+                  (!text().trim() && sessionState().attachments.length === 0)
+                }
+                title={
+                  sessionState().busy
+                    ? "Queue (runs after the current turn)"
+                    : "Send"
+                }
+                onClick={submit}
+              >
+                <ArrowUp size={15} />
+              </button>
             }
-            onClick={submit}
           >
-            <ArrowUp size={15} />
-          </button>
+            <button
+              type="button"
+              class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-button text-button-foreground transition-colors hover:bg-button-hover"
+              title="Stop the current turn"
+              onClick={() => cancelPrompt()}
+            >
+              <Square size={11} fill="currentColor" />
+            </button>
+          </Show>
         </div>
       </div>
     </div>

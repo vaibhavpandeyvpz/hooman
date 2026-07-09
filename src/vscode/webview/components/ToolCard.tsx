@@ -1,9 +1,18 @@
-import { createEffect, createMemo, createSignal, For, Show } from "solid-js";
+import {
+  createEffect,
+  createMemo,
+  createSignal,
+  For,
+  Match,
+  Show,
+  Switch,
+} from "solid-js";
 import {
   Check,
   ChevronDown,
   ChevronRight,
   Circle,
+  CircleSlash,
   LoaderCircle,
   Wrench,
   X,
@@ -17,30 +26,25 @@ const STATUS_CLASS: Record<ToolCallStatusUi, string> = {
   in_progress: "text-accent",
   completed: "text-success",
   failed: "text-error",
+  cancelled: "text-muted",
 };
 
 function StatusIcon(props: { status: ToolCallStatusUi }) {
   return (
-    <Show
-      when={props.status === "in_progress"}
-      fallback={
-        <Show
-          when={props.status === "completed"}
-          fallback={
-            <Show
-              when={props.status === "failed"}
-              fallback={<Circle size={13} />}
-            >
-              <X size={13} />
-            </Show>
-          }
-        >
-          <Check size={13} />
-        </Show>
-      }
-    >
-      <LoaderCircle size={13} class="animate-spin-slow" />
-    </Show>
+    <Switch fallback={<Circle size={13} />}>
+      <Match when={props.status === "in_progress"}>
+        <LoaderCircle size={13} class="animate-spin-slow" />
+      </Match>
+      <Match when={props.status === "completed"}>
+        <Check size={13} />
+      </Match>
+      <Match when={props.status === "failed"}>
+        <X size={13} />
+      </Match>
+      <Match when={props.status === "cancelled"}>
+        <CircleSlash size={13} />
+      </Match>
+    </Switch>
   );
 }
 
