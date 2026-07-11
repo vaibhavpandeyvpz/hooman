@@ -1,6 +1,6 @@
 {
   "name": "hoomanjs-vscode",
-  "displayName": "Hooman",
+  "displayName": "Hooman for VS Code",
   "description": "Full-stack local-first AI agent for VS Code — chat, plan, design, MCP, and BYOK. Powered by Hooman ACP.",
   "version": "1.55.0",
   "private": true,
