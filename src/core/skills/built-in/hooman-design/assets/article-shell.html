@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Article</title>
+    <style>
+      :root {
+        --bg: #f7f5f2;
+        --ink: #1a1a1a;
+        --muted: #5c5c5c;
+        --accent: #0f6b6b;
+        --border: #e8e4dc;
+        --font-display: Georgia, "Times New Roman", ui-serif, serif;
+        --font-body: system-ui, -apple-system, sans-serif;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: var(--font-body);
+        background: var(--bg);
+        color: var(--ink);
+        line-height: 1.6;
+      }
+      article {
+        max-width: 40rem;
+        margin: 0 auto;
+        padding: 3rem 1.5rem 4rem;
+      }
+      .meta {
+        font-size: 0.8125rem;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin-bottom: 0.75rem;
+      }
+      h1 {
+        font-family: var(--font-display);
+        font-size: clamp(2rem, 4vw, 2.75rem);
+        line-height: 1.15;
+        letter-spacing: -0.02em;
+        margin: 0 0 1rem;
+      }
+      .lede {
+        font-size: 1.125rem;
+        color: var(--muted);
+        margin: 0 0 2rem;
+      }
+      h2 {
+        font-family: var(--font-display);
+        font-size: 1.35rem;
+        margin: 2rem 0 0.75rem;
+      }
+      p {
+        margin: 0 0 1rem;
+      }
+      a {
+        color: var(--accent);
+      }
+      hr {
+        border: 0;
+        border-top: 1px solid var(--border);
+        margin: 2rem 0;
+      }
+    </style>
+  </head>
+  <body>
+    <article>
+      <p class="meta">Essay · 6 min</p>
+      <h1>Title that earns the scroll</h1>
+      <p class="lede">One-sentence thesis. No lorem.</p>
+      <p>
+        Body copy with real sentences. Prefer short paragraphs and concrete
+        nouns.
+      </p>
+      <h2>Section</h2>
+      <p>
+        Continue the argument. Link out
+        <a href="#">sparingly</a>.
+      </p>
+      <hr />
+      <p class="meta">Author name · Date</p>
+    </article>
+  </body>
+</html>

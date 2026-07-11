@@ -13,6 +13,8 @@ export default defineConfig({
   integrations: [
     starlight({
       title: "Hooman",
+      description:
+        "Full-stack open-source agentic ecosystem — local-first CLI, VS Code, ACP, daemon, and Design mode. BYOK, custom endpoints, llama.cpp & MLX.",
       logo: {
         src: "./src/assets/logo.svg",
         replacesTitle: false,
@@ -52,6 +54,16 @@ export default defineConfig({
             { label: "CLI", slug: "guides/cli" },
             { label: "VS Code", slug: "guides/vscode" },
             { label: "ACP", slug: "guides/acp" },
+            {
+              label: "Modes",
+              items: [
+                { label: "Overview", slug: "guides/modes" },
+                { label: "Agent", slug: "guides/modes/agent" },
+                { label: "Plan", slug: "guides/modes/plan" },
+                { label: "Ask", slug: "guides/modes/ask" },
+                { label: "Design", slug: "guides/modes/design" },
+              ],
+            },
             {
               label: "Configuration",
               items: [
@@ -115,6 +127,10 @@ export default defineConfig({
                     {
                       label: "Brave",
                       slug: "guides/configuration/search/brave",
+                    },
+                    {
+                      label: "DuckDuckGo",
+                      slug: "guides/configuration/search/duckduckgo",
                     },
                     { label: "Exa", slug: "guides/configuration/search/exa" },
                     {

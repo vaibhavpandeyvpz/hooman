@@ -13,20 +13,20 @@ hooman acp
 
 - ACP session metadata is indexed in the active project's `sessions/acp/sessions.jsonl` — an append-only JSONL patch log (last record wins per session id, deletes are tombstones) holding only protocol-facing metadata: `cwd`, title, client user id, session-scoped MCP servers, vscode flag, yolo/mode/model.
 - Conversation history is **not** duplicated there: the Strands `SessionManager` snapshot (`sessions/<session-id>/snapshot_latest.json`) is the single source of truth for messages, restored during `agent.initialize()` on `session/load`/`resume` and saved on every turn.
-- ACP loads MCP servers passed on `session/new` and `session/load`, in addition to Hooman's local `mcp.json` — unless the client identifies as the official VS Code extension via `_meta["hoomanjs/vscode"]: true`, in which case the local MCP config (home + repo overlays) loads as usual on top of any session-scoped servers.
+- ACP loads MCP servers passed on `session/new` and `session/load`, and skips the local `mcp.json` by default — unless the ACP process was started by the official VS Code extension with `HOOMAN_X_VSCODE=true`, in which case the local MCP config (home + repo overlays) loads as usual on top of any session-scoped servers.
 - `session/new` and `session/load` support `_meta.userId`.
-- Session mode is advertised as a session config option (`mode`: `agent`, `plan`, or `ask`) — see [Session mode](/hooman/guides/cli/#session-mode). Yolo is a separate boolean option, not a mode value.
+- Session mode is advertised as a session config option (`mode`: `agent`, `plan`, `ask`, or `design`) — see [Session mode](/hooman/guides/cli/#session-mode). Yolo is a separate boolean option, not a mode value.
 
 ## Session config options
 
 Hooman advertises ACP [session config options](https://agentclientprotocol.com/protocol/v1/session-config-options) so clients can render pickers without hardcoding Hooman-specific UI:
 
-| Id       | Name             | Category       | Type      | Purpose                                                             |
-| -------- | ---------------- | -------------- | --------- | ------------------------------------------------------------------- |
-| `model`  | Model            | `model`        | `select`  | Active named LLM from `config.json`.                                |
-| `effort` | Reasoning Effort | `model_config` | `select`  | `off` / `minimal` / `low` / `medium` / `high` for the active model. |
-| `mode`   | Session Mode     | `mode`         | `select`  | `agent` / `plan` / `ask` — tool surface and permission behaviour.   |
-| `yolo`   | Yolo             | `model_config` | `boolean` | Auto-approve tool calls without prompting (default `false`).        |
+| Id       | Name             | Category       | Type      | Purpose                                                                      |
+| -------- | ---------------- | -------------- | --------- | ---------------------------------------------------------------------------- |
+| `model`  | Model            | `model`        | `select`  | Active named LLM from `config.json`.                                         |
+| `effort` | Reasoning Effort | `model_config` | `select`  | `off` / `minimal` / `low` / `medium` / `high` for the active model.          |
+| `mode`   | Session Mode     | `mode`         | `select`  | `agent` / `plan` / `ask` / `design` — tool surface and permission behaviour. |
+| `yolo`   | Yolo             | `model_config` | `boolean` | Auto-approve tool calls without prompting (default `false`).                 |
 
 `effort` and `yolo` use the `model_config` category so clients group them with secondary model controls alongside the primary Model selector, not as peers of Session Mode. Clients should keep any legacy `modes` field in sync with `mode` during the protocol transition.
 
@@ -61,7 +61,7 @@ Hooman also exposes a small set of `_hoomanjs/*` extensions used by the VS Code 
 
 | Method                     | Purpose                                                                                                   |
 | -------------------------- | --------------------------------------------------------------------------------------------------------- |
-| `_hoomanjs/rewind_session` | Cursor-style revert: splice agent history back to a prior user turn's in-memory checkpoint (`messageId`). |
+| `_hoomanjs/rewind_session` | Turn revert: splice agent history back to a prior user turn's in-memory checkpoint (`messageId`).         |
 | `_hoomanjs/model_download` | Notification stream for local llama.cpp weight downloads (progress for the download strip in VS Code).    |
 | `_hoomanjs/stop_shell_job` | Stop a [background shell job](/hooman/guides/tools/#shell) by `jobId` (used by the VS Code Stop control). |
 

@@ -8,9 +8,13 @@ import {
 } from "./bundled.js";
 import { getEnvironmentPromptContext } from "./environment.js";
 import {
+  candidateDesignSystemPaths,
+  readDesignSystemInstructions,
+} from "./runtime/design.js";
+import {
   candidateAgentInstructionPaths,
   readAgentInstructions,
-} from "./runtime.js";
+} from "./runtime/agents.js";
 
 const { compile } = handlebars;
 
@@ -30,7 +34,7 @@ const STATIC_PROMPT_FILES = [
   "skills.md",
   "subagents.md",
   "mcp-discovery.md",
-  "planning.md",
+  "switch-mode.md",
 ] as const;
 
 const HARNESS_PROMPT_FILES = [
@@ -137,6 +141,10 @@ export class System {
     return readAgentInstructions();
   }
 
+  private readCwdDesignSystemInstructions(): string {
+    return readDesignSystemInstructions();
+  }
+
   /** Stats prompt sources so we only re-read disk + recompile Handlebars when files change. */
   private computeSourceFingerprint(): string {
     const parts: string[] = [];
@@ -161,6 +169,9 @@ export class System {
     }
     for (const path of candidateAgentInstructionPaths()) {
       pushPath(`agents-md:${path}`, path);
+    }
+    for (const path of candidateDesignSystemPaths()) {
+      pushPath(`design-md:${path}`, path);
     }
     return parts.join("|");
   }
@@ -212,7 +223,8 @@ export class System {
     }
     const renderedTemplate = this.compiledTemplate(this.context()).trim();
     const agentsInstructions = this.readCwdAgentsInstructions();
-    this.data = [renderedTemplate, agentsInstructions]
+    const designSystemInstructions = this.readCwdDesignSystemInstructions();
+    this.data = [renderedTemplate, agentsInstructions, designSystemInstructions]
       .filter((block) => block.length > 0)
       .join(SECTION_BREAK);
   }

@@ -1,3 +1,4 @@
+import { setTimeout as sleep } from "node:timers/promises";
 import {
   DefaultModelRetryStrategy,
   ExponentialBackoff,
@@ -203,9 +204,22 @@ export class HoomanDefaultModelRetryStrategy extends DefaultModelRetryStrategy {
     if (!decision.retry) {
       return;
     }
+    // Honour turn cancellation during the backoff wait — otherwise Stop /
+    // Esc appear dead for the full countdown (often 15–30s+).
     await sleepWithProgress(event, decision);
+    if (event.agent.cancelSignal.aborted) {
+      return;
+    }
     event.retry = true;
   }
+}
+
+function isAbortError(error: unknown): boolean {
+  return error instanceof Error && error.name === "AbortError";
+}
+
+function abortError(): DOMException {
+  return new DOMException("The operation was aborted.", "AbortError");
 }
 
 async function sleepWithProgress(
@@ -219,9 +233,29 @@ async function sleepWithProgress(
   const detail = errorDetail(event.error);
   const sessionValue = event.agent.appState.get("sessionId");
   const sessionId = typeof sessionValue === "string" ? sessionValue : undefined;
+  const signal = event.agent.cancelSignal;
+
+  const clearCountdown = (): void => {
+    // `retrying` clears the countdown card in both CLI and VS Code UIs.
+    emitModelRetryProgress({
+      status: "retrying",
+      sessionId,
+      attempt: event.attemptCount,
+      nextAttempt,
+      maxAttempts,
+      waitMs,
+      retryInSeconds: 0,
+      error,
+      errorDetail: detail,
+    });
+  };
 
   let remainingMs = waitMs;
   while (remainingMs > 0) {
+    if (signal.aborted) {
+      clearCountdown();
+      throw abortError();
+    }
     const retryInSeconds = Math.max(1, Math.ceil(remainingMs / 1000));
     emitModelRetryProgress({
       status: "countdown",
@@ -235,19 +269,22 @@ async function sleepWithProgress(
       errorDetail: detail,
     });
     const slice = Math.min(remainingMs, 1000);
-    await new Promise((resolve) => globalThis.setTimeout(resolve, slice));
+    try {
+      await sleep(slice, undefined, { signal });
+    } catch (err) {
+      if (isAbortError(err) || signal.aborted) {
+        clearCountdown();
+        throw abortError();
+      }
+      throw err;
+    }
     remainingMs -= slice;
   }
 
-  emitModelRetryProgress({
-    status: "retrying",
-    sessionId,
-    attempt: event.attemptCount,
-    nextAttempt,
-    maxAttempts,
-    waitMs,
-    retryInSeconds: 0,
-    error,
-    errorDetail: detail,
-  });
+  if (signal.aborted) {
+    clearCountdown();
+    throw abortError();
+  }
+
+  clearCountdown();
 }

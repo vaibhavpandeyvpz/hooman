@@ -50,7 +50,13 @@ jobs:
         with:
           node-version: "24"
 
-      - name: Install dependencies
+      # Root deps first: extension onboarding imports src/core (zod, etc.),
+      # and Node/esbuild resolve those from the repo root, not src/vscode.
+      - name: Install root dependencies
+        working-directory: .
+        run: npm ci
+
+      - name: Install VS Code extension dependencies
         run: npm ci
 
       - name: Typecheck

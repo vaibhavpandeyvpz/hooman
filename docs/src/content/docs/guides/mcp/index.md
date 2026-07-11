@@ -128,7 +128,7 @@ Override the default per server:
 hooman mcp auth <server>                # OAuth login for a configured MCP server
 hooman mcp logout <server>              # Clear stored OAuth credentials
 hooman mcp logout <server> --scope all  # Scope: all, client, tokens, discovery
-hooman mcp auth-status                  # Show MCP server auth status
+hooman mcp status                       # Show MCP server auth status
 ```
 
 ## Lazy MCP tool discovery

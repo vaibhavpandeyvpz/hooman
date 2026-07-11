@@ -5,6 +5,12 @@ description: The ~/.hooman layout and config.json shape, with a guide to every c
 
 Hooman stores its data under `~/.hooman/` (or `$HOOMAN_HOME` when set). The main file is `config.json`: a single top-level `name`, plus one section per configuration area, each covered in its own page below.
 
+## First-run setup
+
+When `~/.hooman/config.json` is missing, the CLI (`hooman` / `hooman setup`) and the VS Code chat panel open a shared **setup** wizard: pick an inference provider, validate it (list models), pick a search provider, validate it (test search), then write `config.json` with that provider's available chat LLMs. Prefer setup for creating the file; use `hooman config`, chat `/config`, or VS Code **Open Settings…** afterward for advanced edits (MCP, skills, prompts, tools, extra models).
+
+Choosing [llama.cpp](/hooman/guides/configuration/models/llama-cpp/) or [MLX](/hooman/guides/configuration/models/mlx/) in setup needs no API key. Opening Settings before setup still scaffolds an in-memory default with both local providers — that path is separate from the wizard.
+
 ## `name`
 
 A non-empty display name for the agent. It's the only required scalar field — everything else has a default.
@@ -125,16 +131,17 @@ There's no schema — it's plain Markdown/text, appended verbatim (after light H
 
 ### How it's used
 
-`instructions.md` is rendered into every system prompt, right after the bundled harness prompt sections ([`prompts.behaviour`/`communication`/`execution`/`guardrails`](/hooman/guides/configuration/prompts/)) and before any `AGENTS.md` content:
+`instructions.md` is rendered into every system prompt, right after the bundled harness prompt sections ([`prompts.behaviour`/`communication`/`execution`/`guardrails`](/hooman/guides/configuration/prompts/)) and before any `AGENTS.md` / `DESIGN.md` content:
 
 1. Bundled static tool prompts (varies with enabled tools)
 2. Bundled harness prompts (whichever `prompts.*` sections are enabled)
 3. `instructions.md`, if present
 4. `AGENTS.md` content, discovered from the git root down to the current directory
+5. `DESIGN.md` content (same walk as `AGENTS.md`, 32k budget, deepest wins) — brand rules for [design mode](/hooman/guides/modes/design/)
 
 Each section is separated by a `---` break. Because the whole template (including your `instructions.md` content) is compiled with Handlebars, you can reference the same variables the built-in prompts use — `{{name}}`, `{{llm.model}}`, `{{environment.datetime}}`, `{{compaction.ratio}}` — and they're substituted with live values from the current session.
 
-`instructions.md` is a single home-level file: unlike `config.json`/`mcp.json`, it has **no** project-local `.hooman/` overlay. For project-specific guidance that should only apply inside a given repo, use an `AGENTS.md` file at the relevant directory instead — see [repo-local overlays](#repo-local-runtime-overlays) below for how the two mechanisms differ.
+`instructions.md` is a single home-level file: unlike `config.json`/`mcp.json`, it has **no** project-local `.hooman/` overlay. For project-specific guidance that should only apply inside a given repo, use an `AGENTS.md` (and optionally `DESIGN.md`) file at the relevant directory instead — see [repo-local overlays](#repo-local-runtime-overlays) below for how the two mechanisms differ.
 
 Any change to `instructions.md` requires restarting the running agent/session before it takes effect; `/config` does this automatically when you exit the editor.
 
@@ -161,12 +168,12 @@ For MCP config (`mcp.json`):
 Notes:
 
 - Runtime overlays apply to `chat`, `exec`, `daemon`, and `acp` bootstraps.
-- `hooman config` prints only the merged effective `config.json` shape, with credential-like values redacted.
-- The `/config` UI and `hooman mcp auth/logout/auth-status` still target home config (`~/.hooman/*`) directly.
+- `hooman config` opens the interactive configuration UI; `hooman config --debug` dumps the merged effective `config.json` shape with credential-like values redacted.
+- The config UI (`hooman config` / chat `/config`) and `hooman mcp auth/logout/status` still target home config (`~/.hooman/*`) directly.
 - Keep secrets in home config unless you explicitly want project-scoped credentials.
 - Skills are additive rather than deep-merged: built-ins, `~/.hooman/skills`, and `<cwd>/.hooman/skills` (when present) are all loaded — see [Skills](/hooman/guides/skills/).
 
-`AGENTS.md` instruction files are a separate mechanism and are **not** nested under `.hooman/`: they are discovered as bare `AGENTS.md` files walked from the git root down to the current directory.
+`AGENTS.md` and `DESIGN.md` instruction files are a separate mechanism and are **not** nested under `.hooman/`: they are discovered as bare files walked from the git root down to the current directory (`DESIGN.md` feeds [design mode](/hooman/guides/modes/design/)).
 
 ## Ripgrep bootstrap
 

@@ -1,0 +1,34 @@
+/* Direction tokens — fintech-clear */
+:root {
+  --bg: #f8fafc;
+  --surface: #ffffff;
+  --surface-2: #f1f5f9;
+  --ink: #0f172a;
+  --muted: #64748b;
+  --border: #e2e8f0;
+  --accent: #0f766e;
+  --accent-soft: #e6f4f2;
+  --accent-ink: #ffffff;
+  --danger: #b91c1c;
+  --success: #15803d;
+  --warning: #b45309;
+  --focus: #0f766e;
+  --overlay: rgb(15 23 42 / 0.45);
+  --shadow: 0 1px 2px rgb(15 23 42 / 0.06);
+  --font-display: system-ui, -apple-system, sans-serif;
+  --font-body: system-ui, -apple-system, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  --radius: 0.375rem;
+  --leading-body: 1.55;
+  --tracking-caps: 0.06em;
+  --text-body: 1rem;
+  --text-small: 0.875rem;
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-7: 3rem;
+  --space-8: 4rem;
+}

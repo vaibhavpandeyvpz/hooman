@@ -16,6 +16,11 @@ import {
 import type { HoomanAcpClient } from "./acp-client";
 import { confirmModal } from "./confirm";
 import type { EditTracker } from "./edit-tracker";
+import {
+  completeOnboardingConfig,
+  shouldSkipOnboarding,
+  validateOnboardingProvider,
+} from "./onboarding-config";
 import type { PermissionPrompts } from "./permissions";
 import { isPlanFilePath, openFile, openPlanFile } from "./plan-file";
 import type { HoomanStatusBar } from "./status-bar";
@@ -394,7 +399,6 @@ export class HoomanChatViewProvider
         sessionId,
         cwd: state.cwd,
         mcpServers: [],
-        _meta: { "hoomanjs/vscode": true },
       });
       state.loaded = true;
       state.configOptions = response.configOptions ?? [];
@@ -825,6 +829,10 @@ export class HoomanChatViewProvider
           tabs: this.#tabInfo(),
           activeSessionId: this.#sessionId,
         });
+        if (!shouldSkipOnboarding()) {
+          // Stay on `/` until the user finishes onboarding — do not seed ACP.
+          return;
+        }
         if (this.#sessionId) {
           this.#postActiveState();
           this.#postEdits();
@@ -970,6 +978,97 @@ export class HoomanChatViewProvider
       case "forkChat":
         await this.#forkChat();
         return;
+      case "validateOnboardingProvider":
+        await this.#validateOnboardingProvider(message);
+        return;
+      case "completeOnboarding":
+        await this.#completeOnboarding(message);
+        return;
+    }
+  }
+
+  async #validateOnboardingProvider(
+    message: Extract<InboundMessage, { type: "validateOnboardingProvider" }>,
+  ): Promise<void> {
+    try {
+      this.#post({
+        type: "onboardingStatus",
+        phase: "listing",
+        message: "Validating credentials…",
+      });
+      await validateOnboardingProvider({
+        provider: message.provider,
+        providerOptions: message.providerOptions,
+        azureDeployment: message.azureDeployment,
+      });
+      this.#post({ type: "onboardingStatus", phase: "validated" });
+    } catch (error) {
+      const text = describe(error);
+      this.outputChannel.warn(
+        `[chat-view] onboarding credential check failed: ${text}`,
+      );
+      this.#post({
+        type: "onboardingStatus",
+        phase: "error",
+        message: `Could not validate credentials: ${text}`,
+      });
+    }
+  }
+
+  async #completeOnboarding(
+    message: Extract<InboundMessage, { type: "completeOnboarding" }>,
+  ): Promise<void> {
+    try {
+      this.#post({
+        type: "onboardingStatus",
+        phase: "listing",
+        message: "Validating credentials…",
+      });
+      await completeOnboardingConfig(
+        {
+          provider: message.provider,
+          providerOptions: message.providerOptions,
+          azureDeployment: message.azureDeployment,
+          searchProvider: message.searchProvider,
+          searchOptions: message.searchOptions,
+        },
+        (phase, statusMessage) => {
+          this.#post({
+            type: "onboardingStatus",
+            phase,
+            message: statusMessage,
+          });
+        },
+      );
+      this.#post({ type: "onboardingStatus", phase: "done" });
+      this.#post({ type: "route", route: "/chat" });
+      if (this.#sessionId) {
+        this.#postActiveState();
+        this.#postEdits();
+        const state = this.#sessions.get(this.#sessionId);
+        if (state && !state.loaded) {
+          if (this.#isPendingSessionId(this.#sessionId)) {
+            void this.#ensureSession(this.#sessionId).catch((error) => {
+              this.outputChannel.warn(
+                `[chat-view] eager session creation failed: ${describe(error)}`,
+              );
+            });
+          } else {
+            void this.#ensureSessionLoaded(this.#sessionId);
+          }
+        }
+      } else {
+        this.newChat();
+      }
+      this.#flushPendingComposerAttachments();
+    } catch (error) {
+      const text = describe(error);
+      this.outputChannel.warn(`[chat-view] onboarding failed: ${text}`);
+      this.#post({
+        type: "onboardingStatus",
+        phase: "error",
+        message: text,
+      });
     }
   }
 
@@ -1046,7 +1145,6 @@ export class HoomanChatViewProvider
       const response = await agent.request(methods.agent.session.fork, {
         sessionId: sourceSessionId,
         cwd: sourceCwd,
-        _meta: { "hoomanjs/vscode": true },
       });
       await this.openSession(response.sessionId, sourceCwd, forkTitle);
       await this.#postSessions();
@@ -1060,7 +1158,7 @@ export class HoomanChatViewProvider
   }
 
   /**
-   * Cursor-style revert: undo the file changes made from the turn whose
+   * Turn revert: undo the file changes made from the turn whose
    * user message carries `messageId` onward (via
    * {@link EditTracker.revertToTurn}), and ask the agent to splice its
    * conversation history back to the same point. Per the ACP MessageId RFD,
@@ -1135,7 +1233,6 @@ export class HoomanChatViewProvider
     const response = await agent.request(methods.agent.session.new, {
       cwd: placeholderState.cwd,
       mcpServers: [],
-      _meta: { "hoomanjs/vscode": true },
     });
 
     this.#adoptSession(
@@ -2373,6 +2470,7 @@ export class HoomanChatViewProvider
       vscode.Uri.joinPath(mediaRoot, "chat.js"),
     );
     const nonce = randomUUID().replaceAll("-", "");
+    const route = shouldSkipOnboarding() ? "/chat" : "/";
     return /* html */ `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -2383,7 +2481,7 @@ export class HoomanChatViewProvider
   <link href="${styleUri}" rel="stylesheet">
   <title>Hooman</title>
 </head>
-<body data-route="/chat">
+<body data-route="${route}">
   <div id="root"></div>
   <script nonce="${nonce}" src="${scriptUri}"></script>
 </body>

@@ -1,9 +1,9 @@
 ---
 title: Models
-description: The shared provider/LLM config shape, reasoning options, and metadata for cost/context tracking.
+description: BYOK providers, local llama.cpp & MLX, and custom inference endpoints — shared config shape for the full stack.
 ---
 
-Hooman's `config.json` splits model configuration into two arrays: reusable `providers` (credentials and provider-level options) and `llms` (named model presets that reference a provider by name). Each provider page below covers its `options` fields, reasoning support, and one or two example configs.
+Hooman is **bring-your-own-model** by design: local llama.cpp / MLX with no API keys, hosted providers with your keys, or OpenAI-compatible `baseUrl`s pointed at private gateways and vLLM clusters. First-run [setup](/hooman/guides/cli/#hooman-setup) (CLI and VS Code) validates one provider and writes its available chat LLMs into `config.json`. That file splits model configuration into reusable `providers` (credentials and provider-level options) and `llms` (named model presets that reference a provider by name). Each provider page below covers its `options` fields, reasoning support, and example configs.
 
 ## Supported providers
 
@@ -89,7 +89,7 @@ Each LLM entry may carry an optional `metadata` block used to display context-wi
 
 - `metadata.name` is required when the block is present, and is the identifier looked up in the [models.dev](https://models.dev) catalog (cached under `~/.hooman/cache/`, refreshed at most once daily). When `metadata` is omitted, `options.model` is used as the lookup name.
 - `metadata.context` (window size in tokens) and `metadata.costs` (USD per million tokens; `"cache/m"` prices cached-input reads) override whatever models.dev resolves.
-- `metadata.modality` can explicitly override the model's advertised input modalities (`text`, `image`, `pdf`, `audio`, `video`). At runtime, attachments and ACP image/audio/blob blocks are converted using the resolved modality (config override → models.dev → text-only). Unsupported modalities become diagnostics/text instead of forcing media blocks the model cannot accept. Editable from `/config` and the VS Code settings editor.
+- `metadata.modality` can explicitly override the model's advertised input modalities (`text`, `image`, `pdf`, `audio`, `video`). At runtime, attachments, ACP image/audio/blob blocks, and filesystem `read_file` / `read_multiple_files` with `binary: true` all use the resolved modality (config override → models.dev → text-only). Unsupported modalities become diagnostics/text (or base64 for unknown binaries) instead of forcing media blocks the model cannot accept. Editable from `/config` and the VS Code settings editor.
 - If neither the config nor models.dev yields the data, context usage and cost are simply not shown.
 - For local providers (llama.cpp, MLX, Ollama), catalog costs are never applied — local inference is free, and the catalog prices the hosted API serving the same model id — so only the context window resolves and no `$` cost is displayed. An explicit `metadata.costs` block still wins if you set one.
 

@@ -14,6 +14,7 @@ import {
 
 const SearchProviderSchema = z.enum([
   "brave",
+  "duckduckgo",
   "exa",
   "firecrawl",
   "litellm",
@@ -47,6 +48,7 @@ const SearchPartialSchema = z.object({
   enabled: z.boolean().optional(),
   provider: SearchProviderSchema.optional(),
   brave: z.object({ apiKey: z.string().min(1).optional() }).optional(),
+  duckduckgo: z.object({}).optional(),
   exa: z.object({ apiKey: z.string().min(1).optional() }).optional(),
   firecrawl: z.object({ apiKey: z.string().min(1).optional() }).optional(),
   litellm: z
@@ -119,9 +121,10 @@ const ConfigSchema = z
     providers: input.providers,
     llms: input.llms,
     search: {
-      enabled: input.search?.enabled ?? false,
-      provider: input.search?.provider ?? "brave",
+      enabled: input.search?.enabled ?? true,
+      provider: input.search?.provider ?? "duckduckgo",
       brave: { apiKey: input.search?.brave?.apiKey },
+      duckduckgo: {},
       exa: { apiKey: input.search?.exa?.apiKey },
       firecrawl: { apiKey: input.search?.firecrawl?.apiKey },
       litellm: {
@@ -262,9 +265,10 @@ const defaultConfigData = (): ConfigData => ({
     },
   ],
   search: {
-    enabled: false,
-    provider: "brave",
+    enabled: true,
+    provider: "duckduckgo",
     brave: { apiKey: undefined },
+    duckduckgo: {},
     exa: { apiKey: undefined },
     firecrawl: { apiKey: undefined },
     litellm: { baseURL: undefined, apiKey: undefined, tool: undefined },

@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Newsletter</title>
+    <style>
+      :root {
+        --bg: #0f172a;
+        --ink: #f8fafc;
+        --muted: #94a3b8;
+        --accent: #0f766e;
+        --surface: #1e293b;
+        --border: #334155;
+        --danger: #f87171;
+        --font-body: system-ui, -apple-system, sans-serif;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        font-family: var(--font-body);
+        background: var(--bg);
+        color: var(--ink);
+        padding: 1.5rem;
+      }
+      .card {
+        width: min(100%, 28rem);
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 0.375rem;
+        padding: 1.75rem;
+      }
+      h1 {
+        margin: 0 0 0.35rem;
+        font-size: 1.35rem;
+        letter-spacing: -0.02em;
+      }
+      .lede {
+        margin: 0 0 1.25rem;
+        color: var(--muted);
+        font-size: 0.9375rem;
+        line-height: 1.5;
+      }
+      form {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+      }
+      label {
+        display: flex;
+        flex-direction: column;
+        gap: 0.35rem;
+        font-size: 0.8125rem;
+        font-weight: 600;
+      }
+      .inline {
+        display: flex;
+        gap: 0.5rem;
+        align-items: stretch;
+      }
+      .inline input {
+        flex: 1;
+        min-width: 0;
+      }
+      input {
+        font: inherit;
+        padding: 0.65rem 0.75rem;
+        border: 1px solid var(--border);
+        border-radius: 0.375rem;
+        background: #0f172a;
+        color: var(--ink);
+      }
+      input:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 1px;
+      }
+      .btn {
+        padding: 0.65rem 1rem;
+        border: 0;
+        border-radius: 0.375rem;
+        background: var(--accent);
+        color: #fff;
+        font: inherit;
+        font-weight: 600;
+        cursor: pointer;
+        white-space: nowrap;
+      }
+      .btn:focus-visible {
+        outline: 2px solid var(--ink);
+        outline-offset: 2px;
+      }
+      .error {
+        color: var(--danger);
+        font-size: 0.8125rem;
+        font-weight: 400;
+      }
+      .fine {
+        margin: 0.75rem 0 0;
+        font-size: 0.75rem;
+        color: var(--muted);
+        line-height: 1.4;
+      }
+      [hidden] {
+        display: none !important;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="card">
+      <h1>Stay in the loop</h1>
+      <p class="lede">
+        Product updates only — say how often and what you send. No fake urgency.
+      </p>
+      <form>
+        <label>
+          Email
+          <div class="inline">
+            <input
+              type="email"
+              name="email"
+              autocomplete="email"
+              placeholder="you@company.com"
+              required
+              aria-describedby="email-error"
+            />
+            <button class="btn" type="submit">Subscribe</button>
+          </div>
+          <span class="error" id="email-error" hidden
+            >Enter a valid email.</span
+          >
+        </label>
+      </form>
+      <p class="fine">Unsubscribe anytime. Replace with real privacy link.</p>
+    </main>
+  </body>
+</html>

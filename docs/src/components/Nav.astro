@@ -8,10 +8,12 @@ const base = import.meta.env.BASE_URL;
       <img src={`${base}/favicon.svg`} alt="Hooman" class="h-7 w-7" />
       <span class="text-lg font-bold tracking-tight text-white">Hooman</span>
     </a>
-    <div class="hidden items-center gap-8 text-sm font-medium text-slate-300 md:flex">
+    <div class="hidden items-center gap-7 text-sm font-medium text-slate-300 lg:flex">
       <a href="#surfaces" class="transition hover:text-white">Surfaces</a>
+      <a href="#design" class="transition hover:text-white">Design</a>
       <a href="#features" class="transition hover:text-white">Features</a>
-      <a href="#providers" class="transition hover:text-white">Providers</a>
+      <a href="#providers" class="transition hover:text-white">Models</a>
+      <a href="#enterprise" class="transition hover:text-white">Enterprise</a>
       <a href="#automation" class="transition hover:text-white">Automation</a>
       <a href={`${base}/getting-started/`} class="transition hover:text-white">Docs</a>
     </div>
@@ -20,7 +22,7 @@ const base = import.meta.env.BASE_URL;
         href="https://github.com/vaibhavpandeyvpz/hooman"
         target="_blank"
         rel="noreferrer"
-        class="hidden items-center gap-2 rounded-full border border-white/10 px-4 py-2 text-sm font-medium text-slate-200 transition hover:border-white/25 hover:bg-white/5 sm:flex"
+        class="hidden items-center gap-2 rounded-md border border-white/10 px-4 py-2 text-sm font-medium text-slate-200 transition hover:border-white/25 hover:bg-white/5 sm:flex"
       >
         <span class="h-4 w-4 text-slate-200">
           <svg role="img" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="currentColor"
@@ -32,9 +34,9 @@ const base = import.meta.env.BASE_URL;
       </a>
       <a
         href={`${base}/getting-started/`}
-        class="rounded-full bg-gradient-to-r from-hooman-cyan via-hooman-blue to-hooman-indigo px-4 py-2 text-sm font-semibold text-ink-950 shadow-lg shadow-blue-500/20 transition hover:opacity-90"
+        class="rounded-md bg-gradient-to-r from-hooman-cyan via-hooman-blue to-hooman-indigo px-4 py-2 text-sm font-semibold text-ink-950 shadow-lg shadow-blue-500/20 transition hover:opacity-90"
       >
-        Get Started
+        Get started
       </a>
     </div>
   </nav>

@@ -2,6 +2,8 @@
 
 You are in **agent** mode and can make use of any available tool to fulfil your current task.
 
+For HTML design artifacts (prototypes, decks, Figma-derived layouts), prefer **`switch_mode`** to **design** so craft rules, `DESIGN.md`, and the `hooman-design` skill apply.
+
 {{#if (lookup state 'hooman.lastPlanFile')}}
 **Most recent plan file:** {{lookup state 'hooman.lastPlanFile'}}
 

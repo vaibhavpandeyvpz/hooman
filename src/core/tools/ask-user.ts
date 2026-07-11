@@ -5,7 +5,7 @@ import { z } from "zod";
 export const ASK_USER_TOOL_NAME = "ask_user";
 
 const MIN_OPTIONS = 2;
-const MAX_OPTIONS = 5;
+const MAX_OPTIONS = 6;
 
 /**
  * Optional per-agent ask-user backend.
@@ -20,7 +20,7 @@ const MAX_OPTIONS = 5;
 export type AskUserRequest = {
   /** The question to present to the user. */
   question: string;
-  /** 2–5 answer choices, in display order. */
+  /** 2–6 answer choices, in display order. */
   options: string[];
   /** Tool-use id of the `ask_user` call, for frontends that key UI on it. */
   toolUseId?: string;

@@ -1,5 +1,7 @@
 export { createAskUserTools } from "./ask-user.js";
-export { createPlanTools } from "./plan.js";
+export { createDesignPreviewTools } from "./preview.js";
+export { createExportTools } from "./export.js";
+export { createSwitchModeTool } from "./switch-mode.js";
 export {
   createFilesystemTools,
   clearReadTimeAgentInstructionState,

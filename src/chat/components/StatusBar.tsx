@@ -76,6 +76,9 @@ function sessionModeValueColor(mode: string): string | undefined {
   if (normalized === "ask") {
     return theme.primary;
   }
+  if (normalized === "design") {
+    return theme.secondary;
+  }
   return undefined;
 }
 

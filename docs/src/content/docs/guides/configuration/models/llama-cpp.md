@@ -3,7 +3,7 @@ title: llama.cpp
 description: Configure the llama-cpp provider — in-process GGUF inference via node-llama-cpp, with models fetched from the Hugging Face Hub.
 ---
 
-Runtime provider id: `llama-cpp`. Runs GGUF models in-process via [node-llama-cpp](https://node-llama-cpp.withcat.ai/) — no separate server required. This is Hooman's default out-of-the-box provider: a fresh `config.json` ships two llama.cpp model presets — `unsloth/gemma-4-E2B-it-GGUF:Q4_K_M` and `unsloth/Qwen3.5-2B-MTP-GGUF:Q4_K_M` — so the first turn works with no API keys or local runtime setup (plus two presets — Gemma 4 E2B and Qwen3.5 2B — on the Apple-Silicon-only [MLX provider](/hooman/guides/configuration/models/mlx/)). Weights are downloaded from the Hugging Face Hub (via `@huggingface/hub`) into `~/.hooman/cache/huggingface` on first use and reused afterwards.
+Runtime provider id: `llama-cpp`. Runs GGUF models in-process via [node-llama-cpp](https://node-llama-cpp.withcat.ai/) — no separate server required. This is the default choice in first-run [setup](/hooman/guides/cli/#hooman-setup): selecting llama.cpp writes two model presets — `unsloth/gemma-4-E2B-it-GGUF:Q4_K_M` and `unsloth/Qwen3.5-2B-MTP-GGUF:Q4_K_M` — so you can start with no API keys. On Apple Silicon you can pick [MLX](/hooman/guides/configuration/models/mlx/) in the same wizard instead. Weights are downloaded from the Hugging Face Hub (via `@huggingface/hub`) into `~/.hooman/cache/huggingface` on first use and reused afterwards.
 
 ## Provider options
 
@@ -32,7 +32,7 @@ Providing `reasoning` enables thinking on reasoning-capable GGUFs: the chat temp
 
 ## Example configs
 
-Bundled presets from the Hub (matches the out-of-the-box `config.json`):
+Bundled presets from the Hub (matches a llama.cpp first-run setup):
 
 ```json
 {

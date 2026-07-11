@@ -42,6 +42,10 @@ const pngUrl = !svg ? (pngModules[`../assets/logos/${slug}.png`] ?? null) : null
   .brand-icon svg {
     width: 100%;
     height: 100%;
+    color: inherit;
+  }
+
+  .brand-icon svg:not([fill="none"]) {
     fill: currentColor;
   }
 

@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Dashboard</title>
+    <style>
+      :root {
+        --bg: #0d1117;
+        --elevated: #161b22;
+        --ink: #e6edf3;
+        --muted: #8b949e;
+        --accent: #58a6ff;
+        --border: #30363d;
+        --font-body: system-ui, -apple-system, sans-serif;
+        --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: var(--font-body);
+        background: var(--bg);
+        color: var(--ink);
+        font-size: 14px;
+        line-height: 1.5;
+      }
+      .shell {
+        display: grid;
+        grid-template-columns: 14rem 1fr;
+        min-height: 100vh;
+      }
+      nav {
+        border-right: 1px solid var(--border);
+        padding: 1rem;
+      }
+      main {
+        padding: 1.25rem;
+      }
+      h1 {
+        font-size: 1.25rem;
+        margin: 0 0 1rem;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+        gap: 0.75rem;
+      }
+      .card {
+        background: var(--elevated);
+        border: 1px solid var(--border);
+        border-radius: 0.375rem;
+        padding: 1rem;
+      }
+      .metric {
+        font-family: var(--font-mono);
+        font-size: 1.5rem;
+        letter-spacing: -0.02em;
+      }
+      .label {
+        color: var(--muted);
+        font-size: 0.75rem;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <nav aria-label="Primary">
+        <!-- Nav items -->
+      </nav>
+      <main>
+        <h1>Overview</h1>
+        <div class="grid">
+          <section class="card">
+            <div class="label">Metric</div>
+            <div class="metric">—</div>
+          </section>
+          <section class="card">
+            <div class="label">Metric</div>
+            <div class="metric">—</div>
+          </section>
+        </div>
+        <!-- Include empty / loading / error treatments for data panels -->
+      </main>
+    </div>
+  </body>
+</html>

@@ -3,8 +3,12 @@ import {
   HookOrder,
   type Plugin,
 } from "@strands-agents/sdk";
+import { builtInSkillsPath } from "../skills/plugin.js";
 import { assertPathNotGitignored } from "../utils/gitignore.js";
-import { normalizeUserPath } from "../utils/normalize-user-path.js";
+import {
+  isResolvedPathInsideDir,
+  normalizeUserPath,
+} from "../utils/normalize-user-path.js";
 
 type ToolInput = Record<string, unknown>;
 
@@ -18,12 +22,15 @@ const GUARDED_TOOLS = new Set([
   "read_multiple_files",
   "write_file",
   "edit_file",
+  "fetch",
   "create_directory",
   "list_directory",
   "directory_tree",
   "move_file",
   "get_file_info",
 ]);
+
+const READ_TOOLS = new Set(["read_file", "read_multiple_files"]);
 
 function isStringArray(value: unknown): value is string[] {
   return (
@@ -38,6 +45,10 @@ function extractPathProbes(toolName: string, input: ToolInput): PathProbe[] {
     case "edit_file":
     case "get_file_info":
       return typeof input.path === "string" ? [{ path: input.path }] : [];
+    case "fetch":
+      return typeof input.save_as === "string" && input.save_as.trim()
+        ? [{ path: input.save_as }]
+        : [];
     case "read_multiple_files":
       return isStringArray(input.paths)
         ? input.paths.map((item) => ({ path: item }))
@@ -81,9 +92,19 @@ export function createGitignoreGuardPlugin(): Plugin {
           }
 
           const probes = extractPathProbes(toolName, input as ToolInput);
+          const bundledSkills = builtInSkillsPath();
           for (const probe of probes) {
+            const resolved = normalizeUserPath(probe.path);
+            // Bundled skill assets often live under dist/ (gitignored). Reads
+            // of that tree must work so design/coding skills can load shells.
+            if (
+              READ_TOOLS.has(toolName) &&
+              isResolvedPathInsideDir(resolved, bundledSkills)
+            ) {
+              continue;
+            }
             try {
-              await assertPathNotGitignored(normalizeUserPath(probe.path), {
+              await assertPathNotGitignored(resolved, {
                 isDirectory: probe.isDirectory,
               });
             } catch (error) {

@@ -44,9 +44,9 @@ export type SessionIndexEntry = {
   /** Session-scoped MCP servers requested by the ACP client. */
   mcpServers?: NamedMcpTransport[];
   /**
-   * Session created by the official VS Code extension
-   * (`_meta["hoomanjs/vscode"]: true`); loads the local MCP config
-   * (home + repo overlays) in addition to session-scoped servers.
+   * Session created while the ACP process was started by the official VS Code
+   * extension (`HOOMAN_X_VSCODE=true`); loads the local MCP config (home +
+   * repo overlays) in addition to session-scoped servers.
    */
   vscode?: boolean;
   /**

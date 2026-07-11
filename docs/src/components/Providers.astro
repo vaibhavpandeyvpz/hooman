@@ -16,21 +16,50 @@ const providers = [
   { slug: "moonshot", label: "Moonshot" },
   { slug: "minimax", label: "MiniMax" },
 ];
+
+const searchProviders = [
+  { slug: "duckduckgo", label: "DuckDuckGo" },
+  { slug: "brave", label: "Brave" },
+  { slug: "exa", label: "Exa" },
+  { slug: "firecrawl", label: "Firecrawl" },
+  { slug: "litellm", label: "LiteLLM" },
+  { slug: "serper", label: "Serper" },
+  { slug: "tavily", label: "Tavily" },
+];
 ---
 
 <section id="providers" class="relative py-24 sm:py-32">
   <div class="mx-auto max-w-6xl px-6">
     <div class="reveal-target mx-auto max-w-2xl text-center">
-      <h2 class="text-3xl font-bold tracking-tight text-white sm:text-4xl">Bring your own model</h2>
+      <h2 class="text-3xl font-bold tracking-tight text-white sm:text-4xl">Your models. Your endpoints.</h2>
       <p class="mt-4 text-lg text-slate-400">
-        Thirteen providers wired in today, normalized behind a single reasoning-aware configuration shape.
+        Thirteen providers today — including local llama.cpp and MLX — plus OpenAI-compatible base URLs for private inference.
+        One reasoning-aware config shape across the stack.
       </p>
     </div>
 
     <div class="reveal-target mt-16 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
       {
         providers.map((p) => (
-          <div class="flex flex-col items-center gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-6 text-slate-300 transition hover:border-white/20 hover:text-white">
+          <div class="flex flex-col items-center gap-3 rounded-lg border border-white/10 bg-white/[0.03] px-4 py-6 text-slate-300 transition hover:border-white/20 hover:text-white">
+            <BrandIcon slug={p.slug} class="h-7 w-7" />
+            <span class="text-xs font-medium">{p.label}</span>
+          </div>
+        ))
+      }
+    </div>
+
+    <div class="reveal-target mx-auto mt-24 max-w-2xl text-center">
+      <h2 class="text-3xl font-bold tracking-tight text-white sm:text-4xl">Search when you need it.</h2>
+      <p class="mt-4 text-lg text-slate-400">
+        Built-in <code class="text-slate-300">web_search</code> with DuckDuckGo on by default — no API key — plus Brave, Exa, Firecrawl, LiteLLM, Serper, and Tavily when you want a paid or proxied provider.
+      </p>
+    </div>
+
+    <div class="reveal-target mt-16 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-7">
+      {
+        searchProviders.map((p) => (
+          <div class="flex flex-col items-center gap-3 rounded-lg border border-white/10 bg-white/[0.03] px-4 py-6 text-slate-300 transition hover:border-white/20 hover:text-white">
             <BrandIcon slug={p.slug} class="h-7 w-7" />
             <span class="text-xs font-medium">{p.label}</span>
           </div>

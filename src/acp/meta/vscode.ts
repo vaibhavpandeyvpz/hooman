@@ -1,15 +1,15 @@
+/** Set on the ACP child process by the official Hooman VS Code extension. */
+export const HOOMAN_X_VSCODE_ENV = "HOOMAN_X_VSCODE";
+
 /**
- * Whether the ACP client identified itself as the official Hooman VS Code
- * extension via `_meta["hoomanjs/vscode"]: true` on `session/new`,
- * `session/load`, or `session/resume`.
+ * Whether this ACP process was started by the official Hooman VS Code
+ * extension (`HOOMAN_X_VSCODE=true` in the process environment).
  *
- * Sessions from the official extension load the local MCP config (home
- * `~/.hooman/mcp.json` plus repo-local `.hooman/mcp.json` overlays) as usual,
- * on top of any session-scoped servers, instead of the default ACP isolation.
+ * When true, sessions load the local MCP config (home `~/.hooman/mcp.json`
+ * plus repo-local `.hooman/mcp.json` overlays) as usual, on top of any
+ * session-scoped servers, instead of the default ACP isolation.
  */
-export function extractAcpVscodeFlag(_meta: unknown): boolean {
-  if (!_meta || typeof _meta !== "object") {
-    return false;
-  }
-  return (_meta as Record<string, unknown>)["hoomanjs/vscode"] === true;
+export function isAcpVscodeHost(env: NodeJS.ProcessEnv = process.env): boolean {
+  const raw = env[HOOMAN_X_VSCODE_ENV]?.trim().toLowerCase();
+  return raw === "1" || raw === "true" || raw === "yes";
 }

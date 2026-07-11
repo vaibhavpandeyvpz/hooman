@@ -11,7 +11,8 @@ Hooman is a local-first AI agent toolkit written in TypeScript. It ships as a No
 
 Main surfaces:
 
-- `hooman` / `hooman chat` — interactive Ink chat UI
+- `hooman` / `hooman chat` — interactive Ink chat UI (no args runs setup when `~/.hooman/config.json` is missing)
+- `hooman setup` — first-run wizard (inference + search → write `config.json`)
 - `hooman exec "prompt"` — one-shot agent run
 - `hooman daemon` — channel-driven MCP automation
 - `hooman acp` — Agent Client Protocol server over stdio
@@ -28,11 +29,12 @@ Main surfaces:
   - `shell/` — shell tool and background job manager (`shell` / `shell_output` / `shell_stop`)
   - `models/` — provider integrations
   - `mcp/` — MCP config, transports, OAuth, tool bridging
-  - `modes/` — `agent`, `ask`, and `plan` mode logic
+  - `modes/` — `agent`, `ask`, `plan`, and `design` mode logic
   - `prompts/` — system and static prompt assets
-  - `skills/` — skills registry and built-in skills
-  - `sessions/`, `state/`, `memory/`, `approvals/`, `utils/` — session/state helpers and supporting infrastructure
+  - `skills/` — skills registry and built-in skills (includes `hooman-design`)
+  - `sessions/`, `state/`, `memory/`, `approvals/`, `utils/` — session/state helpers and supporting infrastructure (includes `onboarding-config.ts`, `models-prefetch.ts`, `search-probe.ts`, design delivery export under `utils/export-design.ts` / `export-figma.ts` / `export-sketch.ts`)
 - `src/chat/` — Ink chat UI
+- `src/onboarding/` — Ink first-run setup UI (`hooman setup`)
 - `src/configure/` — configuration UI used from chat
 - `src/exec/` — exec-mode approvals and questions
 - `src/daemon/` — daemon command support
@@ -146,7 +148,7 @@ npm run build
 
 ## UI design guidelines
 
-Apply these consistently across CLI Ink (`src/chat/`, `src/configure/`), the VS Code extension webview and host chrome (`src/vscode/`), and docs brand tokens (`docs/`).
+Apply these consistently across CLI Ink (`src/chat/`, `src/onboarding/`, `src/configure/`), the VS Code extension webview and host chrome (`src/vscode/`), and docs brand tokens (`docs/`).
 
 Brand palette (do not invent ad-hoc accents):
 
@@ -182,6 +184,8 @@ Component rules:
 
 - `AGENTS.md` files are discovered by walking from the git root down to the current working directory. Keep this file concise and high-signal because it is prompt input.
 - Project-local runtime overlays live under `.hooman/` (`config.json`, `mcp.json`) and are separate from `AGENTS.md` discovery.
+- `DESIGN.md` is discovered the same way as `AGENTS.md` (git root → cwd walk) and injected into the system prompt when present.
+- Design mode writes HTML artifacts under `.hooman/design/<slug>/` (entry `index.html`). Strict workflow: intake (brand/fresh/reference) → clarify → shell (5 best-fit + other) → theme (`DESIGN.md` or 5 directions + other) → build → `preview_design` (keep open) → visual QA (`export_design` images + `launch_subagent` `kind: "design-review"`) → human review → ask export format → delivery export → then `stop_design_preview`. Delivery formats: `pdf` / `images-to-pdf` / PowerPoint-ready `pptx` / Figma-ready `figma` / `figma-deck` / Sketch-ready `sketch` (see `hooman-design` skill for export details). Needs `npx playwright install chromium` once. Preview is auto-approved under `.hooman/design/`; read review shots with `binary: true`.
 - `src/vscode/` is intentionally isolated from the root build/typecheck; do not assume root commands validate it.
 - `stdout` discipline matters:
   - `acp` uses stdout for JSON-RPC

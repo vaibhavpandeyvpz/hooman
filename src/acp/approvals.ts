@@ -5,8 +5,11 @@ import {
   methods,
   RequestError,
 } from "@agentclientprotocol/sdk";
-import { HoomanToolApprovalIntervention } from "../core/approvals/intervention.js";
-import { EXIT_PLAN_MODE_TOOL } from "../core/state/tool-approvals.js";
+import {
+  HoomanToolApprovalIntervention,
+  modeDisplayName,
+} from "../core/approvals/intervention.js";
+import { SWITCH_MODE_TOOL } from "../core/state/tool-approvals.js";
 import { inferToolKind, toolDisplayTitle } from "./utils/tool-kind.js";
 import { toolCallLocationsFromInput } from "./utils/tool-locations.js";
 
@@ -91,19 +94,21 @@ export function createAcpToolApprovalIntervention(
       const cancellationSignal = event.agent.cancelSignal;
       const cancelledReason = `Tool "${request.toolName}" permission request was cancelled.`;
 
-      // `exit_plan_mode` is a proposal to leave planning: framed as start/keep
-      // and declining leaves the session in plan mode to keep refining.
-      const isPlanExit = request.toolName === EXIT_PLAN_MODE_TOOL;
-      const options: PermissionOption[] = isPlanExit
+      const isSwitchMode = request.toolName === SWITCH_MODE_TOOL;
+      const currentName = modeDisplayName(request.currentMode ?? "agent");
+      const targetName = modeDisplayName(request.targetMode ?? "agent");
+
+      // switch_mode: no "always allow". Other tools keep the usual trio.
+      const options: PermissionOption[] = isSwitchMode
         ? [
             {
               kind: "allow_once" as const,
-              name: "Start implementing",
+              name: `Switch to ${targetName} mode`,
               optionId: "allow_once",
             },
             {
               kind: "reject_once" as const,
-              name: "Keep planning",
+              name: `Stay in ${currentName} mode`,
               optionId: "reject_once",
             },
           ]
@@ -160,11 +165,10 @@ export function createAcpToolApprovalIntervention(
       if (response.outcome.optionId === "allow_always") {
         return "always";
       }
-      if (isPlanExit) {
+      if (isSwitchMode) {
         return {
           decision: "reject",
-          reason:
-            "User chose to keep refining the plan. Stay in plan mode and update the plan file based on their feedback.",
+          reason: `User chose to stay in ${currentName} mode.`,
         };
       }
       return "reject";

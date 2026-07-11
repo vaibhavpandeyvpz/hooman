@@ -19,6 +19,7 @@ const PATH_TOOL_KEYS: Record<string, readonly string[]> = {
   read_multiple_files: ["paths"],
   write_file: ["path"],
   edit_file: ["path"],
+  fetch: ["save_as"],
   create_directory: ["path"],
   move_file: ["source", "destination"],
   get_file_info: ["path"],

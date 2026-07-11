@@ -11,13 +11,13 @@ Enabled via `tools.filesystem.enabled` (also gates `grep` below).
 
 ### Gitignored paths
 
-Filesystem tools refuse paths that match the repository's `.gitignore` (and nested ignore rules). Denied calls return an access-denied error rather than reading or writing the ignored path. Directory listings and trees also skip ignored entries. This guard applies to `read_file`, `read_multiple_files`, `write_file`, `edit_file`, `create_directory`, `list_directory`, `directory_tree`, `move_file`, and `get_file_info`.
+Filesystem tools refuse paths that match the repository's `.gitignore` (and nested ignore rules). Denied calls return an access-denied error rather than reading or writing the ignored path. Directory listings and trees also skip ignored entries. This guard applies to `read_file`, `read_multiple_files`, `write_file`, `edit_file`, `create_directory`, `list_directory`, `directory_tree`, `move_file`, `get_file_info`, and `fetch` when `save_as` is set.
 
 `grep` still follows ripgrep's own ignore behaviour; pass `no_ignore: true` when you intentionally need to search ignored files.
 
 ### `read_file`
 
-Read a file. Defaults to UTF-8 text with optional line offset/limit. `binary: true` returns images/videos/documents as multimodal content blocks forwarded to the active provider natively where supported (Bedrock for all; Anthropic/Google for images + docs; OpenAI/Ollama for images), or base64 for other binary files.
+Read a file. Defaults to UTF-8 text with optional line offset/limit. `binary: true` returns images/videos/documents as multimodal content blocks when the active model's resolved [input modality](/hooman/guides/configuration/models/#llm-metadata) allows them (otherwise a text diagnostic / base64 fallback); providers forward supported kinds natively where available (Bedrock for all; Anthropic/Google for images + docs; OpenAI/Ollama for images).
 
 | Argument | Type    | Required | Description                        |
 | -------- | ------- | -------- | ---------------------------------- |
@@ -28,13 +28,14 @@ Read a file. Defaults to UTF-8 text with optional line offset/limit. `binary: tr
 
 ### `read_multiple_files`
 
-Read multiple text files in one call. Each file is returned independently with success or error details.
+Read multiple files in one call. Defaults to UTF-8 text; pass `binary: true` for multimodal/binary reads (same rules as `read_file`).
 
-| Argument | Type     | Required | Description                               |
-| -------- | -------- | -------- | ----------------------------------------- |
-| `paths`  | string[] | yes      | List of file paths to read.               |
-| `offset` | integer  | no       | 1-indexed starting line, applied to each. |
-| `limit`  | integer  | no       | Maximum lines per file.                   |
+| Argument | Type     | Required | Description                                           |
+| -------- | -------- | -------- | ----------------------------------------------------- |
+| `paths`  | string[] | yes      | List of file paths to read.                           |
+| `offset` | integer  | no       | 1-indexed starting line, applied to each (text mode). |
+| `limit`  | integer  | no       | Maximum lines per file (text mode).                   |
+| `binary` | boolean  | no       | Read each path as binary/multimodal content.          |
 
 ### `write_file`
 
@@ -168,16 +169,18 @@ Stop a background job by `job_id` (process-group kill). Approval-exempt, same mo
 
 ## `fetch`
 
-Enabled via `tools.fetch.enabled`. Fetches a remote `http(s)://` URL and returns response content; HTML is simplified to Markdown by default (via Readability + Turndown) to save context. Localhost/loopback and private-network addresses are rejected.
+Enabled via `tools.fetch.enabled`. Fetches a remote `http(s)://` URL and returns response content; HTML is simplified to Markdown by default (via Readability + Turndown) to save context. Set `save_as` to stream the response body to a local path instead (parent directories are created as needed; partial files are removed on failure). Localhost/loopback and private-network addresses are rejected. In [plan mode](/hooman/guides/cli/#session-mode), `fetch` with `save_as` is rejected automatically (downloads are not allowed while planning).
 
-| Argument      | Type                     | Required | Description                                              |
-| ------------- | ------------------------ | -------- | -------------------------------------------------------- |
-| `url`         | string (URL)             | yes      | Remote HTTP(S) URL to fetch.                             |
-| `max_length`  | integer                  | no       | Maximum characters to return (default 5000).             |
-| `start_index` | integer                  | no       | Start returning content from this character index.       |
-| `raw`         | boolean                  | no       | Return raw response text instead of simplified Markdown. |
-| `timeout`     | number (seconds)         | no       | Request timeout (default 30s).                           |
-| `headers`     | `Record<string, string>` | no       | Extra HTTP headers.                                      |
+| Argument      | Type                     | Required | Description                                                                       |
+| ------------- | ------------------------ | -------- | --------------------------------------------------------------------------------- |
+| `url`         | string (URL)             | yes      | Remote HTTP(S) URL to fetch.                                                      |
+| `save_as`     | string                   | no       | Local path to write the response body to (skips returning content text).          |
+| `max_length`  | integer                  | no       | Maximum characters to return (default 5000; ignored when `save_as` is set).       |
+| `start_index` | integer                  | no       | Start returning content from this character index (ignored with `save_as`).       |
+| `raw`         | boolean                  | no       | Return raw response text instead of simplified Markdown (ignored with `save_as`). |
+| `timeout`     | number (seconds)         | no       | Request timeout (default 30s, or 60s when `save_as` is set).                      |
+| `max_bytes`   | integer                  | no       | Maximum bytes to write when `save_as` is set (default 100 MiB, max 1 GiB).        |
+| `headers`     | `Record<string, string>` | no       | Extra HTTP headers.                                                               |
 
 ## `web_search`
 
@@ -263,7 +266,7 @@ Always registered (no config toggle) — approval-exempt, since the question its
 | Argument   | Type     | Required | Description                                         |
 | ---------- | -------- | -------- | --------------------------------------------------- |
 | `question` | string   | yes      | The question to present to the user.                |
-| `options`  | string[] | yes      | 2–5 short answer choices, recommended option first. |
+| `options`  | string[] | yes      | 2–6 short answer choices, recommended option first. |
 
 ### Across surfaces
 
@@ -279,17 +282,27 @@ Dismissals return `dismissed` rather than an error.
 
 For a `daemon` turn whose originating channel supports `hooman/channel/ask`, Hooman sends the server the question, the answer options, and the channel's origin metadata (`source`, `user`, `session`, `thread`); the server surfaces it to the human on the channel and posts back either a chosen option, a free-text answer, or a dismissal. If the relay is unsupported, fails, or times out, the tool falls back to `no_user_available` so the agent proceeds on its own judgement.
 
-## `enter_plan_mode` / `exit_plan_mode`
+## Design preview and export
 
-Always registered, but only usable in `agent`/`plan` [session mode](/hooman/guides/cli/#session-mode). `enter_plan_mode` opens (or reopens) a single Markdown plan document for the session to fill in with findings, trade-offs, and intended steps; `exit_plan_mode` is a proposal to leave planning that the user approves or declines.
+Only available in [design mode](/hooman/guides/modes/design/) (hidden in agent / ask / plan). Use `switch_mode` with `mode: "design"` first. Full workflow, shells, and `DESIGN.md` are covered in that guide.
 
-| Tool              | Argument | Type    | Required | Description                                                                  |
-| ----------------- | -------- | ------- | -------- | ---------------------------------------------------------------------------- |
-| `enter_plan_mode` | `reason` | string  | no       | Why planning is being entered.                                               |
-| `enter_plan_mode` | `fresh`  | boolean | no       | Start a brand-new plan document instead of reopening the session's last one. |
-| `exit_plan_mode`  | —        | —       | —        | No arguments.                                                                |
+| Tool                  | Approval                                        | Description                                                                                                                                                                                                                                                                                                                                 |
+| --------------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `preview_design`      | Implicit when `path` is under `.hooman/design/` | `path` — start a hot-reload localhost preview on a random port and open it (VS Code Simple Browser or system browser).                                                                                                                                                                                                                      |
+| `stop_design_preview` | Implicit when `path` is under `.hooman/design/` | `path` — stop the preview server for the same HTML entry passed to `preview_design`.                                                                                                                                                                                                                                                        |
+| `export_design`       | Implicit when `path` is under `.hooman/design/` | `path`, `format` (`images` / `pdf` / `images-to-pdf` / `pptx` / `figma` / `figma-deck` / `sketch`), optional `out` / `title` — `images` → `reviews/`; delivery formats default to `<html-dir>/export/` (PDF, PowerPoint-ready `.pptx`, Figma-ready `.fig` / `.deck`, Sketch-ready `.sketch`). Needs `npx playwright install chromium` once. |
 
-`enter_plan_mode` is approval-exempt; `exit_plan_mode` flows through the approval prompt below (with the drafted plan shown as a preview) so the user can approve or decline before implementation starts. Leaving plan mode always requires that explicit approval — Yolo / auto-approve never skips it.
+## `switch_mode`
+
+Always registered and available in every [session mode](/hooman/guides/modes/). Proposes switching the session to `agent`, `ask`, `plan`, or `design`. Switching to `plan` opens (or reopens) a Markdown plan document for findings, trade-offs, and intended steps; leaving `plan` for another mode is a proposal to start implementing that the user approves or declines.
+
+| Argument | Type    | Required | Description                                                                                            |
+| -------- | ------- | -------- | ------------------------------------------------------------------------------------------------------ |
+| `mode`   | string  | yes      | Target mode: `agent`, `ask`, `plan`, or `design`.                                                      |
+| `reason` | string  | no       | Why the mode switch is being requested.                                                                |
+| `fresh`  | boolean | no       | When switching to `plan`: start a brand-new plan document instead of reopening the session's last one. |
+
+`switch_mode` **always** requires explicit approval — it is never auto-approved by Yolo, never on the always-allow list, and never offered as "Always allow". Leaving plan shows the drafted plan as a preview so the user can approve (start implementing) or decline (keep planning).
 
 ### Plan file shape
 
@@ -319,25 +332,28 @@ See [Configuration → Tools](/hooman/guides/configuration/tools/) to flip the t
 
 ## Subagents
 
-Enabled via `tools.subagents.enabled`. Built-in, read-only, approval-exempt subagent tools that delegate a focused task to a specialized child agent with a narrower tool set (`read_file`, `read_multiple_files`, `list_directory`, `directory_tree`, `grep`, `get_file_info`, `fetch`, `web_search`, `think`).
+Enabled via `tools.subagents.enabled`. A single built-in, read-only, approval-exempt tool — `launch_subagent` — that delegates a focused task to a specialized child agent with a narrower tool set (`read_file`, `read_multiple_files`, `list_directory`, `directory_tree`, `grep`, `get_file_info`, `fetch`, `web_search`, `think`).
 
-| Tool                         | Description                                                  |
-| ---------------------------- | ------------------------------------------------------------ |
-| `subagent_research`          | Explores the workspace to gather information.                |
-| `subagent_review`            | Reviews code, changes, and plans for risks and regressions.  |
-| `subagent_test_investigator` | Investigates test/build behaviors and likely failure causes. |
+| `kind`            | Description                                                                   |
+| ----------------- | ----------------------------------------------------------------------------- |
+| `research`        | Explores the workspace to gather information.                                 |
+| `code-review`     | Reviews code, changes, and plans for risks and regressions.                   |
+| `quality-analyst` | Investigates test/build behaviors and likely failure causes.                  |
+| `design-review`   | Craft/brand/a11y + pixel review of HTML design artifacts (all session modes). |
 
-All three take a single argument:
+Arguments:
 
-| Argument | Type   | Required | Description                   |
-| -------- | ------ | -------- | ----------------------------- |
-| `query`  | string | yes      | The focused task to delegate. |
+| Argument | Type   | Required | Description                                                                              |
+| -------- | ------ | -------- | ---------------------------------------------------------------------------------------- |
+| `kind`   | string | yes      | Specialist to launch (`research`, `code-review`, `quality-analyst`, or `design-review`). |
+| `query`  | string | yes      | The focused task to delegate.                                                            |
+| `model`  | string | no       | Configured LLM name (`llms[].name`). When omitted, uses the current session model.       |
 
 ## Approvals
 
-By default, Hooman asks for approval before running tools that write, execute, or otherwise act with side effects (`shell`, `write_file`, `edit_file`, `create_directory`, `move_file`, `exit_plan_mode`, etc.). Read-only and internal tools — `think`, `update_todos`, `sleep`, `ask_user`, `search_tools`, `activate_tools`, `shell_output`, `shell_stop`, `get_current_time`, `convert_time`, `directory_tree`, `get_file_info`, `list_directory`, `grep`, `enter_plan_mode`, and the subagent tools — are always allowed and never prompt. Filesystem reads/writes under trusted app-home directories (`~/.hooman/projects/<uuid>/attachments`, and plan-mode writes under `~/.hooman/projects/<uuid>/plans`) are also implicitly allowed.
+By default, Hooman asks for approval before running tools that write, execute, or otherwise act with side effects (`shell`, `fetch`, `write_file`, `edit_file`, `create_directory`, `move_file`, `switch_mode`, design tools outside `.hooman/design/`, etc.). Read-only and internal tools — `think`, `update_todos`, `sleep`, `ask_user`, `search_tools`, `activate_tools`, `shell_output`, `shell_stop`, `get_current_time`, `convert_time`, `directory_tree`, `get_file_info`, `list_directory`, `grep`, and `launch_subagent` — are always allowed and never prompt. Filesystem reads under trusted app-home directories (`~/.hooman/projects/<uuid>/attachments`, plans) are implicitly allowed; plan-mode writes under `~/.hooman/projects/<uuid>/plans` are too. In design mode, `write_file` / `edit_file` under `.hooman/design/` are auto-allowed, as are `preview_design`, `stop_design_preview`, and `export_design` when `path` is under that tree.
 
-When a user approves with "always", Hooman persists a reusable rule to `~/.hooman/allowlist.json`: shell commands are broadened to a command-prefix pattern (e.g. `git log *`), filesystem tools are scoped to the exact resolved path, and argument-less tools are allowed tool-wide.
+When a user approves with "always", Hooman persists a reusable rule to `~/.hooman/allowlist.json`: shell commands are broadened to a command-prefix pattern (e.g. `git log *`), filesystem tools and `fetch` with `save_as` are scoped to the exact resolved path, and argument-less tools are allowed tool-wide. `switch_mode` never offers or persists "always allow".
 
 ### Surfaces
 
@@ -346,7 +362,7 @@ When a user approves with "always", Hooman persists a reusable rule to `~/.hooma
 - **ACP clients** (Zed, the VS Code extension) receive a `session/request_permission` request, rendered as a permission card.
 - **`daemon`** has no local human to prompt: it relays the approval request back to the originating MCP server if that server supports `hooman/channel/permission`; otherwise the tool call is denied. See [MCP Channels](/hooman/guides/mcp/channels/).
 
-`--yolo` on `exec`, `chat`, or `daemon` (and the ACP/VS Code **Yolo** boolean toggle) bypasses all of the above and auto-approves every tool call — use only in trusted environments and with prompts you trust. The one exception is `exit_plan_mode`, which always prompts. Tool approvals (including the on-disk allowlist) are session/machine-scoped and are **not** persisted in `config.json`.
+`--yolo` on `exec`, `chat`, or `daemon` (and the ACP/VS Code **Yolo** boolean toggle) bypasses all of the above and auto-approves every tool call — use only in trusted environments and with prompts you trust. The one exception is `switch_mode`, which always prompts. Tool approvals (including the on-disk allowlist) are session/machine-scoped and are **not** persisted in `config.json`.
 
 ### MCP channels
 

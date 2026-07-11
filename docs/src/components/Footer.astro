@@ -5,21 +5,23 @@ const year = new Date().getFullYear();
 
 <footer class="relative border-t border-white/10 py-16">
   <div class="mx-auto max-w-6xl px-6">
-    <div class="reveal-target flex flex-col items-center justify-center gap-4 rounded-2xl border border-white/10 bg-gradient-to-br from-white/[0.04] to-transparent p-10 text-center">
-      <h2 class="text-2xl font-bold text-white sm:text-3xl">Ready to hack on your own agent?</h2>
-      <p class="max-w-xl text-slate-400">Local-first, MIT licensed, and built to be read. Start in a terminal in under a minute.</p>
+    <div class="reveal-target flex flex-col items-center justify-center gap-4 rounded-lg border border-white/10 bg-gradient-to-br from-white/[0.04] to-transparent p-10 text-center">
+      <h2 class="text-2xl font-bold text-white sm:text-3xl">Own the agent stack.</h2>
+      <p class="max-w-xl text-slate-400">
+        Open source, local-first, BYOK — install once and run the same runtime from terminal to VS Code to channels.
+      </p>
       <div class="mt-2 flex flex-wrap items-center justify-center gap-4">
         <a
           href={`${base}/getting-started/`}
-          class="rounded-full bg-gradient-to-r from-hooman-cyan via-hooman-blue to-hooman-indigo px-6 py-3 text-sm font-semibold text-ink-950 shadow-lg shadow-blue-500/25 transition hover:opacity-90"
+          class="rounded-md bg-gradient-to-r from-hooman-cyan via-hooman-blue to-hooman-indigo px-6 py-3 text-sm font-semibold text-ink-950 shadow-lg shadow-blue-500/25 transition hover:opacity-90"
         >
-          Get Started
+          Get started
         </a>
         <a
           href="https://github.com/vaibhavpandeyvpz/hooman"
           target="_blank"
           rel="noreferrer"
-          class="rounded-full border border-white/15 px-6 py-3 text-sm font-semibold text-slate-200 transition hover:border-white/30 hover:bg-white/5"
+          class="rounded-md border border-white/15 px-6 py-3 text-sm font-semibold text-slate-200 transition hover:border-white/30 hover:bg-white/5"
         >
           Star on GitHub
         </a>
@@ -31,11 +33,13 @@ const year = new Date().getFullYear();
         <img src={`${base}/favicon.svg`} alt="Hooman" class="h-5 w-5" />
         <span>© {year} Vaibhav Pandey. MIT Licensed.</span>
       </div>
-      <div class="flex items-center gap-6">
+      <div class="flex flex-wrap items-center justify-center gap-x-6 gap-y-2">
         <a href="https://github.com/vaibhavpandeyvpz/hooman" target="_blank" rel="noreferrer" class="transition hover:text-white">GitHub</a>
         <a href="https://www.npmjs.com/package/hoomanjs" target="_blank" rel="noreferrer" class="transition hover:text-white">npm</a>
         <a href={`${base}/guides/vscode/`} class="transition hover:text-white">VS Code</a>
-        <a href="https://vaibhavpandey.com" target="_blank" rel="noreferrer" class="transition hover:text-white">Author</a>
+        <a href="https://vaibhavpandey.com/" target="_blank" rel="noreferrer" class="transition hover:text-white">vaibhavpandey.com</a>
+        <a href="https://github.com/vaibhavpandeyvpz" target="_blank" rel="noreferrer" class="transition hover:text-white">@vaibhavpandeyvpz</a>
+        <a href="https://www.linkedin.com/in/vaibhavpandeyvpz/" target="_blank" rel="noreferrer" class="transition hover:text-white">LinkedIn</a>
       </div>
     </div>
   </div>

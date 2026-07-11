@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Resume</title>
+    <style>
+      :root {
+        --bg: #f4f4f5;
+        --ink: #18181b;
+        --muted: #71717a;
+        --accent: #0f766e;
+        --surface: #ffffff;
+        --border: #e4e4e7;
+        --font-display:
+          "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+        --font-body: system-ui, -apple-system, sans-serif;
+        --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: var(--font-body);
+        background: var(--bg);
+        color: var(--ink);
+        line-height: 1.45;
+        padding: 1.5rem;
+      }
+      .page {
+        width: min(100%, 52rem);
+        margin: 0 auto;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 0.375rem;
+        padding: 2.5rem 2.25rem;
+        display: grid;
+        grid-template-columns: 11rem 1fr;
+        gap: 2rem;
+      }
+      @media (max-width: 640px) {
+        .page {
+          grid-template-columns: 1fr;
+          padding: 1.75rem 1.25rem;
+        }
+      }
+      .aside {
+        font-size: 0.8125rem;
+        color: var(--muted);
+      }
+      .name {
+        font-family: var(--font-display);
+        font-size: 1.75rem;
+        letter-spacing: -0.02em;
+        line-height: 1.15;
+        margin: 0 0 0.35rem;
+        color: var(--ink);
+      }
+      .role {
+        margin: 0 0 1.25rem;
+        font-size: 0.875rem;
+        color: var(--accent);
+        font-weight: 600;
+      }
+      .aside h2,
+      .main h2 {
+        margin: 0 0 0.5rem;
+        font-size: 0.6875rem;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--muted);
+        font-weight: 600;
+      }
+      .aside section + section {
+        margin-top: 1.25rem;
+      }
+      .aside ul {
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+      .aside li + li {
+        margin-top: 0.35rem;
+      }
+      .aside a {
+        color: var(--ink);
+        text-decoration: none;
+      }
+      .aside a:hover {
+        color: var(--accent);
+      }
+      .main section + section {
+        margin-top: 1.5rem;
+      }
+      .job {
+        margin-bottom: 1.1rem;
+      }
+      .job-head {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        gap: 0.35rem 1rem;
+        margin-bottom: 0.35rem;
+      }
+      .job-title {
+        margin: 0;
+        font-size: 0.9375rem;
+        font-weight: 600;
+      }
+      .job-meta {
+        margin: 0;
+        font-size: 0.8125rem;
+        color: var(--muted);
+        font-family: var(--font-mono);
+      }
+      .job p,
+      .job li {
+        margin: 0;
+        font-size: 0.875rem;
+        color: var(--ink);
+      }
+      .job ul {
+        margin: 0.35rem 0 0;
+        padding-left: 1.1rem;
+      }
+      .job li + li {
+        margin-top: 0.25rem;
+      }
+      @page {
+        size: A4;
+        margin: 14mm;
+      }
+      @media print {
+        body {
+          background: #fff;
+          padding: 0;
+        }
+        .page {
+          border: none;
+          border-radius: 0;
+          width: 100%;
+          max-width: none;
+          padding: 0;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <article class="page">
+      <aside class="aside">
+        <p class="name">Alex Rivera</p>
+        <p class="role">Product designer</p>
+        <section>
+          <h2>Contact</h2>
+          <ul>
+            <li><a href="mailto:alex@example.com">alex@example.com</a></li>
+            <li><a href="https://example.com">example.com</a></li>
+            <li>Lisbon · remote</li>
+          </ul>
+        </section>
+        <section>
+          <h2>Skills</h2>
+          <ul>
+            <li>Interface systems</li>
+            <li>Design ops</li>
+            <li>Prototyping</li>
+            <li>Research synthesis</li>
+          </ul>
+        </section>
+        <section>
+          <h2>Tools</h2>
+          <ul>
+            <li>Figma · HTML/CSS</li>
+            <li>Notion · Linear</li>
+          </ul>
+        </section>
+      </aside>
+      <div class="main">
+        <section>
+          <h2>Experience</h2>
+          <div class="job">
+            <div class="job-head">
+              <p class="job-title">Senior product designer · Northwind</p>
+              <p class="job-meta">2022 — present</p>
+            </div>
+            <ul>
+              <li>
+                Led the design system for billing and admin surfaces used by 40+
+                engineers.
+              </li>
+              <li>
+                Cut onboarding time 28% with a redesigned empty-state and
+                checklist flow.
+              </li>
+            </ul>
+          </div>
+          <div class="job">
+            <div class="job-head">
+              <p class="job-title">Product designer · Contoso Labs</p>
+              <p class="job-meta">2019 — 2022</p>
+            </div>
+            <ul>
+              <li>
+                Shipped the first mobile companion app; 4.7★ store rating in six
+                months.
+              </li>
+              <li>
+                Partnered with research on quarterly diary studies for power
+                users.
+              </li>
+            </ul>
+          </div>
+        </section>
+        <section>
+          <h2>Education</h2>
+          <div class="job">
+            <div class="job-head">
+              <p class="job-title">BFA Interaction design · RISD</p>
+              <p class="job-meta">2015 — 2019</p>
+            </div>
+            <p>Thesis on adaptive type systems for dense operational UIs.</p>
+          </div>
+        </section>
+      </div>
+    </article>
+  </body>
+</html>

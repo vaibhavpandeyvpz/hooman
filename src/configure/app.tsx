@@ -61,6 +61,7 @@ type ProviderEntry = NamedProviderConfig;
 
 const SEARCH_PROVIDER_LABELS: Record<SearchProvider, string> = {
   brave: "Brave",
+  duckduckgo: "DuckDuckGo",
   exa: "Exa",
   firecrawl: "Firecrawl",
   litellm: "LiteLLM",
@@ -217,7 +218,7 @@ const DEFAULT_MODEL_BY_PROVIDER: Record<
   [LlmProvider.Anthropic]: "claude-sonnet-4-6",
   [LlmProvider.Azure]: "gpt-5.4-mini",
   [LlmProvider.Bedrock]: "anthropic.claude-sonnet-4-6",
-  [LlmProvider.Google]: "gemini-2.5-flash",
+  [LlmProvider.Google]: "gemini-3.5-flash",
   [LlmProvider.Groq]: "openai/gpt-oss-20b",
   [LlmProvider.LlamaCpp]: "unsloth/gemma-4-E2B-it-GGUF:Q4_K_M",
   [LlmProvider.Minimax]: "MiniMax-M3",
@@ -469,7 +470,7 @@ const PROVIDER_FIELD_DEFINITIONS: Record<
       label: "Reasoning effort",
       kind: "reasoningEffort",
       placeholder: "medium",
-      note: 'Maps to Groq reasoning_effort ("minimal" -> "low"). Allowed: "minimal", "low", "medium", "high", or blank. Only reasoning models honor it.',
+      note: 'Qwen on Groq: any level → "default". GPT-OSS: minimal/low → "low", medium/high as-is. Blank leaves the model default.',
     },
   ],
   [LlmProvider.LlamaCpp]: [
@@ -3620,7 +3621,15 @@ export function ConfigureApp({
   const renderSearchProviderMenu = () => {
     const items: MenuItem[] = [
       ...(
-        ["brave", "exa", "firecrawl", "litellm", "serper", "tavily"] as const
+        [
+          "brave",
+          "duckduckgo",
+          "exa",
+          "firecrawl",
+          "litellm",
+          "serper",
+          "tavily",
+        ] as const
       ).map((provider) => ({
         label:
           provider === configData.search.provider
@@ -3660,9 +3669,12 @@ export function ConfigureApp({
   const renderSearchConfigMenu = () => {
     const activeProvider = configData.search.provider;
     const activeProviderLabel = SEARCH_PROVIDER_LABELS[activeProvider];
+    const isDuckDuckGo = activeProvider === "duckduckgo";
     const isLiteLLM = activeProvider === "litellm";
     const credentialLabel = isLiteLLM ? "Virtual key" : "API key";
-    const apiKey = configData.search[activeProvider].apiKey;
+    const apiKey = isDuckDuckGo
+      ? undefined
+      : configData.search[activeProvider].apiKey;
     const redacted = compactJson(
       maskSensitiveParamsForDisplay({ apiKey: apiKey ?? "" }),
     );
@@ -3732,6 +3744,41 @@ export function ConfigureApp({
           },
         ]
       : [];
+    const credentialItems: MenuItem[] = isDuckDuckGo
+      ? []
+      : [
+          {
+            label: `${activeProviderLabel} ${credentialLabel.toLowerCase()} • ${truncate(redacted, 44)}`,
+            value: () =>
+              promptValue({
+                title: `Update ${activeProviderLabel} ${credentialLabel.toLowerCase()}`,
+                label: credentialLabel,
+                initialValue: apiKey ?? "",
+                onSubmit: async (value) => {
+                  const nextApiKey = value.trim();
+                  if (!nextApiKey) {
+                    throw new Error(`${credentialLabel} is required.`);
+                  }
+                  if (
+                    updateConfig(
+                      {
+                        search: {
+                          ...config.search,
+                          [activeProvider]: {
+                            ...config.search[activeProvider],
+                            apiKey: nextApiKey,
+                          },
+                        },
+                      },
+                      `Updated ${activeProviderLabel} ${credentialLabel.toLowerCase()}.`,
+                    )
+                  ) {
+                    setPrompt(null);
+                  }
+                },
+              }),
+          },
+        ];
     const items: MenuItem[] = [
       {
         label: `Enabled • ${yesNo(configData.search.enabled)}`,
@@ -3756,37 +3803,7 @@ export function ConfigureApp({
         value: () => setScreen({ kind: "config-search-provider" }),
       },
       ...litellmItems,
-      {
-        label: `${activeProviderLabel} ${credentialLabel.toLowerCase()} • ${truncate(redacted, 44)}`,
-        value: () =>
-          promptValue({
-            title: `Update ${activeProviderLabel} ${credentialLabel.toLowerCase()}`,
-            label: credentialLabel,
-            initialValue: apiKey ?? "",
-            onSubmit: async (value) => {
-              const nextApiKey = value.trim();
-              if (!nextApiKey) {
-                throw new Error(`${credentialLabel} is required.`);
-              }
-              if (
-                updateConfig(
-                  {
-                    search: {
-                      ...config.search,
-                      [activeProvider]: {
-                        ...config.search[activeProvider],
-                        apiKey: nextApiKey,
-                      },
-                    },
-                  },
-                  `Updated ${activeProviderLabel} ${credentialLabel.toLowerCase()}.`,
-                )
-              ) {
-                setPrompt(null);
-              }
-            },
-          }),
-      },
+      ...credentialItems,
       {
         label: "Back",
         value: () => setScreen({ kind: "config-tools" }),

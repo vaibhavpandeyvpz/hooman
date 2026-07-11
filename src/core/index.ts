@@ -43,8 +43,8 @@ export type AcpMeta = {
   /**
    * Also load the local MCP config (`~/.hooman/mcp.json` plus repo-local
    * `.hooman/mcp.json` overlays) as usual, instead of only session-scoped
-   * servers. Enabled for trusted first-party clients (the official VS Code
-   * extension identifies itself via `_meta["hoomanjs/vscode"]`).
+   * servers. Enabled when the ACP process was started by the official VS Code
+   * extension (`HOOMAN_X_VSCODE=true`).
    */
   vscode?: boolean;
   /** Session working directory used to discover repo-local MCP overlays. */

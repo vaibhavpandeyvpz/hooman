@@ -4,13 +4,14 @@ import {
   type BeforeToolCallEvent,
 } from "@strands-agents/sdk";
 import fs from "node:fs/promises";
+import { getModeDefinition } from "../modes/definitions.js";
 import { getPlanState } from "../state/plan.js";
 import { getModeState } from "../state/session-mode.js";
 import {
-  EXIT_PLAN_MODE_TOOL,
   INTERNAL_ALWAYS_ALLOWED,
   isImplicitlyAllowed,
   planModeWriteEditRejectionMessage,
+  SWITCH_MODE_TOOL,
 } from "../state/tool-approvals.js";
 import { isYoloEnabled } from "../state/yolo.js";
 import { getAllowlist } from "./allowlist.js";
@@ -31,10 +32,14 @@ export type ToolApprovalRequest = {
   prompt: string;
   /**
    * Human-facing preview of the artifact being acted on (e.g. the drafted plan
-   * for {@link EXIT_PLAN_MODE_TOOL}). Frontends may render this above the
-   * approve/decline choices.
+   * when leaving plan via {@link SWITCH_MODE_TOOL}). Frontends may render this
+   * above the approve/decline choices.
    */
   preview?: string;
+  /** Current session mode id when approving {@link SWITCH_MODE_TOOL}. */
+  currentMode?: string;
+  /** Target mode id from {@link SWITCH_MODE_TOOL} input. */
+  targetMode?: string;
 };
 
 type ToolApprovalCallbacks = {
@@ -63,6 +68,11 @@ export type HoomanToolApprovalInterventionConfig = ToolApprovalCallbacks & {
   ask: ToolApprovalAsk;
 };
 
+/** Display name for a session mode id (falls back to the raw id). */
+export function modeDisplayName(modeId: string): string {
+  return getModeDefinition(modeId)?.name ?? modeId;
+}
+
 function previewInput(input: unknown): string {
   try {
     const text = JSON.stringify(input, null, 2) ?? "null";
@@ -72,6 +82,31 @@ function previewInput(input: unknown): string {
   } catch {
     return String(input);
   }
+}
+
+function isPlainObjectRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function switchModeTarget(toolInput: unknown): string | undefined {
+  if (!isPlainObjectRecord(toolInput)) {
+    return undefined;
+  }
+  const next = toolInput.mode;
+  return typeof next === "string" && next.trim() ? next.trim() : undefined;
+}
+
+/** True when {@link SWITCH_MODE_TOOL} is leaving plan for another mode. */
+export function isLeavingPlanMode(
+  toolName: string,
+  toolInput: unknown,
+  currentMode: string,
+): boolean {
+  if (toolName !== SWITCH_MODE_TOOL || currentMode !== "plan") {
+    return false;
+  }
+  const next = switchModeTarget(toolInput);
+  return typeof next === "string" && next !== "plan";
 }
 
 async function readPlanPreview(
@@ -122,6 +157,24 @@ export class HoomanToolApprovalIntervention extends InterventionHandler {
   > {
     const toolName = event.toolUse.name;
     let request = this.buildRequest(event);
+    const currentMode = getModeState(event.agent).mode;
+    // Every switch_mode call (enter plan, leave plan, ask↔agent, etc.) must
+    // prompt — never skip via yolo, INTERNAL_ALWAYS_ALLOWED, implicit paths,
+    // or a persisted allowlist entry.
+    const isSwitchMode = toolName === SWITCH_MODE_TOOL;
+    const leavingPlan = isLeavingPlanMode(
+      toolName,
+      event.toolUse.input,
+      currentMode,
+    );
+    if (isSwitchMode) {
+      const targetMode = switchModeTarget(event.toolUse.input);
+      request = {
+        ...request,
+        currentMode,
+        ...(targetMode ? { targetMode } : {}),
+      };
+    }
 
     const planReject = planModeWriteEditRejectionMessage(
       event.agent,
@@ -133,22 +186,18 @@ export class HoomanToolApprovalIntervention extends InterventionHandler {
       return InterventionActions.deny(planReject);
     }
 
-    const isPlanExit = toolName === EXIT_PLAN_MODE_TOOL;
     if (
-      (!isPlanExit && isYoloEnabled(event.agent)) ||
-      INTERNAL_ALWAYS_ALLOWED.has(toolName) ||
-      isImplicitlyAllowed(
-        toolName,
-        event.toolUse.input,
-        getModeState(event.agent).mode,
-      ) ||
-      (!isPlanExit && getAllowlist().isAllowed(toolName, event.toolUse.input))
+      !isSwitchMode &&
+      (isYoloEnabled(event.agent) ||
+        INTERNAL_ALWAYS_ALLOWED.has(toolName) ||
+        isImplicitlyAllowed(toolName, event.toolUse.input, currentMode) ||
+        getAllowlist().isAllowed(toolName, event.toolUse.input))
     ) {
       await this.onApproved?.(request, event, "auto");
       return InterventionActions.proceed();
     }
 
-    if (isPlanExit) {
+    if (leavingPlan) {
       const preview = await readPlanPreview(event.agent);
       if (preview) {
         request = { ...request, preview };
@@ -162,7 +211,8 @@ export class HoomanToolApprovalIntervention extends InterventionHandler {
       return InterventionActions.proceed();
     }
     if (result === "always") {
-      if (isPlanExit) {
+      // switch_mode must never persist "always allow" — treat as one-shot allow.
+      if (isSwitchMode) {
         await this.onApproved?.(request, event, "allow");
         return InterventionActions.proceed();
       }

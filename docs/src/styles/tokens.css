@@ -20,4 +20,13 @@
   --hooman-ink-700: #171d2b;
   --hooman-ink-600: #212939;
   --hooman-ink-500: #313c52;
+
+  /* Shared chrome — match marketing homepage */
+  --hooman-radius-sm: 0.25rem; /* 4px — tags, chips */
+  --hooman-radius-md: 0.375rem; /* 6px — buttons, controls */
+  --hooman-radius-lg: 0.5rem; /* 8px — panels, code, cards */
+  --hooman-border: 1px solid color-mix(in srgb, #ffffff 12%, transparent);
+  --hooman-border-strong: 1px solid color-mix(in srgb, #ffffff 20%, transparent);
+  --hooman-shadow-cta: 0 10px 24px
+    color-mix(in srgb, var(--hooman-primary) 28%, transparent);
 }

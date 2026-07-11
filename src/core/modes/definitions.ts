@@ -5,7 +5,7 @@ export type ModeDefinition = {
   name: string;
   instructions: string;
   description: string;
-  tools: "*" | readonly string[];
+  tools: readonly string[];
 };
 
 export const MODE_DEFINITIONS: readonly ModeDefinition[] = [
@@ -14,7 +14,37 @@ export const MODE_DEFINITIONS: readonly ModeDefinition[] = [
     name: "Agent",
     instructions: "modes/agent.md",
     description: "fully-feature agent surface",
-    tools: "*",
+    tools: [
+      "fetch",
+      "web_search",
+      "skills",
+      "retrieve_offloaded_content",
+      "search_memory",
+      "strands_structured_output",
+      "update_todos",
+      "think",
+      "launch_subagent",
+      "sleep",
+      "shell",
+      "shell_output",
+      "shell_stop",
+      "convert_time",
+      "get_current_time",
+      "directory_tree",
+      "get_file_info",
+      "list_directory",
+      "grep",
+      "read_file",
+      "read_multiple_files",
+      "write_file",
+      "edit_file",
+      "create_directory",
+      "move_file",
+      "ask_user",
+      "search_tools",
+      "activate_tools",
+      "switch_mode",
+    ],
   },
   {
     id: "plan",
@@ -30,9 +60,7 @@ export const MODE_DEFINITIONS: readonly ModeDefinition[] = [
       "strands_structured_output",
       "update_todos",
       "think",
-      "subagent_research",
-      "subagent_review",
-      "subagent_test_investigator",
+      "launch_subagent",
       "sleep",
       "shell_output",
       "shell_stop",
@@ -49,8 +77,7 @@ export const MODE_DEFINITIONS: readonly ModeDefinition[] = [
       "ask_user",
       "search_tools",
       "activate_tools",
-      "enter_plan_mode",
-      "exit_plan_mode",
+      "switch_mode",
     ],
   },
   {
@@ -67,9 +94,7 @@ export const MODE_DEFINITIONS: readonly ModeDefinition[] = [
       "strands_structured_output",
       "update_todos",
       "think",
-      "subagent_research",
-      "subagent_review",
-      "subagent_test_investigator",
+      "launch_subagent",
       "sleep",
       "shell_output",
       "shell_stop",
@@ -86,6 +111,42 @@ export const MODE_DEFINITIONS: readonly ModeDefinition[] = [
       "ask_user",
       "search_tools",
       "activate_tools",
+      "switch_mode",
+    ],
+  },
+  {
+    id: "design",
+    name: "Design",
+    instructions: "modes/design.md",
+    description:
+      "design artifacts under .hooman/design with craft and DESIGN.md",
+    tools: [
+      "fetch",
+      "web_search",
+      "skills",
+      "retrieve_offloaded_content",
+      "search_memory",
+      "strands_structured_output",
+      "update_todos",
+      "think",
+      "launch_subagent",
+      "convert_time",
+      "get_current_time",
+      "directory_tree",
+      "get_file_info",
+      "list_directory",
+      "grep",
+      "read_file",
+      "read_multiple_files",
+      "write_file",
+      "edit_file",
+      "ask_user",
+      "search_tools",
+      "activate_tools",
+      "switch_mode",
+      "preview_design",
+      "stop_design_preview",
+      "export_design",
     ],
   },
 ];
@@ -97,10 +158,13 @@ export function getModeDefinition(mode: SessionMode): ModeDefinition | null {
   return MODE_DEFINITIONS.find((entry) => entry.id === mode) ?? null;
 }
 
-export function getModeTools(
-  mode: SessionMode,
-): "*" | readonly string[] | null {
+export function getModeTools(mode: SessionMode): readonly string[] | null {
   return getModeDefinition(mode)?.tools ?? null;
+}
+
+/** True when a tool name appears on any mode allowlist (built-in tools). */
+export function isModeListedTool(toolName: string): boolean {
+  return MODE_DEFINITIONS.some((entry) => entry.tools.includes(toolName));
 }
 
 export function isModeDefinition(mode: SessionMode): boolean {

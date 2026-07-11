@@ -14,7 +14,7 @@ plus bundled built-in skills shipped with Hooman.
 
 At runtime, Hooman uses the Strands `AgentSkills` plugin to load:
 
-- bundled built-in skills (e.g. `hooman-coding`, `hooman-config`, `hooman-mcp`, `hooman-channels`, `hooman-skills`)
+- bundled built-in skills (e.g. `hooman-coding`, `hooman-design`, `hooman-config`, `hooman-mcp`, `hooman-channels`, `hooman-skills`)
 - user-installed skills under `~/.hooman/skills`
 - project-local skills under `<cwd>/.hooman/skills` when that directory exists
 

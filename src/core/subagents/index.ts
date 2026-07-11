@@ -4,4 +4,4 @@ export {
   type SubagentKindDefinition,
   type SubagentRegistry,
 } from "./registry.js";
-export { SUBAGENT_TOOL_NAME_PREFIX, createSubagentTools } from "./tool.js";
+export { LAUNCH_SUBAGENT_TOOL_NAME, createSubagentTools } from "./tool.js";

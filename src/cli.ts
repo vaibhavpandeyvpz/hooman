@@ -16,6 +16,10 @@ import {
 } from "./chat/questions.js";
 import { setAskUserBackend } from "./core/tools/ask-user.js";
 import {
+  createOsBrowserPreviewBackend,
+  setBrowserPreviewBackend,
+} from "./core/utils/browser.js";
+import {
   canPromptForQuestion,
   createExecAskUserBackend,
 } from "./exec/questions.js";
@@ -24,6 +28,7 @@ import {
   createChatTurnSteeringIntervention,
 } from "./chat/steering.js";
 import { configure } from "./configure/index.js";
+import { onboard } from "./onboarding/index.js";
 import { runAcpStdio } from "./acp/index.js";
 import { main as daemon } from "./daemon/index.js";
 import { createDaemonApprovalIntervention } from "./daemon/approvals.js";
@@ -45,6 +50,7 @@ import {
   createRuntimeConfig,
   createRuntimeMcpConfig,
 } from "./core/runtime-config.js";
+import { hasOnboardingConfig } from "./core/utils/onboarding-config.js";
 import {
   createModelDownloadLogger,
   subscribeModelDownloadProgress,
@@ -58,6 +64,14 @@ import {
   configuredLlmContext,
   resolveLlmMetadata,
 } from "./core/utils/metadata.js";
+import {
+  activeProviderName,
+  parseReasoningEffortArg,
+  REASONING_EFFORT_LEVELS,
+  REASONING_EFFORT_OFF,
+  withReasoningEffort,
+} from "./core/utils/reasoning-effort.js";
+import type { SessionConfig } from "./core/session-config.js";
 
 async function readPackageMeta(): Promise<{
   name: string;
@@ -109,13 +123,34 @@ function cliSessionIdOption(): Option {
   return new Option("-s, --session <id>", "Session ID to use.");
 }
 
+function cliContinueOption(): Option {
+  return new Option(
+    "-C, --continue",
+    "Resume the latest session in the current project.",
+  );
+}
+
 function cliSessionModeOption(): Option {
   return new Option(
     "-m, --mode <mode>",
-    `Session mode: ${formatModeNames()}. Agent is the full tool surface; ask is read-oriented; plan is the plan-file workflow.`,
+    `Session mode: ${formatModeNames()}. Agent is the full tool surface; ask is read-oriented; plan is the plan-file workflow; design is HTML artifacts under .hooman/design.`,
   )
     .choices(getModeIds())
     .default("agent");
+}
+
+function cliEffortOption(): Option {
+  return new Option(
+    "--effort <level>",
+    "Reasoning effort for the active model provider.",
+  ).choices([...REASONING_EFFORT_LEVELS, REASONING_EFFORT_OFF]);
+}
+
+function cliModelOption(): Option {
+  return new Option(
+    "--model <name>",
+    "Named LLM from config.json to use for this run.",
+  );
 }
 
 function cliYoloOption(kind: "interactive" | "daemon"): Option {
@@ -126,6 +161,20 @@ function cliYoloOption(kind: "interactive" | "daemon"): Option {
   return new Option("--yolo", description);
 }
 
+/** Attach the shared agent-bootstrap flags used by exec, chat, and daemon. */
+function addCliAgentBootstrapOptions(
+  command: Command,
+  kind: "interactive" | "daemon",
+): Command {
+  return command
+    .addOption(cliSessionIdOption())
+    .addOption(cliContinueOption())
+    .addOption(cliSessionModeOption())
+    .addOption(cliEffortOption())
+    .addOption(cliModelOption())
+    .addOption(cliYoloOption(kind));
+}
+
 type CliSessionModeOption = {
   mode: string;
 };
@@ -133,12 +182,99 @@ type CliSessionModeOption = {
 /** Shared flags on commands that bootstrap an agent (exec, chat, daemon). */
 type CliAgentBootstrapFlags = CliSessionModeOption & {
   session?: string;
+  continue?: boolean;
+  effort?: string;
+  model?: string;
   yolo?: boolean;
 };
 
-type CliChatFlags = CliAgentBootstrapFlags & {
-  continue?: boolean;
-};
+async function resolveCliSessionId(
+  options: Pick<CliAgentBootstrapFlags, "session" | "continue">,
+): Promise<string | undefined> {
+  const pinned = options.session?.trim();
+  if (pinned) {
+    return pinned;
+  }
+  if (options.continue) {
+    return (await latestCliSession())?.sessionId;
+  }
+  return undefined;
+}
+
+/**
+ * Apply `--model` / `--effort` to a session config before bootstrap. Model is
+ * applied first so effort targets the selected provider. Matches chat `/model`
+ * and `/effort` persistence rules (base-config entries only).
+ */
+function applyCliModelAndEffort(
+  config: SessionConfig,
+  options: Pick<CliAgentBootstrapFlags, "model" | "effort">,
+): void {
+  const modelName = options.model?.trim();
+  if (modelName) {
+    const match = config.llms.find((entry) => entry.name === modelName);
+    if (!match) {
+      const available = config.llms.map((entry) => entry.name).join(", ");
+      throw new Error(
+        `Unknown model "${modelName}". Configured models: ${available || "(none)"}.`,
+      );
+    }
+    config.update({
+      llms: config.llms.map((entry) => ({
+        ...entry,
+        default: entry.name === match.name,
+      })),
+    });
+    config.persistToDisk((base) =>
+      base.llms.some((entry) => entry.name === match.name)
+        ? {
+            llms: base.llms.map((entry) => ({
+              ...entry,
+              default: entry.name === match.name,
+            })),
+          }
+        : null,
+    );
+  }
+
+  if (options.effort === undefined) {
+    return;
+  }
+  const parsed = parseReasoningEffortArg(options.effort);
+  if (!parsed) {
+    throw new Error(
+      `Unknown reasoning effort "${options.effort}". Use off, minimal, low, medium, or high.`,
+    );
+  }
+  const providerName = activeProviderName(config);
+  if (!providerName) {
+    throw new Error("No active model provider to set reasoning effort on.");
+  }
+  config.update({
+    providers: config.providers.map((entry) =>
+      entry.name === providerName
+        ? {
+            ...entry,
+            options: withReasoningEffort(entry.options, parsed.value),
+          }
+        : entry,
+    ) as typeof config.providers,
+  });
+  config.persistToDisk((base) =>
+    base.providers.some((entry) => entry.name === providerName)
+      ? {
+          providers: base.providers.map((entry) =>
+            entry.name === providerName
+              ? {
+                  ...entry,
+                  options: withReasoningEffort(entry.options, parsed.value),
+                }
+              : entry,
+          ) as typeof base.providers,
+        }
+      : null,
+  );
+}
 
 const REDACTED = "[REDACTED]";
 const SENSITIVE_KEY_PATTERN =
@@ -230,18 +366,19 @@ const program = new Command()
   .version(packageMeta.version, "-v, --version")
   .showHelpAfterError(true);
 
-program
+const execCommand = program
   .command("exec")
   .description("Bootstrap an agent and run a single prompt.")
-  .argument("<prompt>", "Prompt to run once.")
-  .addOption(cliSessionIdOption())
-  .addOption(cliSessionModeOption())
-  .addOption(cliYoloOption("interactive"))
-  .action(async (prompt: string, options: CliAgentBootstrapFlags) => {
+  .argument("<prompt>", "Prompt to run once.");
+addCliAgentBootstrapOptions(execCommand, "interactive").action(
+  async (prompt: string, options: CliAgentBootstrapFlags) => {
     // Keep third-party `console.*` chatter (e.g. the Hugging Face Hub's
     // "Downloading …" lines) off stdout, which carries the agent output.
     redirectLogs();
-    const sessionId = options.session?.trim() || crypto.randomUUID();
+    const config = createSessionConfig();
+    applyCliModelAndEffort(config, options);
+    const sessionId =
+      (await resolveCliSessionId(options)) || crypto.randomUUID();
     const {
       agent,
       mcp: { manager },
@@ -255,10 +392,12 @@ program
         interventions: [createToolApprovalIntervention()],
       },
       true,
+      config,
     );
     if (canPromptForQuestion()) {
       setAskUserBackend(agent, createExecAskUserBackend());
     }
+    setBrowserPreviewBackend(agent, createOsBrowserPreviewBackend());
     // Model weights download progress (llama.cpp GGUF fetch on first use):
     // live single-line updates on a TTY, coarse log lines when piped.
     const stopDownloadProgress = subscribeModelDownloadProgress(
@@ -276,25 +415,22 @@ program
       } catch {}
     }
     finalizeExit(0);
-  });
+  },
+);
 
-program
+const chatCommand = program
   .command("chat")
   .description("Start an interactive, stateful CLI chat session.")
-  .argument("[prompt]", "Optional initial prompt to run after startup.")
-  .addOption(cliSessionIdOption())
-  .addOption(cliSessionModeOption())
-  .addOption(cliYoloOption("interactive"))
-  .option("-C, --continue", "Resume the latest session in the current project.")
-  .action(async (prompt: string | undefined, options: CliChatFlags) => {
+  .argument("[prompt]", "Optional initial prompt to run after startup.");
+addCliAgentBootstrapOptions(chatCommand, "interactive").action(
+  async (prompt: string | undefined, options: CliAgentBootstrapFlags) => {
     // Ink owns stdout: drop console/SDK chatter instead of redirecting it —
     // raw stderr writes would garble the live frame (see quietChatLogs).
     quietChatLogs();
     const config = createSessionConfig();
-    const pinnedSession = options.session?.trim();
-    const continuedSession = options.continue ? await latestCliSession() : null;
+    applyCliModelAndEffort(config, options);
     let currentSessionId =
-      pinnedSession || continuedSession?.sessionId || crypto.randomUUID();
+      (await resolveCliSessionId(options)) || crypto.randomUUID();
     let currentPrompt = prompt?.trim() || undefined;
     let currentYolo = Boolean(options.yolo);
     let currentMode = options.mode as SessionMode;
@@ -322,6 +458,7 @@ program
         config,
       );
       setAskUserBackend(agent, createChatAskUserBackend(questions));
+      setBrowserPreviewBackend(agent, createOsBrowserPreviewBackend());
 
       try {
         const result = await chat({
@@ -371,8 +508,8 @@ program
       }
     }
     finalizeExit(0);
-  });
-
+  },
+);
 const sessions = program
   .command("sessions")
   .description("List and inspect saved CLI sessions.");
@@ -392,31 +529,50 @@ sessions
 program
   .command("config")
   .description(
+    "Open the interactive configuration UI, or dump redacted runtime config with --debug.",
+  )
+  .option(
+    "-d, --debug",
     "Dump merged runtime config.json for this working directory with secrets redacted.",
   )
-  .action(() => {
-    const appConfig = createRuntimeConfig();
-    const payload = {
-      name: appConfig.name,
-      providers: appConfig.providers,
-      llms: appConfig.llms,
-      search: appConfig.search,
-      prompts: appConfig.prompts,
-      tools: appConfig.tools,
-      compaction: appConfig.compaction,
-    };
-    const redacted = redactCredentials(payload);
-    console.log(JSON.stringify(redacted, null, 2));
+  .action(async (options: { debug?: boolean }) => {
+    if (options.debug) {
+      const appConfig = createRuntimeConfig();
+      const payload = {
+        name: appConfig.name,
+        providers: appConfig.providers,
+        llms: appConfig.llms,
+        search: appConfig.search,
+        prompts: appConfig.prompts,
+        tools: appConfig.tools,
+        compaction: appConfig.compaction,
+      };
+      const redacted = redactCredentials(payload);
+      console.log(JSON.stringify(redacted, null, 2));
+      return;
+    }
+    quietChatLogs();
+    await configure();
+    finalizeExit(0);
   });
 
 program
+  .command("setup")
+  .description(
+    "Run first-run setup to create ~/.hooman/config.json (inference + search).",
+  )
+  .action(async () => {
+    quietChatLogs();
+    const ok = await onboard();
+    finalizeExit(ok ? 0 : 1);
+  });
+
+const daemonCommand = program
   .command("daemon")
   .description(
     "Run a background daemon that processes MCP channel notifications as prompts.",
-  )
-  .addOption(cliSessionIdOption())
-  .addOption(cliSessionModeOption())
-  .addOption(cliYoloOption("daemon"))
+  );
+addCliAgentBootstrapOptions(daemonCommand, "daemon")
   .option(
     "--debug",
     "Log each MCP channel notification payload to the console.",
@@ -424,10 +580,11 @@ program
   .action(async (options: CliAgentBootstrapFlags & { debug?: boolean }) => {
     // Same as `exec`: console chatter joins the daemon's stderr diagnostics.
     redirectLogs();
-    const session = options.session?.trim();
+    const config = createSessionConfig();
+    applyCliModelAndEffort(config, options);
+    const session = await resolveCliSessionId(options);
     const {
       agent,
-      config,
       mcp: { manager },
     } = await bootstrap(
       "daemon",
@@ -441,6 +598,7 @@ program
         ],
       },
       true,
+      config,
     );
     setAskUserBackend(agent, createDaemonAskUserBackend(manager, agent));
     try {
@@ -518,7 +676,7 @@ mcp
   );
 
 mcp
-  .command("auth-status")
+  .command("status")
   .description("Show OAuth status for configured MCP servers.")
   .action(async () => {
     const manager = createMcpManager(createRuntimeMcpConfig());
@@ -553,10 +711,21 @@ program
 
 // Default Strands SDK logger for every command (warn+ on stderr); the
 // commands above additionally re-route or silence global `console` output
-// per surface — utility commands (sessions/config/mcp) keep stdout intact.
+// per surface — utility commands (sessions/config --debug/mcp) keep stdout intact.
 patchSdkLogger();
 
-const argv =
-  process.argv.slice(2).length === 0 ? [...process.argv, "chat"] : process.argv;
-
-await program.parseAsync(argv);
+// No args: first-run onboarding when config.json is missing, otherwise chat.
+if (process.argv.slice(2).length === 0) {
+  if (!hasOnboardingConfig()) {
+    quietChatLogs();
+    if (!(await onboard())) {
+      finalizeExit(1);
+    } else {
+      await program.parseAsync([...process.argv, "chat"]);
+    }
+  } else {
+    await program.parseAsync([...process.argv, "chat"]);
+  }
+} else {
+  await program.parseAsync(process.argv);
+}

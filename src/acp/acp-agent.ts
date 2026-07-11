@@ -56,6 +56,7 @@ import {
 } from "../core/modes/schema.js";
 import { getModeState, setSessionMode } from "../core/state/session-mode.js";
 import { isYoloEnabled, setYoloEnabled } from "../core/state/yolo.js";
+import { setLlmModality } from "../core/state/llm-modality.js";
 import {
   dropTurnBoundariesFrom,
   getTurnBoundary,
@@ -105,10 +106,7 @@ import {
   parseAcpSlashCommand,
   type ParsedSlashCommand,
 } from "./commands.js";
-import {
-  ENTER_PLAN_MODE_TOOL,
-  EXIT_PLAN_MODE_TOOL,
-} from "../core/state/tool-approvals.js";
+import { SWITCH_MODE_TOOL } from "../core/state/tool-approvals.js";
 import { runWithCwd } from "../core/utils/cwd-context.js";
 import { runWithAgentMemoryScope } from "../core/memory/index.js";
 import {
@@ -126,6 +124,7 @@ import { takeFileToolDisplay } from "../core/state/file-tool-display.js";
 import { getTodoViewState } from "../core/state/todos.js";
 import { UPDATE_TODOS_TOOL_NAME } from "../core/tools/todo.js";
 import { setAskUserBackend } from "../core/tools/ask-user.js";
+import { setBrowserPreviewBackend } from "../core/utils/browser.js";
 import { setTextFsBackend } from "../core/tools/filesystem.js";
 import {
   setTerminalBackend,
@@ -139,8 +138,9 @@ import {
 } from "../core/shell/index.js";
 import { createAcpToolApprovalIntervention } from "./approvals.js";
 import { createAcpAskUserBackend } from "./questions.js";
+import { createAcpBrowserPreviewBackend } from "./browser.js";
 import { extractAcpClientUserId } from "./meta/user-id.js";
-import { extractAcpVscodeFlag } from "./meta/vscode.js";
+import { isAcpVscodeHost } from "./meta/vscode.js";
 import { deriveSessionTitleFromEcho } from "./sessions/title.js";
 import { acpPromptEchoText, acpPromptToInvokeArgs } from "./prompt-invoke.js";
 import { normalizeAcpSessionMcpServers } from "./mcp-servers.js";
@@ -172,8 +172,8 @@ const INIT_AGENTS_PROMPT = readBundledPrompt("static", "init.md");
 type AgentIdentity = { name: string; version: string };
 
 /**
- * Params/response for the custom `_hoomanjs/rewind_session` method (Cursor-
- * style revert). Not part of the ACP spec — registered as a custom request
+ * Params/response for the custom `_hoomanjs/rewind_session` method (turn
+ * revert). Not part of the ACP spec — registered as a custom request
  * via `AgentApp.onRequest(method: string, parser, handler)`. `messageId` is
  * the agent-generated ACP id (see the MessageId RFD) of the turn's user
  * message, captured by the client from that message's `user_message_chunk`
@@ -624,7 +624,7 @@ export class HoomanAcpAgent {
     const sessionId = crypto.randomUUID();
     const clientUserId = extractAcpClientUserId(params._meta) ?? null;
     const mcpServers = normalizeAcpSessionMcpServers(params.mcpServers);
-    const vscode = extractAcpVscodeFlag(params._meta);
+    const vscode = isAcpVscodeHost();
 
     const mode = DEFAULT_SESSION_MODE;
     const now = new Date().toISOString();
@@ -697,8 +697,7 @@ export class HoomanAcpAgent {
       params.mcpServers && params.mcpServers.length > 0
         ? normalizeAcpSessionMcpServers(params.mcpServers)
         : (sourceEntry.mcpServers ?? []);
-    const vscode =
-      extractAcpVscodeFlag(params._meta) || sourceEntry.vscode === true;
+    const vscode = isAcpVscodeHost();
     const mode = resolveSessionMode(sourceEntry.sessionMode);
     const now = new Date().toISOString();
     const title = sourceEntry.title
@@ -759,7 +758,7 @@ export class HoomanAcpAgent {
   }
 
   /**
-   * Cursor-style revert (custom `_hoomanjs/rewind_session` method, not part
+   * Turn revert (custom `_hoomanjs/rewind_session` method, not part
    * of the ACP spec): splice `agent.messages` back to the message index
    * bookmarked for `messageId` (see {@link recordTurnBoundary}), dropping
    * that turn and every turn after it, then persist the trimmed history.
@@ -919,8 +918,7 @@ export class HoomanAcpAgent {
       params.mcpServers.length > 0
         ? normalizeAcpSessionMcpServers(params.mcpServers)
         : (existing.mcpServers ?? []);
-    const vscode =
-      extractAcpVscodeFlag(params.meta) || existing.vscode === true;
+    const vscode = isAcpVscodeHost();
     const mode = resolveSessionMode(existing.sessionMode);
 
     // Bootstrapping restores the Strands snapshot (messages + appState) during
@@ -1270,6 +1268,7 @@ export class HoomanAcpAgent {
         resolved.provider,
         configuredLlmContext(resolved),
       ).catch(() => null);
+      setLlmModality(rec.agent, rec.metadata?.modality);
     } catch (error) {
       if (previous) {
         rec.config.update({
@@ -1490,7 +1489,7 @@ export class HoomanAcpAgent {
 
       // The `messageId` we just generated for this turn's user_message_chunk
       // echo (see the ACP MessageId RFD) doubles as a durable handle for
-      // Cursor-style revert: bookmark where this turn's messages start,
+      // Turn revert: bookmark where this turn's messages start,
       // before `agent.stream(...)` appends them, so a later `rewindSession`
       // can splice history back to exactly this point.
       if (turnMessageId) {
@@ -1589,8 +1588,7 @@ export class HoomanAcpAgent {
                 }
                 if (
                   ev.result.status === "success" &&
-                  (ev.toolUse.name === ENTER_PLAN_MODE_TOOL ||
-                    ev.toolUse.name === EXIT_PLAN_MODE_TOOL)
+                  ev.toolUse.name === SWITCH_MODE_TOOL
                 ) {
                   await this.#syncCurrentMode(client, params.sessionId, rec);
                 }
@@ -1722,8 +1720,8 @@ export class HoomanAcpAgent {
   }
 
   /**
-   * Reflect an agent-driven mode change (e.g. `enter_plan_mode` /
-   * `exit_plan_mode`) to the client via `current_mode_update` and persist it.
+   * Reflect an agent-driven mode change (`switch_mode`) to the client via
+   * `current_mode_update` and persist it.
    */
   async #syncCurrentMode(
     client: AgentContext,
@@ -2025,6 +2023,10 @@ export class HoomanAcpAgent {
     this.#registerTextFsBackend(agent, client, sessionId);
     this.#registerTerminalBackend(agent, client, sessionId);
     setAskUserBackend(agent, createAcpAskUserBackend(client, sessionId));
+    setBrowserPreviewBackend(
+      agent,
+      createAcpBrowserPreviewBackend(client, sessionId),
+    );
 
     const activeLlm = (config as SessionConfig).llm;
     const metadata = await resolveLlmMetadata(
@@ -2033,6 +2035,7 @@ export class HoomanAcpAgent {
       activeLlm.provider,
       configuredLlmContext(activeLlm),
     ).catch(() => null);
+    setLlmModality(agent, metadata?.modality);
 
     return {
       cwd,

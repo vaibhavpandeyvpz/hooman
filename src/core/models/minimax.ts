@@ -4,7 +4,7 @@ import type { VercelModelConfig } from "@strands-agents/sdk/models/vercel";
 import type { LlmOptions, MinimaxProviderOptions } from "./types.js";
 import { markTotalInclusiveInputUsage } from "../utils/usage.js";
 
-const DEFAULT_BASE_URL = "https://api.minimax.io/anthropic";
+const DEFAULT_BASE_URL = "https://api.minimax.io/anthropic/v1";
 
 // MiniMax's adaptive thinking accepts effort via `output_config.effort`, which
 // only takes low/medium/high; `minimal` collapses to `low`.

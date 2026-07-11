@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Contact</title>
+    <style>
+      :root {
+        --bg: #f7f5f2;
+        --ink: #1a1a1a;
+        --muted: #5c5c5c;
+        --accent: #0f6b6b;
+        --surface: #ffffff;
+        --border: #e8e4dc;
+        --danger: #b42318;
+        --font-display: Georgia, "Times New Roman", ui-serif, serif;
+        --font-body: system-ui, -apple-system, sans-serif;
+        --space-3: 0.75rem;
+        --space-4: 1rem;
+        --space-5: 1.5rem;
+        --space-6: 2rem;
+        --space-7: 3rem;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: var(--font-body);
+        background: var(--bg);
+        color: var(--ink);
+        line-height: 1.5;
+      }
+      .wrap {
+        max-width: 40rem;
+        margin: 0 auto;
+        padding: var(--space-7) var(--space-5);
+      }
+      h1 {
+        font-family: var(--font-display);
+        font-size: clamp(1.75rem, 3vw, 2.25rem);
+        letter-spacing: -0.02em;
+        margin: 0 0 0.5rem;
+      }
+      .lede {
+        margin: 0 0 var(--space-6);
+        color: var(--muted);
+        max-width: 32rem;
+      }
+      form {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 0.375rem;
+        padding: var(--space-6);
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-4);
+      }
+      .row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: var(--space-4);
+      }
+      @media (max-width: 560px) {
+        .row {
+          grid-template-columns: 1fr;
+        }
+      }
+      label {
+        display: flex;
+        flex-direction: column;
+        gap: 0.35rem;
+        font-size: 0.8125rem;
+        font-weight: 600;
+      }
+      input,
+      select,
+      textarea {
+        font: inherit;
+        padding: 0.6rem 0.75rem;
+        border: 1px solid var(--border);
+        border-radius: 0.375rem;
+        background: #fff;
+        color: var(--ink);
+      }
+      textarea {
+        min-height: 8rem;
+        resize: vertical;
+      }
+      input:focus-visible,
+      select:focus-visible,
+      textarea:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 1px;
+      }
+      .hint {
+        font-weight: 400;
+        color: var(--muted);
+        font-size: 0.75rem;
+      }
+      .error {
+        color: var(--danger);
+        font-size: 0.8125rem;
+        font-weight: 400;
+      }
+      .btn {
+        align-self: flex-start;
+        padding: 0.7rem 1.15rem;
+        border: 0;
+        border-radius: 0.375rem;
+        background: var(--accent);
+        color: #fff;
+        font: inherit;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      .btn:focus-visible {
+        outline: 2px solid var(--ink);
+        outline-offset: 2px;
+      }
+      .btn:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+      .success {
+        margin-top: var(--space-4);
+        padding: var(--space-4);
+        border: 1px solid var(--border);
+        border-radius: 0.375rem;
+        background: var(--surface);
+        font-size: 0.9375rem;
+      }
+      [hidden] {
+        display: none !important;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <h1>Contact</h1>
+      <p class="lede">
+        Real inquiry form — name, email, topic, message. Toggle error / success
+        slots when prototyping states.
+      </p>
+      <form novalidate>
+        <div class="row">
+          <label>
+            Name
+            <input name="name" autocomplete="name" required />
+            <span class="error" hidden>Name is required.</span>
+          </label>
+          <label>
+            Work email
+            <input type="email" name="email" autocomplete="email" required />
+            <span class="error" hidden>Enter a valid email.</span>
+          </label>
+        </div>
+        <label>
+          Topic
+          <select name="topic" required>
+            <option value="">Select…</option>
+            <option>Sales</option>
+            <option>Support</option>
+            <option>Partnerships</option>
+          </select>
+          <span class="error" hidden>Choose a topic.</span>
+        </label>
+        <label>
+          Message
+          <textarea name="message" required maxlength="2000"></textarea>
+          <span class="hint">Max 2000 characters. No lorem.</span>
+          <span class="error" hidden>Message is required.</span>
+        </label>
+        <button class="btn" type="submit">Send message</button>
+      </form>
+      <p class="success" hidden role="status">
+        Thanks — we received your message and will reply soon.
+      </p>
+    </div>
+  </body>
+</html>

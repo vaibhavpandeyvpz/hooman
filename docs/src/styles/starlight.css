@@ -1,4 +1,5 @@
 @import "./tokens.css";
+@import url("https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap");
 
 :root {
   --sl-color-accent-low: #0f2942;
@@ -14,7 +15,11 @@
   --sl-color-black: var(--hooman-ink-950);
   --sl-color-bg-nav: var(--hooman-ink-900);
   --sl-color-bg-sidebar: var(--hooman-ink-900);
-  --sl-font: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --sl-font: "Sora", ui-sans-serif, system-ui, sans-serif;
+
+  /* Expressive Code / search corners */
+  --ec-brdRad: var(--hooman-radius-lg);
+  --sl-search-corners: var(--hooman-radius-lg);
 }
 
 :root[data-theme="light"] {
@@ -28,10 +33,163 @@ a:not(.sl-badge) {
 }
 
 .site-title img {
-  filter: drop-shadow(0 0 10px rgba(59, 130, 246, 0.45));
+  filter: drop-shadow(0 0 10px rgba(0, 145, 205, 0.45));
 }
 
 code {
   font-family:
     "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+
+/* —— Buttons & actions (no pills) —— */
+.sl-link-button {
+  border-radius: var(--hooman-radius-md) !important;
+  border-width: 1px !important;
+  font-weight: 600;
+}
+
+.sl-link-button.primary {
+  background: linear-gradient(
+    100deg,
+    var(--hooman-cyan),
+    var(--hooman-blue) 45%,
+    var(--hooman-indigo)
+  ) !important;
+  border-color: transparent !important;
+  color: var(--hooman-ink-950) !important;
+  box-shadow: var(--hooman-shadow-cta);
+}
+
+.sl-link-button.primary:hover {
+  opacity: 0.92;
+  color: var(--hooman-ink-950) !important;
+}
+
+.sl-link-button.secondary {
+  border-color: color-mix(in srgb, #ffffff 15%, transparent) !important;
+  background: transparent;
+}
+
+.sl-link-button.secondary:hover {
+  border-color: color-mix(in srgb, #ffffff 30%, transparent) !important;
+  background: color-mix(in srgb, #ffffff 5%, transparent);
+}
+
+/* —— Search —— */
+site-search button[data-open-modal],
+site-search > button {
+  border-radius: var(--hooman-radius-md) !important;
+  border: var(--hooman-border) !important;
+}
+
+dialog[aria-label] {
+  border-radius: var(--hooman-radius-lg);
+}
+
+/* Pagefind / Starlight search dialog chrome */
+.pagefind-ui__search-input,
+.pagefind-ui__result,
+.pagefind-ui__button {
+  border-radius: var(--hooman-radius-md) !important;
+}
+
+/* —— Pagination —— */
+.pagination-links a {
+  border-radius: var(--hooman-radius-md) !important;
+  border: var(--hooman-border) !important;
+}
+
+.pagination-links a:hover {
+  border-color: color-mix(in srgb, #ffffff 25%, transparent) !important;
+}
+
+/* —— Cards & content chrome —— */
+.sl-link-card,
+.card,
+.starlight-aside,
+.sl-markdown-content .card,
+.sl-markdown-content details,
+.sl-markdown-content blockquote {
+  border-radius: var(--hooman-radius-lg) !important;
+}
+
+.sl-badge {
+  border-radius: var(--hooman-radius-sm) !important;
+}
+
+/* —— Tabs (install / config examples) —— */
+starlight-tabs [role="tablist"] {
+  border-bottom: 1px solid color-mix(in srgb, #ffffff 12%, transparent) !important;
+}
+
+starlight-tabs .tab > [role="tab"] {
+  border-radius: var(--hooman-radius-md) var(--hooman-radius-md) 0 0 !important;
+  box-shadow: 0 2px 0 transparent !important;
+}
+
+starlight-tabs .tab > [role="tab"][aria-selected="true"] {
+  box-shadow: 0 2px 0 var(--hooman-warning) !important;
+  color: var(--hooman-warning) !important;
+}
+
+/* —— Code blocks —— */
+.expressive-code,
+.expressive-code .frame,
+.expressive-code pre,
+.sl-markdown-content pre:not(.astro-code *) {
+  border-radius: var(--hooman-radius-lg) !important;
+}
+
+.expressive-code .frame {
+  border: var(--hooman-border) !important;
+  overflow: hidden;
+}
+
+.sl-markdown-content :not(pre) > code {
+  border-radius: var(--hooman-radius-sm);
+  border: 1px solid color-mix(in srgb, #ffffff 8%, transparent);
+}
+
+/* —— Sidebar / TOC active chips —— */
+.sidebar-content a,
+nav[aria-labelledby="starlight__on-this-page"] a {
+  border-radius: var(--hooman-radius-sm);
+}
+
+/* —— Mobile menu / TOC —— */
+mobile-starlight-toc nav,
+mobile-starlight-toc summary {
+  border-radius: var(--hooman-radius-md) !important;
+}
+
+/* —— Content path cards (getting-started etc.) —— */
+.sl-markdown-content a[style*="border-radius"],
+.hooman-path-card {
+  border-radius: var(--hooman-radius-lg) !important;
+  border: var(--hooman-border) !important;
+}
+
+.hooman-path-card {
+  display: block;
+  flex: 1 1 240px;
+  padding: 1.25rem 1.5rem;
+  text-decoration: none;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease;
+}
+
+.hooman-path-card:hover {
+  border-color: color-mix(in srgb, #ffffff 25%, transparent) !important;
+  background: color-mix(in srgb, #ffffff 3%, transparent);
+}
+
+/* —— Social / header icon buttons —— */
+header .sl-flex a,
+.social-icons a {
+  border-radius: var(--hooman-radius-md);
+}
+
+header .sl-flex button {
+  border-radius: var(--hooman-radius-md) !important;
 }

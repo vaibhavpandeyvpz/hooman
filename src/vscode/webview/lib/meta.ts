@@ -1,17 +1,15 @@
 import {
-  Flame,
   Infinity as InfinityIcon,
   type LucideIcon,
-  MessageCircleQuestion,
+  MessageCircleQuestionMark,
   NotebookPen,
+  Palette,
 } from "lucide-solid";
 
 /**
  * Icon + accent color for each ACP session mode, mirroring the CLI TUI's
- * `StatusBar` palette. `yolo` (auto-approval on) is advertised as a standalone
- * boolean config option under the `model_config` category (see `CONFIG_ID_YOLO`
- * in `session-config.ts`) rather than a mode value; its error accent matches the
- * CLI's `yolo: on` indicator.
+ * `StatusBar` palette. Yolo (auto-approve) is a separate boolean config option
+ * (`CONFIG_ID_YOLO` in `session-config.ts`), not a mode value.
  */
 export const MODE_META: Record<
   string,
@@ -19,12 +17,12 @@ export const MODE_META: Record<
 > = {
   agent: { icon: InfinityIcon, className: "text-foreground", label: "Agent" },
   ask: {
-    icon: MessageCircleQuestion,
+    icon: MessageCircleQuestionMark,
     className: "text-primary",
     label: "Ask",
   },
   plan: { icon: NotebookPen, className: "text-warning", label: "Plan" },
-  yolo: { icon: Flame, className: "text-error", label: "Yolo" },
+  design: { icon: Palette, className: "text-secondary", label: "Design" },
 };
 
 export function modeMeta(modeId: string) {

@@ -1,8 +1,8 @@
 {
-  "name": "hooman-vscode",
+  "name": "hoomanjs-vscode",
   "displayName": "Hooman",
-  "description": "Native VS Code chat backed by Hooman's Agent Client Protocol (ACP) agent",
-  "version": "1.47.0",
+  "description": "Full-stack local-first AI agent for VS Code — chat, plan, design, MCP, and BYOK. Powered by Hooman ACP.",
+  "version": "1.48.0",
   "private": true,
   "publisher": "VPZ",
   "license": "MIT",

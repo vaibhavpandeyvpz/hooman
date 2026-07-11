@@ -1,0 +1,379 @@
+---
+import mcpLogo from "../assets/logos/mcp.svg?raw";
+import acpLogo from "../assets/logos/acp.svg?raw";
+import figmaLogo from "../assets/logos/figma.svg?raw";
+import terminalLogo from "../assets/logos/terminal.svg?raw";
+import vscodeLogo from "../assets/logos/visualstudiocode.svg?raw";
+import hoomanLogo from "../assets/logo.svg?raw";
+
+/** Pull inner markup + viewBox from a logo SVG string for <symbol> reuse. */
+function logoSymbol(id: string, raw: string, idPrefix?: string) {
+  const viewBox = raw.match(/viewBox="([^"]+)"/i)?.[1] ?? "0 0 24 24";
+  let inner = raw
+    .replace(/<\?xml[^>]*>/i, "")
+    .replace(/<!DOCTYPE[^>]*>/i, "")
+    .replace(/<svg[^>]*>/i, "")
+    .replace(/<\/svg>\s*$/i, "")
+    .replace(/<title>[\s\S]*?<\/title>/gi, "")
+    .trim();
+  // Avoid gradient/clip id collisions when multiple logos share defs.
+  if (idPrefix) {
+    inner = inner
+      .replace(/\bid="([^"]+)"/g, `id="${idPrefix}-$1"`)
+      .replace(/url\(#([^)]+)\)/g, `url(#${idPrefix}-$1)`);
+  }
+  return { id, viewBox, inner };
+}
+
+const logos = {
+  hooman: logoSymbol("logo-hooman", hoomanLogo, "hooman"),
+  mcp: logoSymbol("logo-mcp", mcpLogo),
+  acp: logoSymbol("logo-acp", acpLogo),
+  figma: logoSymbol("logo-figma", figmaLogo),
+  terminal: logoSymbol("logo-terminal", terminalLogo),
+  vscode: logoSymbol("logo-vscode", vscodeLogo),
+} as const;
+
+/** Leaf nodes in center-relative coords (orbit radius ≈ 178). */
+const leaves = [
+  { id: "cli", label: "CLI", x: 0, y: -178, logo: "terminal" as const },
+  { id: "vscode", label: "VS Code", x: 154, y: -102, logo: "vscode" as const },
+  { id: "acp", label: "ACP", x: 154, y: 102, logo: "acp" as const },
+  { id: "design", label: "Design", x: 0, y: 178, logo: "figma" as const },
+  { id: "daemon", label: "Daemon", x: -154, y: 102, logo: null },
+  { id: "mcp", label: "MCP", x: -154, y: -102, logo: "mcp" as const },
+] as const;
+
+/** Interactive SVG ecosystem diagram — pure SVG, pointer-driven. */
+---
+
+<figure class="hero-svg relative mx-auto w-full max-w-xl select-none" aria-label="Hooman ecosystem diagram">
+  <svg
+    id="ecosystem-svg"
+    viewBox="0 0 560 560"
+    class="h-auto w-full"
+    role="img"
+    aria-labelledby="ecosystem-title ecosystem-desc"
+  >
+    <title id="ecosystem-title">Hooman full-stack agentic ecosystem</title>
+    <desc id="ecosystem-desc">
+      Interactive map of Hooman surfaces: CLI, VS Code, ACP, Design, Daemon, and MCP around a local-first core.
+    </desc>
+
+    <defs>
+      <radialGradient id="coreGlow" cx="50%" cy="50%" r="50%">
+        <stop offset="0%" stop-color="#0091cd" stop-opacity="0.55"></stop>
+        <stop offset="55%" stop-color="#56a0d3" stop-opacity="0.12"></stop>
+        <stop offset="100%" stop-color="#05070d" stop-opacity="0"></stop>
+      </radialGradient>
+      <linearGradient id="ringStroke" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="#0091cd" stop-opacity="0.55"></stop>
+        <stop offset="50%" stop-color="#56a0d3" stop-opacity="0.25"></stop>
+        <stop offset="100%" stop-color="#007bb0" stop-opacity="0.45"></stop>
+      </linearGradient>
+      <linearGradient id="beamGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%" stop-color="#0091cd" stop-opacity="0"></stop>
+        <stop offset="50%" stop-color="#c4dff6" stop-opacity="0.9"></stop>
+        <stop offset="100%" stop-color="#0091cd" stop-opacity="0"></stop>
+      </linearGradient>
+      <filter id="softGlow" x="-50%" y="-50%" width="200%" height="200%">
+        <feGaussianBlur stdDeviation="4" result="blur"></feGaussianBlur>
+        <feMerge>
+          <feMergeNode in="blur"></feMergeNode>
+          <feMergeNode in="SourceGraphic"></feMergeNode>
+        </feMerge>
+      </filter>
+      <pattern id="gridDots" width="28" height="28" patternUnits="userSpaceOnUse">
+        <circle cx="1.5" cy="1.5" r="1" fill="#56a0d3" opacity="0.22"></circle>
+      </pattern>
+
+      {
+        Object.values(logos).map((logo) => (
+          <symbol id={logo.id} viewBox={logo.viewBox} set:html={logo.inner} />
+        ))
+      }
+    </defs>
+
+    <!-- Atmosphere -->
+    <rect width="560" height="560" fill="url(#gridDots)" opacity="0.55"></rect>
+    <circle class="core-glow" cx="280" cy="280" r="150" fill="url(#coreGlow)"></circle>
+
+    <!-- Decorative rings (independent spin) -->
+    <circle
+      cx="280"
+      cy="280"
+      r="118"
+      fill="none"
+      stroke="url(#ringStroke)"
+      stroke-width="1"
+      stroke-dasharray="3 7"
+      class="orbit orbit-a"
+      opacity="0.7"
+    ></circle>
+    <circle
+      cx="280"
+      cy="280"
+      r="178"
+      fill="none"
+      stroke="url(#ringStroke)"
+      stroke-width="1.25"
+      class="orbit orbit-b"
+      opacity="0.55"
+    ></circle>
+    <circle
+      cx="280"
+      cy="280"
+      r="228"
+      fill="none"
+      stroke="#0091cd"
+      stroke-width="0.75"
+      stroke-dasharray="1 10"
+      class="orbit orbit-c"
+      opacity="0.35"
+    ></circle>
+
+    <g transform="translate(280 280)">
+      <!-- Sweep beam -->
+      <g class="sweep">
+        <path d="M0 0 L0 -228" stroke="url(#beamGrad)" stroke-width="2" opacity="0.55"></path>
+      </g>
+
+      <!-- Rotating constellation: beams + leaf nodes -->
+      <g class="constellation" filter="url(#softGlow)">
+        <g id="beams" opacity="0.85"></g>
+
+        {
+          leaves.map((leaf) => (
+            <g
+              class="node node-leaf"
+              data-id={leaf.id}
+              data-label={leaf.label}
+              transform={`translate(${leaf.x} ${leaf.y})`}
+            >
+              <g class="node-counter">
+                <circle class="hit" r="28" fill="#0a0e17" stroke="#0091cd" stroke-width="1.5"></circle>
+                {leaf.logo ? (
+                  <use
+                    href={`#${logos[leaf.logo].id}`}
+                    x="-12"
+                    y="-12"
+                    width="24"
+                    height="24"
+                    class="node-icon"
+                  />
+                ) : (
+                  <path
+                    class="node-icon"
+                    fill="#c4dff6"
+                    transform="translate(-12 -12)"
+                    d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96a7.1 7.1 0 0 0-1.62-.94l-.36-2.54a.48.48 0 0 0-.48-.41h-3.84a.48.48 0 0 0-.48.41l-.36 2.54c-.59.24-1.13.55-1.62.94l-2.39-.96a.49.49 0 0 0-.59.22L2.74 8.87a.49.49 0 0 0 .12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.39 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.48-.41l.36-2.54c.59-.24 1.13-.55 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32a.49.49 0 0 0-.12-.61l-2.03-1.58zM12 15.6A3.6 3.6 0 1 1 12 8.4a3.6 3.6 0 0 1 0 7.2z"
+                  />
+                )}
+                <text
+                  class="node-label"
+                  data-for={leaf.id}
+                  x="0"
+                  y="-40"
+                  text-anchor="middle"
+                  fill="#9ba5a8"
+                  font-family="Sora, ui-sans-serif, system-ui, sans-serif"
+                  font-size="11"
+                  font-weight="600"
+                  letter-spacing="0.08em"
+                >
+                  {leaf.label.toUpperCase()}
+                </text>
+              </g>
+            </g>
+          ))
+        }
+      </g>
+
+      <!-- Core stays fixed -->
+      <g class="node node-core" data-label="Core">
+        <circle r="42" fill="#0a0e17" stroke="#0091cd" stroke-width="2"></circle>
+        <use href={`#${logos.hooman.id}`} x="-26" y="-26" width="52" height="52"></use>
+      </g>
+    </g>
+
+    <!-- Pointer spotlight -->
+    <circle id="pointer-glow" cx="280" cy="280" r="36" fill="#0091cd" opacity="0" style="pointer-events: none"></circle>
+  </svg>
+
+  <figcaption
+    id="node-caption"
+    class="mt-5 text-center font-mono text-[11px] tracking-wide text-slate-500 transition-colors"
+  >
+    Hover a node · one runtime, six surfaces
+  </figcaption>
+</figure>
+
+<style>
+  .hero-svg .orbit-a {
+    animation: spin 48s linear infinite;
+    transform-origin: 280px 280px;
+  }
+  .hero-svg .orbit-b {
+    animation: spin 72s linear infinite reverse;
+    transform-origin: 280px 280px;
+  }
+  .hero-svg .orbit-c {
+    animation: spin 96s linear infinite;
+    transform-origin: 280px 280px;
+  }
+  .hero-svg .sweep {
+    animation: spin 14s linear infinite;
+  }
+  .hero-svg .constellation {
+    animation: spin 48s linear infinite;
+    transform-origin: 0 0;
+  }
+  .hero-svg .node-counter {
+    animation: spin-reverse 48s linear infinite;
+    transform-origin: 0 0;
+  }
+  .hero-svg .core-glow {
+    animation: pulse 5.5s ease-in-out infinite;
+  }
+  .hero-svg .node-leaf {
+    cursor: pointer;
+  }
+  .hero-svg .node-leaf .hit {
+    transition:
+      fill 0.2s ease,
+      stroke 0.2s ease,
+      stroke-width 0.2s ease,
+      r 0.2s ease;
+  }
+  .hero-svg .node-leaf.is-active .hit,
+  .hero-svg .node-leaf:hover .hit {
+    fill: #10151f;
+    stroke: #c4dff6;
+    stroke-width: 2.25;
+    r: 32;
+  }
+  .hero-svg .node-icon {
+    color: #c4dff6;
+    fill: currentColor;
+  }
+  .hero-svg .node-leaf.is-active .node-label,
+  .hero-svg .node-leaf:hover .node-label {
+    fill: #c4dff6;
+  }
+
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+  @keyframes spin-reverse {
+    to {
+      transform: rotate(-360deg);
+    }
+  }
+  @keyframes pulse {
+    0%,
+    100% {
+      opacity: 0.85;
+    }
+    50% {
+      opacity: 1;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .hero-svg .orbit-a,
+    .hero-svg .orbit-b,
+    .hero-svg .orbit-c,
+    .hero-svg .sweep,
+    .hero-svg .constellation,
+    .hero-svg .node-counter,
+    .hero-svg .core-glow {
+      animation: none;
+    }
+  }
+</style>
+
+<script>
+  const svg = document.getElementById("ecosystem-svg");
+  const beams = document.getElementById("beams");
+  const glow = document.getElementById("pointer-glow");
+  const caption = document.getElementById("node-caption");
+
+  if (svg && beams && glow && caption) {
+    const copy: Record<string, string> = {
+      cli: "hooman setup · chat · exec · /config — terminal-native agent",
+      vscode: "Native chat panel · Changes · plan · Mermaid · Design preview",
+      acp: "Agent Client Protocol over stdio — Zed and any ACP client",
+      design: "HTML → preview → Figma / Sketch / PDF / PPTX",
+      daemon: "Channel-driven MCP automation — Slack, Telegram, cron…",
+      mcp: "stdio · HTTP · SSE · OAuth (DCR + CIMD) · lazy tools",
+    };
+
+    const leafNodes = Array.from(svg.querySelectorAll<SVGGElement>(".node-leaf"));
+
+    // Center-relative positions (constellation local space)
+    const positions: Record<string, { x: number; y: number }> = {
+      cli: { x: 0, y: -178 },
+      vscode: { x: 154, y: -102 },
+      acp: { x: 154, y: 102 },
+      design: { x: 0, y: 178 },
+      daemon: { x: -154, y: 102 },
+      mcp: { x: -154, y: -102 },
+    };
+
+    const drawBeams = (activeId?: string) => {
+      beams.replaceChildren();
+      for (const [id, pos] of Object.entries(positions)) {
+        const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+        line.setAttribute("x1", "0");
+        line.setAttribute("y1", "0");
+        line.setAttribute("x2", String(pos.x));
+        line.setAttribute("y2", String(pos.y));
+        line.setAttribute("stroke", id === activeId ? "#c4dff6" : "#0091cd");
+        line.setAttribute("stroke-width", id === activeId ? "1.75" : "1");
+        line.setAttribute("stroke-opacity", id === activeId ? "0.85" : "0.28");
+        line.setAttribute("stroke-dasharray", id === activeId ? "0" : "4 6");
+        beams.appendChild(line);
+      }
+    };
+
+    const setActive = (id?: string) => {
+      for (const node of leafNodes) {
+        node.classList.toggle("is-active", node.dataset.id === id);
+      }
+      caption.textContent = id && copy[id] ? copy[id] : "Hover a node · one runtime, six surfaces";
+      caption.classList.toggle("text-hooman-face", Boolean(id));
+      caption.classList.toggle("text-slate-500", !id);
+      drawBeams(id);
+    };
+
+    drawBeams();
+
+    for (const node of leafNodes) {
+      const id = node.dataset.id;
+      node.addEventListener("pointerenter", () => setActive(id));
+      node.addEventListener("pointerleave", () => setActive(undefined));
+      node.addEventListener("focus", () => setActive(id));
+      node.addEventListener("blur", () => setActive(undefined));
+      node.setAttribute("tabindex", "0");
+      node.setAttribute("role", "button");
+      node.setAttribute("aria-label", copy[id ?? ""] ?? id ?? "surface");
+    }
+
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (!reduced) {
+      svg.addEventListener("pointermove", (event) => {
+        const rect = svg.getBoundingClientRect();
+        const x = ((event.clientX - rect.left) / rect.width) * 560;
+        const y = ((event.clientY - rect.top) / rect.height) * 560;
+        glow.setAttribute("cx", String(x));
+        glow.setAttribute("cy", String(y));
+        glow.setAttribute("opacity", "0.12");
+      });
+      svg.addEventListener("pointerleave", () => {
+        glow.setAttribute("opacity", "0");
+      });
+    }
+  }
+</script>

@@ -1,0 +1,12 @@
+---
+description: Design export preview — open Sketch only, never Figma
+alwaysApply: true
+---
+
+# Design export preview
+
+When emitting or remapping `.fig` / `.sketch` for visual review:
+
+- **Do** auto-open Sketch archives (`open …/*.sketch`)
+- **Do not** auto-open Figma archives (`.fig` / `.deck`) — they are previewed in the browser
+- Still write both formats when requested; only skip launching Figma

@@ -44,3 +44,46 @@ jobs:
       - name: Compile VS Code extension
         working-directory: src/vscode
         run: npm run compile
+
+  install-unix:
+    name: Install script (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: Linux
+            runner: ubuntu-latest
+          - os: macOS
+            runner: macos-26
+    runs-on: ${{ matrix.runner }}
+    steps:
+      # Same fashion as README/docs; sha pins this commit (not stale main).
+      - name: Run install.sh
+        run: curl -fsSL "https://raw.githubusercontent.com/${{ github.repository }}/${{ github.sha }}/install.sh" | bash
+
+      - name: Verify hooman CLI
+        run: |
+          echo "$HOME/.bun/bin" >> "$GITHUB_PATH"
+          export PATH="$HOME/.bun/bin:$PATH"
+          hooman --version
+          hooman --help
+
+  install-windows:
+    name: Install script (Windows)
+    runs-on: windows-latest
+    steps:
+      # Same fashion as README/docs; sha pins this commit (not stale main).
+      - name: Run install.ps1
+        shell: pwsh
+        run: irm "https://raw.githubusercontent.com/${{ github.repository }}/${{ github.sha }}/install.ps1" | iex
+
+      - name: Verify hooman CLI
+        shell: pwsh
+        run: |
+          $bunBin = Join-Path $HOME ".bun\bin"
+          if (Test-Path $bunBin) {
+            $env:Path = "$bunBin;$env:Path"
+            Add-Content -Path $env:GITHUB_PATH -Value $bunBin
+          }
+          hooman --version
+          hooman --help

@@ -1,0 +1,35 @@
+/* Direction tokens — harbor-navy (institutional / classic B2B). */
+:root {
+  --bg: #f3f5f8;
+  --surface: #ffffff;
+  --surface-2: #e8ecf1;
+  --ink: #0b1f33;
+  --muted: #5b6b7c;
+  --border: #d5dde6;
+  --accent: #1e3a5f;
+  --accent-soft: #e4ebf3;
+  --accent-ink: #ffffff;
+  --danger: #9f1239;
+  --success: #1b6b4a;
+  --warning: #9a6700;
+  --focus: #1e3a5f;
+  --overlay: rgb(11 31 51 / 0.5);
+  --shadow: 0 1px 2px rgb(11 31 51 / 0.07);
+  --font-display:
+    "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  --font-body: system-ui, -apple-system, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  --radius: 0.25rem;
+  --leading-body: 1.55;
+  --tracking-caps: 0.08em;
+  --text-body: 1rem;
+  --text-small: 0.875rem;
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-7: 3rem;
+  --space-8: 4rem;
+}

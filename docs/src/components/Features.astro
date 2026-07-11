@@ -3,34 +3,34 @@ const base = import.meta.env.BASE_URL;
 
 const features = [
   {
-    title: "Chat, exec, daemon, ACP",
-    description: "A stateful chat TUI, one-shot exec, a channel-driven daemon, and an ACP agent — same core, four surfaces.",
+    title: "Four agent surfaces",
+    description: "Stateful chat TUI, one-shot exec, channel-driven daemon, and ACP for editors — one core, every workflow.",
     href: `${base}/guides/cli/`,
   },
   {
+    title: "Design mode",
+    description: "HTML under .hooman/design with DESIGN.md, craft shells, live preview, and export to PDF, PowerPoint-ready .pptx, Figma-ready .fig / .deck, or Sketch-ready .sketch.",
+    href: `${base}/guides/modes/design/`,
+  },
+  {
     title: "MCP + OAuth",
-    description: "stdio, streamable-http, and sse servers, with DCR and CIMD OAuth flows for remote servers that need auth.",
+    description: "stdio, streamable-http, and sse — with DCR and CIMD OAuth, lazy tool discovery, and optional Playwright browser automation.",
     href: `${base}/guides/mcp/`,
   },
   {
-    title: "Skills",
-    description: "Bundled built-ins plus ~/.hooman/skills and optional project-local .hooman/skills the agent activates on demand.",
+    title: "Skills & modes",
+    description: "Built-ins plus ~/.hooman/skills and project .hooman/skills. Agent / Plan / Ask / Design modes with a separate Yolo toggle.",
     href: `${base}/guides/skills/`,
   },
   {
     title: "Subagents",
-    description: "Built-in read-only subagent tools for research, review, and test investigation without derailing the main thread.",
+    description: "Read-only research, code review, quality analysis, and design-review subagents that keep the main thread focused.",
     href: `${base}/guides/tools/`,
   },
   {
-    title: "Tool approvals",
-    description: "Destructive tool calls need approval by default — chat, exec, and ACP each prompt; Yolo / --yolo auto-approves (except leaving plan mode).",
+    title: "Human in the loop",
+    description: "Destructive tools need approval by default across chat, exec, and ACP. Yolo auto-approves — except switch_mode.",
     href: `${base}/guides/tools/#approvals`,
-  },
-  {
-    title: "Cost & context tracking",
-    description: "Context-window utilization and cumulative session cost, backed by the models.dev catalog, shown live in every surface.",
-    href: `${base}/guides/configuration/models/#llm-metadata`,
   },
 ];
 ---
@@ -38,11 +38,13 @@ const features = [
 <section id="features" class="relative py-24 sm:py-32">
   <div class="mx-auto max-w-6xl px-6">
     <div class="reveal-target mx-auto max-w-2xl text-center">
-      <h2 class="text-3xl font-bold tracking-tight text-white sm:text-4xl">Everything an agent toolkit needs</h2>
-      <p class="mt-4 text-lg text-slate-400">Toolkit-oriented architecture: configurable tools, prompts, and transports.</p>
+      <h2 class="text-3xl font-bold tracking-tight text-white sm:text-4xl">Most-featured by design</h2>
+      <p class="mt-4 text-lg text-slate-400">
+        Not a thin chat wrapper — a full agentic stack with modes, MCP, skills, subagents, and delivery exports.
+      </p>
     </div>
 
-    <div class="mt-16 grid grid-cols-1 gap-px overflow-hidden rounded-2xl border border-white/10 bg-white/10 sm:grid-cols-2 lg:grid-cols-3">
+    <div class="mt-16 grid grid-cols-1 gap-px overflow-hidden rounded-lg border border-white/10 bg-white/10 sm:grid-cols-2 lg:grid-cols-3">
       {
         features.map((f, i) => (
           <a
@@ -50,7 +52,7 @@ const features = [
             class="reveal-target group relative bg-ink-950 p-8 transition hover:bg-white/[0.04]"
             style={`transition-delay: ${(i % 3) * 80}ms`}
           >
-            <div class="h-1.5 w-8 rounded-full bg-gradient-to-r from-hooman-cyan to-hooman-indigo opacity-70" />
+            <div class="h-1 w-8 bg-gradient-to-r from-hooman-cyan to-hooman-indigo opacity-70" />
             <h3 class="mt-5 text-lg font-semibold text-white">{f.title}</h3>
             <p class="mt-2.5 text-sm leading-relaxed text-slate-400">{f.description}</p>
           </a>

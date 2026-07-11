@@ -1,0 +1,35 @@
+/* Direction tokens — paper-mono (print / resume / quiet docs). */
+:root {
+  --bg: #f5f5f4;
+  --surface: #ffffff;
+  --surface-2: #ececeb;
+  --ink: #171717;
+  --muted: #737373;
+  --border: #d4d4d4;
+  --accent: #171717;
+  --accent-soft: #e7e7e7;
+  --accent-ink: #ffffff;
+  --danger: #991b1b;
+  --success: #166534;
+  --warning: #92400e;
+  --focus: #171717;
+  --overlay: rgb(23 23 23 / 0.4);
+  --shadow: none;
+  --font-display:
+    "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  --font-body: system-ui, -apple-system, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  --radius: 0.25rem;
+  --leading-body: 1.5;
+  --tracking-caps: 0.09em;
+  --text-body: 0.9375rem;
+  --text-small: 0.8125rem;
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-7: 3rem;
+  --space-8: 4rem;
+}

@@ -35,6 +35,11 @@ const assets = [
     src: join(root, "src/core/skills/built-in"),
     dest: join(root, "dist/core/skills/built-in"),
   },
+  {
+    label: "figma slides seed",
+    src: join(root, "src/core/utils/seeds"),
+    dest: join(root, "dist/core/utils/seeds"),
+  },
 ];
 
 for (const asset of assets) {

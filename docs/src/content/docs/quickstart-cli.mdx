@@ -1,0 +1,110 @@
+---
+title: CLI
+description: Install and run the full-stack Hooman agent from the terminal — local-first, BYOK, MIT.
+---
+
+import { Tabs, TabItem } from "@astrojs/starlight/components";
+
+![Hooman CLI](/hooman/screenshots/ask-mode.png)
+
+## Requirements
+
+- [Node.js](https://nodejs.org) `>= 24`, **or**
+- [Bun](https://bun.sh) `>= 1.1`
+
+Either runtime works everywhere below — pick whichever you already have installed.
+
+## Install (recommended)
+
+One-liner installers that install [Bun](https://bun.sh) if needed, then install the latest [`hoomanjs`](https://www.npmjs.com/package/hoomanjs) globally:
+
+<Tabs syncKey="install">
+  <TabItem label="curl">
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/vaibhavpandeyvpz/hooman/main/install.sh | bash
+```
+
+  </TabItem>
+  <TabItem label="PowerShell">
+
+```powershell
+irm https://raw.githubusercontent.com/vaibhavpandeyvpz/hooman/main/install.ps1 | iex
+```
+
+  </TabItem>
+  <TabItem label="npm">
+
+```bash
+npm i -g hoomanjs
+```
+
+  </TabItem>
+  <TabItem label="bun">
+
+```bash
+bun add -g hoomanjs
+```
+
+  </TabItem>
+</Tabs>
+
+Then run:
+
+```bash
+hooman
+```
+
+## Run without installing
+
+The fastest way to try Hooman without a global install:
+
+```bash
+npx hoomanjs
+```
+
+Or with Bun:
+
+```bash
+bunx hoomanjs
+```
+
+Both download [`hoomanjs`](https://www.npmjs.com/package/hoomanjs) on first use and cache it for next time — no separate install step, and nothing left behind if you don't keep using it.
+
+## First run
+
+1. Run `hooman` (or `npx hoomanjs`). If `~/.hooman/config.json` is missing, Hooman opens a **setup** wizard first:
+   - pick an inference provider and enter credentials (validated against the provider)
+   - pick a search provider (DuckDuckGo needs no key; others are validated with a test search)
+   - write `config.json` with the available chat LLMs for that provider
+2. Chat starts automatically after setup. Re-run setup anytime with `hooman setup`.
+3. Use `/config` inside chat (or `hooman config`) for advanced settings — MCP, skills, prompts, tools, and more.
+4. Use `hooman exec "your prompt"` for one-off tasks once you're set up.
+
+The setup wizard defaults to local [llama.cpp](/hooman/guides/configuration/models/llama-cpp/) (Gemma 4 E2B / Qwen3.5 2B on `Q4_K_M`) so you can start without an API key; on Apple Silicon you can choose [MLX](/hooman/guides/configuration/models/mlx/) instead. Hosted providers (Anthropic, OpenAI, Google, …) are available in the same flow. The first local model you use downloads from the Hugging Face Hub on demand with a live progress bar. See [Models](/hooman/guides/configuration/models/) for the full list.
+
+## Run from source
+
+Prefer to build from the repository instead of the published package:
+
+```bash
+git clone https://github.com/vaibhavpandeyvpz/hooman.git
+cd hooman
+npm install
+npm run dev -- --help
+```
+
+Or build and link the CLI locally:
+
+```bash
+npm run build
+npm link
+hooman --help
+```
+
+## Next steps
+
+- [CLI reference](/hooman/guides/cli/) — every command, flag, and in-chat slash command.
+- [Configuration](/hooman/guides/configuration/) — `~/.hooman` layout and repo-local overlays.
+- [Models](/hooman/guides/configuration/models/) — connect Anthropic, OpenAI, Google, Ollama, and more.
+- [VS Code quickstart](/hooman/quickstart-vscode/) — prefer a chat panel in your editor instead?

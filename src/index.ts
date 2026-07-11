@@ -47,7 +47,7 @@ export {
   projectRegistryPath,
   projectsPath,
 } from "./core/utils/project-registry.js";
-export { openBrowser } from "./core/utils/browser.js";
+export { openExternalBrowser } from "./core/utils/browser.js";
 export {
   attachmentDiagnosticBlock,
   attachmentPathsToPromptBlocks,
@@ -221,6 +221,36 @@ export type {
   ModelDownloadProgress,
   ModelDownloadProgressListener,
 } from "./core/utils/download-progress.js";
+export {
+  DEFAULT_PREFETCH_MODEL_BY_PROVIDER,
+  defaultPrefetchedModel,
+  hasPrefetchCredentials,
+  prefetchProviderModels,
+  providerRequiresCredentials,
+  resolvePrefetchModels,
+} from "./core/utils/models-prefetch.js";
+export type {
+  PrefetchModelsOptions,
+  PrefetchProviderId,
+  PrefetchedModel,
+} from "./core/utils/models-prefetch.js";
+export { probeSearchProvider } from "./core/utils/search-probe.js";
+export type {
+  SearchProbeOptions,
+  SearchProbeProvider,
+} from "./core/utils/search-probe.js";
+export {
+  completeOnboardingConfig,
+  hasOnboardingConfig,
+  validateOnboardingProvider,
+  validateOnboardingSearch,
+} from "./core/utils/onboarding-config.js";
+export type {
+  OnboardingInput,
+  OnboardingProviderId,
+  OnboardingProviderInput,
+  OnboardingSearchProvider,
+} from "./core/utils/onboarding-config.js";
 export { subscribeModelRetryProgress } from "./core/agent/retry-progress.js";
 export type {
   ModelRetryProgress,
@@ -268,7 +298,7 @@ export {
 } from "./core/sessions/list-cli-sessions.js";
 
 export {
-  SUBAGENT_TOOL_NAME_PREFIX,
+  LAUNCH_SUBAGENT_TOOL_NAME,
   createSubagentTools,
   createSubagentRegistry,
 } from "./core/subagents/index.js";
@@ -337,6 +367,7 @@ export {
   getModeTools,
   isKnownSessionMode,
   isModeDefinition,
+  isModeListedTool,
   loadModeDefinitions,
   type KnownSessionMode,
   type ModeDefinition,

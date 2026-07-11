@@ -27,12 +27,14 @@ import {
 } from "../subagents/index.js";
 import {
   createAskUserTools,
+  createDesignPreviewTools,
+  createExportTools,
   createTodoTools,
   createFetchTools,
   createFilesystemTools,
   createGrepTools,
   clearReadTimeAgentInstructionState,
-  createPlanTools,
+  createSwitchModeTool,
   createSleepTools,
   createThinkingTools,
   createTimeTools,
@@ -40,7 +42,7 @@ import {
   createMcpDiscoveryTools,
 } from "../tools/index.js";
 import { createShellTools } from "../shell/index.js";
-import { createSessionModePromptPlugin } from "../prompts/session-mode-appendix.js";
+import { createSessionModePromptPlugin } from "../prompts/session-mode.js";
 import {
   clearAgentSkillsPromptInjectionState,
   createAgentSkillsPlugin,
@@ -56,6 +58,9 @@ import { clearTodoState } from "../state/todos.js";
 import { MODE_STATE_KEY, type SessionMode } from "../state/session-mode.js";
 import { PrefixedMcpTool } from "../mcp/prefixed-mcp-tool.js";
 import { YOLO_STATE_KEY } from "../state/yolo.js";
+import { setLlmModality } from "../state/llm-modality.js";
+import { configuredLlmContext, resolveLlmMetadata } from "../utils/metadata.js";
+import type { ResolvedLlmInputModality } from "../utils/model-metadata.js";
 import {
   memoryPath,
   offloadedContentPath,
@@ -74,7 +79,10 @@ const agentSessionManagers = new WeakMap<Agent, SessionManager>();
 type ToolRegistryContext = {
   config: Config;
   systemPrompt: string;
-  createModel: () => ReturnType<ModelProvider["create"]>;
+  createModel: (name?: string) => ReturnType<ModelProvider["create"]>;
+  resolveModality: (
+    name?: string,
+  ) => Promise<ResolvedLlmInputModality | null | undefined>;
   manager: McpManager;
 };
 
@@ -82,6 +90,7 @@ async function createToolRegistry({
   config,
   systemPrompt,
   createModel,
+  resolveModality,
   manager,
 }: ToolRegistryContext): Promise<{
   tools: Tool[];
@@ -97,8 +106,10 @@ async function createToolRegistry({
     ...(config.tools.shell.enabled ? createShellTools() : []),
     ...(config.search.enabled ? createWebSearchTools(config) : []),
     ...createAskUserTools(),
+    ...createDesignPreviewTools(),
+    ...createExportTools(),
     ...createThinkingTools(),
-    ...createPlanTools(),
+    createSwitchModeTool(),
   ];
 
   const registry = new LazyToolRegistry(tools);
@@ -131,7 +142,9 @@ async function createToolRegistry({
       parent: config.name,
       registry: subagentRegistry,
       tools,
+      modelNames: config.llms.map((entry) => entry.name),
       createModel,
+      resolveModality,
     });
     tools.push(...subagentTools);
     registry.add(subagentTools);
@@ -185,13 +198,38 @@ export async function create(
   )) {
     providerCache.set(provider, await modelProviders[provider]!());
   }
-  function createLiveModel() {
-    const current = config.llm;
+  function resolveLiveLlm(name?: string) {
+    if (!name) {
+      return config.llm;
+    }
+    const resolved = config.resolveLlm(name);
+    if (!resolved) {
+      const available = config.llms.map((entry) => entry.name).join(", ");
+      throw new Error(
+        `Unknown model "${name}". Configured models: ${available || "(none)"}.`,
+      );
+    }
+    return resolved;
+  }
+
+  function createLiveModel(name?: string) {
+    const current = resolveLiveLlm(name);
     const provider = providerCache.get(current.provider);
     if (!provider) {
       throw new Error(`No model provider loaded for "${current.provider}".`);
     }
     return provider.create(current.providerOptions, current.llmOptions);
+  }
+
+  async function resolveLiveModality(name?: string) {
+    const live = resolveLiveLlm(name);
+    const metadata = await resolveLlmMetadata(
+      live.metadata,
+      live.llmOptions.model,
+      live.provider,
+      configuredLlmContext(live),
+    ).catch(() => null);
+    return metadata?.modality;
   }
   const ctx = createContext(sessionId);
   const {
@@ -226,7 +264,8 @@ export async function create(
   const { tools, registry } = await createToolRegistry({
     config,
     systemPrompt,
-    createModel: () => createLiveModel(),
+    createModel: (name) => createLiveModel(name),
+    resolveModality: (name) => resolveLiveModality(name),
     manager: mcp.manager,
   });
 
@@ -264,6 +303,15 @@ export async function create(
   }
   attachToolRegistry(agent, registry);
   await agent.initialize();
+  // Seed modality so binary read_file can emit ImageBlocks when the model
+  // supports images (refreshed again on model switch / BeforeInvocation).
+  const initialMetadata = await resolveLlmMetadata(
+    config.llm.metadata,
+    config.llm.llmOptions.model,
+    config.llm.provider,
+    configuredLlmContext(config.llm),
+  ).catch(() => null);
+  setLlmModality(agent, initialMetadata?.modality);
   agent.addHook(
     BeforeInvocationEvent,
     async (event) => {
@@ -271,6 +319,14 @@ export async function create(
       clearReadTimeAgentInstructionState(event.agent);
       clearAgentSkillsPromptInjectionState(event.agent);
       event.agent.systemPrompt = await buildBaseSystemPrompt();
+      const live = config.llm;
+      const metadata = await resolveLlmMetadata(
+        live.metadata,
+        live.llmOptions.model,
+        live.provider,
+        configuredLlmContext(live),
+      ).catch(() => null);
+      setLlmModality(event.agent, metadata?.modality);
     },
     { order: HookOrder.SDK_FIRST - 1 },
   );

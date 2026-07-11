@@ -293,7 +293,10 @@ function ConfigModeView(props: {
                 enabled,
                 provider: cfg().search.provider,
                 apiKey:
-                  cfg().search[cfg().search.provider].apiKey ?? searchApiKey(),
+                  cfg().search.provider === "duckduckgo"
+                    ? ""
+                    : (cfg().search[cfg().search.provider].apiKey ??
+                      searchApiKey()),
                 baseURL: cfg().search.litellm.baseURL ?? searchBaseUrl(),
                 tool: cfg().search.litellm.tool ?? searchTool(),
               })
@@ -310,8 +313,10 @@ function ConfigModeView(props: {
                   enabled: cfg().search.enabled,
                   provider,
                   apiKey:
-                    (cfg().search[provider].apiKey ?? searchApiKey()) ||
-                    "placeholder",
+                    provider === "duckduckgo"
+                      ? ""
+                      : (cfg().search[provider].apiKey ?? searchApiKey()) ||
+                        "placeholder",
                   baseURL: cfg().search.litellm.baseURL,
                   tool: cfg().search.litellm.tool,
                 });
@@ -322,29 +327,34 @@ function ConfigModeView(props: {
               </For>
             </select>
           </Field>
-          <Field
-            label={
-              cfg().search.provider === "litellm" ? "Virtual key" : "API key"
-            }
-          >
-            <input
-              class={inputClass}
-              value={
-                cfg().search[cfg().search.provider].apiKey ?? searchApiKey()
+          <Show when={cfg().search.provider !== "duckduckgo"}>
+            <Field
+              label={
+                cfg().search.provider === "litellm" ? "Virtual key" : "API key"
               }
-              onInput={(event) => setSearchApiKey(event.currentTarget.value)}
-              onChange={(event) =>
-                sendConfigEditorAction({
-                  type: "saveSearch",
-                  enabled: cfg().search.enabled,
-                  provider: cfg().search.provider,
-                  apiKey: event.currentTarget.value,
-                  baseURL: cfg().search.litellm.baseURL ?? searchBaseUrl(),
-                  tool: cfg().search.litellm.tool ?? searchTool(),
-                })
-              }
-            />
-          </Field>
+            >
+              <input
+                class={inputClass}
+                value={
+                  cfg().search.provider === "duckduckgo"
+                    ? ""
+                    : (cfg().search[cfg().search.provider].apiKey ??
+                      searchApiKey())
+                }
+                onInput={(event) => setSearchApiKey(event.currentTarget.value)}
+                onChange={(event) =>
+                  sendConfigEditorAction({
+                    type: "saveSearch",
+                    enabled: cfg().search.enabled,
+                    provider: cfg().search.provider,
+                    apiKey: event.currentTarget.value,
+                    baseURL: cfg().search.litellm.baseURL ?? searchBaseUrl(),
+                    tool: cfg().search.litellm.tool ?? searchTool(),
+                  })
+                }
+              />
+            </Field>
+          </Show>
           <Show when={cfg().search.provider === "litellm"}>
             <>
               <Field label="Base URL">

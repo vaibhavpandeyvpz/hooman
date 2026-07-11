@@ -3,7 +3,7 @@ export const PLAN_ENTER_REASON_STATE_KEY = "hooman.enterReason";
 export const PLAN_ENTERED_AT_STATE_KEY = "hooman.enteredAt";
 /**
  * Last plan file used in this session. Survives {@link clearPlanState} so a
- * later `enter_plan_mode` can reopen the same document instead of minting a new
+ * later `switch_mode` into plan can reopen the same document instead of minting a new
  * one. Only cleared when a fresh plan is explicitly requested.
  */
 export const PLAN_LAST_FILE_STATE_KEY = "hooman.lastPlanFile";

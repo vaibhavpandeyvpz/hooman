@@ -30,6 +30,9 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 .cache
 *.tsbuildinfo
 
+# Astro generated types (docs package)
+docs/.astro
+
 # IntelliJ based IDEs
 .idea
 

@@ -1,9 +1,8 @@
 import type { ToolKind } from "@agentclientprotocol/sdk";
 import type { Tool } from "@strands-agents/sdk";
 import {
-  ENTER_PLAN_MODE_TOOL,
-  EXIT_PLAN_MODE_TOOL,
   INTERNAL_ALWAYS_ALLOWED,
+  SWITCH_MODE_TOOL,
 } from "../../core/state/tool-approvals.js";
 
 const KNOWN_TOOL_KINDS = new Map<string, ToolKind>([
@@ -28,15 +27,15 @@ const KNOWN_TOOL_KINDS = new Map<string, ToolKind>([
   ["search_memory", "search"],
   ["strands_structured_output", "other"],
   ["think", "think"],
-  ["subagent_research", "other"],
-  ["subagent_review", "other"],
-  ["subagent_test_investigator", "other"],
+  ["launch_subagent", "other"],
   ["update_todos", "other"],
   ["ask_user", "other"],
+  ["preview_design", "other"],
+  ["stop_design_preview", "other"],
+  ["export_design", "other"],
   ["get_current_time", "other"],
   ["convert_time", "other"],
-  [ENTER_PLAN_MODE_TOOL, "switch_mode"],
-  [EXIT_PLAN_MODE_TOOL, "switch_mode"],
+  [SWITCH_MODE_TOOL, "switch_mode"],
 ]);
 
 export { INTERNAL_ALWAYS_ALLOWED };

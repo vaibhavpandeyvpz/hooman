@@ -1,4 +1,5 @@
-import { getModeTools } from "../modes/definitions.js";
+import { getModeTools, isModeListedTool } from "../modes/definitions.js";
+import { builtInSkillsPath } from "../skills/plugin.js";
 import { getModeState } from "./session-mode.js";
 import type { SessionMode } from "./session-mode.js";
 import {
@@ -6,7 +7,16 @@ import {
   normalizeUserPath,
 } from "../utils/normalize-user-path.js";
 import { getCwd } from "../utils/cwd-context.js";
-import { attachmentsPath, plansPath } from "../utils/paths.js";
+import {
+  attachmentsPath,
+  designArtifactsPath,
+  plansPath,
+} from "../utils/paths.js";
+import { EXPORT_DESIGN_TOOL_NAME } from "../tools/export.js";
+import {
+  PREVIEW_DESIGN_TOOL_NAME,
+  STOP_DESIGN_PREVIEW_TOOL_NAME,
+} from "../tools/preview.js";
 
 type AppStateLike = {
   get<T = unknown>(key: string): T;
@@ -21,8 +31,9 @@ const READ_FILE_TOOL = "read_file";
 const READ_MULTIPLE_FILES_TOOL = "read_multiple_files";
 const WRITE_FILE_TOOL = "write_file";
 const EDIT_FILE_TOOL = "edit_file";
-export const ENTER_PLAN_MODE_TOOL = "enter_plan_mode";
-export const EXIT_PLAN_MODE_TOOL = "exit_plan_mode";
+const FETCH_TOOL = "fetch";
+/** Session mode switch; always requires explicit approval (never yolo / always-allow). */
+export const SWITCH_MODE_TOOL = "switch_mode";
 const ASK_USER_TOOL = "ask_user";
 const SEARCH_TOOLS_TOOL = "search_tools";
 const ACTIVATE_TOOLS_TOOL = "activate_tools";
@@ -38,9 +49,7 @@ export const INTERNAL_ALWAYS_ALLOWED = new Set([
   // Thinking
   "think",
   // Subagents (read-only)
-  "subagent_research",
-  "subagent_review",
-  "subagent_test_investigator",
+  "launch_subagent",
   // Sleep
   "sleep",
   // Background shell job management (safe to use in any mode once a job exists)
@@ -58,20 +67,31 @@ export const INTERNAL_ALWAYS_ALLOWED = new Set([
   "get_file_info",
   "list_directory",
   "grep",
-  // Planning session: entering is safe and auto-allowed. Exiting is a proposal
-  // to leave planning and move toward implementation, so it flows through the
-  // approval prompt where the user can approve or decline (and keep refining).
-  ENTER_PLAN_MODE_TOOL,
+  // switch_mode is intentionally NOT always-allowed — see intervention.ts.
 ]);
 
-function isPlainObjectRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
+const PLAN_MODE_WRITE_EDIT_TOOLS = [WRITE_FILE_TOOL, EDIT_FILE_TOOL] as const;
+
+function toolInputPath(toolInput: unknown): string {
+  if (!toolInput || typeof toolInput !== "object") {
+    return "";
+  }
+  const path = (toolInput as { path?: unknown }).path;
+  return typeof path === "string" ? path.trim() : "";
+}
+
+function toolInputSaveAs(toolInput: unknown): string {
+  if (!toolInput || typeof toolInput !== "object") {
+    return "";
+  }
+  const saveAs = (toolInput as { save_as?: unknown }).save_as;
+  return typeof saveAs === "string" ? saveAs.trim() : "";
 }
 
 /**
- * In session mode `plan`, block `write_file` / `edit_file` unless the target path resolves
- * under the app plans directory. Runs before any “always allow” grant so plan boundaries
- * cannot be overridden by tooling preferences.
+ * In plan mode, reject `write_file` / `edit_file` unless the destination path
+ * is under the plans directory, and reject `fetch` with `save_as` entirely.
+ * Runs before any “always allow” grant.
  */
 export function planModeWriteEditRejectionMessage(
   agent: AgentLike,
@@ -81,45 +101,66 @@ export function planModeWriteEditRejectionMessage(
   if (getModeState(agent).mode !== "plan") {
     return null;
   }
-  if (toolName !== WRITE_FILE_TOOL && toolName !== EDIT_FILE_TOOL) {
-    return null;
+
+  if ((PLAN_MODE_WRITE_EDIT_TOOLS as readonly string[]).includes(toolName)) {
+    const plansRoot = plansPath();
+    const raw = toolInputPath(toolInput);
+    if (raw && isResolvedPathInsideDir(normalizeUserPath(raw), plansRoot)) {
+      return null;
+    }
+    return `In plan mode, "${toolName}" was rejected automatically: path must be under the plans directory (${plansRoot}).`;
   }
-  const plansRoot = plansPath();
-  if (!isPlainObjectRecord(toolInput)) {
-    return `In plan mode, "${toolName}" only applies to files under the plans directory (${plansRoot}).`;
+
+  if (toolName === FETCH_TOOL && toolInputSaveAs(toolInput)) {
+    return `In plan mode, "${toolName}" with save_as was rejected automatically: downloading files is not allowed.`;
   }
-  const raw = toolInput.path;
-  if (typeof raw !== "string" || !raw.trim()) {
-    return `In plan mode, "${toolName}" requires a path under the plans directory (${plansRoot}).`;
+
+  return null;
+}
+
+const DESIGN_ARTIFACT_IMPLICIT_TOOLS = [
+  PREVIEW_DESIGN_TOOL_NAME,
+  STOP_DESIGN_PREVIEW_TOOL_NAME,
+  EXPORT_DESIGN_TOOL_NAME,
+] as const;
+
+function isDesignToolImplicitlyAllowed(
+  toolName: string,
+  toolInput: unknown,
+): boolean {
+  if (
+    !(DESIGN_ARTIFACT_IMPLICIT_TOOLS as readonly string[]).includes(toolName)
+  ) {
+    return false;
   }
-  const resolved = normalizeUserPath(raw.trim());
-  if (isResolvedPathInsideDir(resolved, plansRoot)) {
-    return null;
-  }
-  return `In plan mode, "${toolName}" was rejected automatically: path must be under the plans directory (${plansRoot}).`;
+  const raw = toolInputPath(toolInput);
+  return (
+    Boolean(raw) &&
+    isResolvedPathInsideDir(normalizeUserPath(raw), designArtifactsPath())
+  );
 }
 
 /**
  * Skip approval for filesystem tools when targets stay inside trusted roots.
  * In ask/plan mode, read_file/read_multiple_files are also auto-allowed under
  * the session cwd so the narrowed surfaces can inspect the workspace without
- * repeated approval prompts.
+ * repeated approval prompts. Built-in skill assets are readable in every mode.
  */
 function isImplicitPathAllowed(
   toolName: string,
-  toolInput: Record<string, unknown>,
+  toolInput: unknown,
   mode?: SessionMode,
 ): boolean {
   const attachments = attachmentsPath();
   const plans = plansPath();
-  const readRoots = [attachments, plans];
-  if (mode === "ask" || mode === "plan") {
+  const readRoots = [attachments, plans, builtInSkillsPath()];
+  if (mode === "ask" || mode === "plan" || mode === "design") {
     readRoots.push(getCwd());
   }
 
   if (toolName === READ_FILE_TOOL) {
-    const raw = toolInput.path;
-    if (typeof raw !== "string" || !raw.trim()) {
+    const raw = toolInputPath(toolInput);
+    if (!raw) {
       return false;
     }
     const resolved = normalizeUserPath(raw);
@@ -127,8 +168,13 @@ function isImplicitPathAllowed(
   }
 
   if (toolName === READ_MULTIPLE_FILES_TOOL) {
-    const paths = toolInput.paths;
-    if (!Array.isArray(paths) || paths.length === 0) {
+    const paths =
+      toolInput &&
+      typeof toolInput === "object" &&
+      Array.isArray((toolInput as { paths?: unknown }).paths)
+        ? (toolInput as { paths: unknown[] }).paths
+        : null;
+    if (!paths || paths.length === 0) {
       return false;
     }
     for (const item of paths) {
@@ -147,12 +193,22 @@ function isImplicitPathAllowed(
   }
 
   if (toolName === WRITE_FILE_TOOL || toolName === EDIT_FILE_TOOL) {
-    const raw = toolInput.path;
-    if (typeof raw !== "string" || !raw.trim()) {
+    const raw = toolInputPath(toolInput);
+    if (!raw) {
       return false;
     }
     const resolved = normalizeUserPath(raw);
-    return isResolvedPathInsideDir(resolved, plans);
+    if (isResolvedPathInsideDir(resolved, plans)) {
+      return true;
+    }
+    // Design mode: artifact writes under `.hooman/design/` are the whole point.
+    if (
+      mode === "design" &&
+      isResolvedPathInsideDir(resolved, designArtifactsPath())
+    ) {
+      return true;
+    }
+    return false;
   }
 
   return false;
@@ -160,10 +216,13 @@ function isImplicitPathAllowed(
 
 /**
  * Implicit, always-on allow for filesystem tools whose targets stay inside
- * trusted roots: reads under attachments or plans in every mode, plus reads
- * under the session cwd in ask/plan mode; writes/edits remain limited to the
- * plans directory. Persistent "always allow" grants are handled separately by
- * the on-disk {@link Allowlist} (see `../approvals/allowlist.ts`).
+ * trusted roots: reads under attachments, plans, or bundled skills in every
+ * mode, plus reads under the session cwd in ask/plan/design; writes/edits under
+ * the plans directory in every mode, and under `.hooman/design/` in design mode.
+ * Design tools (`preview_design`, `stop_design_preview`, `export_design`) are
+ * also auto-allowed when `path` is under `.hooman/design/`. Persistent "always
+ * allow" grants are handled separately by the on-disk {@link Allowlist}
+ * (see `../approvals/allowlist.ts`).
  */
 export function isImplicitlyAllowed(
   toolName: string,
@@ -171,7 +230,7 @@ export function isImplicitlyAllowed(
   mode?: SessionMode,
 ): boolean {
   return (
-    isPlainObjectRecord(toolInput) &&
+    isDesignToolImplicitlyAllowed(toolName, toolInput) ||
     isImplicitPathAllowed(toolName, toolInput, mode)
   );
 }
@@ -181,16 +240,20 @@ export function isToolVisible(
   toolName: string,
   options?: { mcpReadOnlyHint?: boolean },
 ): boolean {
-  const readOnlyHinted = options?.mcpReadOnlyHint === true;
-  if (mode === "agent") {
+  const visibleTools = getModeTools(mode);
+  if (!visibleTools) {
+    return false;
+  }
+  if (visibleTools.includes(toolName)) {
     return true;
   }
-  const visibleTools = getModeTools(mode);
-  if (visibleTools) {
-    if (readOnlyHinted) {
-      return true;
-    }
-    return visibleTools.includes(toolName);
+  // Read-only MCP tools stay available in every mode.
+  if (options?.mcpReadOnlyHint === true) {
+    return true;
+  }
+  // Dynamic / MCP tools (not on any mode allowlist) remain available in agent.
+  if (mode === "agent" && !isModeListedTool(toolName)) {
+    return true;
   }
   return false;
 }

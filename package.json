@@ -1,7 +1,7 @@
 {
   "name": "hoomanjs",
-  "version": "1.47.0",
-  "description": "Hackable AI agent toolkit for building local CLI, ACP, MCP, and channel-driven workflows.",
+  "version": "1.48.0",
+  "description": "Full-stack open-source agentic ecosystem — local-first CLI, VS Code, ACP, daemon channels, and Design mode. BYOK, custom inference endpoints, llama.cpp & MLX.",
   "author": {
     "name": "Vaibhav Pandey",
     "email": "contact@vaibhavpandey.com"
@@ -18,10 +18,13 @@
   "keywords": [
     "acp",
     "agent",
+    "agentic",
     "ai",
+    "byok",
     "chat",
     "cli",
     "llm",
+    "local-first",
     "mcp",
     "skills",
     "strands"
@@ -58,6 +61,7 @@
     "@types/luxon": "^3.7.1",
     "@types/node": "^25.6.0",
     "@types/react": "^19.2.14",
+    "@types/serve-handler": "^6.1.4",
     "@types/turndown": "^5.0.6",
     "tsx": "^4.22.4",
     "typescript": "^6.0.2"
@@ -87,13 +91,16 @@
     "@mendable/firecrawl-js": "^4.21.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@mozilla/readability": "^0.6.0",
+    "@sketch-hq/sketch-file-format-ts": "^6.5.0",
     "@strands-agents/sdk": "^1.7.0",
     "@tavily/core": "^0.7.2",
+    "cheerio": "^1.2.0",
     "cli-highlight": "^2.1.11",
     "cli-spinners": "^3.4.0",
     "commander": "^14.0.3",
     "exa-js": "^2.14.0",
     "fastq": "^1.20.1",
+    "fflate": "^0.8.3",
     "gray-matter": "^2.0.1",
     "handlebars": "^4.7.9",
     "ignore": "^7.0.5",
@@ -109,10 +116,16 @@
     "millify": "^6.1.0",
     "ollama": "^0.6.3",
     "openai": "^6.45.0",
+    "openfig-core": "^0.3.7",
+    "pdf-lib": "^1.17.1",
     "pino": "^10.3.1",
+    "playwright": "^1.61.1",
+    "pptxgenjs": "^4.0.1",
     "react": "^19.2.5",
+    "serve-handler": "^6.1.7",
     "slugify": "^1.6.9",
     "turndown": "^7.2.4",
-    "zod": "^4.3.6"
+    "zod": "^4.3.6",
+    "zstd-codec": "^0.1.5"
   }
 }

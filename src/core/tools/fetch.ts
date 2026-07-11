@@ -1,12 +1,16 @@
-import dns from "node:dns/promises";
-import net from "node:net";
-import { readFile } from "node:fs/promises";
+import { createWriteStream } from "node:fs";
+import { mkdir, readFile, unlink } from "node:fs/promises";
+import path from "node:path";
+import { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
 import { Readability } from "@mozilla/readability";
 import { JSDOM } from "jsdom";
 import { tool } from "@strands-agents/sdk";
 import type { JSONValue, ToolContext } from "@strands-agents/sdk";
 import TurndownService from "turndown";
 import { z } from "zod";
+import { normalizeUserPath } from "../utils/normalize-user-path.js";
+import { assertRemoteUrl, isHttpUrl } from "../utils/url-safety.js";
 
 async function createUserAgent(): Promise<string> {
   const packageUrl = new URL("../../../package.json", import.meta.url);
@@ -18,8 +22,11 @@ async function createUserAgent(): Promise<string> {
 }
 
 const DEFAULT_TIMEOUT_SECONDS = 30;
+const DEFAULT_DOWNLOAD_TIMEOUT_SECONDS = 60;
 const DEFAULT_MAX_LENGTH = 5000;
 const MAX_FETCH_LENGTH = 1_000_000;
+const DEFAULT_MAX_BYTES = 100 * 1024 * 1024;
+const MAX_DOWNLOAD_BYTES = 1024 * 1024 * 1024;
 
 const turndown = new TurndownService({
   headingStyle: "atx",
@@ -29,64 +36,6 @@ const turndown = new TurndownService({
 
 function toJsonValue(value: unknown): JSONValue {
   return JSON.parse(JSON.stringify(value)) as JSONValue;
-}
-
-function isHttpUrl(value: string): URL {
-  const url = new URL(value);
-  if (url.protocol !== "http:" && url.protocol !== "https:") {
-    throw new Error("Only http:// and https:// URLs are supported.");
-  }
-  return url;
-}
-
-function isPrivateHostname(hostname: string): boolean {
-  const normalized = hostname.toLowerCase();
-  return (
-    normalized === "localhost" ||
-    normalized === "127.0.0.1" ||
-    normalized === "::1" ||
-    normalized.endsWith(".localhost")
-  );
-}
-
-function isPrivateIp(address: string): boolean {
-  const version = net.isIP(address);
-  if (version === 4) {
-    const parts = address.split(".").map((part) => Number(part));
-    const a = parts[0] ?? -1;
-    const b = parts[1] ?? -1;
-
-    return (
-      a === 10 ||
-      a === 127 ||
-      (a === 172 && b >= 16 && b <= 31) ||
-      (a === 192 && b === 168) ||
-      (a === 169 && b === 254)
-    );
-  }
-
-  if (version === 6) {
-    const normalized = address.toLowerCase();
-    return (
-      normalized === "::1" ||
-      normalized.startsWith("fc") ||
-      normalized.startsWith("fd") ||
-      normalized.startsWith("fe80:")
-    );
-  }
-
-  return false;
-}
-
-async function assertRemoteUrl(url: URL): Promise<void> {
-  if (isPrivateHostname(url.hostname)) {
-    throw new Error("Fetching localhost or loopback URLs is not allowed.");
-  }
-
-  const resolved = await dns.lookup(url.hostname, { all: true });
-  if (resolved.some((entry) => isPrivateIp(entry.address))) {
-    throw new Error("Fetching private-network URLs is not allowed.");
-  }
 }
 
 function responseHeaders(headers: Headers): Record<string, string> {
@@ -161,35 +110,113 @@ function sliceContent(
 function createFetchInputSchema() {
   return z.object({
     url: z.string().url().describe("Remote HTTP(S) URL to fetch."),
+    save_as: z
+      .string()
+      .min(1)
+      .optional()
+      .describe(
+        "When set, stream the response body to this local filesystem path instead of returning content text.",
+      ),
     max_length: z.coerce
       .number()
       .int()
       .min(1)
       .max(MAX_FETCH_LENGTH)
       .optional()
-      .describe("Maximum number of characters to return."),
+      .describe(
+        "Maximum number of characters to return (ignored when save_as is set).",
+      ),
     start_index: z.coerce
       .number()
       .int()
       .min(0)
       .optional()
-      .describe("Start returning content from this character index."),
+      .describe(
+        "Start returning content from this character index (ignored when save_as is set).",
+      ),
     raw: z
       .boolean()
       .optional()
       .describe(
-        "Return raw response text instead of simplifying HTML to markdown.",
+        "Return raw response text instead of simplifying HTML to markdown (ignored when save_as is set).",
       ),
     timeout: z.coerce
       .number()
       .positive()
       .optional()
       .describe("Request timeout in seconds."),
+    max_bytes: z.coerce
+      .number()
+      .int()
+      .min(1)
+      .max(MAX_DOWNLOAD_BYTES)
+      .optional()
+      .describe(
+        "Maximum number of bytes to write when save_as is set (default 100 MiB).",
+      ),
     headers: z
       .record(z.string(), z.string())
       .optional()
       .describe("Optional extra HTTP headers."),
   });
+}
+
+async function saveResponseToPath(options: {
+  url: URL;
+  response: Response;
+  filePath: string;
+  maxBytes: number;
+}): Promise<{ bytesWritten: number; contentType: string }> {
+  const { url, response, filePath, maxBytes } = options;
+
+  if (!response.body) {
+    throw new Error(`Empty response body: GET ${url.toString()}`);
+  }
+
+  const contentLength = response.headers.get("content-length");
+  if (contentLength) {
+    const declared = Number(contentLength);
+    if (Number.isFinite(declared) && declared > maxBytes) {
+      throw new Error(
+        `Remote content-length (${declared} bytes) exceeds max_bytes (${maxBytes}).`,
+      );
+    }
+  }
+
+  await mkdir(path.dirname(filePath), { recursive: true });
+
+  let bytesWritten = 0;
+  let wroteFile = false;
+
+  try {
+    const nodeStream = Readable.fromWeb(
+      response.body as import("node:stream/web").ReadableStream,
+    );
+    nodeStream.on("data", (chunk: Buffer | string) => {
+      bytesWritten +=
+        typeof chunk === "string" ? Buffer.byteLength(chunk) : chunk.byteLength;
+      if (bytesWritten > maxBytes) {
+        nodeStream.destroy(
+          new Error(
+            `Download exceeded max_bytes (${maxBytes}) after ${bytesWritten} bytes.`,
+          ),
+        );
+      }
+    });
+
+    await pipeline(nodeStream, createWriteStream(filePath));
+    wroteFile = true;
+
+    return {
+      bytesWritten,
+      contentType: response.headers.get("content-type") ?? "",
+    };
+  } catch (error) {
+    if (wroteFile || bytesWritten > 0) {
+      await unlink(filePath).catch(() => undefined);
+    }
+    throw error;
+  }
 }
 
 export function createFetchTools() {
@@ -199,10 +226,13 @@ export function createFetchTools() {
     tool({
       name: "fetch",
       description:
-        "Fetch a remote URL and return response content. HTML pages are simplified to markdown by default to save context window and tokens.",
+        "Fetch a remote URL and return response content, or save the response body to a local path with save_as. HTML pages are simplified to markdown by default to save context window and tokens.",
       inputSchema,
       callback: async (input, context?: ToolContext) => {
-        const timeoutSeconds = input.timeout ?? DEFAULT_TIMEOUT_SECONDS;
+        const saveAs = input.save_as?.trim();
+        const timeoutSeconds =
+          input.timeout ??
+          (saveAs ? DEFAULT_DOWNLOAD_TIMEOUT_SECONDS : DEFAULT_TIMEOUT_SECONDS);
         const timeoutSignal = AbortSignal.timeout(timeoutSeconds * 1000);
         const signal = context
           ? AbortSignal.any([timeoutSignal, context.agent.cancelSignal])
@@ -218,7 +248,9 @@ export function createFetchTools() {
         if (!headers.has("accept")) {
           headers.set(
             "accept",
-            "text/html,application/xhtml+xml,application/json,text/plain;q=0.9,*/*;q=0.5",
+            saveAs
+              ? "*/*"
+              : "text/html,application/xhtml+xml,application/json,text/plain;q=0.9,*/*;q=0.5",
           );
         }
 
@@ -230,14 +262,36 @@ export function createFetchTools() {
             signal,
           });
 
-          const text = await response.text();
-          const contentType = response.headers.get("content-type") ?? "";
-
           if (!response.ok) {
             throw new Error(
               `HTTP ${response.status} ${response.statusText}: GET ${url.toString()}`,
             );
           }
+
+          if (saveAs) {
+            const filePath = normalizeUserPath(saveAs);
+            const maxBytes = input.max_bytes ?? DEFAULT_MAX_BYTES;
+            const saved = await saveResponseToPath({
+              url,
+              response,
+              filePath,
+              maxBytes,
+            });
+
+            return toJsonValue({
+              url: url.toString(),
+              saved_as: filePath,
+              status: response.status,
+              statusText: response.statusText,
+              headers: responseHeaders(response.headers),
+              content_type: saved.contentType || null,
+              bytes_written: saved.bytesWritten,
+              max_bytes: maxBytes,
+            });
+          }
+
+          const text = await response.text();
+          const contentType = response.headers.get("content-type") ?? "";
 
           let transformed = text;
           let transformedFormat: "raw" | "markdown" | "json-pretty" = "raw";

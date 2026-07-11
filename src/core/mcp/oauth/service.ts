@@ -2,7 +2,7 @@ import {
   auth,
   type OAuthClientProvider,
 } from "@modelcontextprotocol/sdk/client/auth.js";
-import { openBrowser } from "../../utils/browser.js";
+import { openExternalBrowser } from "../../utils/browser.js";
 import type { Sse, StreamableHttp } from "../types.js";
 import { startCallbackServer, type CallbackServer } from "./callback-server.js";
 import { HoomanMcpOAuthProvider } from "./provider.js";
@@ -143,7 +143,7 @@ export class Service {
     transport: OAuthRemoteTransport,
   ): Promise<void> {
     const flow = await this.beginAuthorization(serverName, transport);
-    await openBrowser(flow.authorizationUrl.toString());
+    await openExternalBrowser(flow.authorizationUrl.toString());
     await flow.complete();
   }
 

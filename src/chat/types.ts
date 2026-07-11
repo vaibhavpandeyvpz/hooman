@@ -38,5 +38,8 @@ export interface ApprovalRequest {
   toolName: string;
   description?: string;
   inputPreview: string;
+  input?: unknown;
   preview?: string;
+  currentMode?: string;
+  targetMode?: string;
 }

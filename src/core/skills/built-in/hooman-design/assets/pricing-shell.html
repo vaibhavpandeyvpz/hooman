@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Pricing</title>
+    <style>
+      :root {
+        --bg: #f8fafc;
+        --ink: #0f172a;
+        --muted: #64748b;
+        --accent: #0f766e;
+        --surface: #ffffff;
+        --border: #e2e8f0;
+        --font-body: system-ui, -apple-system, sans-serif;
+        --space-4: 1rem;
+        --space-5: 1.5rem;
+        --space-6: 2rem;
+        --space-7: 3rem;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: var(--font-body);
+        background: var(--bg);
+        color: var(--ink);
+        line-height: 1.55;
+      }
+      .wrap {
+        max-width: 64rem;
+        margin: 0 auto;
+        padding: var(--space-7) var(--space-5);
+      }
+      header {
+        text-align: center;
+        margin-bottom: var(--space-7);
+      }
+      h1 {
+        font-size: clamp(1.75rem, 3vw, 2.25rem);
+        letter-spacing: -0.02em;
+        margin: 0 0 0.5rem;
+      }
+      .lede {
+        color: var(--muted);
+        margin: 0 auto;
+        max-width: 32rem;
+      }
+      .plans {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+        gap: var(--space-5);
+        align-items: stretch;
+      }
+      .plan {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 0.375rem;
+        padding: var(--space-5);
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-4);
+        min-width: 0;
+      }
+      .plan[data-featured="true"] {
+        border-color: var(--accent);
+      }
+      .plan h2 {
+        margin: 0;
+        font-size: 1.125rem;
+      }
+      .price {
+        font-size: 2rem;
+        letter-spacing: -0.03em;
+        font-weight: 600;
+      }
+      .price span {
+        font-size: 0.875rem;
+        color: var(--muted);
+        font-weight: 400;
+      }
+      ul {
+        margin: 0;
+        padding: 0;
+        list-style: none;
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        font-size: 0.9375rem;
+        color: var(--muted);
+      }
+      .btn {
+        display: block;
+        text-align: center;
+        padding: 0.65rem 1rem;
+        border-radius: 0.375rem;
+        background: var(--accent);
+        color: #fff;
+        text-decoration: none;
+        font-size: 0.9375rem;
+      }
+      .btn:focus-visible {
+        outline: 2px solid var(--ink);
+        outline-offset: 2px;
+      }
+      .plan:not([data-featured="true"]) .btn {
+        background: transparent;
+        color: var(--ink);
+        border: 1px solid var(--border);
+      }
+      .footnote {
+        margin-top: var(--space-6);
+        text-align: center;
+        color: var(--muted);
+        font-size: 0.8125rem;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header>
+        <h1>Simple pricing</h1>
+        <p class="lede">Real plan names and limits — no invented ROI.</p>
+      </header>
+      <div class="plans">
+        <article class="plan">
+          <h2>Starter</h2>
+          <div class="price">$0 <span>/ mo</span></div>
+          <ul>
+            <li>Limit A</li>
+            <li>Limit B</li>
+          </ul>
+          <a class="btn" href="#">Get started</a>
+        </article>
+        <article class="plan" data-featured="true">
+          <h2>Team</h2>
+          <div class="price">$— <span>/ mo</span></div>
+          <ul>
+            <li>Limit A</li>
+            <li>Limit B</li>
+            <li>Limit C</li>
+          </ul>
+          <a class="btn" href="#">Start trial</a>
+        </article>
+        <article class="plan">
+          <h2>Enterprise</h2>
+          <div class="price">Custom</div>
+          <ul>
+            <li>SSO</li>
+            <li>Support</li>
+          </ul>
+          <a class="btn" href="#">Talk to us</a>
+        </article>
+      </div>
+      <p class="footnote">Taxes extra. Replace with real terms.</p>
+    </div>
+  </body>
+</html>

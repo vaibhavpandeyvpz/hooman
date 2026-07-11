@@ -18,5 +18,10 @@
     "noUnusedParameters": true,
     "isolatedModules": true
   },
-  "include": ["webview/**/*.ts", "webview/**/*.tsx", "src/shared/**/*.ts"]
+  "include": [
+    "webview/**/*.ts",
+    "webview/**/*.tsx",
+    "webview/**/*.d.ts",
+    "src/shared/**/*.ts"
+  ]
 }

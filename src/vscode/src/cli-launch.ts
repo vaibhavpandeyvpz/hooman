@@ -42,6 +42,19 @@ function firstAvailableRunner(): "npx" | "bunx" | undefined {
 }
 
 /**
+ * Environment for the Hooman ACP (or other) child process. Always marks the
+ * process as the official VS Code host so the agent can detect it without
+ * per-session `_meta` flags.
+ */
+function launchEnv(extra?: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  return {
+    ...process.env,
+    ...extra,
+    HOOMAN_X_VSCODE: "true",
+  };
+}
+
+/**
  * Resolve how to launch the Hooman CLI for a given subcommand (e.g. `["acp"]`
  * or `["mcp", "auth", name]`), following the resolution ladder:
  *
@@ -70,7 +83,7 @@ export async function resolveHoomanLaunch(
     return {
       command: override,
       args: [...stripped, ...trailingArgs],
-      env: process.env,
+      env: launchEnv(),
     };
   }
 
@@ -79,14 +92,14 @@ export async function resolveHoomanLaunch(
     return {
       command: platformCommand("npx"),
       args: ["-y", `hoomanjs@${EXTENSION_VERSION}`, ...trailingArgs],
-      env: process.env,
+      env: launchEnv(),
     };
   }
   if (runner === "bunx") {
     return {
       command: platformCommand("bunx"),
       args: [`hoomanjs@${EXTENSION_VERSION}`, ...trailingArgs],
-      env: process.env,
+      env: launchEnv(),
     };
   }
 
@@ -94,9 +107,6 @@ export async function resolveHoomanLaunch(
   return {
     command: process.execPath,
     args: [cliPath, ...trailingArgs],
-    env: {
-      ...process.env,
-      ELECTRON_RUN_AS_NODE: "1",
-    },
+    env: launchEnv({ ELECTRON_RUN_AS_NODE: "1" }),
   };
 }

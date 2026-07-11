@@ -1,4 +1,4 @@
-export const MODE_IDS = ["agent", "ask", "plan"] as const;
+export const MODE_IDS = ["agent", "ask", "plan", "design"] as const;
 
 export type KnownSessionMode = (typeof MODE_IDS)[number];
 export type SessionMode = KnownSessionMode | (string & {});

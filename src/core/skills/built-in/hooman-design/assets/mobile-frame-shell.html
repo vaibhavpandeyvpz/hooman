@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Mobile frame</title>
+    <style>
+      :root {
+        --bg: #e4e4e7;
+        --ink: #18181b;
+        --muted: #71717a;
+        --accent: #0f766e;
+        --surface: #ffffff;
+        --border: #e4e4e7;
+        --font-body: system-ui, -apple-system, sans-serif;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        background: var(--bg);
+        font-family: var(--font-body);
+        padding: 1.5rem;
+      }
+      .device {
+        width: 390px;
+        max-width: 100%;
+        height: 760px;
+        max-height: 90vh;
+        background: var(--surface);
+        border: 1px solid #a1a1aa;
+        border-radius: 1.75rem;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        box-shadow: 0 20px 50px #00000022;
+      }
+      .status {
+        flex: 0 0 auto;
+        padding: 0.75rem 1.25rem 0.35rem;
+        font-size: 0.75rem;
+        font-weight: 600;
+        display: flex;
+        justify-content: space-between;
+      }
+      .content {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow: auto;
+        padding: 0.5rem 1.25rem 1rem;
+      }
+      h1 {
+        margin: 0 0 0.35rem;
+        font-size: 1.35rem;
+        letter-spacing: -0.02em;
+      }
+      p {
+        margin: 0 0 1rem;
+        color: var(--muted);
+        font-size: 0.9375rem;
+        line-height: 1.45;
+      }
+      .card {
+        border: 1px solid var(--border);
+        border-radius: 0.75rem;
+        padding: 1rem;
+        margin-bottom: 0.75rem;
+      }
+      .tabbar {
+        flex: 0 0 auto;
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        border-top: 1px solid var(--border);
+        padding: 0.5rem 0.75rem calc(0.5rem + env(safe-area-inset-bottom, 0));
+      }
+      .tabbar a {
+        text-align: center;
+        text-decoration: none;
+        color: var(--muted);
+        font-size: 0.6875rem;
+        padding: 0.35rem;
+      }
+      .tabbar a[aria-current="page"] {
+        color: var(--accent);
+        font-weight: 600;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="device" aria-label="Mobile preview frame">
+      <div class="status"><span>9:41</span><span>●●●</span></div>
+      <div class="content">
+        <h1>Home</h1>
+        <p>Design at phone width inside the frame — not the desktop canvas.</p>
+        <div class="card">Primary card content</div>
+        <div class="card">Secondary card content</div>
+      </div>
+      <nav class="tabbar" aria-label="Tabs">
+        <a href="#" aria-current="page">Home</a>
+        <a href="#">Search</a>
+        <a href="#">You</a>
+      </nav>
+    </div>
+  </body>
+</html>

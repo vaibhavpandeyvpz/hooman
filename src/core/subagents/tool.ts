@@ -1,14 +1,20 @@
 import { Agent, tool, type Tool, type ToolContext } from "@strands-agents/sdk";
 import type { BaseModelConfig, Model } from "@strands-agents/sdk";
 import { z } from "zod";
+import type { ResolvedLlmInputModality } from "../utils/model-metadata.js";
+import {
+  getLlmModality,
+  LLM_MODALITY_STATE_KEY,
+  setLlmModality,
+} from "../state/llm-modality.js";
 import {
   type SubagentKindDefinition,
   type SubagentRegistry,
 } from "./registry.js";
 
-export const SUBAGENT_TOOL_NAME_PREFIX = "subagent_";
+export const LAUNCH_SUBAGENT_TOOL_NAME = "launch_subagent";
 
-const SubagentInvokeInputSchema = z.object({
+const LaunchSubagentBaseSchema = z.object({
   query: z.string().trim().min(1),
 });
 
@@ -16,7 +22,14 @@ type CreateSubagentToolsOptions = {
   parent: string;
   registry: SubagentRegistry;
   tools: readonly Tool[];
-  createModel: () => Model<BaseModelConfig>;
+  /** Configured LLM names (`config.llms[].name`) offered as the optional `model` arg. */
+  modelNames: readonly string[];
+  /** Create a model; omit `name` to use the session's current model. */
+  createModel: (name?: string) => Model<BaseModelConfig>;
+  /** Resolve input modality for a named (or current) model. */
+  resolveModality: (
+    name?: string,
+  ) => Promise<ResolvedLlmInputModality | null | undefined>;
 };
 
 function readAppStateString(context: ToolContext, key: "userId" | "sessionId") {
@@ -42,10 +55,6 @@ function extractText(response: unknown): string {
     .trim();
 }
 
-function subagentToolName(kindId: string): string {
-  return `${SUBAGENT_TOOL_NAME_PREFIX}${kindId.replace(/-/g, "_")}`;
-}
-
 function selectTools(
   kind: SubagentKindDefinition,
   tools: readonly Tool[],
@@ -67,26 +76,86 @@ function selectTools(
   return selected;
 }
 
+function asNonEmptyEnum(values: readonly string[]): [string, ...string[]] {
+  if (values.length === 0) {
+    throw new Error("Expected at least one value for enum schema.");
+  }
+  return values as [string, ...string[]];
+}
+
+function buildInputSchema(
+  kindIds: readonly string[],
+  modelNames: readonly string[],
+) {
+  const kind = z
+    .enum(asNonEmptyEnum(kindIds))
+    .describe("Subagent specialist to launch.");
+  if (modelNames.length === 0) {
+    return LaunchSubagentBaseSchema.extend({ kind });
+  }
+  return LaunchSubagentBaseSchema.extend({
+    kind,
+    model: z
+      .enum(asNonEmptyEnum(modelNames))
+      .optional()
+      .describe(
+        "Optional configured model name. When omitted, uses the current session model.",
+      ),
+  });
+}
+
+function kindCatalog(registry: SubagentRegistry): string {
+  return registry.kinds
+    .map((kind) => `- ${kind.id}: ${kind.description}`)
+    .join("\n");
+}
+
 export function createSubagentTools(
   options: CreateSubagentToolsOptions,
 ): Tool[] {
+  const kindIds = options.registry.kinds.map((kind) => kind.id);
+  if (kindIds.length === 0) {
+    return [];
+  }
   const baseTools = options.tools.filter(
-    (entry) => !entry.name.startsWith(SUBAGENT_TOOL_NAME_PREFIX),
+    (entry) => entry.name !== LAUNCH_SUBAGENT_TOOL_NAME,
   );
-  return options.registry.kinds.map((kind) =>
+  const inputSchema = buildInputSchema(kindIds, options.modelNames);
+  const description = [
+    "Delegate a focused task to a specialized read-only subagent.",
+    "Pass `kind` to select the specialist; optionally pass `model` (a configured LLM name) to override the current session model.",
+    "For design-review: pass every reviews/*.png path in the query and require binary reads — do not skip after export_design format:images.",
+    "Kinds:",
+    kindCatalog(options.registry),
+  ].join("\n");
+
+  return [
     tool({
-      name: subagentToolName(kind.id),
-      description: `Delegate a focused ${kind.name} task to a specialized read-only subagent.`,
-      inputSchema: SubagentInvokeInputSchema,
-      callback: async (input, context?: ToolContext) => {
+      name: LAUNCH_SUBAGENT_TOOL_NAME,
+      description,
+      inputSchema,
+      callback: async (
+        input: { kind: string; query: string; model?: string },
+        context?: ToolContext,
+      ) => {
         if (!context) {
-          throw new Error(`Subagent '${kind.id}' requires execution context.`);
+          throw new Error(
+            `${LAUNCH_SUBAGENT_TOOL_NAME} requires execution context.`,
+          );
+        }
+        const kind = options.registry.byId.get(input.kind);
+        if (!kind) {
+          return `Unknown subagent kind '${input.kind}'.`;
         }
         try {
+          const modelName = input.model?.trim() || undefined;
+          const modality =
+            (await options.resolveModality(modelName)) ??
+            (modelName ? null : getLlmModality(context.agent));
           const child = new Agent({
             name: `${options.parent}-${kind.id}`,
             systemPrompt: kind.instructions,
-            model: options.createModel(),
+            model: options.createModel(modelName),
             appState: {
               ...(readAppStateString(context, "userId")
                 ? { userId: readAppStateString(context, "userId") }
@@ -95,10 +164,14 @@ export function createSubagentTools(
                 ? { sessionId: readAppStateString(context, "sessionId") }
                 : {}),
               "hooman.subagentKind": kind.id,
+              ...(modality ? { [LLM_MODALITY_STATE_KEY]: modality } : {}),
             },
             tools: [...selectTools(kind, baseTools)],
             printer: false,
           });
+          if (modality) {
+            setLlmModality(child, modality);
+          }
           const response = context.agent.cancelSignal
             ? await child.invoke(input.query, {
                 cancelSignal: context.agent.cancelSignal,
@@ -111,5 +184,5 @@ export function createSubagentTools(
         }
       },
     }),
-  );
+  ];
 }

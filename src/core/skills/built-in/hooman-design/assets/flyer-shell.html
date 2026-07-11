@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Flyer</title>
+    <style>
+      :root {
+        --bg: #e8e4dc;
+        --ink: #141414;
+        --muted: #4a4a4a;
+        --accent: #c45c26;
+        --paper: #f7f5f2;
+        --border: #d4cfc4;
+        --font-display:
+          "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+        --font-body: system-ui, -apple-system, sans-serif;
+        --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        font-family: var(--font-body);
+        background: var(--bg);
+        color: var(--ink);
+        padding: 1.5rem;
+        line-height: 1.45;
+      }
+      .flyer {
+        width: min(100%, 28rem);
+        min-height: 36rem;
+        background: var(--paper);
+        border: 1px solid var(--border);
+        border-radius: 0.375rem;
+        padding: 2rem 1.75rem;
+        display: flex;
+        flex-direction: column;
+        gap: 1.25rem;
+      }
+      .band {
+        font-family: var(--font-mono);
+        font-size: 0.6875rem;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--accent);
+        font-weight: 600;
+      }
+      h1 {
+        margin: 0;
+        font-family: var(--font-display);
+        font-size: clamp(2.25rem, 8vw, 3rem);
+        line-height: 1.05;
+        letter-spacing: -0.03em;
+        font-weight: 400;
+      }
+      .lede {
+        margin: 0;
+        font-size: 1.0625rem;
+        color: var(--muted);
+        max-width: 22ch;
+      }
+      .hero-rule {
+        height: 1px;
+        background: var(--border);
+        border: 0;
+        margin: 0.25rem 0;
+      }
+      .points {
+        margin: 0;
+        padding: 0;
+        list-style: none;
+        display: grid;
+        gap: 0.75rem;
+      }
+      .points li {
+        display: grid;
+        grid-template-columns: 1.5rem 1fr;
+        gap: 0.5rem;
+        font-size: 0.9375rem;
+      }
+      .points span {
+        font-family: var(--font-mono);
+        font-size: 0.75rem;
+        color: var(--accent);
+        padding-top: 0.15rem;
+      }
+      .cta {
+        margin-top: auto;
+        padding-top: 1rem;
+        border-top: 1px solid var(--border);
+        display: flex;
+        flex-wrap: wrap;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 0.75rem;
+      }
+      .cta strong {
+        font-size: 1.125rem;
+        letter-spacing: -0.01em;
+      }
+      .cta a {
+        color: var(--accent);
+        font-weight: 600;
+        text-decoration: none;
+        font-size: 0.9375rem;
+      }
+      .cta a:hover {
+        text-decoration: underline;
+      }
+      .fine {
+        margin: 0;
+        font-size: 0.75rem;
+        color: var(--muted);
+      }
+      @page {
+        size: A5;
+        margin: 10mm;
+      }
+      @media print {
+        body {
+          background: #fff;
+          padding: 0;
+        }
+        .flyer {
+          border: none;
+          width: 100%;
+          min-height: auto;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <article class="flyer">
+      <p class="band">Workshop · one night only</p>
+      <h1>Type that holds under pressure</h1>
+      <p class="lede">
+        A hands-on evening on hierarchy, measure, and ink for dense product UI.
+      </p>
+      <hr class="hero-rule" />
+      <ul class="points">
+        <li>
+          <span>01</span>
+          Live critiques of real screens (bring one)
+        </li>
+        <li>
+          <span>02</span>
+          Pair exercises on scale and contrast
+        </li>
+        <li>
+          <span>03</span>
+          Take-home checklist for design reviews
+        </li>
+      </ul>
+      <div class="cta">
+        <div>
+          <strong>Thu 24 Jul · 19:00</strong>
+          <p class="fine">Northwind Studio · Lisbon · €45</p>
+        </div>
+        <a href="https://example.com/workshop">Reserve a seat</a>
+      </div>
+    </article>
+  </body>
+</html>

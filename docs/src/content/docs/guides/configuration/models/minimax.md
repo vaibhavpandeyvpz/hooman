@@ -7,12 +7,12 @@ Runtime provider id: `minimax`. Served through the AI SDK Anthropic adapter (`@a
 
 ## Provider options
 
-| Field       | Type                     | Notes                                                                                                                                                   |
-| ----------- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `apiKey`    | string                   | Required (or set via environment).                                                                                                                      |
-| `baseURL`   | string                   | Optional. Defaults to the Anthropic-compatible endpoint `https://api.minimax.io/anthropic`; override to reach MiniMax through a gateway (e.g. LiteLLM). |
-| `headers`   | `Record<string, string>` | Optional. Extra HTTP headers.                                                                                                                           |
-| `reasoning` | object                   | Optional. See [Reasoning](/hooman/guides/configuration/models/#reasoning-options).                                                                      |
+| Field       | Type                     | Notes                                                                                                                                                      |
+| ----------- | ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `apiKey`    | string                   | Required (or set via environment).                                                                                                                         |
+| `baseURL`   | string                   | Optional. Defaults to the Anthropic-compatible endpoint `https://api.minimax.io/anthropic/v1`; override to reach MiniMax through a gateway (e.g. LiteLLM). |
+| `headers`   | `Record<string, string>` | Optional. Extra HTTP headers.                                                                                                                              |
+| `reasoning` | object                   | Optional. See [Reasoning](/hooman/guides/configuration/models/#reasoning-options).                                                                         |
 
 ## Reasoning
 

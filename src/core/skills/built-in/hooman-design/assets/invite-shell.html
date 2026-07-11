@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Invite</title>
+    <style>
+      :root {
+        --bg: #f7f5f2;
+        --ink: #1a1a1a;
+        --muted: #5c5c5c;
+        --accent: #0f6b6b;
+        --surface: #ffffff;
+        --border: #e8e4dc;
+        --font-display: Georgia, "Times New Roman", ui-serif, serif;
+        --font-body: system-ui, -apple-system, sans-serif;
+        --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        font-family: var(--font-body);
+        background: var(--bg);
+        color: var(--ink);
+        padding: 1.5rem;
+        line-height: 1.5;
+      }
+      .invite {
+        width: min(100%, 26rem);
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 0.375rem;
+        padding: 2.25rem 1.75rem;
+        text-align: center;
+      }
+      .eyebrow {
+        margin: 0 0 1rem;
+        font-family: var(--font-mono);
+        font-size: 0.6875rem;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--accent);
+      }
+      h1 {
+        margin: 0 0 0.75rem;
+        font-family: var(--font-display);
+        font-size: clamp(1.75rem, 5vw, 2.25rem);
+        letter-spacing: -0.02em;
+        line-height: 1.15;
+        font-weight: 400;
+      }
+      .lede {
+        margin: 0 0 1.75rem;
+        color: var(--muted);
+        font-size: 0.9375rem;
+      }
+      .meta {
+        display: grid;
+        gap: 0.85rem;
+        margin: 0 0 1.75rem;
+        padding: 1.1rem 0;
+        border-top: 1px solid var(--border);
+        border-bottom: 1px solid var(--border);
+        text-align: left;
+      }
+      .meta dt {
+        margin: 0;
+        font-size: 0.6875rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
+        font-weight: 600;
+      }
+      .meta dd {
+        margin: 0.2rem 0 0;
+        font-size: 0.9375rem;
+      }
+      .meta div {
+        display: grid;
+        grid-template-columns: 5.5rem 1fr;
+        gap: 0.5rem;
+        align-items: baseline;
+      }
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        justify-content: center;
+      }
+      .btn {
+        display: inline-block;
+        padding: 0.65rem 1.1rem;
+        border-radius: 0.375rem;
+        background: var(--accent);
+        color: #fff;
+        text-decoration: none;
+        font-size: 0.875rem;
+        font-weight: 600;
+      }
+      .btn-secondary {
+        background: transparent;
+        color: var(--ink);
+        border: 1px solid var(--border);
+      }
+      .btn:focus-visible,
+      .btn-secondary:focus-visible {
+        outline: 2px solid var(--ink);
+        outline-offset: 2px;
+      }
+      .rsvp {
+        margin: 1.25rem 0 0;
+        font-size: 0.75rem;
+        color: var(--muted);
+      }
+      @page {
+        size: A5;
+        margin: 12mm;
+      }
+      @media print {
+        body {
+          background: #fff;
+          padding: 0;
+        }
+        .invite {
+          border: none;
+          width: 100%;
+        }
+        .actions {
+          display: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <article class="invite">
+      <p class="eyebrow">You’re invited</p>
+      <h1>Summer studio open house</h1>
+      <p class="lede">
+        An evening of work-in-progress, short talks, and drinks on the terrace.
+      </p>
+      <dl class="meta">
+        <div>
+          <dt>When</dt>
+          <dd>Friday, 18 July · 18:00–21:00</dd>
+        </div>
+        <div>
+          <dt>Where</dt>
+          <dd>Northwind Studio · 12 Rua da Alegria, Lisbon</dd>
+        </div>
+        <div>
+          <dt>Dress</dt>
+          <dd>Smart casual</dd>
+        </div>
+      </dl>
+      <div class="actions">
+        <a class="btn" href="#rsvp">RSVP</a>
+        <a class="btn btn-secondary" href="#calendar">Add to calendar</a>
+      </div>
+      <p class="rsvp" id="rsvp">Please reply by 10 July · alex@example.com</p>
+    </article>
+  </body>
+</html>

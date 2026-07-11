@@ -16,16 +16,10 @@ function filterKnownTools(
   knownTools: readonly string[],
 ): LoadedModeDefinition[] {
   const known = new Set(knownTools);
-  return definitions.map((definition) => {
-    const tools =
-      definition.tools !== "*"
-        ? definition.tools.filter((toolName) => known.has(toolName))
-        : knownTools;
-    return {
-      ...definition,
-      tools,
-    };
-  });
+  return definitions.map((definition) => ({
+    ...definition,
+    tools: definition.tools.filter((toolName) => known.has(toolName)),
+  }));
 }
 
 function context(config: Config): Record<string, unknown> {

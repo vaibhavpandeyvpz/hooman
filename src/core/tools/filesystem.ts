@@ -1,9 +1,15 @@
 import { createHash } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { tool, type JSONValue, type ToolContext } from "@strands-agents/sdk";
+import {
+  tool,
+  TextBlock,
+  type ContentBlock,
+  type JSONValue,
+  type ToolContext,
+} from "@strands-agents/sdk";
 import { normalizeUserPath } from "../utils/normalize-user-path.js";
-import { resolveAgentInstructionsForFile } from "../prompts/runtime.js";
+import { resolveAgentInstructionsForFile } from "../prompts/runtime/agents.js";
 import {
   setFileToolDisplay,
   type StructuredPatchHunk,
@@ -16,6 +22,8 @@ import {
   findReplacementSpan,
   unescapeModelText,
 } from "../utils/edit-replace.js";
+import { getLlmModality } from "../state/llm-modality.js";
+import type { ResolvedLlmMetadata } from "../utils/metadata.js";
 import { z } from "zod";
 import { createGitignorePredicate } from "../utils/gitignore.js";
 
@@ -496,13 +504,17 @@ type BinaryReadResult =
 
 async function readBinaryFile(
   filePath: string,
-  options?: { maxBytes?: number },
+  options?: {
+    maxBytes?: number;
+    modality?: Pick<ResolvedLlmMetadata, "modality"> | null;
+  },
 ): Promise<BinaryReadResult> {
   return readAttachmentAsBlocksOrBase64(filePath, {
     maxBytes: options?.maxBytes ?? DEFAULT_MAX_READ_BYTES,
     includeMetadata: true,
     unsupportedFormat: "base64",
     onError: "throw",
+    metadata: options?.modality ?? null,
   });
 }
 
@@ -799,6 +811,12 @@ function createFilesystemSchema() {
       paths: z.array(z.string()).min(1).describe("List of file paths to read."),
       offset: z.number().int().min(1).optional(),
       limit: z.number().int().min(1).optional(),
+      binary: z
+        .boolean()
+        .optional()
+        .describe(
+          "Read each path as binary. Images, videos, and documents become multimodal content blocks (when the model supports them); other binaries come back as base64. Offset/limit are ignored when binary is true.",
+        ),
     }),
     writeFile: z.object({
       path: z.string().describe("File path to write."),
@@ -876,7 +894,12 @@ export function createFilesystemTools() {
           // Binary reads can return SDK media blocks (ImageBlock / DocumentBlock)
           // or a plain base64 JSON object. Both are accepted by FunctionTool's
           // result wrapping, but the callback signature is JSONValue, so cast.
-          const result = await readBinaryFile(filePath);
+          // Pass the active LLM modality so images become ImageBlocks when the
+          // model supports them (otherwise we emit a text fallback diagnostic).
+          const modality = getLlmModality(context?.agent);
+          const result = await readBinaryFile(filePath, {
+            modality: modality ? { modality } : null,
+          });
           return result as unknown as JSONValue;
         }
 
@@ -901,9 +924,35 @@ export function createFilesystemTools() {
     tool({
       name: "read_multiple_files",
       description:
-        "Read multiple text files in one call. Each file is returned independently with success or error details.",
+        "Read multiple files in one call. Defaults to UTF-8 text with optional shared offset/limit. Pass `binary: true` to read each path as binary/multimodal (images, videos, documents) the same way as read_file.",
       inputSchema: schema.readMultipleFiles,
       callback: async (input, context?: ToolContext) => {
+        if (input.binary) {
+          const modality = getLlmModality(context?.agent);
+          const blocks: ContentBlock[] = [];
+          for (const itemPath of input.paths) {
+            const filePath = normalizeUserPath(itemPath);
+            blocks.push(new TextBlock(`==> ${filePath} <==`));
+            try {
+              const result = await readBinaryFile(filePath, {
+                modality: modality ? { modality } : null,
+              });
+              if (Array.isArray(result)) {
+                blocks.push(...result);
+              } else {
+                blocks.push(new TextBlock(JSON.stringify(result)));
+              }
+            } catch (error) {
+              blocks.push(
+                new TextBlock(
+                  `[Error: ${error instanceof Error ? error.message : String(error)}]`,
+                ),
+              );
+            }
+          }
+          return blocks as unknown as JSONValue;
+        }
+
         const backend = getTextFsBackend(context?.agent);
         const sections = await Promise.all(
           input.paths.map(async (itemPath) => {

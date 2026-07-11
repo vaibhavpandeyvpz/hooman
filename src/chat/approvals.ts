@@ -36,7 +36,10 @@ export class ChatApprovalController {
       toolName: request.toolName,
       description: request.description,
       inputPreview: request.inputPreview,
+      input: request.input,
       ...(request.preview ? { preview: request.preview } : {}),
+      ...(request.currentMode ? { currentMode: request.currentMode } : {}),
+      ...(request.targetMode ? { targetMode: request.targetMode } : {}),
     };
     return new Promise<ApprovalResolution>((resolve) => {
       this.queue.push({ request: queued, resolve });

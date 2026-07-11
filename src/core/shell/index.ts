@@ -34,4 +34,4 @@ export {
   SHELL_OUTPUT_TOOL_NAME,
   SHELL_STOP_TOOL_NAME,
   SHELL_TOOL_NAME,
-} from "./shell.js";
+} from "./tools.js";

@@ -24,6 +24,24 @@ import type {
 const EXTENSION_VERSION = (require("../package.json") as { version: string })
   .version;
 
+/** Prefer Simple Browser; fall back to the system browser. Live reload is SSE. */
+async function openDesignPreview(
+  url: string,
+): Promise<{ url: string; via: string }> {
+  try {
+    await vscode.commands.executeCommand("simpleBrowser.show", url);
+    return { url, via: "simpleBrowser" };
+  } catch {
+    try {
+      await vscode.commands.executeCommand("simpleBrowser.api.open", url);
+      return { url, via: "simpleBrowser.api" };
+    } catch {
+      await vscode.env.openExternal(vscode.Uri.parse(url));
+      return { url, via: "openExternal" };
+    }
+  }
+}
+
 /**
  * Owns the `hooman acp` child process and the ACP client-role connection to
  * it. There is a single agent process for the whole extension lifetime;
@@ -115,7 +133,7 @@ export class HoomanAcpClient implements vscode.Disposable {
       Readable.toWeb(child.stdout) as unknown as ReadableStream<Uint8Array>,
     );
 
-    const clientApp = buildClientApp({ name: "hooman-vscode" })
+    const clientApp = buildClientApp({ name: "hoomanjs-vscode" })
       .onRequest(methods.client.session.requestPermission, (ctx) =>
         this.permissions.requestPermission(
           ctx.params.sessionId,
@@ -144,6 +162,11 @@ export class HoomanAcpClient implements vscode.Disposable {
       .onRequest(methods.client.terminal.kill, async (ctx) => {
         await this.terminal.kill(ctx.params);
       })
+      .onRequest(
+        "_hoomanjs/browser/open",
+        (params) => params as { sessionId: string; url: string },
+        async (ctx) => openDesignPreview(ctx.params.url),
+      )
       .onNotification(methods.client.session.update, (ctx) => {
         this.#onSessionUpdate.fire(ctx.params);
       })
@@ -171,7 +194,7 @@ export class HoomanAcpClient implements vscode.Disposable {
         fs: { readTextFile: true, writeTextFile: true },
         terminal: true,
       },
-      clientInfo: { name: "hooman-vscode", version: EXTENSION_VERSION },
+      clientInfo: { name: "hoomanjs-vscode", version: EXTENSION_VERSION },
     });
     this.outputChannel.info(
       `Hooman ACP agent ready: ${this.#agentInfo.agentInfo?.name ?? "hooman"} ${this.#agentInfo.agentInfo?.version ?? ""}`,

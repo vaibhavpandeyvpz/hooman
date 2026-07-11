@@ -3,7 +3,7 @@
  * generates for that turn's user message.
  *
  * Per the ACP MessageId RFD, only the Agent generates protocol message ids —
- * a client never mints its own. Clients that support Cursor-style "revert"
+ * a client never mints its own. Clients that support turn "revert"
  * capture the `messageId`
  * from the turn's `user_message_chunk` echo and pass it back via the custom
  * `_hoomanjs/rewind_session` method. We record `agent.messages.length` right

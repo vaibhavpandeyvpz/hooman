@@ -90,11 +90,11 @@ hooman mcp logout <server> --scope all # Clear discovery, client registration, a
 hooman mcp logout <server> --scope client # Clear only the registered OAuth client
 hooman mcp logout <server> --scope tokens # Clear only the stored access/refresh tokens
 hooman mcp logout <server> --scope discovery # Clear only cached OAuth server metadata
-hooman mcp auth-status # Show OAuth status for all configured MCP servers
+hooman mcp status # Show OAuth status for all configured MCP servers
 ```
 
 - `<server>` must match a key under `mcpServers` in `mcp.json`.
 - `hooman mcp auth` starts the OAuth flow (opening a local callback server as needed) and stores credentials in `~/.hooman/mcp-oauth.json`.
 - `hooman mcp logout` clears stored OAuth state without touching `mcp.json`; use it before re-authenticating with different credentials or when decommissioning a server.
-- `hooman mcp auth-status` reports each server's OAuth state (e.g. authenticated, expired, not authenticated) without making network calls to the server itself beyond what's needed to read stored state.
+- `hooman mcp status` reports each server's OAuth state (e.g. authenticated, expired, not authenticated) without making network calls to the server itself beyond what's needed to read stored state.
 - These commands operate on the home config (`~/.hooman/mcp.json`) only, not repo-local `.hooman/mcp.json` overlays.

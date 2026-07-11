@@ -152,6 +152,9 @@ interface State {
   sessions: Record<string, SessionUiState>;
   sessionsOpen: boolean;
   persistedSessions: SessionRowInfo[];
+  onboardingPhase:
+    "idle" | "listing" | "writing" | "validated" | "done" | "error";
+  onboardingMessage: string | null;
 }
 
 function createSessionState(): SessionUiState {
@@ -200,9 +203,31 @@ const [state, setState] = createStore<State>({
   sessions: {},
   sessionsOpen: false,
   persistedSessions: [],
+  onboardingPhase: "idle",
+  onboardingMessage: null,
 });
 
 export { setState, state };
+
+export function onboardingBusy(): boolean {
+  return (
+    state.onboardingPhase === "listing" || state.onboardingPhase === "writing"
+  );
+}
+
+export function onboardingError(): string | null {
+  return state.onboardingPhase === "error" ? state.onboardingMessage : null;
+}
+
+export function onboardingStatus(): string | null {
+  if (
+    state.onboardingPhase === "listing" ||
+    state.onboardingPhase === "writing"
+  ) {
+    return state.onboardingMessage;
+  }
+  return null;
+}
 
 const runtimes = new Map<string, SessionRuntime>();
 
@@ -781,6 +806,10 @@ onHostMessage((msg) => {
     case "route":
       setState("route", msg.route);
       break;
+    case "onboardingStatus":
+      setState("onboardingPhase", msg.phase);
+      setState("onboardingMessage", msg.message ?? null);
+      break;
     case "planState":
       setState("planView", msg.state);
       break;
@@ -1222,7 +1251,7 @@ export function forkChatFromPanel(): void {
 }
 
 /**
- * Cursor-style revert: ask the host to undo the file changes made from the
+ * Turn revert: ask the host to undo the file changes made from the
  * turn identified by `messageId` (the agent-generated ACP id, per the
  * MessageId RFD) onward. The host confirms via a native modal, and only if
  * confirmed echoes back a `reverted` message that {@link applyRevert} acts

@@ -36,6 +36,10 @@ const FAILURE_RETRY_MS = 5 * 60 * 1000;
 
 type ModelsDevModel = {
   id?: string;
+  name?: string;
+  family?: string;
+  tool_call?: boolean;
+  reasoning?: boolean;
   limit?: { context?: number };
   cost?: {
     input?: number;
@@ -469,4 +473,181 @@ export function contextTokensFromUsage(usage: {
     (usage.cacheReadInputTokens ?? 0) +
     (usage.cacheWriteInputTokens ?? 0)
   );
+}
+
+/** Display name + chat-LLM flag from a models.dev catalog entry. */
+export type ModelsDevModelInfo = {
+  displayName: string;
+  isChatLlm: boolean;
+};
+
+/**
+ * Ensure the models.dev catalog is loaded (refresh disk cache when stale).
+ * Returns `true` when a catalog is available in memory or on disk.
+ */
+export async function ensureModelsDevCatalog(): Promise<boolean> {
+  return (await loadCatalog()) !== null;
+}
+
+/**
+ * Whether a models.dev entry looks like a chat / agent LLM (not embeddings,
+ * STT/TTS, image/video generators, moderation, etc.).
+ */
+function isChatLlmEntry(model: ModelsDevModel): boolean {
+  const family = String(model.family ?? "").toLowerCase();
+  const id = String(model.id ?? "").toLowerCase();
+  const nonLlm =
+    /(embed|whisper|tts|stt|transcri|moderation|guard|imagine|kling|asr|realtime|dall-?e|imagen|gpt-image|chatgpt-image|omni-flash|veo|lyria|deep-research|\baqa\b|native-audio|computer-use|robotics|-image(?:-|$)|antigravity)/;
+  if (nonLlm.test(family) || nonLlm.test(id)) {
+    return false;
+  }
+
+  const input = (model.modalities?.input ?? ["text"]).map((value) =>
+    value.toLowerCase(),
+  );
+  const output = (model.modalities?.output ?? ["text"]).map((value) =>
+    value.toLowerCase(),
+  );
+  if (!output.includes("text")) {
+    return false;
+  }
+  if (
+    !input.includes("text") &&
+    (input.includes("audio") || input.includes("video"))
+  ) {
+    return false;
+  }
+  // Generators expose image/audio/video in output; chat LLMs are text-out
+  // (they may still accept image/pdf input).
+  if (
+    output.includes("image") ||
+    output.includes("audio") ||
+    output.includes("video")
+  ) {
+    return false;
+  }
+
+  if (model.tool_call === false) {
+    return false;
+  }
+  if (model.tool_call === true) {
+    return true;
+  }
+  return input.includes("text") && output.includes("text");
+}
+
+function findModelsDevEntry(
+  catalog: ModelsDevCatalog,
+  modelId: string,
+  providerHint?: string,
+  exactOnly = false,
+): ModelsDevModel | null {
+  const targets = targetForms(modelId);
+  if (targets.length === 0) {
+    return null;
+  }
+
+  const matches: Array<{
+    providerId: string;
+    model: ModelsDevModel;
+    tier: 1 | 2;
+    lengthDiff: number;
+  }> = [];
+  for (const [providerId, provider] of Object.entries(
+    catalog.providers ?? {},
+  )) {
+    for (const [modelKey, model] of Object.entries(provider?.models ?? {})) {
+      const match =
+        matchModelId(targets, modelKey) ??
+        (model?.id ? matchModelId(targets, model.id) : null);
+      if (!match) {
+        continue;
+      }
+      if (exactOnly && match.tier !== 1) {
+        continue;
+      }
+      matches.push({ providerId, model, ...match });
+    }
+  }
+  if (matches.length === 0) {
+    return null;
+  }
+
+  const bestTier = Math.min(...matches.map((match) => match.tier));
+  const candidates = matches.filter((match) => match.tier === bestTier);
+  if (providerHint) {
+    const preferred = candidates.find(
+      (match) => match.providerId === providerHint,
+    );
+    if (preferred) {
+      return preferred.model;
+    }
+  }
+  return candidates.reduce((best, match) =>
+    match.lengthDiff < best.lengthDiff ? match : best,
+  ).model;
+}
+
+/**
+ * Look up a model in the models.dev catalog (ensuring the cache is warm).
+ * `providerHint` should be a models.dev provider id when known (e.g.
+ * `moonshotai`, `amazon-bedrock`).
+ *
+ * Pass `{ exact: true }` to require an exact id match (used by prefetch so
+ * `gpt-4o-transcribe` does not inherit `gpt-4o`'s chat-LLM metadata).
+ */
+export async function resolveModelsDevModelInfo(
+  modelId: string,
+  providerHint?: string,
+  options?: { exact?: boolean },
+): Promise<ModelsDevModelInfo | null> {
+  const catalog = await loadCatalog();
+  if (!catalog) {
+    return null;
+  }
+  const entry = findModelsDevEntry(
+    catalog,
+    modelId,
+    providerHint,
+    options?.exact === true,
+  );
+  if (!entry) {
+    return null;
+  }
+  const displayName =
+    typeof entry.name === "string" && entry.name.trim()
+      ? entry.name.trim()
+      : modelId;
+  return { displayName, isChatLlm: isChatLlmEntry(entry) };
+}
+
+/**
+ * Chat / agent LLMs listed under a models.dev provider id (e.g. `google`).
+ * Used as the allowlist for hosted prefetch so specialty API-only models
+ * (Veo, Deep Research, …) that never appear on models.dev stay out.
+ */
+export async function listModelsDevChatLlms(
+  providerId: string,
+): Promise<Array<{ id: string; displayName: string }>> {
+  const catalog = await loadCatalog();
+  if (!catalog) {
+    return [];
+  }
+  const provider = catalog.providers?.[providerId];
+  const rows: Array<{ id: string; displayName: string }> = [];
+  for (const [modelKey, model] of Object.entries(provider?.models ?? {})) {
+    if (!model || !isChatLlmEntry(model)) {
+      continue;
+    }
+    const id =
+      typeof model.id === "string" && model.id.trim()
+        ? model.id.trim()
+        : modelKey;
+    const displayName =
+      typeof model.name === "string" && model.name.trim()
+        ? model.name.trim()
+        : id;
+    rows.push({ id, displayName });
+  }
+  return rows;
 }

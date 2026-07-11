@@ -1,4 +1,5 @@
 import type { BedrockRuntimeClientConfig } from "@aws-sdk/client-bedrock-runtime";
+import { fromIni } from "@aws-sdk/credential-provider-ini";
 import { BedrockModel } from "@strands-agents/sdk/models/bedrock";
 import type { BedrockModelOptions } from "@strands-agents/sdk";
 import type {
@@ -32,6 +33,10 @@ export function create(
         ? { sessionToken: providerOptions.sessionToken }
         : {}),
     };
+  } else if (providerOptions.profile?.trim()) {
+    clientConfig.credentials = fromIni({
+      profile: providerOptions.profile.trim(),
+    });
   }
   // Enable thinking whenever `reasoning` is configured; effort defaults to
   // `medium`. Setting `display` switches to the `adaptive` scheme (required by

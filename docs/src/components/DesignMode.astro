@@ -1,0 +1,141 @@
+---
+import BrandIcon from "./BrandIcon.astro";
+
+const base = import.meta.env.BASE_URL;
+
+const highlights = [
+  {
+    title: "Live preview, right beside chat",
+    description: "A hot-reload localhost view opens beside the panel — iterate on HTML while the agent keeps working.",
+  },
+  {
+    title: "Craft shells & DESIGN.md",
+    description: "Start from landing, deck, dashboard, and more. Brand tokens walk in from DESIGN.md the same way AGENTS.md does.",
+  },
+  {
+    title: "Visual QA, then ship",
+    description: "Screenshot reviews, a dedicated design review pass, then ship PDF, PowerPoint-ready .pptx, Figma-ready .fig / .deck, or Sketch-ready .sketch.",
+  },
+];
+
+const exports = [
+  {
+    slug: "figma",
+    label: "Figma",
+    detail: ".fig / .deck",
+  },
+  {
+    slug: "sketch",
+    label: "Sketch",
+    detail: ".sketch",
+  },
+  {
+    slug: "acrobat",
+    label: "PDF",
+    detail: ".pdf",
+  },
+  {
+    slug: "powerpoint",
+    label: "PowerPoint",
+    detail: ".pptx",
+  },
+];
+---
+
+<section id="design" class="relative overflow-hidden py-24 sm:py-32">
+  <div
+    class="pointer-events-none absolute inset-x-0 top-1/2 -z-10 flex -translate-y-1/2 justify-center blur-3xl"
+    aria-hidden="true"
+  >
+    <div
+      class="aspect-square w-[40rem] bg-gradient-to-tr from-hooman-cyan/25 via-hooman-blue/15 to-hooman-indigo/20 opacity-60"
+      style="clip-path: polygon(30% 0%, 70% 0%, 100% 30%, 100% 70%, 70% 100%, 30% 100%, 0% 70%, 0% 30%)"
+    >
+    </div>
+  </div>
+
+  <div class="mx-auto max-w-6xl px-6">
+    <div class="reveal-target mx-auto max-w-3xl text-center">
+      <div
+        class="mb-6 inline-flex items-center gap-2 rounded-sm border border-hooman-cyan/30 bg-hooman-cyan/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-hooman-face"
+      >
+        <span class="h-1.5 w-1.5 animate-pulse rounded-full bg-hooman-cyan"></span>
+        New · Design mode
+      </div>
+      <h2 class="text-3xl font-bold tracking-tight text-white sm:text-4xl lg:text-5xl">
+        Design is a first-class <span class="gradient-text">agent mode</span>
+      </h2>
+      <p class="mt-5 text-lg leading-relaxed text-slate-400">
+        Most agents stop at code. Hooman ships a local design studio — HTML under
+        <code class="rounded bg-white/10 px-1.5 py-0.5 font-mono text-sm text-hooman-blush">.hooman/design/</code>,
+        craft rules, live preview, and export to PDF, PowerPoint-ready
+        <code class="rounded bg-white/10 px-1.5 py-0.5 font-mono text-sm text-hooman-blush">.pptx</code>,
+        Figma-ready
+        <code class="rounded bg-white/10 px-1.5 py-0.5 font-mono text-sm text-hooman-blush">.fig</code> /
+        <code class="rounded bg-white/10 px-1.5 py-0.5 font-mono text-sm text-hooman-blush">.deck</code>,
+        or Sketch-ready
+        <code class="rounded bg-white/10 px-1.5 py-0.5 font-mono text-sm text-hooman-blush">.sketch</code>.
+        Same runtime. Delivery-ready artifacts.
+      </p>
+    </div>
+
+    <div class="reveal-target relative mt-14" style="transition-delay: 80ms">
+      <div
+        class="absolute -inset-4 -z-10 rounded-[2rem] bg-gradient-to-tr from-hooman-cyan/15 via-transparent to-hooman-indigo/15 blur-2xl"
+      >
+      </div>
+      <img
+        src={`${base}/screenshots/design-mode.png`}
+        alt="Hooman Design mode in VS Code — live slide preview beside the chat panel with Design selected"
+        class="relative mx-auto h-auto w-full max-w-5xl"
+        loading="lazy"
+        decoding="async"
+      />
+    </div>
+
+    <div class="reveal-target mx-auto mt-12 grid max-w-4xl grid-cols-1 gap-8 sm:grid-cols-3" style="transition-delay: 140ms">
+      {
+        highlights.map((h) => (
+          <div>
+            <p class="font-medium text-white">{h.title}</p>
+            <p class="mt-1.5 text-sm leading-relaxed text-slate-400">{h.description}</p>
+          </div>
+        ))
+      }
+    </div>
+
+    <div class="reveal-target mx-auto mt-14 max-w-3xl" style="transition-delay: 160ms">
+      <p class="mb-5 text-center text-xs font-medium uppercase tracking-[0.14em] text-slate-500">
+        Export to
+      </p>
+      <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {
+          exports.map((item) => (
+            <div class="flex items-center gap-3 rounded-lg border border-white/10 bg-white/[0.03] px-4 py-3.5 text-slate-300 transition hover:border-hooman-cyan/30 hover:text-white">
+              <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-hooman-cyan/10 text-hooman-cyan">
+                <BrandIcon slug={item.slug} class="h-5 w-5" />
+              </span>
+              <span class="min-w-0 text-left">
+                <span class="block text-sm font-medium text-white">{item.label}</span>
+                <span class="mt-0.5 block truncate font-mono text-[11px] text-slate-500">{item.detail}</span>
+              </span>
+            </div>
+          ))
+        }
+      </div>
+    </div>
+
+    <div class="reveal-target mt-12 flex flex-col items-center gap-4 sm:flex-row sm:justify-center" style="transition-delay: 180ms">
+      <a
+        href={`${base}/guides/modes/design/`}
+        class="inline-flex items-center justify-center gap-2 rounded-md bg-gradient-to-r from-hooman-cyan via-hooman-blue to-hooman-indigo px-6 py-3 text-sm font-semibold text-ink-950 shadow-lg shadow-blue-500/25 transition hover:opacity-90"
+      >
+        Explore Design mode
+        <span aria-hidden="true">→</span>
+      </a>
+      <p class="font-mono text-xs text-slate-500">
+        <span class="text-hooman-cyan">$</span> hooman chat --mode design
+      </p>
+    </div>
+  </div>
+</section>

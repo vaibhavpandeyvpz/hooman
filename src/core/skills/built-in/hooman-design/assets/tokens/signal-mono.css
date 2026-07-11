@@ -1,0 +1,34 @@
+/* Direction tokens — signal-mono */
+:root {
+  --bg: #111111;
+  --surface: #1a1a1a;
+  --surface-2: #222222;
+  --ink: #fafafa;
+  --muted: #a3a3a3;
+  --border: #333333;
+  --accent: #ffe600;
+  --accent-soft: #2a2800;
+  --accent-ink: #111111;
+  --danger: #ff4d4d;
+  --success: #b8f25a;
+  --warning: #ffe600;
+  --focus: #ffe600;
+  --overlay: rgb(0 0 0 / 0.7);
+  --shadow: none;
+  --font-display: system-ui, -apple-system, sans-serif;
+  --font-body: system-ui, -apple-system, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  --radius: 0;
+  --leading-body: 1.4;
+  --tracking-caps: 0.1em;
+  --text-body: 1rem;
+  --text-small: 0.875rem;
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-7: 3rem;
+  --space-8: 4rem;
+}

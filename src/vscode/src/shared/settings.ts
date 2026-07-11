@@ -14,7 +14,13 @@ export type ProviderKind =
   | "xai";
 
 export type SearchProvider =
-  "brave" | "exa" | "firecrawl" | "litellm" | "serper" | "tavily";
+  | "brave"
+  | "duckduckgo"
+  | "exa"
+  | "firecrawl"
+  | "litellm"
+  | "serper"
+  | "tavily";
 
 export type ReasoningEffort = "minimal" | "low" | "medium" | "high";
 export type ReasoningSummary = "auto" | "concise" | "detailed" | "none";
@@ -106,6 +112,7 @@ export interface ConfigEditorStateInfo {
     enabled: boolean;
     provider: SearchProvider;
     brave: { apiKey?: string };
+    duckduckgo: Record<string, never>;
     exa: { apiKey?: string };
     firecrawl: { apiKey?: string };
     litellm: { apiKey?: string; baseURL?: string; tool?: string };
@@ -222,12 +229,40 @@ export type SkillsViewAction =
 
 export const SEARCH_PROVIDER_LABELS: Record<SearchProvider, string> = {
   brave: "Brave",
+  duckduckgo: "DuckDuckGo",
   exa: "Exa",
   firecrawl: "Firecrawl",
   litellm: "LiteLLM",
   serper: "Serper",
   tavily: "Tavily",
 };
+
+/** Display / reference name written into `providers[].name` and `llms[].provider`. */
+export const PROVIDER_DISPLAY_NAMES: Record<ProviderKind, string> = {
+  anthropic: "Anthropic",
+  azure: "Azure OpenAI",
+  bedrock: "Bedrock",
+  google: "Google",
+  groq: "Groq",
+  "llama-cpp": "llama.cpp",
+  minimax: "MiniMax",
+  mlx: "mlx",
+  moonshot: "Moonshot",
+  ollama: "Ollama",
+  openai: "OpenAI",
+  openrouter: "OpenRouter",
+  xai: "xAI",
+};
+
+export const SEARCH_PROVIDERS: SearchProvider[] = [
+  "duckduckgo",
+  "brave",
+  "exa",
+  "firecrawl",
+  "litellm",
+  "serper",
+  "tavily",
+];
 
 export const PROMPT_LABELS: Record<PromptToggleKey, string> = {
   behaviour: "Behaviour",
@@ -256,7 +291,7 @@ export const DEFAULT_MODEL_BY_PROVIDER: Record<ProviderKind, string> = {
   anthropic: "claude-sonnet-4-6",
   azure: "gpt-5.4-mini",
   bedrock: "anthropic.claude-sonnet-4-6",
-  google: "gemini-2.5-flash",
+  google: "gemini-3.5-flash",
   groq: "openai/gpt-oss-20b",
   "llama-cpp": "unsloth/gemma-4-E2B-it-GGUF:Q4_K_M",
   minimax: "MiniMax-M3",
@@ -362,6 +397,12 @@ export const PROVIDER_FIELD_DEFINITIONS: Record<
       label: "Region",
       kind: "string",
       placeholder: "us-west-2",
+    },
+    {
+      key: "profile",
+      label: "AWS profile",
+      kind: "string",
+      placeholder: "default",
     },
     {
       key: "credentials",

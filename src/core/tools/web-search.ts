@@ -1,12 +1,14 @@
 import { tool } from "@strands-agents/sdk";
 import type { JSONValue, ToolContext } from "@strands-agents/sdk";
 import Firecrawl from "@mendable/firecrawl-js";
+import * as cheerio from "cheerio";
 import { Exa } from "exa-js";
 import { tavily } from "@tavily/core";
 import { z } from "zod";
 import type { Config } from "../config.js";
 
 const BRAVE_ENDPOINT = "https://api.search.brave.com/res/v1/web/search";
+const DUCKDUCKGO_HTML_ENDPOINT = "https://html.duckduckgo.com/html/";
 const SERPER_ENDPOINT = "https://google.serper.dev/search";
 const DEFAULT_TIMEOUT_SECONDS = 20;
 /** Firecrawl search+scrape can exceed the default web search timeout. */
@@ -14,6 +16,69 @@ const FIRECRAWL_SEARCH_TIMEOUT_SECONDS = 60;
 const FIRECRAWL_SNIPPET_MAX_CHARS = 1200;
 const DEFAULT_RESULT_COUNT = 5;
 const MAX_RESULT_COUNT = 20;
+const DUCKDUCKGO_USER_AGENT =
+  "Mozilla/5.0 (compatible; Hooman/1.0; +https://github.com/vaibhavpandeyvpz/hooman)";
+
+/** Maps ISO 3166-1 alpha-2 country codes to DuckDuckGo `kl` region values. */
+const DUCKDUCKGO_REGION_BY_COUNTRY: Record<string, string> = {
+  ar: "ar-es",
+  at: "at-de",
+  au: "au-en",
+  be: "be-nl",
+  bg: "bg-bg",
+  br: "br-pt",
+  ca: "ca-en",
+  ch: "ch-de",
+  cl: "cl-es",
+  cn: "cn-zh",
+  co: "co-es",
+  cz: "cz-cs",
+  de: "de-de",
+  dk: "dk-da",
+  ee: "ee-et",
+  es: "es-es",
+  fi: "fi-fi",
+  fr: "fr-fr",
+  gb: "uk-en",
+  gr: "gr-el",
+  hk: "hk-tzh",
+  hr: "hr-hr",
+  hu: "hu-hu",
+  id: "id-en",
+  ie: "ie-en",
+  il: "il-en",
+  in: "in-en",
+  is: "is-is",
+  it: "it-it",
+  jp: "jp-jp",
+  kr: "kr-kr",
+  lt: "lt-lt",
+  lv: "lv-lv",
+  mx: "mx-es",
+  my: "my-en",
+  nl: "nl-nl",
+  no: "no-no",
+  nz: "nz-en",
+  pe: "pe-es",
+  ph: "ph-en",
+  pk: "pk-en",
+  pl: "pl-pl",
+  pt: "pt-pt",
+  ro: "ro-ro",
+  ru: "ru-ru",
+  se: "se-sv",
+  sg: "sg-en",
+  sk: "sk-sk",
+  sl: "sl-sl",
+  th: "th-en",
+  tr: "tr-tr",
+  tw: "tw-tzh",
+  ua: "ua-uk",
+  uk: "uk-en",
+  us: "us-en",
+  vn: "vn-en",
+  za: "za-en",
+};
 
 /** Reject when `signal` aborts (SDK calls do not accept AbortSignal). */
 function abortable<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
@@ -93,7 +158,14 @@ type NormalizedResult = {
 };
 
 type NormalizedOutput = {
-  provider: "brave" | "exa" | "firecrawl" | "litellm" | "serper" | "tavily";
+  provider:
+    | "brave"
+    | "duckduckgo"
+    | "exa"
+    | "firecrawl"
+    | "litellm"
+    | "serper"
+    | "tavily";
   query: string;
   results: NormalizedResult[];
   metadata: {
@@ -340,7 +412,14 @@ function normalizeLiteLLMResults(payload: unknown): NormalizedResult[] {
 }
 
 function normalizedOutput(
-  provider: "brave" | "exa" | "firecrawl" | "litellm" | "serper" | "tavily",
+  provider:
+    | "brave"
+    | "duckduckgo"
+    | "exa"
+    | "firecrawl"
+    | "litellm"
+    | "serper"
+    | "tavily",
   input: WebSearchInput,
   results: NormalizedResult[],
 ): NormalizedOutput {
@@ -358,6 +437,143 @@ function normalizedOutput(
       returned_results: results.length,
     },
   };
+}
+
+function toDuckDuckGoDf(
+  freshness: WebSearchInput["freshness"],
+): string | undefined {
+  switch (freshness) {
+    case "day":
+      return "d";
+    case "week":
+      return "w";
+    case "month":
+      return "m";
+    case "year":
+      return "y";
+    default:
+      return undefined;
+  }
+}
+
+function toDuckDuckGoRegion(country: string | undefined): string | undefined {
+  if (!country) {
+    return undefined;
+  }
+  return DUCKDUCKGO_REGION_BY_COUNTRY[country.toLowerCase()];
+}
+
+function resolveDuckDuckGoHref(href: string): string {
+  const trimmed = href.trim();
+  if (!trimmed) {
+    return "";
+  }
+  try {
+    const url = new URL(trimmed, DUCKDUCKGO_HTML_ENDPOINT);
+    if (url.pathname === "/l/" || url.pathname.startsWith("/l/")) {
+      const target = url.searchParams.get("uddg");
+      if (target) {
+        return decodeURIComponent(target);
+      }
+    }
+    return url.href;
+  } catch {
+    return trimmed;
+  }
+}
+
+function normalizeDuckDuckGoHtml(
+  html: string,
+  count: number,
+): NormalizedResult[] {
+  const $ = cheerio.load(html);
+  const results: NormalizedResult[] = [];
+  const seen = new Set<string>();
+
+  const pushResult = (title: string, url: string, snippet: string) => {
+    if (!url || seen.has(url) || results.length >= count) {
+      return;
+    }
+    seen.add(url);
+    results.push({ title, url, snippet });
+  };
+
+  const zciLink = $(".zci__heading a").first();
+  const zciHref = resolveDuckDuckGoHref(zciLink.attr("href") ?? "");
+  if (zciHref) {
+    const abstract = $("#zero_click_abstract")
+      .clone()
+      .find("a, img")
+      .remove()
+      .end()
+      .text()
+      .replace(/\s+/g, " ")
+      .trim();
+    pushResult(
+      cleanString(zciLink.text()) || "Instant answer",
+      zciHref,
+      abstract,
+    );
+  }
+
+  $("#links .web-result").each((_, element) => {
+    if (results.length >= count) {
+      return false;
+    }
+    const row = $(element);
+    if (row.hasClass("result--ad") || row.find(".result--ad").length > 0) {
+      return;
+    }
+    const link = row.find("a.result__a").first();
+    const url = resolveDuckDuckGoHref(link.attr("href") ?? "");
+    if (!url) {
+      return;
+    }
+    const title = cleanString(link.text());
+    const snippet = cleanString(row.find("a.result__snippet").first().text());
+    pushResult(title, url, snippet);
+  });
+
+  return results;
+}
+
+async function searchDuckDuckGo(
+  input: WebSearchInput,
+  signal: AbortSignal,
+): Promise<NormalizedOutput> {
+  const url = new URL(DUCKDUCKGO_HTML_ENDPOINT);
+  url.searchParams.set("q", input.query);
+  const df = toDuckDuckGoDf(input.freshness);
+  if (df) {
+    url.searchParams.set("df", df);
+  }
+  const kl = toDuckDuckGoRegion(input.country);
+  if (kl) {
+    url.searchParams.set("kl", kl);
+  }
+  if (input.safe_search !== undefined) {
+    url.searchParams.set("kp", input.safe_search ? "1" : "-2");
+  }
+
+  const response = await fetch(url, {
+    method: "GET",
+    signal,
+    headers: {
+      accept: "text/html",
+      "user-agent": DUCKDUCKGO_USER_AGENT,
+    },
+  });
+  const body = await response.text();
+  if (!response.ok) {
+    throw new Error(
+      `DuckDuckGo search failed (${response.status} ${response.statusText}): ${body.slice(0, 200)}`,
+    );
+  }
+  return normalizedOutput(
+    "duckduckgo",
+    input,
+    normalizeDuckDuckGoHtml(body, input.count),
+  );
 }
 
 async function searchBrave(
@@ -569,6 +785,9 @@ export function createWebSearchTools(config: Config) {
           ? AbortSignal.any([timeoutSignal, context.agent.cancelSignal])
           : timeoutSignal;
         const provider = config.search.provider;
+        if (provider === "duckduckgo") {
+          return toJsonValue(await searchDuckDuckGo(input, signal));
+        }
         if (provider === "brave") {
           const apiKey = config.search.brave.apiKey;
           if (!apiKey) {

@@ -134,6 +134,8 @@ export type AzureProviderOptions = {
 
 export type BedrockProviderOptions = {
   region?: string;
+  /** Named profile from `~/.aws/credentials` / `~/.aws/config` (default chain when omitted). */
+  profile?: string;
   accessKeyId?: string;
   secretAccessKey?: string;
   sessionToken?: string;
@@ -164,8 +166,11 @@ export type GroqProviderOptions = {
   headers?: Record<string, string>;
   /**
    * Reasoning controls. `reasoning.effort` maps to Groq's `reasoning_effort`
-   * (`minimal` is sent as `low`); reasoning is streamed via
-   * `reasoning_format: "parsed"`. Omit to leave reasoning at the model default.
+   * in a model-family-aware way: Qwen accepts only `none`/`default` (any
+   * enabled Hooman level becomes `default`); GPT-OSS accepts `low`/`medium`/
+   * `high` (`minimal` → `low`). Reasoning is streamed via
+   * `reasoning_format: "parsed"` where supported. Omit to leave reasoning at
+   * the model default.
    */
   reasoning?: ReasoningOptions;
 };
@@ -436,6 +441,7 @@ export const AzureProviderOptionsSchema = z
 export const BedrockProviderOptionsSchema = z
   .object({
     region: NonEmptyStringSchema.optional(),
+    profile: NonEmptyStringSchema.optional(),
     accessKeyId: NonEmptyStringSchema.optional(),
     secretAccessKey: NonEmptyStringSchema.optional(),
     sessionToken: NonEmptyStringSchema.optional(),

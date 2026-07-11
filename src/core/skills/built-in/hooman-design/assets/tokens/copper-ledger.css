@@ -1,0 +1,34 @@
+/* Direction tokens — copper-ledger (docs / ops / warm utility). */
+:root {
+  --bg: #f7f3ee;
+  --surface: #fffdf9;
+  --surface-2: #efe8df;
+  --ink: #1f1812;
+  --muted: #6e6258;
+  --border: #ddd3c7;
+  --accent: #8b4513;
+  --accent-soft: #f0e4d8;
+  --accent-ink: #fffdf9;
+  --danger: #9b1c1c;
+  --success: #3d6b4f;
+  --warning: #a16207;
+  --focus: #8b4513;
+  --overlay: rgb(31 24 18 / 0.45);
+  --shadow: 0 1px 2px rgb(31 24 18 / 0.07);
+  --font-display: system-ui, -apple-system, sans-serif;
+  --font-body: system-ui, -apple-system, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  --radius: 0.25rem;
+  --leading-body: 1.5;
+  --tracking-caps: 0.07em;
+  --text-body: 0.9375rem;
+  --text-small: 0.8125rem;
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-7: 3rem;
+  --space-8: 4rem;
+}

@@ -4,7 +4,6 @@
     "lib": ["ES2022"],
     "module": "commonjs",
     "moduleResolution": "node",
-    "rootDir": "src",
     "outDir": "out",
     "sourceMap": true,
     "esModuleInterop": true,
@@ -18,5 +17,5 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true
   },
-  "include": ["src/**/*.ts"]
+  "include": ["src/**/*.ts", "../core/utils/models-prefetch.ts"]
 }

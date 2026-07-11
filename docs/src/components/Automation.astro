@@ -14,18 +14,18 @@ const servers = [
   <div class="mx-auto max-w-6xl px-6">
     <div class="grid grid-cols-1 gap-16 lg:grid-cols-2 lg:items-center">
       <div class="reveal-target">
-        <div class="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-medium text-slate-300">
+        <div class="inline-flex items-center gap-2 rounded-sm border border-white/10 bg-white/5 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-300">
           <span class="h-1.5 w-1.5 rounded-full bg-hooman-indigo"></span>
           hooman daemon
         </div>
         <h2 class="mt-6 text-3xl font-bold tracking-tight text-white sm:text-4xl">
-          Event-driven automation, not just chat
+          Channels turn chat into infrastructure
         </h2>
         <p class="mt-4 text-lg leading-relaxed text-slate-400">
           <code class="rounded bg-white/10 px-1.5 py-0.5 font-mono text-sm text-hooman-blush">hooman daemon</code> subscribes
           to MCP servers that advertise the <code class="rounded bg-white/10 px-1.5 py-0.5 font-mono text-sm text-hooman-blush">hooman/channel</code>
-          capability, turning notifications from schedulers, ticket trackers, and chat platforms into agent
-          prompts — with the same tool approval model as chat and exec.
+          capability — schedulers, tickets, Slack, Telegram, WhatsApp — and runs the same agent with the same approvals.
+          Agentic ops without a hosted control plane.
         </p>
         <a
           href={`${base}/guides/mcp/channels/`}
@@ -43,7 +43,7 @@ const servers = [
               href={s.href}
               target="_blank"
               rel="noreferrer"
-              class="group flex items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] px-5 py-4 transition hover:border-white/20 hover:bg-white/[0.06]"
+              class="group flex items-center justify-between rounded-lg border border-white/10 bg-white/[0.03] px-5 py-4 transition hover:border-white/20 hover:bg-white/[0.06]"
             >
               <div>
                 <p class="font-mono text-sm font-semibold text-white">{s.name}</p>

@@ -1107,8 +1107,7 @@ export function ChatApp({
           id: nowId(),
           role: "system",
           title: "yolo",
-          content:
-            "Wait for the active turn to finish before changing yolo mode.",
+          content: "Wait for the active turn to finish before changing yolo.",
           done: true,
         });
         return;
@@ -1163,7 +1162,7 @@ export function ChatApp({
           id: nowId(),
           role: "system",
           title: "mode",
-          content: `Unknown mode "${trimmed}". Use agent, ask, or plan, or open the picker with /mode.`,
+          content: `Unknown mode "${trimmed}". Use agent, ask, plan, or design, or open the picker with /mode.`,
           done: true,
         });
         return;
@@ -1577,13 +1576,21 @@ export function ChatApp({
         });
       } catch (error) {
         clearRetryLine();
-        appendLine({
-          id: nowId(),
-          role: "system",
-          title: "error",
-          content: error instanceof Error ? error.message : String(error),
-          done: true,
-        });
+        // Cancel during model-retry backoff throws AbortError; don't surface it
+        // as a turn failure.
+        const cancelled =
+          agent.cancelSignal.aborted ||
+          (error instanceof Error &&
+            (error.name === "AbortError" || error.name === "CancelledError"));
+        if (!cancelled) {
+          appendLine({
+            id: nowId(),
+            role: "system",
+            title: "error",
+            content: error instanceof Error ? error.message : String(error),
+            done: true,
+          });
+        }
       } finally {
         clearRetryLine();
         finalizeThoughtLine();

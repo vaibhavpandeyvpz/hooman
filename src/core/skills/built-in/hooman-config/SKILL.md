@@ -1,6 +1,6 @@
 ---
 name: hooman-config
-description: Read and update Hooman's own ~/.hooman/config.json and instructions.md. Use when the user asks about Hooman's config, custom instructions, agent name, model providers, LLMs/models, API keys, reasoning options, global reasoning display, web search settings, tool or prompt toggles, or compaction. Not for MCP servers (use hooman-mcp), channel integrations (hooman-channels), or installed skills (hooman-skills).
+description: Read and update Hooman's own ~/.hooman/config.json and instructions.md. Use when the user asks about Hooman's config, custom instructions, agent name, model providers, LLMs/models, API keys, reasoning options, global reasoning display, web search settings, tool or prompt toggles, compaction, or first-run setup (`hooman setup`). Not for MCP servers (use hooman-mcp), channel integrations (hooman-channels), or installed skills (hooman-skills).
 ---
 
 # Hooman Config
@@ -23,10 +23,17 @@ Read these files (next to this SKILL.md) only when the task needs the details th
 
 ## Effective Runtime View
 
-Use `hooman config` to inspect the merged runtime `config.json` for
-the current working directory (home config plus repo-local `.hooman/config.json`
-overlays walked from git root to the current directory). The command prints full
-`config.json` shape and redacts credential-like values.
+When `~/.hooman/config.json` is missing, the CLI (`hooman` / `hooman setup`) and
+the VS Code chat panel run a first-run **setup** wizard: pick inference + search,
+validate credentials, then write `config.json` with that provider's chat LLMs.
+Do not invent a dual llama.cpp+MLX file as "what setup wrote" — setup writes
+only the chosen provider (and the chosen search block).
+
+Use `hooman config` to open the interactive configuration UI (same as chat
+`/config`). Pass `hooman config --debug` (or `-d`) to dump the merged runtime
+`config.json` for the current working directory (home config plus repo-local
+`.hooman/config.json` overlays walked from git root to the current directory)
+with credential-like values redacted.
 
 ## Read/Write Rules
 
@@ -35,12 +42,15 @@ overlays walked from git root to the current directory). The command prints full
 3. `name`, `providers`, and `llms` are required. `providers` stores shared credentials/config, and `llms` must be a **non-empty array** of entries that reference provider names (see `providers.md`). `search`, `prompts`, `tools`, `compaction`, and top-level `reasoning` are optional in input, but Hooman expands them with defaults when loading.
 4. Unknown keys are unsupported and may be dropped when Hooman parses and persists the config.
 5. `tools` only manages built-in runtime toggles exposed in `config.json`.
-6. Any change to `config.json` or `instructions.md` requires restarting the running Hooman agent/session before it takes effect. In an interactive `chat` session, running the `/config` command applies this automatically: it reloads config and re-bootstraps the session on exit.
+6. Any change to `config.json` or `instructions.md` requires restarting the running Hooman agent/session before it takes effect. Running `hooman config` or chat `/config` applies this automatically when you return to an interactive session: chat reloads config and re-bootstraps on exit.
 7. When editing `providers` or `llms`, preserve unrelated entries and API keys unless the user asks to remove or replace them.
 
 ## Full Config Shape
 
-This is the default shape Hooman writes when `~/.hooman/config.json` is missing:
+Example of what **first-run setup** writes when the user picks llama.cpp +
+DuckDuckGo (hosted providers look the same with that provider's credentials and
+prefetched `llms`; MLX is the same shape with `provider: "mlx"` and MLX model
+ids). Preferred model is `default: true`; other listed chat LLMs follow:
 
 ```json
 {
@@ -50,11 +60,6 @@ This is the default shape Hooman writes when `~/.hooman/config.json` is missing:
       "name": "llama.cpp",
       "provider": "llama-cpp",
       "options": {}
-    },
-    {
-      "name": "mlx",
-      "provider": "mlx",
-      "options": { "promptCache": {} }
     }
   ],
   "llms": [
@@ -65,7 +70,8 @@ This is the default shape Hooman writes when `~/.hooman/config.json` is missing:
         "model": "unsloth/gemma-4-E2B-it-GGUF:Q4_K_M",
         "context": 131072
       },
-      "default": false
+      "metadata": { "name": "unsloth/gemma-4-E2B-it-GGUF:Q4_K_M" },
+      "default": true
     },
     {
       "name": "Qwen3.5 2B (llama.cpp)",
@@ -74,31 +80,15 @@ This is the default shape Hooman writes when `~/.hooman/config.json` is missing:
         "model": "unsloth/Qwen3.5-2B-MTP-GGUF:Q4_K_M",
         "context": 262144
       },
-      "default": false
-    },
-    {
-      "name": "Gemma 4 E2B (MLX)",
-      "provider": "mlx",
-      "options": {
-        "model": "mlx-community/gemma-4-e2b-it-OptiQ-4bit",
-        "context": 131072
-      },
-      "default": false
-    },
-    {
-      "name": "Qwen3.5 2B (MLX)",
-      "provider": "mlx",
-      "options": {
-        "model": "mlx-community/Qwen3.5-2B-OptiQ-4bit",
-        "context": 262144
-      },
+      "metadata": { "name": "unsloth/Qwen3.5-2B-MTP-GGUF:Q4_K_M" },
       "default": false
     }
   ],
   "search": {
-    "enabled": false,
-    "provider": "brave",
+    "enabled": true,
+    "provider": "duckduckgo",
     "brave": {},
+    "duckduckgo": {},
     "exa": {},
     "firecrawl": {},
     "litellm": {},
@@ -117,7 +107,7 @@ This is the default shape Hooman writes when `~/.hooman/config.json` is missing:
     "filesystem": { "enabled": true },
     "shell": { "enabled": true },
     "sleep": { "enabled": true },
-    "browser": { "enabled": false },
+    "browser": { "enabled": true },
     "subagents": { "enabled": true }
   },
   "compaction": {
@@ -128,6 +118,11 @@ This is the default shape Hooman writes when `~/.hooman/config.json` is missing:
 }
 ```
 
+If config is loaded or scaffolded without going through setup (e.g. Open
+Settings before the wizard), the in-memory default still includes **both**
+llama.cpp and MLX provider/LLM presets, with `tools.browser.enabled` defaulting
+to `false`. Prefer reading the user's actual file over assuming either shape.
+
 Hooman fills all optional sections with defaults on load and persist, so a minimal valid config is just `name`, `providers`, and `llms`.
 
 ## Top-Level Options
@@ -135,7 +130,7 @@ Hooman fills all optional sections with defaults on load and persist, so a minim
 - `name`: non-empty display name for the agent.
 - `providers`: required reusable provider definitions. Each entry has `name`, runtime `provider`, and provider-specific `options`. Supported runtime providers: `anthropic`, `azure`, `bedrock`, `google`, `groq`, `llama-cpp`, `minimax`, `mlx`, `moonshot`, `ollama`, `openai`, `openrouter`, `xai` — details in `providers.md`.
 - `llms`: required non-empty list of named LLM configs. Each entry has `name`, provider reference `provider`, model `options` (`model`, optional `temperature`, optional `topP`, optional `maxTokens`, optional `context` — local llama-cpp/mlx providers only), optional `metadata`, and `default` (mark exactly one entry `true`). Details in `providers.md`.
-- `search`: optional web search config; defaults to disabled Brave. Details in `search.md`.
+- `search`: optional web search config; defaults to enabled DuckDuckGo (no API key). Details in `search.md`.
 - `prompts`: optional built-in static prompt toggles; omitted fields default to `true`. Custom user instructions live in `~/.hooman/instructions.md`.
 - `tools`: optional tool toggles and tool-specific settings.
 - `compaction`: optional context compaction settings. `ratio` must be `0..1`; `keep` must be a non-negative integer.

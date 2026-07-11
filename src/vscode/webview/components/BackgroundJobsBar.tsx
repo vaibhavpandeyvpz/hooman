@@ -8,7 +8,7 @@ import {
 } from "lucide-solid";
 import { sessionState, stopShellJob, state } from "../store";
 
-/** Active background shell jobs strip above the composer (Cursor-style). */
+/** Active background shell jobs strip above the composer. */
 export default function BackgroundJobsBar() {
   const [collapsed, setCollapsed] = createSignal(false);
   const jobs = () => sessionState().shellJobs;

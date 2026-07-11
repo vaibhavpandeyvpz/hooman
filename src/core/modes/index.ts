@@ -7,6 +7,7 @@ export {
   getModeOptions,
   getModeTools,
   isModeDefinition,
+  isModeListedTool,
 } from "./definitions.js";
 export {
   DEFAULT_SESSION_MODE,

@@ -14,11 +14,15 @@ import BackgroundJobsBar from "./components/BackgroundJobsBar";
 import Composer from "./components/Composer";
 import PlanEditorView from "./components/PlanEditorView";
 import SettingsEditorView from "./components/SettingsEditorView";
+import OnboardingView from "./components/OnboardingView";
 import { state } from "./store";
 
 export default function App() {
   return (
     <Switch>
+      <Match when={state.route === "/"}>
+        <OnboardingView />
+      </Match>
       <Match when={state.route === "/chat"}>
         <div class="relative flex h-full min-h-0 flex-col">
           <TabStrip />

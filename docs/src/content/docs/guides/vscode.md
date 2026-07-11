@@ -1,13 +1,15 @@
 ---
 title: VS Code
-description: The hooman-vscode chat panel — features, quick start, settings, and development.
+description: Native Hooman chat panel — full-stack agent in the activity bar with plan, design, MCP, and BYOK.
 ---
 
-`src/vscode/` ships a self-contained VS Code extension (`hooman-vscode`) that bridges [`hooman acp`](/hooman/guides/acp/) into the editor with a native **Hooman chat panel** in the activity bar.
+![Hooman VS Code chat panel](/hooman/screenshots/agent-mode.png)
 
-Works in **stable VS Code, VS Code Insiders, and compatible forks** — no proposed APIs and no special subscription required. Local-first: your configuration, API keys, and sessions live in `~/.hooman` on your machine — no account, no telemetry.
+`src/vscode/` ships a self-contained VS Code extension (`hoomanjs-vscode`) that bridges [`hooman acp`](/hooman/guides/acp/) into the editor with a native **Hooman chat panel** in the activity bar — the same open-source, local-first runtime as the CLI.
 
-Install it from the **[VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=VPZ.hooman-vscode)**, or see the [VS Code quickstart](/hooman/quickstart-vscode/) for step-by-step setup.
+Works in **stable VS Code, VS Code Insiders, and compatible forks** — no proposed APIs and no special subscription required. Local-first and enterprise-friendly: your configuration, API keys, and sessions live in `~/.hooman` on your machine — no account, no telemetry. MIT licensed; bring your own keys or inference endpoints.
+
+Install it from the **[VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=VPZ.hoomanjs-vscode)**, or see the [VS Code quickstart](/hooman/quickstart-vscode/) for step-by-step setup.
 
 ## Features
 
@@ -15,26 +17,25 @@ Install it from the **[VS Code Marketplace](https://marketplace.visualstudio.com
 - **Multi-tab sessions**: work several chat sessions side by side in the same panel via a tab strip — open, switch, reorder, and close tabs without losing any in-flight turn.
 - **Tool-call cards** with live status — shell commands stream their output into the card as they run. Long-running commands can detach as **background terminals**; a strip above the composer lists them with status and a **Stop** control (see [shell background jobs](/hooman/guides/tools/#shell)). Failed requests that Hooman retries show a **retry card** with attempt count and backoff instead of silently failing. Stopping a turn cancels pending permission prompts and marks unfinished tool cards as cancelled. The transcript also sticks to the bottom while you follow a live turn (and when you send a new message).
 - **Review every edit**: files the agent writes appear in a pinned **Changes** panel. Click a file to open a native diff against its pre-edit baseline, then **Keep** or **Undo** each change (or all at once). Edits go through undo-able workspace edits, and the agent sees your unsaved buffers.
-- **Plan checklist** pinned above the transcript, updated live as the agent works through it, backed by a dedicated **Plan editor** custom view for `*.plan.md` files (checklist + Mermaid in the plan body). Leaving plan mode (`exit_plan_mode`) always requires explicit approval, even with Yolo/auto-approve on.
+- **Plan checklist** pinned above the transcript, updated live as the agent works through it, backed by a dedicated **Plan editor** custom view for `*.plan.md` files (checklist + Mermaid in the plan body). `switch_mode` always requires explicit approval (including leaving plan), even with Yolo/auto-approve on.
 - **Message actions**: copy any message, or **fork the chat** from each turn's final assistant reply into a new session/tab. On a user message that still has an in-memory checkpoint, **Revert** restores files touched from that turn onward, rewinds agent history, and puts the prompt back in the composer (native confirmation dialog; not available for replayed history).
 - **Queue and steer**: follow-ups sent mid-turn land in a **Queued** panel where you can edit, remove, or **Send now**. **Steer now** injects the queue as guidance into the running turn instead of waiting for it to finish.
 - **Attachments**: add files, folders, and images via the paperclip button, drag & drop, or paste from the clipboard. Right-click a file in the Explorer (or select text in an editor) for **Add to Hooman Chat** / **Add to New Hooman Chat** (and the selection-scoped variants) to send it straight into the panel. Attachments are filtered to modalities the active model supports — see [LLM metadata](/hooman/guides/configuration/models/#llm-metadata).
 - **Sessions persist**: a **Sessions** overlay lists saved sessions grouped by day, searchable, with the ongoing one marked, click-to-open, per-session delete, and a New Chat action.
-- **Composer controls** for session mode (Agent / Plan / Ask), model, reasoning effort, and a separate **Yolo** toggle (auto-approve tool calls — not a mode), plus `/` slash-command autocomplete (`/compact`, `/init`).
-- **Inline permission prompts**: the agent asks before running destructive tools; approve or reject right in the panel (Yolo auto-approves — except leaving plan mode, which always prompts). Destructive deletes and revert use VS Code's native confirmation dialogs.
+- **Composer controls** for session mode (Agent / Plan / Ask / Design), model, reasoning effort, and a separate **Yolo** toggle (auto-approve tool calls — not a mode), plus `/` slash-command autocomplete (`/compact`, `/init`). [Design mode](/hooman/guides/modes/design/) uses Simple Browser for `preview_design` and the same plan/Changes chrome for other modes.
+- **Inline permission prompts**: the agent asks before running destructive tools; approve or reject right in the panel (Yolo auto-approves — except `switch_mode`, which always prompts). Destructive deletes and revert use VS Code's native confirmation dialogs.
 - **Status bar item** showing the current model and mode, with a spinner while a turn runs and a quick menu for all session controls.
 - **Token-usage footer** with real-time accumulated token counts for the in-flight turn plus the latest request's input / cached / output counts, a context-window gauge, and cumulative session cost — see [LLM metadata](/hooman/guides/configuration/models/#llm-metadata).
 - **Model download strip**: when a local [llama.cpp](/hooman/guides/configuration/models/llama-cpp/) model downloads its weights on first use, a progress strip shows percent, size, speed, and ETA above the composer.
 - **Native settings editors**: dedicated custom editors for `config.json` (providers, models, prompts, tools, compaction, and fields such as `topP` / modality metadata) and `mcp.json` (add/edit/remove servers with field-by-field forms), plus a **Skills** panel to search, install, refresh, and remove skills — all without leaving VS Code. `instructions.md` opens in VS Code's default Markdown editor. These read/write the same nearest project-local `.hooman/` overlay or `~/.hooman/` files the CLI uses.
+- **First-run setup**: when `~/.hooman/config.json` is missing, the panel shows the same setup wizard as [`hooman setup`](/hooman/guides/cli/#hooman-setup) before chat starts.
 
 ## Quick start
 
 1. Install [Node.js](https://nodejs.org) `>= 24` (`npx` ships with it — that's all the extension needs).
-2. Install the extension from the [Marketplace](https://marketplace.visualstudio.com/items?itemName=VPZ.hooman-vscode).
-3. Click the **Hooman icon in the activity bar** and send a prompt. The extension launches the agent via `npx hoomanjs acp`, downloading the CLI on first use — no separate install step.
-4. Pick your provider and model. Out of the box, Hooman ships local [llama.cpp](/hooman/guides/configuration/models/llama-cpp/) presets for Gemma 4 E2B and Qwen3.5 2B (downloaded from the Hugging Face Hub on first use), plus Apple-Silicon-only [MLX](/hooman/guides/configuration/models/mlx/) presets for the same two models. To use a hosted provider instead, either:
-   - click **Open Settings…** (gear icon in the panel title bar) to edit `~/.hooman/config.json` directly, or
-   - run `npx hoomanjs` in a terminal and use the [`/config`](/hooman/guides/cli/#config) workflow.
+2. Install the extension from the [Marketplace](https://marketplace.visualstudio.com/items?itemName=VPZ.hoomanjs-vscode).
+3. Click the **Hooman icon in the activity bar**. If `~/.hooman/config.json` is missing, a **setup** wizard runs in the panel (same flow as [`hooman setup`](/hooman/guides/cli/#hooman-setup)): pick inference + search, validate credentials, write config. After that, chat opens and the extension launches the agent via `npx hoomanjs acp` (CLI downloaded on first use — no separate install).
+4. Setup defaults to local [llama.cpp](/hooman/guides/configuration/models/llama-cpp/) (Gemma 4 E2B / Qwen3.5 2B); on Apple Silicon you can choose [MLX](/hooman/guides/configuration/models/mlx/). Hosted providers are in the same wizard. Later changes: **Open Settings…** (gear), `npx hoomanjs config`, or `npx hoomanjs setup`.
 
    See [Configuration](/hooman/guides/configuration/) and [Models](/hooman/guides/configuration/models/) for the full schema.
 
@@ -81,13 +82,13 @@ cd src/vscode
 npm install
 npm run compile   # typecheck + esbuild (extension host) + vite build (webview)
 npm run watch     # rebuild all three on save
-npm run package   # -> hooman-vscode-<version>.vsix (fully bundled, no node_modules)
+npm run package   # -> hoomanjs-vscode-<version>.vsix (fully bundled, no node_modules)
 ```
 
 Install the packaged `.vsix` into any VS Code-compatible editor:
 
 ```bash
-code --install-extension hooman-vscode-<version>.vsix
+code --install-extension hoomanjs-vscode-<version>.vsix
 ```
 
 To debug, open the repository root in VS Code (after running `npm install` in `src/vscode/` at least once) and press **F5** — the root `.vscode/launch.json` and `.vscode/tasks.json` point at `src/vscode`, so there's no need to `cd` in or open it as a separate workspace.

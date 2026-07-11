@@ -152,9 +152,10 @@ const DEFAULT_TOOLS: Record<ToolToggleKey, boolean> = {
 };
 
 const DEFAULT_SEARCH = {
-  enabled: false,
-  provider: "brave" as SearchProvider,
+  enabled: true,
+  provider: "duckduckgo" as SearchProvider,
   brave: { apiKey: undefined as string | undefined },
+  duckduckgo: {} as Record<string, never>,
   exa: { apiKey: undefined as string | undefined },
   firecrawl: { apiKey: undefined as string | undefined },
   litellm: {
@@ -658,6 +659,7 @@ function configStateFromDoc(
         String((doc.search?.brave as JsonObject | undefined)?.apiKey ?? ""),
       ),
     },
+    duckduckgo: {},
     exa: {
       apiKey: normalizeOptional(
         String((doc.search?.exa as JsonObject | undefined)?.apiKey ?? ""),
@@ -838,7 +840,7 @@ export function saveConfigSearch(
   },
 ): string {
   const apiKey = updates.apiKey.trim();
-  if (!apiKey) {
+  if (updates.provider !== "duckduckgo" && !apiKey) {
     throw new Error(
       `${updates.provider === "litellm" ? "Virtual key" : "API key"} is required.`,
     );
@@ -847,16 +849,20 @@ export function saveConfigSearch(
     const search = { ...(doc.search ?? {}) };
     search.enabled = updates.enabled;
     search.provider = updates.provider;
-    search[updates.provider] = {
-      ...((search[updates.provider] as JsonObject | undefined) ?? {}),
-      apiKey,
-      ...(updates.provider === "litellm"
-        ? {
-            baseURL: normalizeOptional(updates.baseURL),
-            tool: normalizeOptional(updates.tool),
-          }
-        : {}),
-    };
+    if (updates.provider === "duckduckgo") {
+      search.duckduckgo = {};
+    } else {
+      search[updates.provider] = {
+        ...((search[updates.provider] as JsonObject | undefined) ?? {}),
+        apiKey,
+        ...(updates.provider === "litellm"
+          ? {
+              baseURL: normalizeOptional(updates.baseURL),
+              tool: normalizeOptional(updates.tool),
+            }
+          : {}),
+      };
+    }
     doc.search = search;
   });
 }

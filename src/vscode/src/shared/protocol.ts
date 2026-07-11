@@ -8,6 +8,8 @@ import type {
   ConfigEditorStateInfo,
   McpEditorAction,
   McpEditorStateInfo,
+  ProviderKind,
+  SearchProvider,
   SkillsViewAction,
   SkillsViewStateInfo,
 } from "./settings";
@@ -237,7 +239,21 @@ export type InboundMessage =
   | { type: "refresh" }
   | { type: "configEditorAction"; action: ConfigEditorAction }
   | { type: "mcpEditorAction"; action: McpEditorAction }
-  | { type: "skillsViewAction"; action: SkillsViewAction };
+  | { type: "skillsViewAction"; action: SkillsViewAction }
+  | {
+      type: "validateOnboardingProvider";
+      provider: ProviderKind;
+      providerOptions: Record<string, string>;
+      azureDeployment?: string;
+    }
+  | {
+      type: "completeOnboarding";
+      provider: ProviderKind;
+      providerOptions: Record<string, string>;
+      azureDeployment?: string;
+      searchProvider: SearchProvider;
+      searchOptions: Record<string, string>;
+    };
 
 /** Messages sent from the extension host to the webview. */
 export type OutboundMessage =
@@ -319,5 +335,10 @@ export type OutboundMessage =
       type: "shellJobs";
       sessionId: string;
       jobs: ShellJobInfo[];
+    }
+  | {
+      type: "onboardingStatus";
+      phase: "listing" | "writing" | "validated" | "done" | "error";
+      message?: string;
     }
   | { type: "error"; sessionId: string; message: string };
