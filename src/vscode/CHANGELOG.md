@@ -2,6 +2,10 @@
 
 All notable changes to the Hooman VS Code extension are documented in this file.
 
+## [1.55.1]
+
+- Fix a name collision in the VS Code Marketplace by changing the extension `displayName` from "Hooman" to "Hooman for VS Code".
+
 ## [1.55.0]
 
 - Introduce **Design mode** for producing HTML artifacts: a new `design` session mode, a built-in `hooman-design` skill, and a complete design workflow (brand discovery → template/theme selection → build → preview → visual QA → export) that writes prototypes, decks, dashboards, and other layouts under `.hooman/design/<slug>/index.html`.
