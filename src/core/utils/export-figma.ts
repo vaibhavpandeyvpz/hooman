@@ -6,7 +6,12 @@
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { createEmptyFigDoc, parseFig, type FigDocument, type FigNode } from "openfig-core";
+import {
+  createEmptyFigDoc,
+  parseFig,
+  type FigDocument,
+  type FigNode,
+} from "openfig-core";
 import type { RenderedPage } from "./export-design.js";
 import {
   createPlaceholderThumbnail,
@@ -24,7 +29,11 @@ const FIGMA_SLIDES_HEIGHT = 1080;
 const FRAME_GAP = 80;
 
 function seedDeckPath(): string {
-  return join(dirname(fileURLToPath(import.meta.url)), "seeds", "empty-slides.deck");
+  return join(
+    dirname(fileURLToPath(import.meta.url)),
+    "seeds",
+    "empty-slides.deck",
+  );
 }
 
 function ensureMessageEnvelope(doc: FigDocument): void {
@@ -170,8 +179,7 @@ export async function buildScreenshotDeck(
   if (doc.meta && typeof doc.meta === "object") {
     const meta = doc.meta as Record<string, unknown>;
     const clientMeta = meta.client_meta as
-      | { render_coordinates?: Record<string, number> }
-      | undefined;
+      { render_coordinates?: Record<string, number> } | undefined;
     if (clientMeta?.render_coordinates) {
       clientMeta.render_coordinates = {
         x: 0,

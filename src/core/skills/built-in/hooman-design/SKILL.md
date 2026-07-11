@@ -11,18 +11,18 @@ Act like a senior product designer who ships real CSS: clear hierarchy, intentio
 
 **Follow `references/workflow.md` in order for every new brief.** Summary:
 
-| Phase | Do                                                                                                            | Gate                                            |
-| ----- | ------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
-| 0     | Activate this skill                                                                                           | Before any write                                |
+| Phase | Do                                                                                                              | Gate                                            |
+| ----- | --------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
+| 0     | Activate this skill                                                                                             | Before any write                                |
 | 1     | Intake via `ask_user` (brand notes / fresh / reference images / other); honor injected `DESIGN.md` when present | Brief known                                     |
-| 2     | Clarify audience, surface, content, constraints                                                               | Enough to pick a shell                          |
-| 3     | Offer **5 best-fit shells** + **Other / custom**                                                              | Shell chosen; read its HTML                     |
-| 4     | Theme: use `DESIGN.md`, else **5 best-fit directions** + **Other / custom**                                   | Tokens bound                                    |
-| 5     | Build under `.hooman/design/<slug>/`                                                                          | Meaningful `index.html`                         |
-| 6     | `preview_design` (keep open) → images → `design-review` → fix (≤2–3 rounds)                                   | Must-fix empty or capped                        |
-| 7     | Ask user to review the live preview                                                                           | User accepts or requests changes                |
-| 8     | Ask export format → `export_design` delivery formats                                                          | Files under `export/`                           |
-| 9     | `stop_design_preview`                                                                                         | **Only after** export (or user declines / ends) |
+| 2     | Clarify audience, surface, content, constraints                                                                 | Enough to pick a shell                          |
+| 3     | Offer **5 best-fit shells** + **Other / custom**                                                                | Shell chosen; read its HTML                     |
+| 4     | Theme: use `DESIGN.md`, else **5 best-fit directions** + **Other / custom**                                     | Tokens bound                                    |
+| 5     | Build under `.hooman/design/<slug>/`                                                                            | Meaningful `index.html`                         |
+| 6     | `preview_design` (keep open) → images → `design-review` → fix (≤2–3 rounds)                                     | Must-fix empty or capped                        |
+| 7     | Ask user to review the live preview                                                                             | User accepts or requests changes                |
+| 8     | Ask export format → `export_design` delivery formats                                                            | Files under `export/`                           |
+| 9     | `stop_design_preview`                                                                                           | **Only after** export (or user declines / ends) |
 
 Do **not** write HTML before phases 1–4. Do **not** stop preview before phase 9.
 

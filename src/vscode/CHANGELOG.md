@@ -2,6 +2,19 @@
 
 All notable changes to the Hooman VS Code extension are documented in this file.
 
+## [1.55.0]
+
+- Introduce **Design mode** for producing HTML artifacts: a new `design` session mode, a built-in `hooman-design` skill, and a complete design workflow (brand discovery → template/theme selection → build → preview → visual QA → export) that writes prototypes, decks, dashboards, and other layouts under `.hooman/design/<slug>/index.html`.
+- Export design artifacts to multiple delivery formats: PDF, PowerPoint-ready `.pptx`, Figma-ready `.fig`, and Sketch-ready `.sketch`, plus screenshot-backed deck exports, using Playwright-based rendering and dedicated export utilities.
+- Add a local **preview server** and **browser tool** so the agent can render, screenshot, and inspect HTML artifacts during design work, with a shared browser backend wired through both the CLI and ACP.
+- Launch a guided **first-run onboarding** experience: the new `hooman setup` Ink wizard walks users through provider/model selection and writes an initial `~/.hooman/config.json`, backed by `onboarding-config` helpers and a new VS Code onboarding view.
+- Extend CLI bootstrap options: `--model` selects a configured named LLM, `--effort` sets reasoning effort per provider, and `--continue` resumes the latest session in the current project.
+- Add a `switch_mode` tool so the agent can move between session modes (agent, ask, plan, design) mid-conversation.
+- Refresh the VS Code chat webview with an **Onboarding** view, new provider logos, and updated chrome that matches the shared brand tokens.
+- Rename agent prompts for clarity (`code-review`, `quality-analyst`) and add a `design-review` agent for the design-mode QA step.
+- Update the docs site with new mode guides (agent, ask, plan, design), a design-mode guide, refreshed hero/screenshots, and new install scripts (`install.sh` / `install.ps1`).
+- Add new dependencies for design/export workflows: `playwright`, `pptxgenjs`, `pdf-lib`, `openfig-core`, `@sketch-hq/sketch-file-format-ts`, `cheerio`, `fflate`, `serve-handler`, and `zstd-codec`.
+
 ## [1.47.0]
 
 - Run shell commands in the background: the `shell` tool now spawns long-running jobs through a new `ShellJobManager` (with `SHELL_OUTPUT_TOOL_NAME` / `SHELL_STOP_TOOL_NAME` companions), so the agent can keep working while a process is still producing output, peek at partial output, cancel a job, and resume from where it left off instead of waiting synchronously. The old `src/core/tools/shell.ts` path has moved to `src/core/shell/` and the public types (`ShellJobEvent`, `ShellJobInfo`, `ShellJobOutputSnapshot`, `ShellJobStatus`, `TerminalSpawnResult`) are re-exported from `hoomanjs`. The chat UI now shows a dedicated **Background jobs** panel, and the VS Code webview gets a complementary **Background jobs** bar in the tab strip that lists live jobs across the active session.
