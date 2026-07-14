@@ -95,7 +95,7 @@ export class HoomanAcpClient implements vscode.Disposable {
   }
 
   async #start(): Promise<ClientContext> {
-    const { command, args, env } = await resolveHoomanLaunch(
+    const { command, args, env, shell } = await resolveHoomanLaunch(
       ["acp"],
       this.outputChannel,
     );
@@ -106,6 +106,7 @@ export class HoomanAcpClient implements vscode.Disposable {
       cwd: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? process.cwd(),
       env,
       stdio: ["pipe", "pipe", "pipe"],
+      shell,
     });
     this.#process = child;
     child.stderr.on("data", (chunk: Buffer) => {

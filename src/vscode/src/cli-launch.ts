@@ -14,6 +14,7 @@ export interface HoomanLaunch {
   command: string;
   args: string[];
   env: NodeJS.ProcessEnv;
+  shell?: boolean;
 }
 
 /** On Windows, `npx`/`bunx` are `.cmd` shims that `spawn` needs named explicitly. */
@@ -93,6 +94,7 @@ export async function resolveHoomanLaunch(
       command: platformCommand("npx"),
       args: ["-y", `hoomanjs@${EXTENSION_VERSION}`, ...trailingArgs],
       env: launchEnv(),
+      shell: process.platform === "win32",
     };
   }
   if (runner === "bunx") {
@@ -100,6 +102,7 @@ export async function resolveHoomanLaunch(
       command: platformCommand("bunx"),
       args: [`hoomanjs@${EXTENSION_VERSION}`, ...trailingArgs],
       env: launchEnv(),
+      shell: process.platform === "win32",
     };
   }
 
