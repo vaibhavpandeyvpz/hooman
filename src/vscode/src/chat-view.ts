@@ -125,6 +125,8 @@ export class HoomanChatViewProvider
    * dropping it.
    */
   #pendingUpdates: SessionNotification[] = [];
+  #sessionCreationQueue: Promise<void> = Promise.resolve();
+  #creatingPlaceholderSessionId: string | null = null;
   /**
    * Config picks (mode/model/effort) made while `session/new` was still in
    * flight. Keyed by configId so repeated picks keep only the latest value;
@@ -1225,24 +1227,36 @@ export class HoomanChatViewProvider
     if (!sessionId || !this.#isPendingSessionId(sessionId)) {
       return;
     }
-    const placeholderState = this.#sessions.get(sessionId);
-    if (!placeholderState) {
-      return;
-    }
-    const agent = await this.client.ensureStarted();
-    if (!this.#sessions.has(sessionId)) {
-      return;
-    }
-    const response = await agent.request(methods.agent.session.new, {
-      cwd: placeholderState.cwd,
-      mcpServers: [],
+    const previousCreation = this.#sessionCreationQueue;
+    let finishCreation: (() => void) | undefined;
+    this.#sessionCreationQueue = new Promise<void>((resolve) => {
+      finishCreation = resolve;
     });
+    await previousCreation;
+    try {
+      const placeholderState = this.#sessions.get(sessionId);
+      if (!placeholderState) {
+        return;
+      }
+      const agent = await this.client.ensureStarted();
+      if (!this.#sessions.has(sessionId)) {
+        return;
+      }
+      this.#creatingPlaceholderSessionId = sessionId;
+      const response = await agent.request(methods.agent.session.new, {
+        cwd: placeholderState.cwd,
+        mcpServers: [],
+      });
 
-    this.#adoptSession(
-      sessionId,
-      response.sessionId,
-      response.configOptions ?? [],
-    );
+      this.#adoptSession(
+        sessionId,
+        response.sessionId,
+        response.configOptions ?? [],
+      );
+    } finally {
+      this.#creatingPlaceholderSessionId = null;
+      finishCreation?.();
+    }
   }
 
   /** Assign the just-created ACP session to a visible placeholder tab and replay buffered notifications. */
@@ -1261,6 +1275,7 @@ export class HoomanChatViewProvider
     state.pendingUpdates = [];
     this.#pendingUpdates = [];
     this.#replaceSessionId(placeholderSessionId, sessionId);
+    this.#post({ type: "clear", sessionId });
     if (this.#sessionId === sessionId) {
       this.#configOptions = [...configOptions];
       this.#sessionTitle = state.title;
@@ -1278,7 +1293,6 @@ export class HoomanChatViewProvider
     for (const notification of pending) {
       this.#deliverSessionUpdate({ ...notification, sessionId });
     }
-    this.#post({ type: "clear", sessionId });
     this.#post({
       type: "sessionLoading",
       sessionId,
@@ -1292,7 +1306,7 @@ export class HoomanChatViewProvider
     this.#post({
       type: "configOptions",
       sessionId,
-      configOptions,
+      configOptions: state.configOptions,
     });
     this.#postEdits();
     this.#postQueue();
@@ -1883,7 +1897,12 @@ export class HoomanChatViewProvider
   #onSessionUpdate(notification: SessionNotification): void {
     const state = this.#sessions.get(notification.sessionId);
     if (!state) {
-      if (this.#sessionId === null) {
+      const pendingState = this.#creatingPlaceholderSessionId
+        ? this.#sessions.get(this.#creatingPlaceholderSessionId)
+        : undefined;
+      if (pendingState) {
+        pendingState.pendingUpdates.push(notification);
+      } else if (this.#sessionId === null) {
         this.#pendingUpdates.push(notification);
       }
       return;
