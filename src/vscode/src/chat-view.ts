@@ -1726,12 +1726,17 @@ export class HoomanChatViewProvider
    */
   async #openLink(href: string): Promise<void> {
     try {
+      const parsed = vscode.Uri.parse(href);
+      if (parsed.scheme === "file") {
+        await openFile(parsed);
+        return;
+      }
       const external =
         /^[a-z][a-z0-9+.-]*:\/\//i.test(href) || href.startsWith("mailto:");
       if (external) {
         // `vscode.open`-style URIs (vscode://, command:) are also better left
         // to the platform handler / VS Code's own URI dispatch.
-        await vscode.env.openExternal(vscode.Uri.parse(href));
+        await vscode.env.openExternal(parsed);
         return;
       }
       const clean = href.split(/[?#]/)[0] || href;

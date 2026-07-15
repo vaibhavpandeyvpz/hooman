@@ -194,8 +194,13 @@ export class PlanEditorProvider implements vscode.CustomTextEditorProvider {
    */
   async #openLink(document: vscode.TextDocument, href: string): Promise<void> {
     try {
+      const parsed = vscode.Uri.parse(href);
+      if (parsed.scheme === "file") {
+        await openFile(parsed, { provider: this });
+        return;
+      }
       if (/^[a-z][a-z0-9+.-]*:\/\//i.test(href) || href.startsWith("mailto:")) {
-        await vscode.env.openExternal(vscode.Uri.parse(href));
+        await vscode.env.openExternal(parsed);
         return;
       }
       const clean = href.split(/[?#]/)[0] || href;
