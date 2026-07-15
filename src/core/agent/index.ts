@@ -12,6 +12,7 @@ import {
 import { ContextOffloader } from "@strands-agents/sdk/vended-plugins/context-offloader";
 import type { Tool } from "@strands-agents/sdk";
 import { type Config } from "../config.js";
+import type { LlmOptions } from "../models/types.js";
 import { FileMemoryStore } from "../memory/index.js";
 import { ToolBasedModelExtractor } from "../memory/model-extractor.js";
 import { modelProviders, type ModelProvider } from "../models/index.js";
@@ -59,7 +60,11 @@ import { MODE_STATE_KEY, type SessionMode } from "../state/session-mode.js";
 import { PrefixedMcpTool } from "../mcp/prefixed-mcp-tool.js";
 import { YOLO_STATE_KEY } from "../state/yolo.js";
 import { setLlmModality } from "../state/llm-modality.js";
-import { configuredLlmContext, resolveLlmMetadata } from "../utils/metadata.js";
+import {
+  configuredLlmContext,
+  resolveEffectiveLlmOptions,
+  resolveLlmMetadata,
+} from "../utils/metadata.js";
 import type { ResolvedLlmInputModality } from "../utils/model-metadata.js";
 import {
   memoryPath,
@@ -198,6 +203,21 @@ export async function create(
   )) {
     providerCache.set(provider, await modelProviders[provider]!());
   }
+  const effectiveOptions = new Map<string, LlmOptions>();
+  async function refreshEffectiveOptions(): Promise<void> {
+    const resolved = await Promise.all(
+      config.resolvedLlms.map(
+        async (entry) =>
+          [entry.name, await resolveEffectiveLlmOptions(entry)] as const,
+      ),
+    );
+    effectiveOptions.clear();
+    for (const [name, options] of resolved) {
+      effectiveOptions.set(name, options);
+    }
+  }
+  await refreshEffectiveOptions();
+
   function resolveLiveLlm(name?: string) {
     if (!name) {
       return config.llm;
@@ -218,7 +238,13 @@ export async function create(
     if (!provider) {
       throw new Error(`No model provider loaded for "${current.provider}".`);
     }
-    return provider.create(current.providerOptions, current.llmOptions);
+    const effectiveName =
+      name ?? config.resolvedLlms.find((entry) => entry.default)?.name;
+    return provider.create(
+      current.providerOptions,
+      (effectiveName ? effectiveOptions.get(effectiveName) : undefined) ??
+        current.llmOptions,
+    );
   }
 
   async function resolveLiveModality(name?: string) {
@@ -319,6 +345,7 @@ export async function create(
       clearReadTimeAgentInstructionState(event.agent);
       clearAgentSkillsPromptInjectionState(event.agent);
       event.agent.systemPrompt = await buildBaseSystemPrompt();
+      await refreshEffectiveOptions();
       const live = config.llm;
       const metadata = await resolveLlmMetadata(
         live.metadata,

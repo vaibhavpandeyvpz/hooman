@@ -85,6 +85,7 @@ import {
   computeUsageCostUsd,
   configuredLlmContext,
   contextTokensFromUsage,
+  resolveEffectiveLlmOptions,
   resolveLlmMetadata,
   type ResolvedLlmMetadata,
 } from "../core/utils/metadata.js";
@@ -1260,7 +1261,7 @@ export class HoomanAcpAgent {
       const provider = await modelProviders[resolved.provider]!();
       rec.agent.model = provider.create(
         resolved.providerOptions,
-        resolved.llmOptions,
+        await resolveEffectiveLlmOptions(resolved),
       );
       rec.metadata = await resolveLlmMetadata(
         resolved.metadata,

@@ -34,6 +34,7 @@ import {
   computeUsageCostUsd,
   configuredLlmContext,
   contextTokensFromUsage,
+  resolveEffectiveLlmOptions,
   resolveLlmMetadata,
   type ResolvedLlmMetadata,
 } from "../core/utils/metadata.js";
@@ -939,7 +940,7 @@ export function ChatApp({
         const provider = await modelProviders[resolved.provider]!();
         agent.model = provider.create(
           resolved.providerOptions,
-          resolved.llmOptions,
+          await resolveEffectiveLlmOptions(resolved),
         );
         // Persist the default-model choice to the shared config so it survives
         // restarts. Only applies when the model exists in the base config
@@ -991,7 +992,7 @@ export function ChatApp({
         const provider = await modelProviders[resolved.provider]!();
         agent.model = provider.create(
           resolved.providerOptions,
-          resolved.llmOptions,
+          await resolveEffectiveLlmOptions(resolved),
         );
         // Persist the effort change to the shared config (recomputed against the
         // base provider so its other reasoning keys stay intact). Skips when the

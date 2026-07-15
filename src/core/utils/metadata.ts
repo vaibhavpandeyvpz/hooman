@@ -6,6 +6,7 @@ import type {
   LlamaCppProviderOptions,
   LlmInputModality,
   LlmMetadata,
+  LlmOptions,
   MlxProviderOptions,
   ProviderOptions,
 } from "../models/types.js";
@@ -40,7 +41,7 @@ type ModelsDevModel = {
   family?: string;
   tool_call?: boolean;
   reasoning?: boolean;
-  limit?: { context?: number };
+  limit?: { context?: number; output?: number };
   cost?: {
     input?: number;
     output?: number;
@@ -89,6 +90,7 @@ export type ResolvedLlmModality = {
 export type ResolvedLlmMetadata = {
   name: string;
   context?: number;
+  maxOutputTokens?: number;
   costs?: ResolvedMetadataCosts;
   modality: ResolvedLlmModality;
 };
@@ -276,10 +278,17 @@ function mergeResolvedModality(
 
 function catalogEntryToMetadata(
   model: ModelsDevModel,
-): Pick<ResolvedLlmMetadata, "context" | "costs" | "modality"> {
+): Pick<
+  ResolvedLlmMetadata,
+  "context" | "maxOutputTokens" | "costs" | "modality"
+> {
   const context =
     typeof model.limit?.context === "number" && model.limit.context > 0
       ? model.limit.context
+      : undefined;
+  const maxOutputTokens =
+    typeof model.limit?.output === "number" && model.limit.output > 0
+      ? model.limit.output
       : undefined;
   const cost = model.cost;
   const costs =
@@ -297,6 +306,7 @@ function catalogEntryToMetadata(
       : undefined;
   return {
     context,
+    maxOutputTokens,
     costs,
     modality: catalogModalitiesToResolved(model.modalities),
   };
@@ -305,7 +315,10 @@ function catalogEntryToMetadata(
 function lookupInCatalog(
   catalog: ModelsDevCatalog,
   metadataName: string,
-): Pick<ResolvedLlmMetadata, "context" | "costs" | "modality"> | null {
+): Pick<
+  ResolvedLlmMetadata,
+  "context" | "maxOutputTokens" | "costs" | "modality"
+> | null {
   const targets = targetForms(metadataName);
   if (targets.length === 0) {
     return null;
@@ -347,9 +360,7 @@ function lookupInCatalog(
       match.lengthDiff < best.lengthDiff ? match : best,
     );
   const resolved = catalogEntryToMetadata(preferred.model);
-  return resolved.context === undefined && resolved.costs === undefined
-    ? { ...resolved, modality: resolved.modality }
-    : resolved;
+  return resolved;
 }
 
 function configCostsToResolved(
@@ -411,6 +422,7 @@ export async function resolveLlmMetadata(
   const name = metadata?.name ?? modelId;
   const isLocal = provider !== undefined && LOCAL_PROVIDERS.has(provider);
   let context = metadata?.context ?? configuredContext;
+  let maxOutputTokens: number | undefined;
   let costs = metadata?.costs
     ? configCostsToResolved(metadata.costs)
     : undefined;
@@ -418,6 +430,7 @@ export async function resolveLlmMetadata(
 
   if (
     context === undefined ||
+    maxOutputTokens === undefined ||
     (costs === undefined && !isLocal) ||
     metadata?.modality === undefined
   ) {
@@ -425,6 +438,7 @@ export async function resolveLlmMetadata(
     const fromCatalog = catalog ? lookupInCatalog(catalog, name) : null;
     if (fromCatalog) {
       context ??= fromCatalog.context;
+      maxOutputTokens ??= fromCatalog.maxOutputTokens;
       if (!isLocal) {
         costs ??= fromCatalog.costs;
       }
@@ -435,10 +449,42 @@ export async function resolveLlmMetadata(
     }
   }
 
-  if (context === undefined && costs === undefined) {
+  if (
+    context === undefined &&
+    maxOutputTokens === undefined &&
+    costs === undefined
+  ) {
     return null;
   }
-  return { name, context, costs, modality };
+  return { name, context, maxOutputTokens, costs, modality };
+}
+
+export async function resolveEffectiveLlmOptions(llm: {
+  provider: LlmProvider;
+  providerOptions: ProviderOptions;
+  llmOptions: LlmOptions;
+  metadata?: LlmMetadata | null;
+}): Promise<LlmOptions> {
+  const metadata = await resolveLlmMetadata(
+    llm.metadata,
+    llm.llmOptions.model,
+    llm.provider,
+    configuredLlmContext(llm),
+  ).catch(() => null);
+  return withMetadataMaxTokens(llm.llmOptions, metadata);
+}
+
+export function withMetadataMaxTokens(
+  llmOptions: LlmOptions,
+  metadata: ResolvedLlmMetadata | null | undefined,
+): LlmOptions {
+  if (
+    llmOptions.maxTokens !== undefined ||
+    metadata?.maxOutputTokens === undefined
+  ) {
+    return llmOptions;
+  }
+  return { ...llmOptions, maxTokens: metadata.maxOutputTokens };
 }
 
 export function computeUsageCostUsd(
