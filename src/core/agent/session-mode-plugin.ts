@@ -1,6 +1,6 @@
 import handlebars from "handlebars";
 import { ContextInjector } from "@strands-agents/sdk/vended-plugins/context-injector";
-import { hasBundledPrompt, readBundledPrompt } from "./bundled.js";
+import { hasBundledPrompt, readBundledPrompt } from "../prompts/bundled.js";
 import {
   getModeDefinition,
   type ModeDefinition,

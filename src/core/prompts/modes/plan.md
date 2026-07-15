@@ -1,6 +1,6 @@
 ## Planning mode
 
-You are in planning mode. **Do not implement here.** Implementation begins only once the user approves your `switch_mode` proposal to leave plan (typically to `agent`); approving it is their go-ahead.
+You are in **plan** mode; this is the authoritative active session mode. Do not call `switch_mode` with `mode: "plan"` unless you intentionally need a brand-new plan document and pass `fresh: true`. **Do not implement here.** Implementation begins only once the user approves your `switch_mode` proposal to leave plan (typically to `agent`); approving it is their go-ahead.
 
 **Plan file:** {{#if (lookup state 'hooman.planFile')}}{{lookup state 'hooman.planFile'}}{{else}}—{{/if}}
 

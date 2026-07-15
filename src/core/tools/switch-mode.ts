@@ -76,7 +76,7 @@ async function ensurePlanDocument(
 }> {
   const plan = getPlanState(agent);
   const { mode } = getModeState(agent);
-  if (mode === "plan" && plan.planFile) {
+  if (mode === "plan" && plan.planFile && !options.fresh) {
     return {
       planFile: plan.planFile,
       alreadyActive: true,
@@ -160,11 +160,12 @@ export function createSwitchModeTool() {
   return tool({
     name: SWITCH_MODE_TOOL,
     description: `Propose switching the session mode to one of: ${formatModeNames()}.
-This always requires explicit user approval via the permission UI (never auto-approved, never "always allow").
+Real mode changes and fresh-plan requests require explicit user approval via the permission UI (never "always allow"); redundant same-mode no-ops continue without prompting.
 Do not ask the user in chat to approve — the permission card is the approval. When this tool returns successfully, continue immediately in the new mode.
 Switching to plan opens or reopens a markdown plan document for findings, trade-offs, and intended steps.
 Leaving plan is a proposal to start implementing — if declined, you stay in plan mode with the same plan file.
-Pass fresh: true when entering plan to start a new document instead of reopening the session's last plan.`,
+Before calling, use the injected session-mode prompt as the authoritative current mode. Do not call switch_mode when the requested mode is already active, except plan → plan with fresh: true.
+Pass fresh: true when entering plan, or while already in plan, to start a brand-new plan document instead of reopening or keeping the current plan.`,
     inputSchema: SwitchModeInputSchema,
     callback: async (
       input: z.infer<typeof SwitchModeInputSchema>,
@@ -183,7 +184,12 @@ Pass fresh: true when entering plan to start a new document instead of reopening
       const previousMode = getModeState(agent).mode;
       const nextMode = input.mode as KnownSessionMode;
 
-      if (previousMode === nextMode && nextMode !== "plan") {
+      const activePlanFile = getPlanState(agent).planFile;
+      if (
+        previousMode === nextMode &&
+        !(nextMode === "plan" && input.fresh === true) &&
+        !(nextMode === "plan" && !activePlanFile)
+      ) {
         return toJsonValue({
           status: "ok",
           mode: nextMode,
@@ -216,7 +222,10 @@ Pass fresh: true when entering plan to start a new document instead of reopening
         previous_mode: previousMode,
         already_active: plan?.alreadyActive === true,
         reason: input.reason?.trim() || null,
-        hint: `Mode switch approved and applied (${previousMode} → ${nextMode}). Continue with the task.`,
+        hint:
+          previousMode === "plan" && nextMode === "plan" && input.fresh
+            ? "Fresh plan approved and created. Continue planning in the new plan document."
+            : `Mode switch approved and applied (${previousMode} → ${nextMode}). Continue with the task.`,
         ...(plan
           ? {
               plan_file: plan.planFile,

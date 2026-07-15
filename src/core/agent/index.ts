@@ -43,7 +43,7 @@ import {
   createMcpDiscoveryTools,
 } from "../tools/index.js";
 import { createShellTools } from "../shell/index.js";
-import { createSessionModePromptPlugin } from "../prompts/session-mode.js";
+import { createSessionModePromptPlugin } from "./session-mode-plugin.js";
 import {
   clearAgentSkillsPromptInjectionState,
   createAgentSkillsPlugin,

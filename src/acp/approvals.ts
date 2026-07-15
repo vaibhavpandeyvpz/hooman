@@ -97,18 +97,23 @@ export function createAcpToolApprovalIntervention(
       const isSwitchMode = request.toolName === SWITCH_MODE_TOOL;
       const currentName = modeDisplayName(request.currentMode ?? "agent");
       const targetName = modeDisplayName(request.targetMode ?? "agent");
+      const startsFreshPlan = request.switchModeAction === "start_fresh_plan";
 
       // switch_mode: no "always allow". Other tools keep the usual trio.
       const options: PermissionOption[] = isSwitchMode
         ? [
             {
               kind: "allow_once" as const,
-              name: `Switch to ${targetName} mode`,
+              name: startsFreshPlan
+                ? "Start a new plan"
+                : `Switch to ${targetName} mode`,
               optionId: "allow_once",
             },
             {
               kind: "reject_once" as const,
-              name: `Stay in ${currentName} mode`,
+              name: startsFreshPlan
+                ? "Keep current plan"
+                : `Stay in ${currentName} mode`,
               optionId: "reject_once",
             },
           ]
@@ -168,7 +173,9 @@ export function createAcpToolApprovalIntervention(
       if (isSwitchMode) {
         return {
           decision: "reject",
-          reason: `User chose to stay in ${currentName} mode.`,
+          reason: startsFreshPlan
+            ? "User chose to keep the current plan."
+            : `User chose to stay in ${currentName} mode.`,
         };
       }
       return "reject";

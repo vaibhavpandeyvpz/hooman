@@ -42,4 +42,5 @@ export interface ApprovalRequest {
   preview?: string;
   currentMode?: string;
   targetMode?: string;
+  switchModeAction?: "switch" | "start_fresh_plan";
 }

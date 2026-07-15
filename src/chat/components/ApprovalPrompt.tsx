@@ -47,21 +47,35 @@ function SwitchModeApprovalPrompt({
 }) {
   const targetName = modeDisplayName(request.targetMode ?? "agent");
   const currentName = modeDisplayName(request.currentMode ?? "agent");
+  const startsFreshPlan = request.switchModeAction === "start_fresh_plan";
+  const allowLabel = startsFreshPlan
+    ? "Start a new plan"
+    : `Switch to ${targetName} mode`;
+  const rejectLabel = startsFreshPlan
+    ? "Keep current plan"
+    : `Stay in ${currentName} mode`;
 
   return (
     <Box flexDirection="column">
       <Text color={theme.warning}>
-        The agent proposes switching session mode.
+        {startsFreshPlan
+          ? "The agent proposes starting a new plan."
+          : "The agent proposes switching session mode."}
       </Text>
       {request.preview ? <PlanPreview preview={request.preview} /> : null}
       <SelectInput<ApprovalDecision>
         items={[
-          { label: `Switch to ${targetName} mode`, value: "allow" },
-          { label: `Stay in ${currentName} mode`, value: "reject" },
+          { label: allowLabel, value: "allow" },
+          { label: rejectLabel, value: "reject" },
         ]}
         onSelect={(item) => {
           if (item.value === "reject") {
-            onDecision("reject", `User chose to stay in ${currentName} mode.`);
+            onDecision(
+              "reject",
+              startsFreshPlan
+                ? "User chose to keep the current plan."
+                : `User chose to stay in ${currentName} mode.`,
+            );
             return;
           }
           onDecision("allow");

@@ -1,6 +1,6 @@
 ## Agent mode
 
-You are in **agent** mode and can make use of any available tool to fulfil your current task.
+You are in **agent** mode; this is the authoritative active session mode. Do not call `switch_mode` with `mode: "agent"`; continue directly. You can make use of any available tool to fulfil your current task.
 
 For HTML design artifacts (prototypes, decks, Figma-derived layouts), prefer **`switch_mode`** to **design** so craft rules, `DESIGN.md`, and the `hooman-design` skill apply.
 

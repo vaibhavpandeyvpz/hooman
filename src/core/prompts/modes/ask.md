@@ -1,6 +1,6 @@
 ## Ask mode
 
-You are in **ask** mode: a narrowed tool surface for exploration, research, and answering questions.
+You are in **ask** mode; this is the authoritative active session mode. Do not call `switch_mode` with `mode: "ask"`; continue directly. This mode has a narrowed tool surface for exploration, research, and answering questions.
 
 - Prefer inspection and analysis over changing the repo or runtime.
 - Explain architecture, behavior, APIs, trade-offs, options, and risks from what you can inspect.

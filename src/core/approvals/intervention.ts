@@ -24,6 +24,8 @@ export type ToolApprovalDecision = "allow" | "always";
 export type ToolApprovalResult =
   ToolApprovalDecision | "reject" | { decision: "reject"; reason?: string };
 
+export type SwitchModeApprovalAction = "switch" | "start_fresh_plan";
+
 export type ToolApprovalRequest = {
   toolName: string;
   description?: string;
@@ -40,6 +42,8 @@ export type ToolApprovalRequest = {
   currentMode?: string;
   /** Target mode id from {@link SWITCH_MODE_TOOL} input. */
   targetMode?: string;
+  /** Human-visible operation represented by this switch request. */
+  switchModeAction?: SwitchModeApprovalAction;
 };
 
 type ToolApprovalCallbacks = {
@@ -94,6 +98,10 @@ function switchModeTarget(toolInput: unknown): string | undefined {
   }
   const next = toolInput.mode;
   return typeof next === "string" && next.trim() ? next.trim() : undefined;
+}
+
+function requestsFreshPlan(toolInput: unknown): boolean {
+  return isPlainObjectRecord(toolInput) && toolInput.fresh === true;
 }
 
 /** True when {@link SWITCH_MODE_TOOL} is leaving plan for another mode. */
@@ -169,11 +177,29 @@ export class HoomanToolApprovalIntervention extends InterventionHandler {
     );
     if (isSwitchMode) {
       const targetMode = switchModeTarget(event.toolUse.input);
+      const startsFreshPlan =
+        currentMode === "plan" &&
+        targetMode === "plan" &&
+        requestsFreshPlan(event.toolUse.input);
       request = {
         ...request,
         currentMode,
         ...(targetMode ? { targetMode } : {}),
+        switchModeAction: startsFreshPlan ? "start_fresh_plan" : "switch",
       };
+
+      const missingPlanDocument =
+        currentMode === "plan" &&
+        targetMode === "plan" &&
+        !getPlanState(event.agent).planFile;
+      if (
+        targetMode === currentMode &&
+        !startsFreshPlan &&
+        !missingPlanDocument
+      ) {
+        await this.onApproved?.(request, event, "auto");
+        return InterventionActions.proceed();
+      }
     }
 
     const planReject = planModeWriteEditRejectionMessage(
