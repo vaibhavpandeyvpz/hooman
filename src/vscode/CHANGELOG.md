@@ -2,6 +2,12 @@
 
 All notable changes to the Hooman VS Code extension are documented in this file.
 
+## [1.55.3]
+
+- Resolve model output limits from `models.dev` when `maxTokens` is not explicitly configured.
+- Show stopping feedback while cancelling a turn and prevent duplicate cancellation requests.
+- Fix slash-command visibility and session creation ordering so commands and early session updates are not lost.
+
 ## [1.55.2]
 
 - Fix spawning the Hooman ACP process on Windows: `resolveHoomanLaunch` now returns a `shell` flag (enabled on Windows for `npx`/`bunx` runners) and the ACP client passes it to `spawn`, so the `.cmd` shims resolve correctly and the agent starts (#37).

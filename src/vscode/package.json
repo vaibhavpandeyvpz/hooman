@@ -2,7 +2,7 @@
   "name": "hoomanjs-vscode",
   "displayName": "Hooman for VS Code",
   "description": "Full-stack local-first AI agent for VS Code — chat, plan, design, MCP, and BYOK. Powered by Hooman ACP.",
-  "version": "1.55.2",
+  "version": "1.55.3",
   "private": true,
   "publisher": "VPZ",
   "license": "MIT",
