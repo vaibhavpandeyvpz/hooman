@@ -113,6 +113,7 @@ export type Activity =
 type SessionUiState = {
   items: TranscriptItem[];
   busy: boolean;
+  stopping: boolean;
   promptStartedAt: number | null;
   activity: Activity;
   configOptions: SessionConfigOption[];
@@ -161,6 +162,7 @@ function createSessionState(): SessionUiState {
   return {
     items: [],
     busy: false,
+    stopping: false,
     promptStartedAt: null,
     activity: { type: "idle" },
     configOptions: [],
@@ -783,6 +785,7 @@ onHostMessage((msg) => {
           session.configOptions = msg.configOptions;
           session.commands = msg.commands;
           session.busy = msg.busy;
+          session.stopping = msg.stopping;
           session.queue = msg.queue;
         }),
       );
@@ -796,6 +799,9 @@ onHostMessage((msg) => {
           tab.sessionId,
           produce((session) => {
             session.busy = tab.busy;
+            if (!tab.busy) {
+              session.stopping = false;
+            }
             session.loadingSession = tab.loading
               ? (session.loadingSession ?? tab.title ?? "Starting session")
               : null;
@@ -853,6 +859,7 @@ onHostMessage((msg) => {
       setState("sessions", msg.sessionId, {
         ...state.sessions[msg.sessionId],
         busy: true,
+        stopping: false,
         promptStartedAt: Date.now(),
         activity: { type: "thinking" },
       });
@@ -868,6 +875,7 @@ onHostMessage((msg) => {
         msg.sessionId,
         produce((session) => {
           session.busy = false;
+          session.stopping = false;
           session.promptStartedAt = null;
           session.activity = { type: "idle" };
           session.download = null;
@@ -1025,10 +1033,13 @@ function setTurnStarted(sessionId: string, messageId: string): void {
 
 export function cancelPrompt(): void {
   const sessionId = activeSessionId();
-  post({ type: "cancel" });
-  if (sessionId) {
-    markUnfinishedToolCallsCancelled(sessionId);
+  const session = sessionId ? state.sessions[sessionId] : undefined;
+  if (!sessionId || !session?.busy || session.stopping) {
+    return;
   }
+  setState("sessions", sessionId, "stopping", true);
+  post({ type: "cancel" });
+  markUnfinishedToolCallsCancelled(sessionId);
 }
 
 export function stopShellJob(sessionId: string, jobId: string): void {

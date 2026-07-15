@@ -139,6 +139,8 @@ export class HoomanChatViewProvider
   #sessionsRefreshTimer: NodeJS.Timeout | undefined;
   /** Attachments staged before the webview was ready to receive messages. */
   #pendingComposerAttachments: AttachmentInfo[] = [];
+  /** Sessions with a cancellation notification in flight. */
+  #cancellingSessions = new Set<string>();
 
   /**
    * Fired whenever the panel's session state may have changed: session
@@ -537,6 +539,7 @@ export class HoomanChatViewProvider
       configOptions: this.#configOptions,
       commands: this.#commands,
       busy: this.#busy,
+      stopping: this.#cancellingSessions.has(this.#sessionId),
       queue: this.#queue,
     });
     this.#post({
@@ -1384,6 +1387,9 @@ export class HoomanChatViewProvider
         });
       }
     } finally {
+      if (promptSessionId) {
+        this.#cancellingSessions.delete(promptSessionId);
+      }
       this.#busy = false;
       this.#pendingTurnStart = null;
       this.#saveActiveSessionState();
@@ -1396,9 +1402,11 @@ export class HoomanChatViewProvider
 
   async #cancel(): Promise<void> {
     const sessionId = this.#sessionId;
-    if (!sessionId) {
+    if (!sessionId || this.#cancellingSessions.has(sessionId)) {
       return;
     }
+    this.#cancellingSessions.add(sessionId);
+    this.#postActiveState();
     // ACP cancellation: the client MUST respond to all pending
     // `session/request_permission` requests with the `cancelled` outcome as
     // soon as it sends `session/cancel`, rather than waiting for the agent to
@@ -1408,6 +1416,10 @@ export class HoomanChatViewProvider
       const agent = await this.client.ensureStarted();
       await agent.notify(methods.agent.session.cancel, { sessionId });
     } catch (error) {
+      this.#cancellingSessions.delete(sessionId);
+      if (this.#sessionId === sessionId) {
+        this.#postActiveState();
+      }
       this.outputChannel.warn(`[chat-view] cancel failed: ${describe(error)}`);
     }
   }

@@ -263,6 +263,7 @@ export type OutboundMessage =
       configOptions: SessionConfigOption[];
       commands: CommandInfo[];
       busy: boolean;
+      stopping: boolean;
       queue: QueuedPromptInfo[];
     }
   | { type: "route"; route: WebviewRoute }

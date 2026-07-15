@@ -6,6 +6,7 @@ import {
   Folder,
   FileText,
   Image as ImageIcon,
+  Loader2,
   Paperclip,
   Square,
   ToggleLeft,
@@ -458,10 +459,21 @@ export default function Composer() {
             <button
               type="button"
               class="btn btn-primary h-7 w-7 shrink-0 !rounded-md !px-0"
-              title="Stop the current turn"
+              title={
+                sessionState().stopping ? "Stopping…" : "Stop the current turn"
+              }
+              aria-label={
+                sessionState().stopping ? "Stopping" : "Stop the current turn"
+              }
+              disabled={sessionState().stopping}
               onClick={() => cancelPrompt()}
             >
-              <Square size={11} fill="currentColor" />
+              <Show
+                when={sessionState().stopping}
+                fallback={<Square size={11} fill="currentColor" />}
+              >
+                <Loader2 size={14} class="animate-spin-slow" />
+              </Show>
             </button>
           </Show>
         </div>
