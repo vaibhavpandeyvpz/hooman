@@ -2,6 +2,10 @@
 
 All notable changes to the Hooman VS Code extension are documented in this file.
 
+## [1.55.2]
+
+- Fix spawning the Hooman ACP process on Windows: `resolveHoomanLaunch` now returns a `shell` flag (enabled on Windows for `npx`/`bunx` runners) and the ACP client passes it to `spawn`, so the `.cmd` shims resolve correctly and the agent starts (#37).
+
 ## [1.55.1]
 
 - Fix a name collision in the VS Code Marketplace by changing the extension `displayName` from "Hooman" to "Hooman for VS Code".
