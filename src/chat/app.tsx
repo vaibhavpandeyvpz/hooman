@@ -30,6 +30,7 @@ import {
   type ModelRetryProgress,
 } from "../core/agent/retry-progress.js";
 import { toAdditiveUsage } from "../core/utils/usage.js";
+import { subscribeSubagentUsage } from "../core/subagents/index.js";
 import {
   computeUsageCostUsd,
   configuredLlmContext,
@@ -516,6 +517,24 @@ export function ChatApp({
   useEffect(() => {
     refreshMetadata();
   }, [refreshMetadata]);
+  useEffect(
+    () =>
+      subscribeSubagentUsage(agent, (report) => {
+        const hasTokens = (report.usage.totalTokens ?? 0) > 0;
+        if (!hasTokens) {
+          return;
+        }
+        setBillingMeter((prev) => ({
+          costUsd: report.metadata?.costs
+            ? prev.costUsd +
+              computeUsageCostUsd(report.usage, report.metadata.costs)
+            : prev.costUsd,
+          unpriced: prev.unpriced || !report.metadata?.costs,
+          contextUsed: prev.contextUsed,
+        }));
+      }),
+    [agent],
+  );
   const [pendingApproval, setPendingApproval] =
     useState<ApprovalRequest | null>(null);
   const [pendingQuestion, setPendingQuestion] = useState<ChatQuestion | null>(

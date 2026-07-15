@@ -81,6 +81,7 @@ import {
   type ModelRetryProgress,
 } from "../core/agent/retry-progress.js";
 import { toAdditiveUsage } from "../core/utils/usage.js";
+import { subscribeSubagentUsage } from "../core/subagents/index.js";
 import {
   computeUsageCostUsd,
   configuredLlmContext,
@@ -235,6 +236,8 @@ type SessionRecord = {
   shellJobs: Map<string, { terminalId: string; toolCallId?: string }>;
   /** Unsubscribe from ShellJobManager events for this session. */
   shellJobUnsub: (() => void) | null;
+  /** Unsubscribe from subagent usage reports for this session. */
+  subagentUsageUnsub: (() => void) | null;
   /** `messageId` shared by all `agent_message_chunk`/`agent_thought_chunk` updates for the in-flight assistant message. */
   currentAssistantMessageId: string | null;
   /** Re-apply the mode tool surface at the next turn boundary (deferred mid-turn). */
@@ -609,6 +612,7 @@ export class HoomanAcpAgent {
     if (record) {
       this.#sessions.delete(params.sessionId);
       record.turnAbort?.abort();
+      record.subagentUsageUnsub?.();
       await this.#teardownShellJobs(params.sessionId, record);
       await record.mcpDisconnect();
     }
@@ -651,6 +655,7 @@ export class HoomanAcpAgent {
       undefined,
       vscode,
     );
+    this.#subscribeSubagentUsage(record, this.#requireClient(), sessionId);
     this.#sessions.set(sessionId, record);
     this.#subscribeShellJobs(record.agent, this.#requireClient(), sessionId);
     await this.#advertiseCommands(this.#requireClient(), sessionId);
@@ -882,6 +887,7 @@ export class HoomanAcpAgent {
     if (record) {
       this.#sessions.delete(params.sessionId);
       record.turnAbort?.abort();
+      record.subagentUsageUnsub?.();
       await this.#teardownShellJobs(params.sessionId, record);
       await record.mcpDisconnect();
     }
@@ -951,6 +957,7 @@ export class HoomanAcpAgent {
       );
     }
 
+    this.#subscribeSubagentUsage(record, client, params.sessionId);
     this.#sessions.set(params.sessionId, record);
     this.#subscribeShellJobs(record.agent, client, params.sessionId);
 
@@ -2052,6 +2059,7 @@ export class HoomanAcpAgent {
       terminalByToolCall: new Map(),
       shellJobs: new Map(),
       shellJobUnsub: null,
+      subagentUsageUnsub: null,
       currentAssistantMessageId: null,
       pendingModeReapply: false,
       pendingModelRebuild: false,
@@ -2100,6 +2108,31 @@ export class HoomanAcpAgent {
         });
       },
     });
+  }
+
+  #subscribeSubagentUsage(
+    record: SessionRecord,
+    client: AgentContext,
+    sessionId: string,
+  ): void {
+    record.subagentUsageUnsub?.();
+    record.subagentUsageUnsub = subscribeSubagentUsage(
+      record.agent,
+      async (report) => {
+        if ((report.usage.totalTokens ?? 0) <= 0) {
+          return;
+        }
+        if (report.metadata?.costs) {
+          record.cumulativeCostUsd += computeUsageCostUsd(
+            report.usage,
+            report.metadata.costs,
+          );
+        } else {
+          record.costUnpriced = true;
+        }
+        await this.#sendUsageUpdate(client, sessionId, record, undefined);
+      },
+    );
   }
 
   /**

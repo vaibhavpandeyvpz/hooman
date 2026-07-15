@@ -2,6 +2,9 @@ import { Agent, tool, type Tool, type ToolContext } from "@strands-agents/sdk";
 import type { BaseModelConfig, Model } from "@strands-agents/sdk";
 import { z } from "zod";
 import type { ResolvedLlmInputModality } from "../utils/model-metadata.js";
+import type { ResolvedLlmMetadata } from "../utils/metadata.js";
+import { toAdditiveUsage } from "../utils/usage.js";
+import { emitSubagentUsage } from "./usage.js";
 import {
   getLlmModality,
   LLM_MODALITY_STATE_KEY,
@@ -30,6 +33,8 @@ type CreateSubagentToolsOptions = {
   resolveModality: (
     name?: string,
   ) => Promise<ResolvedLlmInputModality | null | undefined>;
+  /** Resolve billing metadata for a named (or current) model. */
+  resolveMetadata: (name?: string) => Promise<ResolvedLlmMetadata | null>;
 };
 
 function readAppStateString(context: ToolContext, key: "userId" | "sessionId") {
@@ -177,6 +182,15 @@ export function createSubagentTools(
                 cancelSignal: context.agent.cancelSignal,
               })
             : await child.invoke(input.query);
+          const usage = response.metrics?.accumulatedUsage;
+          if (usage && usage.totalTokens > 0) {
+            await emitSubagentUsage(context.agent, {
+              kind: kind.id,
+              ...(modelName ? { modelName } : {}),
+              usage: toAdditiveUsage(usage, child.model),
+              metadata: await options.resolveMetadata(modelName),
+            });
+          }
           return extractText(response);
         } catch (error) {
           const detail = error instanceof Error ? error.message : String(error);

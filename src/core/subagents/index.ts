@@ -5,3 +5,8 @@ export {
   type SubagentRegistry,
 } from "./registry.js";
 export { LAUNCH_SUBAGENT_TOOL_NAME, createSubagentTools } from "./tool.js";
+export {
+  emitSubagentUsage,
+  subscribeSubagentUsage,
+  type SubagentUsageReport,
+} from "./usage.js";

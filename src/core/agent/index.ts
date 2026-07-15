@@ -64,6 +64,7 @@ import {
   configuredLlmContext,
   resolveEffectiveLlmOptions,
   resolveLlmMetadata,
+  type ResolvedLlmMetadata,
 } from "../utils/metadata.js";
 import type { ResolvedLlmInputModality } from "../utils/model-metadata.js";
 import {
@@ -88,6 +89,7 @@ type ToolRegistryContext = {
   resolveModality: (
     name?: string,
   ) => Promise<ResolvedLlmInputModality | null | undefined>;
+  resolveMetadata: (name?: string) => Promise<ResolvedLlmMetadata | null>;
   manager: McpManager;
 };
 
@@ -96,6 +98,7 @@ async function createToolRegistry({
   systemPrompt,
   createModel,
   resolveModality,
+  resolveMetadata,
   manager,
 }: ToolRegistryContext): Promise<{
   tools: Tool[];
@@ -150,6 +153,7 @@ async function createToolRegistry({
       modelNames: config.llms.map((entry) => entry.name),
       createModel,
       resolveModality,
+      resolveMetadata,
     });
     tools.push(...subagentTools);
     registry.add(subagentTools);
@@ -247,14 +251,18 @@ export async function create(
     );
   }
 
-  async function resolveLiveModality(name?: string) {
+  async function resolveLiveMetadata(name?: string) {
     const live = resolveLiveLlm(name);
-    const metadata = await resolveLlmMetadata(
+    return resolveLlmMetadata(
       live.metadata,
       live.llmOptions.model,
       live.provider,
       configuredLlmContext(live),
     ).catch(() => null);
+  }
+
+  async function resolveLiveModality(name?: string) {
+    const metadata = await resolveLiveMetadata(name);
     return metadata?.modality;
   }
   const ctx = createContext(sessionId);
@@ -292,6 +300,7 @@ export async function create(
     systemPrompt,
     createModel: (name) => createLiveModel(name),
     resolveModality: (name) => resolveLiveModality(name),
+    resolveMetadata: (name) => resolveLiveMetadata(name),
     manager: mcp.manager,
   });
 
