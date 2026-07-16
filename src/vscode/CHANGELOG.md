@@ -2,6 +2,12 @@
 
 All notable changes to the Hooman VS Code extension are documented in this file.
 
+## [1.58.0]
+
+- Show line numbers in chat diffs and surface diffs for multiple filesystem edits.
+- Preserve composer state per session tab and prevent queued items from disappearing while switching or continuing sessions.
+- Improve filesystem edit handling, tool-result rendering, ACP updates, and guidance for long-horizon tasks.
+
 ## [1.57.1]
 
 - Fix the `edit_file` tool schema so its supported operation modes are described correctly.
