@@ -55,8 +55,8 @@ For several dependent changes, use `edit_multiple_files` to submit ordered opera
 
 Apply the same `edit_file` operation shapes to one or more files in order.
 
-| Argument | Type         | Required | Description                                                           |
-| -------- | ------------ | -------- | --------------------------------------------------------------------- |
+| Argument | Type         | Required | Description                                                             |
+| -------- | ------------ | -------- | ----------------------------------------------------------------------- |
 | `edits`  | `FileEdit[]` | yes      | Ordered `write`, `replace`, `insert`, `rename`, or `delete` operations. |
 
 ### `create_directory`

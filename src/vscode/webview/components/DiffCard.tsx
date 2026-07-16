@@ -51,19 +51,13 @@ export default function DiffCard(props: {
         <For each={diff().lines}>
           {(line) => (
             <div
-              class={`grid grid-cols-[5ch_5ch_2ch_minmax(0,1fr)] whitespace-pre-wrap break-words px-2.5 ${LINE_CLASS[line.kind] ?? ""}`}
+              class={`grid grid-cols-[5ch_2ch_minmax(0,1fr)] whitespace-pre-wrap break-words px-2.5 ${LINE_CLASS[line.kind] ?? ""}`}
             >
               <span
                 class="select-none text-right text-muted/70"
                 aria-hidden="true"
               >
-                {lineNumber(line.oldLine)}
-              </span>
-              <span
-                class="select-none text-right text-muted/70"
-                aria-hidden="true"
-              >
-                {lineNumber(line.newLine)}
+                {lineNumber(line.kind === "del" ? line.oldLine : line.newLine)}
               </span>
               <span class="select-none text-right" aria-hidden="true">
                 {line.kind === "add" ? "+" : line.kind === "del" ? "-" : ""}
