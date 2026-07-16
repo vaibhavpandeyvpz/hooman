@@ -105,11 +105,11 @@ export class HoomanChatViewProvider
   /**
    * Set for the duration of one `#prompt()` call, waiting for the agent's
    * own echo of the turn's `user_message_chunk` to arrive so we can capture
-   * its ACP-generated `messageId` (see the MessageId RFD) as this turn's
-   * identifier for {@link EditTracker.beginTurn} — only one turn can be
-   * in-flight in this panel at a time, so a single slot suffices.
+   * its ACP-generated `messageId` (see the MessageId RFD) as that turn's
+   * identifier for {@link EditTracker.beginTurn}. Turns can run in separate
+   * tabs concurrently, so pending starts are keyed by session.
    */
-  #pendingTurnStart: { sessionId: string } | null = null;
+  #pendingTurnStarts = new Set<string>();
   #statusBar: HoomanStatusBar | undefined;
   /**
    * Prompts submitted while a turn was already running. Runs in FIFO order,
@@ -310,6 +310,9 @@ export class HoomanChatViewProvider
     );
     if (this.#sessionId === previousSessionId) {
       this.#sessionId = nextSessionId;
+    }
+    if (this.#pendingTurnStarts.delete(previousSessionId)) {
+      this.#pendingTurnStarts.add(nextSessionId);
     }
     for (const pending of this.#pendingPermissions.values()) {
       if (pending.sessionId === previousSessionId) {
@@ -1223,9 +1226,9 @@ export class HoomanChatViewProvider
   }
 
   /** Create the ACP session for a new-tab placeholder if one doesn't exist yet, without starting a turn. */
-  async #ensureSession(sessionId = this.#sessionId): Promise<void> {
+  async #ensureSession(sessionId = this.#sessionId): Promise<string | null> {
     if (!sessionId || !this.#isPendingSessionId(sessionId)) {
-      return;
+      return sessionId;
     }
     const previousCreation = this.#sessionCreationQueue;
     let finishCreation: (() => void) | undefined;
@@ -1236,11 +1239,11 @@ export class HoomanChatViewProvider
     try {
       const placeholderState = this.#sessions.get(sessionId);
       if (!placeholderState) {
-        return;
+        return null;
       }
       const agent = await this.client.ensureStarted();
       if (!this.#sessions.has(sessionId)) {
-        return;
+        return null;
       }
       this.#creatingPlaceholderSessionId = sessionId;
       const response = await agent.request(methods.agent.session.new, {
@@ -1253,6 +1256,7 @@ export class HoomanChatViewProvider
         response.sessionId,
         response.configOptions ?? [],
       );
+      return response.sessionId;
     } finally {
       this.#creatingPlaceholderSessionId = null;
       finishCreation?.();
@@ -1344,24 +1348,27 @@ export class HoomanChatViewProvider
   async #prompt(
     text: string,
     attachments: AttachmentInfo[] = [],
-    options?: { echoLocally?: boolean },
+    options?: { echoLocally?: boolean; sessionId?: string },
   ): Promise<void> {
-    if (this.#busy) {
+    const promptSessionId = options?.sessionId ?? this.#sessionId;
+    const promptState = promptSessionId
+      ? this.#sessions.get(promptSessionId)
+      : undefined;
+    if (!promptSessionId || !promptState || promptState.busy) {
       return;
     }
-    this.#busy = true;
-    this.#saveActiveSessionState();
-    this.#syncStatus();
-    const promptSessionId = this.#sessionId;
-    if (promptSessionId) {
-      this.#post({ type: "promptStart", sessionId: promptSessionId });
-      this.#post({
-        type: "tabs",
-        tabs: this.#tabInfo(),
-        activeSessionId: this.#sessionId,
-      });
-      this.#pendingTurnStart = { sessionId: promptSessionId };
+    promptState.busy = true;
+    if (this.#sessionId === promptSessionId) {
+      this.#busy = true;
     }
+    this.#syncStatus();
+    this.#post({ type: "promptStart", sessionId: promptSessionId });
+    this.#post({
+      type: "tabs",
+      tabs: this.#tabInfo(),
+      activeSessionId: this.#sessionId,
+    });
+    this.#pendingTurnStarts.add(promptSessionId);
     if (options?.echoLocally && promptSessionId) {
       this.#post({
         type: "update",
@@ -1377,8 +1384,7 @@ export class HoomanChatViewProvider
       });
     }
     try {
-      await this.#ensureSession(promptSessionId);
-      const sessionId = this.#sessionId;
+      const sessionId = await this.#ensureSession(promptSessionId);
       if (!sessionId || this.#isPendingSessionId(sessionId)) {
         throw new Error("Session creation failed.");
       }
@@ -1393,24 +1399,34 @@ export class HoomanChatViewProvider
         stopReason: result.stopReason,
       });
     } catch (error) {
-      if (this.#sessionId) {
-        this.#post({
-          type: "error",
-          sessionId: this.#sessionId,
-          message: describe(error),
-        });
-      }
+      this.#post({
+        type: "error",
+        sessionId: promptSessionId,
+        message: describe(error),
+      });
     } finally {
       if (promptSessionId) {
         this.#cancellingSessions.delete(promptSessionId);
       }
-      this.#busy = false;
-      this.#pendingTurnStart = null;
-      this.#saveActiveSessionState();
-      this.#postActiveState();
-      this.#stopAllTerminalPolls();
-      this.#syncStatus();
-      this.#processNextQueued();
+      const state = this.#sessions.get(promptSessionId);
+      if (state) {
+        state.busy = false;
+      }
+      this.#pendingTurnStarts.delete(promptSessionId);
+      this.#stopAllTerminalPolls(promptSessionId);
+      if (this.#sessionId === promptSessionId) {
+        this.#busy = false;
+        this.#queue = [...(state?.queue ?? [])];
+        this.#postActiveState();
+        this.#syncStatus();
+      } else {
+        this.#post({
+          type: "tabs",
+          tabs: this.#tabInfo(),
+          activeSessionId: this.#sessionId,
+        });
+      }
+      this.#processNextQueued(promptSessionId);
     }
   }
 
@@ -1585,14 +1601,23 @@ export class HoomanChatViewProvider
   }
 
   /** Dequeue and run the next queued prompt once the active turn ends. */
-  #processNextQueued(): void {
-    if (this.#busy || this.#queue.length === 0) {
+  #processNextQueued(sessionId = this.#sessionId): void {
+    const state = sessionId ? this.#sessions.get(sessionId) : undefined;
+    if (!sessionId || !state || state.busy || state.queue.length === 0) {
       return;
     }
-    const [next] = this.#queue.splice(0, 1);
-    this.#postQueue();
+    const [next] = state.queue.splice(0, 1);
+    if (this.#sessionId === sessionId) {
+      this.#queue = [...state.queue];
+      this.#postQueue();
+      void this.#prompt(next.text, next.attachments ?? [], {
+        echoLocally: true,
+      });
+      return;
+    }
     void this.#prompt(next.text, next.attachments ?? [], {
       echoLocally: true,
+      sessionId,
     });
   }
 
@@ -1977,7 +2002,7 @@ export class HoomanChatViewProvider
     // a steered follow-up (which the webview never rendered locally).
     if (
       update.sessionUpdate === "user_message_chunk" &&
-      this.#busy &&
+      state.busy &&
       !update._meta?.["hoomanjs/steered"]
     ) {
       // This echo still carries the turn's authoritative `messageId` (see
@@ -1985,9 +2010,8 @@ export class HoomanChatViewProvider
       // started so file-edit baselines and revert key off the agent's own
       // id instead of a client-minted one, then tell the webview which
       // already-rendered optimistic item it belongs to.
-      const pending = this.#pendingTurnStart;
-      if (pending && pending.sessionId === sessionId && update.messageId) {
-        this.#pendingTurnStart = null;
+      if (this.#pendingTurnStarts.has(sessionId) && update.messageId) {
+        this.#pendingTurnStarts.delete(sessionId);
         this.editTracker.beginTurn(sessionId, update.messageId);
         this.#post({
           type: "turnStarted",
@@ -2263,17 +2287,21 @@ export class HoomanChatViewProvider
     }
   }
 
-  #stopAllTerminalPolls(): void {
-    for (const state of this.#sessions.values()) {
+  #stopAllTerminalPolls(sessionId?: string): void {
+    const states = sessionId
+      ? [this.#sessions.get(sessionId)].filter(
+          (state): state is SessionHostState => Boolean(state),
+        )
+      : [...this.#sessions.values()];
+    for (const state of states) {
       for (const timer of state.liveTerminals.values()) {
         clearInterval(timer);
       }
       state.liveTerminals.clear();
     }
-    for (const timer of this.#liveTerminals.values()) {
-      clearInterval(timer);
+    if (!sessionId || sessionId === this.#sessionId) {
+      this.#liveTerminals.clear();
     }
-    this.#liveTerminals.clear();
   }
 
   /**
