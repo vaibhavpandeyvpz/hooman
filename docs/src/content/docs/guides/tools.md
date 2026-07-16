@@ -57,7 +57,7 @@ Apply the same `edit_file` operation shapes to one or more files in order.
 
 | Argument | Type         | Required | Description                                                           |
 | -------- | ------------ | -------- | --------------------------------------------------------------------- |
-| `edits`  | `FileEdit[]` | yes      | Ordered `write`, `replace`, `edit`, `rename`, or `delete` operations. |
+| `edits`  | `FileEdit[]` | yes      | Ordered `write`, `replace`, `insert`, `rename`, or `delete` operations. |
 
 ### `create_directory`
 
