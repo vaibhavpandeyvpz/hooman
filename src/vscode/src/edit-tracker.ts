@@ -1,9 +1,11 @@
+import { randomUUID } from "node:crypto";
 import * as path from "node:path";
 import * as vscode from "vscode";
 import { lineDiffStats } from "./line-diff-stats";
 import { isPlanFilePath } from "./plan-file";
 
 /** Scheme used to serve pre-edit baselines to VS Code's diff editor. */
+const SNAPSHOT_QUERY_KEY = "snapshot";
 export const BASELINE_SCHEME = "hooman-baseline";
 
 /** One agent-modified file, as surfaced to the webview Changes panel. */
@@ -54,6 +56,24 @@ export class EditTracker
   readonly #currentTurn = new Map<string, string>();
 
   readonly #onDidChangeEdits = new vscode.EventEmitter<string>();
+  readonly #snapshots = new Map<string, string>();
+  readonly #snapshotCloseSubscription: vscode.Disposable;
+
+  constructor() {
+    this.#snapshotCloseSubscription = vscode.workspace.onDidCloseTextDocument(
+      (document) => {
+        if (document.uri.scheme !== BASELINE_SCHEME) {
+          return;
+        }
+        const snapshotId = new URLSearchParams(document.uri.query).get(
+          SNAPSHOT_QUERY_KEY,
+        );
+        if (snapshotId) {
+          this.#snapshots.delete(snapshotId);
+        }
+      },
+    );
+  }
   /** Fires with the sessionId whose tracked edits changed. */
   readonly onDidChangeEdits = this.#onDidChangeEdits.event;
 
@@ -151,19 +171,47 @@ export class EditTracker
    * Returns false when the file is no longer tracked (kept/undone), so the
    * caller can fall back to just opening the file.
    */
-  async openDiff(fsPath: string): Promise<boolean> {
+  async openDiff(
+    fsPath: string,
+    line?: number,
+    snapshots?: { oldText: string | null; newText: string },
+  ): Promise<boolean> {
     const file = this.#files.get(fsPath);
-    if (!file) {
+    if (!file && !snapshots) {
       return false;
     }
-    const baselineUri = vscode.Uri.file(fsPath).with({
-      scheme: BASELINE_SCHEME,
-    });
+    const fileUri = vscode.Uri.file(fsPath);
+    const snapshotUri = (content: string): vscode.Uri => {
+      const id = randomUUID();
+      this.#snapshots.set(id, content);
+      return fileUri.with({
+        scheme: BASELINE_SCHEME,
+        query: `${SNAPSHOT_QUERY_KEY}=${id}`,
+      });
+    };
+    const baselineUri = snapshots
+      ? snapshotUri(snapshots.oldText ?? "")
+      : fileUri.with({ scheme: BASELINE_SCHEME });
+    const modifiedUri = snapshots ? snapshotUri(snapshots.newText) : fileUri;
+    const lineCount = snapshots
+      ? Math.max(1, snapshots.newText.split(/\r?\n/).length)
+      : Math.max(
+          1,
+          (await vscode.workspace.openTextDocument(fileUri)).lineCount,
+        );
+    const targetLine =
+      line === undefined ? undefined : Math.min(Math.max(1, line), lineCount);
     await vscode.commands.executeCommand(
       "vscode.diff",
       baselineUri,
-      vscode.Uri.file(fsPath),
+      modifiedUri,
       `${path.basename(fsPath)} (Hooman edits)`,
+      targetLine !== undefined
+        ? {
+            preview: false,
+            selection: new vscode.Range(targetLine - 1, 0, targetLine - 1, 0),
+          }
+        : undefined,
     );
     return true;
   }
@@ -274,13 +322,21 @@ export class EditTracker
   }
 
   provideTextDocumentContent(uri: vscode.Uri): string {
-    return this.#files.get(uri.fsPath)?.baseline ?? "";
+    const query = new URLSearchParams(uri.query);
+    const snapshotId = query.get(SNAPSHOT_QUERY_KEY);
+    return (
+      (snapshotId ? this.#snapshots.get(snapshotId) : undefined) ??
+      this.#files.get(uri.fsPath)?.baseline ??
+      ""
+    );
   }
 
   dispose(): void {
     this.#onDidChangeEdits.dispose();
     this.#onDidChange.dispose();
+    this.#snapshotCloseSubscription.dispose();
     this.#files.clear();
+    this.#snapshots.clear();
     this.#turns.clear();
     this.#currentTurn.clear();
   }

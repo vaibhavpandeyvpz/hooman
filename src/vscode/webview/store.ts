@@ -1291,8 +1291,11 @@ export function respondToPermission(
 export function editAction(
   action: "diff" | "keep" | "undo" | "keepAll" | "undoAll",
   path?: string,
+  line?: number,
+  oldText?: string | null,
+  newText?: string,
 ): void {
-  post({ type: "editAction", action, path });
+  post({ type: "editAction", action, path, line, oldText, newText });
 }
 
 export function thoughtTokenEstimate(text: string): number {

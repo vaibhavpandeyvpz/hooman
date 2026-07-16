@@ -1,8 +1,6 @@
-import { createMemo, For, Show } from "solid-js";
+import { createMemo, For } from "solid-js";
 import { baseName, computeDiffLines } from "../lib/diff";
 import { editAction } from "../store";
-
-const MAX_LINES = 30;
 
 const LINE_CLASS: Record<string, string> = {
   add: "bg-added/20",
@@ -10,14 +8,16 @@ const LINE_CLASS: Record<string, string> = {
   ctx: "text-muted",
 };
 
+function lineNumber(value: number | null): string {
+  return value === null ? "" : String(value);
+}
+
 export default function DiffCard(props: {
   path: string;
   oldText: string | null;
   newText: string;
 }) {
   const diff = createMemo(() => computeDiffLines(props.oldText, props.newText));
-  const shown = createMemo(() => diff().lines.slice(0, MAX_LINES));
-  const hiddenCount = createMemo(() => diff().lines.length - shown().length);
 
   return (
     <div class="mt-1 overflow-hidden rounded-md border border-border">
@@ -25,8 +25,16 @@ export default function DiffCard(props: {
         <button
           type="button"
           class="min-w-0 flex-1 truncate text-left text-[12px] text-accent hover:underline"
-          title={`${props.path} — click to open the full diff`}
-          onClick={() => editAction("diff", props.path)}
+          title={`${props.path} — click to open this change in the full diff`}
+          onClick={() =>
+            editAction(
+              "diff",
+              props.path,
+              diff().targetLine,
+              props.oldText,
+              props.newText,
+            )
+          }
         >
           {baseName(props.path)}
         </button>
@@ -35,25 +43,35 @@ export default function DiffCard(props: {
           <span class="text-removed">-{diff().removes}</span>
         </span>
       </div>
-      <div class="max-h-64 overflow-auto font-mono text-[12px] leading-snug scroll-thin">
-        <For each={shown()}>
+      <div
+        class="max-h-36 overflow-auto font-mono text-[12px] leading-snug scroll-thin"
+        tabindex="0"
+        aria-label={`Diff preview for ${baseName(props.path)}`}
+      >
+        <For each={diff().lines}>
           {(line) => (
             <div
-              class={`whitespace-pre-wrap break-words px-2.5 ${LINE_CLASS[line.kind] ?? ""}`}
+              class={`grid grid-cols-[5ch_5ch_2ch_minmax(0,1fr)] whitespace-pre-wrap break-words px-2.5 ${LINE_CLASS[line.kind] ?? ""}`}
             >
-              {(line.kind === "add"
-                ? "+ "
-                : line.kind === "del"
-                  ? "- "
-                  : "  ") + line.text}
+              <span
+                class="select-none text-right text-muted/70"
+                aria-hidden="true"
+              >
+                {lineNumber(line.oldLine)}
+              </span>
+              <span
+                class="select-none text-right text-muted/70"
+                aria-hidden="true"
+              >
+                {lineNumber(line.newLine)}
+              </span>
+              <span class="select-none text-right" aria-hidden="true">
+                {line.kind === "add" ? "+" : line.kind === "del" ? "-" : ""}
+              </span>
+              <span class="min-w-0 pl-1">{line.text}</span>
             </div>
           )}
         </For>
-        <Show when={hiddenCount() > 0}>
-          <div class="px-2.5 py-0.5 italic text-muted">
-            … {hiddenCount()} more lines
-          </div>
-        </Show>
       </div>
     </div>
   );

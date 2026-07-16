@@ -3,12 +3,15 @@ export type DiffLineKind = "ctx" | "add" | "del";
 export interface DiffLine {
   kind: DiffLineKind;
   text: string;
+  oldLine: number | null;
+  newLine: number | null;
 }
 
 export interface ComputedDiff {
   lines: DiffLine[];
   adds: number;
   removes: number;
+  targetLine: number;
 }
 
 const CONTEXT_LINES = 3;
@@ -44,20 +47,46 @@ export function computeDiffLines(
     oldEnd--;
     newEnd--;
   }
+  const beforeStart = Math.max(0, prefix - CONTEXT_LINES);
+  const before = oldLines.slice(beforeStart, prefix);
   const removed = oldLines.slice(prefix, oldEnd);
   const added = newLines.slice(prefix, newEnd);
-  const before = oldLines.slice(Math.max(0, prefix - CONTEXT_LINES), prefix);
   const after = oldLines.slice(
     oldEnd,
     Math.min(oldLines.length, oldEnd + CONTEXT_LINES),
   );
   const lines: DiffLine[] = [
-    ...before.map((text) => ({ kind: "ctx" as const, text })),
-    ...removed.map((text) => ({ kind: "del" as const, text })),
-    ...added.map((text) => ({ kind: "add" as const, text })),
-    ...after.map((text) => ({ kind: "ctx" as const, text })),
+    ...before.map((text, index) => ({
+      kind: "ctx" as const,
+      text,
+      oldLine: beforeStart + index + 1,
+      newLine: beforeStart + index + 1,
+    })),
+    ...removed.map((text, index) => ({
+      kind: "del" as const,
+      text,
+      oldLine: prefix + index + 1,
+      newLine: null,
+    })),
+    ...added.map((text, index) => ({
+      kind: "add" as const,
+      text,
+      oldLine: null,
+      newLine: prefix + index + 1,
+    })),
+    ...after.map((text, index) => ({
+      kind: "ctx" as const,
+      text,
+      oldLine: oldEnd + index + 1,
+      newLine: newEnd + index + 1,
+    })),
   ];
-  return { lines, adds: added.length, removes: removed.length };
+  return {
+    lines,
+    adds: added.length,
+    removes: removed.length,
+    targetLine: Math.min(prefix + 1, Math.max(1, newLines.length)),
+  };
 }
 
 export function baseName(fsPath: string): string {

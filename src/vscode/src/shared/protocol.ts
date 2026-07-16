@@ -218,6 +218,9 @@ export type InboundMessage =
       type: "editAction";
       action: "diff" | "keep" | "undo" | "keepAll" | "undoAll";
       path?: string;
+      line?: number;
+      oldText?: string | null;
+      newText?: string;
     }
   | { type: "queueDelete"; id: string }
   | { type: "queueSendNow"; id: string }

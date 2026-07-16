@@ -1145,7 +1145,16 @@ export class HoomanChatViewProvider
             }
             // Falls back to opening the file when the edit is no longer
             // tracked (already kept/undone, or from an older session).
-            const opened = await this.editTracker.openDiff(message.path);
+            const opened = await this.editTracker.openDiff(
+              message.path,
+              message.line,
+              message.newText !== undefined
+                ? {
+                    oldText: message.oldText ?? null,
+                    newText: message.newText,
+                  }
+                : undefined,
+            );
             if (!opened) {
               await openFile(uri, { preview: false });
             }
