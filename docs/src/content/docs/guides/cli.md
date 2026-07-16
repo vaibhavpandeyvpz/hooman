@@ -33,7 +33,7 @@ Optional initial prompt:
 hooman chat "Help me prioritize the next task"
 ```
 
-Shared agent flags (also on `exec` and `daemon`):
+Shared agent flags (also on `exec`; `daemon` accepts all but `--continue`, since it owns many ACP sessions rather than one):
 
 ```bash
 hooman chat --session my-session
@@ -82,14 +82,16 @@ hooman exec "Summarize this repo" --yolo
 
 ## `hooman daemon`
 
-Run a long-lived daemon that **always** subscribes to MCP servers advertising the `hooman/channel` capability and feeds each received notification into the agent as a queued prompt. See [MCP Channels](/hooman/guides/mcp/channels/) for the full automation model. Accepts the same shared flags as `chat`, plus `--debug` for raw notification payloads.
+Run a long-lived daemon that **always** subscribes to MCP servers advertising the `hooman/channel` capability, and multiplexes every distinct conversation over one supervised ACP agent process (`hooman acp`) instead of one shared agent. Each channel's `hooman/session` (falling back to `--session`, then a stable `server:channel` key) maps to its own ACP session, so unrelated conversations run and get approved concurrently while messages for the same conversation stay strictly ordered. See [MCP Channels](/hooman/guides/mcp/channels/) for the full automation model.
+
+Accepts `-s/--session` (fallback conversation id, not `--continue` — daemon owns many ACP sessions, so "latest session" has no single meaning), `-m/--mode`, `--effort`, `--model`, `--yolo`, `--session-idle <seconds>`, `--max-active-sessions <count>`, `--mcp-proxy-port <port>`, and `--debug` for raw notification payloads.
 
 ```bash
 hooman daemon
 hooman daemon --session my-daemon
-hooman daemon --continue
 hooman daemon --mode agent --model "Claude Sonnet" --effort medium
 hooman daemon --yolo
+hooman daemon --session-idle 600 --max-active-sessions 16
 hooman daemon --debug
 ```
 

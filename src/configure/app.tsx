@@ -1146,6 +1146,7 @@ export function ConfigureApp({
         tools: config.tools,
         compaction: config.compaction,
         reasoning: config.reasoning,
+        daemon: config.daemon,
       }) satisfies ConfigData,
     [config, revision],
   );

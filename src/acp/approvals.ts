@@ -135,6 +135,12 @@ export function createAcpToolApprovalIntervention(
             },
           ];
 
+      // The exact tool name and raw description, decoupled from `title`
+      // (which folds them together for display), so clients that relay to a
+      // plain-text channel (e.g. the daemon) can build their own minimal
+      // "tool name + description + input" message instead of re-parsing it.
+      const toolDescription = event.tool?.description?.trim();
+
       let response;
       try {
         response = await client.request(
@@ -150,6 +156,12 @@ export function createAcpToolApprovalIntervention(
               ...(locations ? { locations } : {}),
             },
             options,
+            _meta: {
+              "hoomanjs/tool_name": request.toolName,
+              ...(toolDescription
+                ? { "hoomanjs/tool_description": toolDescription }
+                : {}),
+            },
           },
           { cancellationSignal },
         );

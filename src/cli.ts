@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { readFile } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
 import { Command, Option } from "commander";
 import { bootstrap } from "./core/index.js";
 import { createMcpManager } from "./core/mcp/index.js";
@@ -30,9 +31,11 @@ import {
 import { configure } from "./configure/index.js";
 import { onboard } from "./onboarding/index.js";
 import { runAcpStdio } from "./acp/index.js";
-import { main as daemon } from "./daemon/index.js";
-import { createDaemonApprovalIntervention } from "./daemon/approvals.js";
-import { createDaemonAskUserBackend } from "./daemon/questions.js";
+import { main as daemon, type DaemonCliOverrides } from "./daemon/index.js";
+import { AcpDaemonClient } from "./daemon/acp-client.js";
+import { createDaemonPermissionHandler } from "./daemon/approvals.js";
+import { startDaemonMcpProxy } from "./daemon/mcproxy/index.js";
+import { DaemonSessionRegistry } from "./daemon/session-registry.js";
 import {
   flushAgentMemory,
   runWithAgentMemoryScope,
@@ -60,10 +63,6 @@ import {
   quietChatLogs,
   redirectLogs,
 } from "./core/utils/logging.js";
-import {
-  configuredLlmContext,
-  resolveLlmMetadata,
-} from "./core/utils/metadata.js";
 import {
   activeProviderName,
   parseReasoningEffortArg,
@@ -546,6 +545,7 @@ program
         prompts: appConfig.prompts,
         tools: appConfig.tools,
         compaction: appConfig.compaction,
+        daemon: appConfig.daemon,
       };
       const redacted = redactCredentials(payload);
       console.log(JSON.stringify(redacted, null, 2));
@@ -567,58 +567,126 @@ program
     finalizeExit(ok ? 0 : 1);
   });
 
+type DaemonCliFlags = CliSessionModeOption & {
+  session?: string;
+  effort?: string;
+  model?: string;
+  yolo?: boolean;
+  sessionIdle?: string;
+  maxActiveSessions?: string;
+  mcpProxyPort?: string;
+  debug?: boolean;
+};
+
+/** Parses a daemon numeric CLI override, throwing on a non-finite/negative value. */
+function parseDaemonNonNegativeInt(raw: string, flag: string): number {
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isInteger(parsed) || parsed < 0) {
+    throw new Error(
+      `Invalid ${flag} "${raw}": expected a non-negative integer.`,
+    );
+  }
+  return parsed;
+}
+
 const daemonCommand = program
   .command("daemon")
   .description(
-    "Run a background daemon that processes MCP channel notifications as prompts.",
+    "Run a background daemon that multiplexes MCP channel notifications across ACP sessions.",
   );
-addCliAgentBootstrapOptions(daemonCommand, "daemon")
+daemonCommand
+  .addOption(cliSessionIdOption())
+  .addOption(cliSessionModeOption())
+  .addOption(cliEffortOption())
+  .addOption(cliModelOption())
+  .addOption(cliYoloOption("daemon"))
+  .option(
+    "--session-idle <seconds>",
+    "Idle seconds before an inactive ACP session closes (0 disables ordinary idle close; pool pressure still evicts).",
+  )
+  .option(
+    "--max-active-sessions <count>",
+    "Maximum number of concurrently active ACP sessions.",
+  )
+  .option(
+    "--mcp-proxy-port <port>",
+    "Fixed port for the local MCP tool proxy (default: ephemeral).",
+  )
   .option(
     "--debug",
     "Log each MCP channel notification payload to the console.",
   )
-  .action(async (options: CliAgentBootstrapFlags & { debug?: boolean }) => {
+  .action(async (options: DaemonCliFlags) => {
     // Same as `exec`: console chatter joins the daemon's stderr diagnostics.
     redirectLogs();
     const config = createSessionConfig();
     applyCliModelAndEffort(config, options);
-    const session = await resolveCliSessionId(options);
-    const {
-      agent,
-      mcp: { manager },
-    } = await bootstrap(
-      "daemon",
-      {
-        userId: session,
-        sessionId: session,
-        yolo: Boolean(options.yolo),
-        mode: options.mode,
-        createInterventions: ({ manager }) => [
-          createDaemonApprovalIntervention(manager),
-        ],
+
+    const sessionIdleTimeoutMs =
+      options.sessionIdle !== undefined
+        ? parseDaemonNonNegativeInt(options.sessionIdle, "--session-idle") *
+          1000
+        : config.daemon.sessions.timeout;
+    const maxActiveSessions =
+      options.maxActiveSessions !== undefined
+        ? parseDaemonNonNegativeInt(
+            options.maxActiveSessions,
+            "--max-active-sessions",
+          )
+        : config.daemon.sessions.max;
+    if (maxActiveSessions < 1) {
+      throw new Error("--max-active-sessions must be at least 1.");
+    }
+    const mcpProxyPort =
+      options.mcpProxyPort !== undefined
+        ? parseDaemonNonNegativeInt(options.mcpProxyPort, "--mcp-proxy-port")
+        : (config.daemon.mcproxy.port ?? 0);
+
+    const cliOverrides: DaemonCliOverrides = {
+      mode: options.mode,
+      model: options.model,
+      effort: options.effort,
+      yolo: options.yolo,
+    };
+
+    const manager = createMcpManager(createRuntimeMcpConfig());
+    let acpClient!: AcpDaemonClient;
+    const registry = new DaemonSessionRegistry({
+      maxActiveSessions,
+      idleTimeoutMs: sessionIdleTimeoutMs,
+      onClose: async (_externalKey, acpSessionId) => {
+        try {
+          await acpClient.closeSession(acpSessionId);
+        } catch {}
       },
-      true,
-      config,
-    );
-    setAskUserBackend(agent, createDaemonAskUserBackend(manager, agent));
+    });
+    await registry.hydrate();
+
     try {
-      const metadata = await resolveLlmMetadata(
-        config.llm.metadata,
-        config.llm.llmOptions.model,
-        config.llm.provider,
-        configuredLlmContext(config.llm),
-      ).catch(() => null);
-      await daemon({
-        agent,
-        manager,
-        metadata,
-        session,
-        debug: Boolean(options.debug),
+      const proxy = await startDaemonMcpProxy(manager, { port: mcpProxyPort });
+      acpClient = new AcpDaemonClient({
+        cliPath: fileURLToPath(import.meta.url),
+        cwd: process.cwd(),
+        onPermissionRequest: createDaemonPermissionHandler(manager, registry),
+        onSessionUpdate: () => {},
+        onChildStderr: (line) => process.stderr.write(`[daemon:acp] ${line}\n`),
       });
-    } finally {
       try {
-        await flushAgentMemory(agent);
-      } catch {}
+        await daemon({
+          manager,
+          acpClient,
+          registry,
+          mcpServer: proxy.mcpServer,
+          cwd: process.cwd(),
+          session: options.session,
+          cliOverrides,
+          debug: Boolean(options.debug),
+        });
+      } finally {
+        await acpClient.close();
+        await proxy.close();
+      }
+    } finally {
       try {
         await manager.disconnect();
       } catch {}

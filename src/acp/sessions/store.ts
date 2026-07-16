@@ -50,6 +50,12 @@ export type SessionIndexEntry = {
    */
   vscode?: boolean;
   /**
+   * Session created by Hooman's own daemon (`HOOMAN_X_DAEMON=true`). Selects
+   * the daemon system prompt/mode on reactivation; MCP tools still come only
+   * from session-scoped `mcpServers`, never local `mcp.json`.
+   */
+  daemon?: boolean;
+  /**
    * Auto-approve tools without ACP permission prompts (`hooman.yolo` on agent
    * appState). Persisted so session reactivation restores the same behaviour.
    */

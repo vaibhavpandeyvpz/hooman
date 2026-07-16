@@ -47,6 +47,13 @@ export type AcpMeta = {
    * extension (`HOOMAN_X_VSCODE=true`).
    */
   vscode?: boolean;
+  /**
+   * Session was created by Hooman's own daemon (`HOOMAN_X_DAEMON=true`).
+   * Selects the daemon system prompt/mode only — MCP tools still come
+   * exclusively from session-scoped `mcpServers` (the daemon's local tool
+   * proxy), never from local `mcp.json`.
+   */
+  daemon?: boolean;
   /** Session working directory used to discover repo-local MCP overlays. */
   cwd?: string;
 };
@@ -89,7 +96,13 @@ export async function bootstrap(
   ]);
   const mcp = { config: mcpConfig, manager: mcpManager };
   const registry = createSkillsRegistry(basePath());
-  const system = await createSystemPrompt(instructionsMdPath(), config, mode);
+  const systemPromptMode =
+    mode === "acp" && meta.acp?.daemon === true ? "daemon" : mode;
+  const system = await createSystemPrompt(
+    instructionsMdPath(),
+    config,
+    systemPromptMode,
+  );
   const interventions = [
     ...(meta.interventions ?? []),
     ...(meta.createInterventions?.({ manager: mcpManager }) ?? []),

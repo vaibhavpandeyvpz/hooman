@@ -5,29 +5,29 @@ description: Repository layout, build/typecheck commands, and the release workfl
 
 ## Repository layout
 
-| Path                              | Purpose                                                                                                                                    |
-| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| `src/cli.ts`                      | CLI entrypoint (Commander + Ink). Compiles to `dist/cli.js`, exposed as the `hooman` bin.                                                  |
-| `src/index.ts`                    | Public library API exported by the npm package.                                                                                            |
-| `src/core/`                       | Core configuration, memory, state, context, and skills registry.                                                                           |
-| `src/core/agent/`                 | Agent bootstrap and invocation loop.                                                                                                       |
-| `src/core/tools/`                 | Built-in tool definitions (filesystem, web_search, fetch, design export/preview, etc.).                                                    |
-| `src/core/utils/export-*.ts`      | Design delivery export (PDF / PowerPoint-ready `.pptx` / Figma-ready `.fig` / `.deck` / Sketch-ready `.sketch`).                           |
-| `src/core/shell/`                 | Shell tool plus background job manager (`shell` / `shell_output` / `shell_stop`).                                                          |
-| `src/core/modes/`                 | Session mode logic (`agent`, `ask`, `plan`, `design`).                                                                                     |
-| `src/core/mcp/`                   | MCP client configuration, connection, OAuth auth, and tool bridging.                                                                       |
-| `src/core/approvals/`             | Tool-call approval system for `exec`, `chat`, and `daemon`.                                                                                |
-| `src/core/subagents/`             | `launch_subagent` orchestration utilities.                                                                                                 |
-| `src/chat/`                       | Interactive `chat` TUI (Ink/React components).                                                                                             |
-| `src/onboarding/`                 | Ink first-run `setup` wizard (shared logic in `src/core/utils/onboarding-config.ts`).                                                      |
-| `src/configure/`                  | Ink-based configuration workflow.                                                                                                          |
-| `src/exec/`                       | One-shot `exec` command approval handling.                                                                                                 |
-| `src/daemon/`                     | MCP channel-driven `daemon` command.                                                                                                       |
-| `src/acp/`                        | Agent Client Protocol (ACP) stdio server.                                                                                                  |
-| `src/vscode/`                     | Self-contained [VS Code extension](/hooman/guides/vscode/) sub-package — own `package.json`/`tsconfig.json`, excluded from the root build. |
-| `docs/`                           | This site — an Astro + Starlight sub-package, deployed to GitHub Pages.                                                                    |
-| `scripts/copy-bundled-assets.mjs` | Post-build step that copies Markdown skill/prompt assets into `dist/`.                                                                     |
-| `install.sh` / `install.ps1`      | End-user installers (Bun + global `hoomanjs`); run via raw GitHub URLs.                                                                    |
+| Path                              | Purpose                                                                                                                                               |
+| --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/cli.ts`                      | CLI entrypoint (Commander + Ink). Compiles to `dist/cli.js`, exposed as the `hooman` bin.                                                             |
+| `src/index.ts`                    | Public library API exported by the npm package.                                                                                                       |
+| `src/core/`                       | Core configuration, memory, state, context, and skills registry.                                                                                      |
+| `src/core/agent/`                 | Agent bootstrap and invocation loop.                                                                                                                  |
+| `src/core/tools/`                 | Built-in tool definitions (filesystem, web_search, fetch, design export/preview, etc.).                                                               |
+| `src/core/utils/export-*.ts`      | Design delivery export (PDF / PowerPoint-ready `.pptx` / Figma-ready `.fig` / `.deck` / Sketch-ready `.sketch`).                                      |
+| `src/core/shell/`                 | Shell tool plus background job manager (`shell` / `shell_output` / `shell_stop`).                                                                     |
+| `src/core/modes/`                 | Session mode logic (`agent`, `ask`, `plan`, `design`).                                                                                                |
+| `src/core/mcp/`                   | MCP client configuration, connection, OAuth auth, and tool bridging.                                                                                  |
+| `src/core/approvals/`             | Tool-call approval system for `exec`, `chat`, and `daemon`.                                                                                           |
+| `src/core/subagents/`             | `launch_subagent` orchestration utilities.                                                                                                            |
+| `src/chat/`                       | Interactive `chat` TUI (Ink/React components).                                                                                                        |
+| `src/onboarding/`                 | Ink first-run `setup` wizard (shared logic in `src/core/utils/onboarding-config.ts`).                                                                 |
+| `src/configure/`                  | Ink-based configuration workflow.                                                                                                                     |
+| `src/exec/`                       | One-shot `exec` command approval handling.                                                                                                            |
+| `src/daemon/`                     | MCP channel-driven `daemon` command: ACP client/session pool over one `hooman acp` subprocess, plus its local MCP tool proxy (`src/daemon/mcproxy/`). |
+| `src/acp/`                        | Agent Client Protocol (ACP) stdio server.                                                                                                             |
+| `src/vscode/`                     | Self-contained [VS Code extension](/hooman/guides/vscode/) sub-package — own `package.json`/`tsconfig.json`, excluded from the root build.            |
+| `docs/`                           | This site — an Astro + Starlight sub-package, deployed to GitHub Pages.                                                                               |
+| `scripts/copy-bundled-assets.mjs` | Post-build step that copies Markdown skill/prompt assets into `dist/`.                                                                                |
+| `install.sh` / `install.ps1`      | End-user installers (Bun + global `hoomanjs`); run via raw GitHub URLs.                                                                               |
 
 ## Build and run
 

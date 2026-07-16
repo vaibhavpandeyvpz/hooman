@@ -6,7 +6,7 @@ import {
 } from "@strands-agents/sdk";
 import slugify from "slugify";
 
-function mcpServerPrefix(serverKey: string): string {
+export function mcpServerPrefix(serverKey: string): string {
   const slug = slugify(serverKey, {
     replacement: "_",
     lower: true,

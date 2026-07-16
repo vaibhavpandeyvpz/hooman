@@ -1,6 +1,6 @@
 ---
 name: hooman-config
-description: Read and update Hooman's own ~/.hooman/config.json and instructions.md. Use when the user asks about Hooman's config, custom instructions, agent name, model providers, LLMs/models, API keys, reasoning options, global reasoning display, web search settings, tool or prompt toggles, compaction, or first-run setup (`hooman setup`). Not for MCP servers (use hooman-mcp), channel integrations (hooman-channels), or installed skills (hooman-skills).
+description: Read and update Hooman's own ~/.hooman/config.json and instructions.md. Use when the user asks about Hooman's config, custom instructions, agent name, model providers, LLMs/models, API keys, reasoning options, global reasoning display, web search settings, tool or prompt toggles, compaction, `hooman daemon` session/mcproxy limits, or first-run setup (`hooman setup`). Not for MCP servers (use hooman-mcp), channel integrations (hooman-channels), or installed skills (hooman-skills).
 ---
 
 # Hooman Config
@@ -39,7 +39,7 @@ with credential-like values redacted.
 
 1. Read the existing JSON first. Preserve user values, comments are not supported, and secrets such as API keys may be present.
 2. Make the smallest JSON edit that satisfies the request. Do not rewrite unrelated sections or normalize formatting beyond valid pretty JSON.
-3. `name`, `providers`, and `llms` are required. `providers` stores shared credentials/config, and `llms` must be a **non-empty array** of entries that reference provider names (see `providers.md`). `search`, `prompts`, `tools`, `compaction`, and top-level `reasoning` are optional in input, but Hooman expands them with defaults when loading.
+3. `name`, `providers`, and `llms` are required. `providers` stores shared credentials/config, and `llms` must be a **non-empty array** of entries that reference provider names (see `providers.md`). `search`, `prompts`, `tools`, `compaction`, `daemon`, and top-level `reasoning` are optional in input, but Hooman expands them with defaults when loading.
 4. Unknown keys are unsupported and may be dropped when Hooman parses and persists the config.
 5. `tools` only manages built-in runtime toggles exposed in `config.json`.
 6. Any change to `config.json` or `instructions.md` requires restarting the running Hooman agent/session before it takes effect. Running `hooman config` or chat `/config` applies this automatically when you return to an interactive session: chat reloads config and re-bootstraps on exit.
@@ -114,7 +114,14 @@ ids). Preferred model is `default: true`; other listed chat LLMs follow:
     "ratio": 0.75,
     "keep": 5
   },
-  "reasoning": "collapsed"
+  "reasoning": "collapsed",
+  "daemon": {
+    "sessions": {
+      "max": 10,
+      "timeout": 300000
+    },
+    "mcproxy": {}
+  }
 }
 ```
 
@@ -134,6 +141,7 @@ Hooman fills all optional sections with defaults on load and persist, so a minim
 - `prompts`: optional built-in static prompt toggles; omitted fields default to `true`. Custom user instructions live in `~/.hooman/instructions.md`.
 - `tools`: optional tool toggles and tool-specific settings.
 - `compaction`: optional context compaction settings. `ratio` must be `0..1`; `keep` must be a non-negative integer.
+- `daemon`: optional `hooman daemon` settings — `sessions.max` (default `10`, positive integer bound on concurrently active ACP sessions), `sessions.timeout` (default `300000` ms idle-close delay before an inactive ACP session closes; `0` disables ordinary idle close), and `mcproxy.port` (fixed port for the daemon's local MCP tool proxy; omitted/absent means an ephemeral port).
 - top-level `reasoning`: optional global reasoning display setting. Supported values are `"collapsed"` and `"full"`.
 
 ## Prompts
@@ -190,3 +198,27 @@ This top-level setting controls **display in the UI**. It is separate from provi
 
 - `ratio`: target fraction of context after compaction, from `0` to `1`.
 - `keep`: minimum number of recent turns/message groups to preserve verbatim.
+
+## Daemon
+
+```json
+{
+  "daemon": {
+    "sessions": {
+      "max": 10,
+      "timeout": 300000
+    },
+    "mcproxy": {
+      "port": 4711
+    }
+  }
+}
+```
+
+Settings for `hooman daemon`, which multiplexes MCP channel notifications across many ACP sessions over one supervised agent process:
+
+- `sessions.max`: positive integer bound on concurrently active ACP sessions. Defaults to `10`. Idle sessions are evicted least-recently-used first when a new conversation needs a slot and the limit is reached.
+- `sessions.timeout`: milliseconds an inactive ACP session stays open before closing. Defaults to `300000` (5 minutes). `0` disables ordinary idle close (pool-pressure eviction still applies when the daemon is at its session limit).
+- `mcproxy.port`: fixed port for the daemon's local, loopback-only MCP tool proxy. Omit (or leave the object empty) for an ephemeral port, which is the default.
+
+`--session-idle <seconds>`, `--max-active-sessions <count>`, and `--mcp-proxy-port <port>` on `hooman daemon` override these per run without editing `config.json`.

@@ -147,6 +147,8 @@ import { createAcpAskUserBackend } from "./questions.js";
 import { createAcpBrowserPreviewBackend } from "./browser.js";
 import { extractAcpClientUserId } from "./meta/user-id.js";
 import { isAcpVscodeHost } from "./meta/vscode.js";
+import { isAcpDaemonHost } from "./meta/daemon.js";
+import { extractAcpPromptOrigin } from "./meta/origin.js";
 import { deriveSessionTitleFromEcho } from "./sessions/title.js";
 import { acpPromptEchoText, acpPromptToInvokeArgs } from "./prompt-invoke.js";
 import { normalizeAcpSessionMcpServers } from "./mcp-servers.js";
@@ -634,6 +636,7 @@ export class HoomanAcpAgent {
     const clientUserId = extractAcpClientUserId(params._meta) ?? null;
     const mcpServers = normalizeAcpSessionMcpServers(params.mcpServers);
     const vscode = isAcpVscodeHost();
+    const daemon = isAcpDaemonHost();
 
     const mode = DEFAULT_SESSION_MODE;
     const now = new Date().toISOString();
@@ -646,6 +649,7 @@ export class HoomanAcpAgent {
       userId: clientUserId,
       mcpServers,
       ...(vscode ? { vscode } : {}),
+      ...(daemon ? { daemon } : {}),
       sessionMode: mode,
     };
     await writeSessionEntry(this.#acpRoot, entry);
@@ -658,6 +662,7 @@ export class HoomanAcpAgent {
       mode,
       undefined,
       vscode,
+      daemon,
     );
     this.#subscribeSubagentUsage(record, this.#requireClient(), sessionId);
     this.#sessions.set(sessionId, record);
@@ -930,6 +935,7 @@ export class HoomanAcpAgent {
         ? normalizeAcpSessionMcpServers(params.mcpServers)
         : (existing.mcpServers ?? []);
     const vscode = isAcpVscodeHost();
+    const daemon = isAcpDaemonHost();
     const mode = resolveSessionMode(existing.sessionMode);
 
     // Bootstrapping restores the Strands snapshot (messages + appState) during
@@ -942,6 +948,7 @@ export class HoomanAcpAgent {
       mode,
       existing.model,
       vscode,
+      daemon,
     );
 
     // The snapshot restore replaces appState wholesale, so re-apply the
@@ -970,6 +977,7 @@ export class HoomanAcpAgent {
       ...(fromRequest !== undefined ? { userId: fromRequest || null } : {}),
       mcpServers,
       ...(vscode ? { vscode } : {}),
+      ...(daemon ? { daemon } : {}),
       sessionMode: mode,
     });
 
@@ -1453,6 +1461,14 @@ export class HoomanAcpAgent {
     rec.lastStreamToolUseId = null;
     rec.currentAssistantMessageId = null;
     rec.lastTurnUsage = createEmptyUsage();
+
+    // Daemon-hosted sessions refresh the channel reply target on every turn
+    // (the thread/reply target can change while the ACP session — the
+    // logical conversation — stays the same); other ACP clients send nothing.
+    const promptOrigin = extractAcpPromptOrigin(params._meta);
+    if (promptOrigin) {
+      rec.agent.appState.set("origin", promptOrigin);
+    }
 
     let stopReason: StopReason = "end_turn";
 
@@ -1981,6 +1997,7 @@ export class HoomanAcpAgent {
     mode: SessionMode,
     preferredModel?: string,
     vscode = false,
+    daemon = false,
   ): Promise<SessionRecord> {
     const client = this.#requireClient();
     const sessionConfig = createSessionConfig();
@@ -2030,6 +2047,7 @@ export class HoomanAcpAgent {
         acp: {
           mcpServers: mcpServers ?? [],
           vscode,
+          daemon,
           cwd,
         },
       },

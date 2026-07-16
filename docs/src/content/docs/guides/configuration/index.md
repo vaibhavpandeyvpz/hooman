@@ -23,7 +23,7 @@ A non-empty display name for the agent. It's the only required scalar field — 
 
 ## Minimal example
 
-A minimal valid `config.json` needs `name`, `providers`, and a non-empty `llms` array; every other section (`search`, `prompts`, `tools`, `compaction`, `reasoning`) is optional and filled in with defaults on load:
+A minimal valid `config.json` needs `name`, `providers`, and a non-empty `llms` array; every other section (`search`, `prompts`, `tools`, `compaction`, `reasoning`, `daemon`) is optional and filled in with defaults on load:
 
 ```json
 {
@@ -58,15 +58,16 @@ A minimal valid `config.json` needs `name`, `providers`, and a non-empty `llms` 
 
 ## Configuration reference
 
-| Section                                                | Covers                                                                                                          |
-| ------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------- |
-| [Models](/hooman/guides/configuration/models/)         | `providers` / `llms` — credentials, model options, reasoning, and metadata overrides for cost/context tracking. |
-| [Search](/hooman/guides/configuration/search/)         | `search` — enabling `web_search` and picking/configuring a provider.                                            |
-| [Prompts](/hooman/guides/configuration/prompts/)       | `prompts` — toggling bundled harness prompt sections.                                                           |
-| [Tools](/hooman/guides/configuration/tools/)           | `tools` — enabling/disabling built-in tools.                                                                    |
-| [Compaction](/hooman/guides/configuration/compaction/) | `compaction` — context-compaction tuning.                                                                       |
-| [`reasoning`](#global-reasoning-display)               | global reasoning display in the CLI/chat UI (`collapsed` or `full`).                                            |
-| [Instructions](#instructions)                          | `instructions.md` — free-form custom instructions, outside `config.json`.                                       |
+| Section                                                | Covers                                                                                                                                                                                               |
+| ------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [Models](/hooman/guides/configuration/models/)         | `providers` / `llms` — credentials, model options, reasoning, and metadata overrides for cost/context tracking.                                                                                      |
+| [Search](/hooman/guides/configuration/search/)         | `search` — enabling `web_search` and picking/configuring a provider.                                                                                                                                 |
+| [Prompts](/hooman/guides/configuration/prompts/)       | `prompts` — toggling bundled harness prompt sections.                                                                                                                                                |
+| [Tools](/hooman/guides/configuration/tools/)           | `tools` — enabling/disabling built-in tools.                                                                                                                                                         |
+| [Compaction](/hooman/guides/configuration/compaction/) | `compaction` — context-compaction tuning.                                                                                                                                                            |
+| [`reasoning`](#global-reasoning-display)               | global reasoning display in the CLI/chat UI (`collapsed` or `full`).                                                                                                                                 |
+| [`daemon`](/hooman/guides/mcp/channels/)               | `daemon` — `sessions.max` (default `10`) and `sessions.timeout` (default `300000` ms) for the ACP session pool, plus `mcproxy.port` (default: ephemeral) for `hooman daemon`'s local MCP tool proxy. |
+| [Instructions](#instructions)                          | `instructions.md` — free-form custom instructions, outside `config.json`.                                                                                                                            |
 
 Tool approvals are session-scoped and are **not** persisted in `config.json` — see [Tools](/hooman/guides/tools/#approvals).
 

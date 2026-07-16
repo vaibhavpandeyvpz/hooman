@@ -5,6 +5,7 @@ import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
 import { UnauthorizedError } from "@modelcontextprotocol/sdk/client/auth.js";
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
+import type { CallToolResult, Tool } from "@modelcontextprotocol/sdk/types.js";
 import lodash from "lodash";
 import { z } from "zod";
 import { Config, type NamedMcpTransport } from "./config.js";
@@ -363,6 +364,45 @@ export class Manager {
       }),
     );
     return rows;
+  }
+
+  /** The already-connected client for `name`, connecting it if needed. Never opens a second connection. */
+  private async requireConnectedClient(name: string): Promise<McpClient> {
+    if (this.instances === null) {
+      this.reload();
+    }
+    const client = this.instances!.get(name);
+    if (!client) {
+      throw new Error(`MCP server "${name}" is not configured.`);
+    }
+    await client.connect();
+    return client;
+  }
+
+  /**
+   * Raw MCP `tools/list` for one configured server, forwarded over its
+   * single already-connected client. Used by the daemon's local MCP tool
+   * proxy so daemon-hosted ACP sessions never open a second connection to a
+   * server the daemon already holds open for channel notifications.
+   */
+  public async listServerTools(name: string): Promise<Tool[]> {
+    const client = await this.requireConnectedClient(name);
+    const wire = await client.client.listTools();
+    return wire.tools;
+  }
+
+  /** Raw MCP `tools/call` for one configured server's single already-connected client. */
+  public async callServerTool(
+    name: string,
+    params: { name: string; arguments?: Record<string, unknown> },
+    signal?: AbortSignal,
+  ): Promise<CallToolResult> {
+    const client = await this.requireConnectedClient(name);
+    return client.client.callTool(
+      params,
+      undefined,
+      signal ? { signal } : undefined,
+    ) as Promise<CallToolResult>;
   }
 
   /**

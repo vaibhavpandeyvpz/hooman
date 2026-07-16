@@ -1,60 +1,82 @@
 import { stderr } from "node:process";
+import type {
+  ContentBlock,
+  SetSessionConfigOptionRequest,
+} from "@agentclientprotocol/sdk";
 import {
-  Message,
-  TextBlock,
-  type Agent,
-  type ContentBlock,
-} from "@strands-agents/sdk";
+  CONFIG_ID_EFFORT,
+  CONFIG_ID_MODE,
+  CONFIG_ID_MODEL,
+  CONFIG_ID_YOLO,
+} from "../acp/session-config.js";
+import type { ChannelOrigin } from "../core/approvals/channel-ask.js";
 import { HOOMAN_CHANNEL } from "../core/mcp/index.js";
 import type {
   ChannelMessage,
   ChannelSubscription,
   Manager as McpManager,
 } from "../core/mcp/index.js";
-import { runWithAgentMemoryScope } from "../core/memory/index.js";
-import {
-  createModelDownloadLogger,
-  subscribeModelDownloadProgress,
-} from "../core/utils/download-progress.js";
-import { attachmentPathsToPromptBlocks } from "../core/utils/attachments.js";
-import { resolveLlmMetadata } from "../core/utils/metadata.js";
-import { createQueue } from "./queue.js";
+import type { AcpDaemonClient } from "./acp-client.js";
+import { attachmentPathsToAcpBlocks } from "./attachments.js";
+import type { DaemonMcpProxyServer } from "./mcproxy/index.js";
+import { KeyedTurnQueue } from "./queue.js";
+import type { DaemonSessionRegistry } from "./session-registry.js";
 
-type RunDaemonOptions = {
-  agent: Agent;
-  manager: McpManager;
-  metadata?: Awaited<ReturnType<typeof resolveLlmMetadata>>;
-  session?: string;
-  debug?: boolean;
+export type DaemonCliOverrides = {
+  mode?: string;
+  model?: string;
+  effort?: string;
+  yolo?: boolean;
 };
 
-const MAX_ATTACHMENT_BYTES = 1024 * 1024;
+export type RunDaemonOptions = {
+  manager: McpManager;
+  acpClient: AcpDaemonClient;
+  registry: DaemonSessionRegistry;
+  mcpServer: DaemonMcpProxyServer;
+  cwd: string;
+  /** Fallback external-session component when a notification carries no `hooman/session`. */
+  session?: string;
+  cliOverrides: DaemonCliOverrides;
+  debug?: boolean;
+};
 
 function debug(text: string): void {
   stderr.write(`[daemon] ${text}\n`);
 }
 
-function resolveSessionId(
+function resolveExternalKey(
   message: ChannelMessage,
-  fallback?: string,
-): string | undefined {
-  const raw = message.meta.session?.trim() || fallback;
-  if (!raw) return undefined;
-  // Namespace per `server:channel` so the same chat id coming from two
-  // different MCP servers (or two channels on the same server) never collide.
-  return `${message.meta.subscription.server}:${message.meta.subscription.channel}:${raw}`;
+  cliSessionFallback?: string,
+): string {
+  const { server, channel } = message.meta.subscription;
+  const raw = message.meta.session?.trim() || cliSessionFallback?.trim();
+  return raw ? `${server}:${channel}:${raw}` : `${server}:${channel}`;
 }
 
-function resolveUserId(
-  message: ChannelMessage,
-  session?: string,
-): string | undefined {
+function resolveUserId(message: ChannelMessage, externalKey: string): string {
   const raw = message.meta.user?.trim();
-  if (!raw) return session;
-  // Same user id across different servers is not the same human, so scope
-  // user ids by server. Channel is intentionally omitted so user identity
-  // stays consistent across rooms within one server.
-  return `${message.meta.subscription.server}:${raw}`;
+  return raw ? `${message.meta.subscription.server}:${raw}` : externalKey;
+}
+
+function buildOrigin(message: ChannelMessage): ChannelOrigin {
+  return {
+    server: message.meta.subscription.server,
+    ...(message.meta.source ? { source: message.meta.source } : {}),
+    ...(message.meta.user ? { user: message.meta.user } : {}),
+    ...(message.meta.session ? { session: message.meta.session } : {}),
+    ...(message.meta.thread ? { thread: message.meta.thread } : {}),
+  };
+}
+
+async function toPromptBlocks(
+  message: ChannelMessage,
+): Promise<ContentBlock[]> {
+  const blocks: ContentBlock[] = [{ type: "text", text: message.prompt }];
+  if (message.attachments.length > 0) {
+    blocks.push(...(await attachmentPathsToAcpBlocks(message.attachments)));
+  }
+  return blocks;
 }
 
 function formatSubscriptions(
@@ -69,86 +91,171 @@ function formatSubscriptions(
   return `${servers.length} MCP server(s): ${servers.join(", ")}`;
 }
 
-async function toInvokeInput(
-  message: ChannelMessage,
-  options: { metadata?: Awaited<ReturnType<typeof resolveLlmMetadata>> },
-): Promise<string | Message[]> {
-  if (message.attachments.length === 0) {
-    return message.prompt;
+async function applyCliOverrides(
+  acpClient: AcpDaemonClient,
+  sessionId: string,
+  overrides: DaemonCliOverrides,
+): Promise<void> {
+  const requests: SetSessionConfigOptionRequest[] = [];
+  if (overrides.mode) {
+    requests.push({
+      sessionId,
+      configId: CONFIG_ID_MODE,
+      value: overrides.mode,
+    });
   }
-  const blocks: ContentBlock[] = [new TextBlock(message.prompt)];
-  const attachmentBlocks = await attachmentPathsToPromptBlocks(
-    message.attachments,
-    {
-      maxBytes: MAX_ATTACHMENT_BYTES,
-      metadata: options.metadata,
-    },
-  );
-  blocks.push(...attachmentBlocks);
-  return [new Message({ role: "user", content: blocks })];
+  if (overrides.model) {
+    requests.push({
+      sessionId,
+      configId: CONFIG_ID_MODEL,
+      value: overrides.model,
+    });
+  }
+  if (overrides.effort) {
+    requests.push({
+      sessionId,
+      configId: CONFIG_ID_EFFORT,
+      value: overrides.effort,
+    });
+  }
+  if (overrides.yolo) {
+    requests.push({
+      sessionId,
+      configId: CONFIG_ID_YOLO,
+      type: "boolean",
+      value: true,
+    });
+  }
+  for (const request of requests) {
+    await acpClient.setConfigOption(request);
+  }
 }
 
 export async function main(options: RunDaemonOptions): Promise<void> {
   const channels = [HOOMAN_CHANNEL];
   debug(`starting daemon for channel(s): ${channels.join(", ")}`);
 
-  // Model weights download progress (llama.cpp GGUF fetch on first use):
-  // live single-line updates on a TTY, coarse `[daemon]` log lines otherwise.
-  const stopDownloadProgress = subscribeModelDownloadProgress(
-    createModelDownloadLogger({ stream: stderr, prefix: "[daemon] " }),
-  );
+  const queue = new KeyedTurnQueue();
 
-  let unsubscribe = () => {};
+  async function ensureAcpSession(
+    externalKey: string,
+    userId: string,
+    origin: ChannelOrigin,
+  ): Promise<string> {
+    if (options.registry.hasRuntime(externalKey)) {
+      options.registry.markBusy(externalKey);
+      return options.registry.acpSessionIdFor(externalKey)!;
+    }
 
-  const [queue, stop] = await createQueue(
-    async (message: ChannelMessage) => {
-      const tag = `${message.meta.subscription.server}:${message.meta.subscription.channel}`;
-      const session = resolveSessionId(message, options.session);
-      const user = resolveUserId(message, session);
-
-      debug(`dequeued → ${tag} session=${session} user=${user}`);
-      if (options.debug) {
-        debug(`raw → ${JSON.stringify(message.meta)}`);
-      }
-
-      options.agent.appState.set("userId", user);
-      options.agent.appState.set("sessionId", session);
-      const origin = {
-        server: message.meta.subscription.server,
-        channel: message.meta.subscription.channel,
-        ...(message.meta.source ? { source: message.meta.source } : {}),
-        ...(message.meta.user ? { user: message.meta.user } : {}),
-        ...(message.meta.session ? { session: message.meta.session } : {}),
-        ...(message.meta.thread ? { thread: message.meta.thread } : {}),
-      };
-      options.agent.appState.set("origin", {
-        ...origin,
-      });
-
+    const meta = { "hooman/userId": userId, "hooman/origin": origin };
+    const persisted = options.registry.persistedAcpSessionId(externalKey);
+    let acpSessionId: string;
+    if (persisted) {
       try {
-        debug(`invoking agent → ${tag} session=${session} user=${user}`);
-        const invokeInput = await toInvokeInput(message, {
-          metadata: options.metadata,
+        await options.acpClient.resumeSession({
+          sessionId: persisted,
+          cwd: options.cwd,
+          mcpServers: [options.mcpServer],
+          meta,
         });
-        if (typeof invokeInput === "string") {
-          await runWithAgentMemoryScope(options.agent, () =>
-            options.agent.invoke(invokeInput),
-          );
-        } else {
-          await runWithAgentMemoryScope(options.agent, async () => {
-            for await (const event of options.agent.stream(invokeInput)) {
-              void event;
-            }
-          });
-        }
-        debug(`completed → ${tag} session=${session} user=${user}`);
-      } catch (error) {
-        const text = error instanceof Error ? error.message : String(error);
-        debug(`turn failed → ${tag} session=${session} user=${user}: ${text}`);
+        acpSessionId = persisted;
+      } catch {
+        debug(
+          `resume failed for ${externalKey} (${persisted}); creating a replacement session`,
+        );
+        const created = await options.acpClient.newSession({
+          cwd: options.cwd,
+          mcpServers: [options.mcpServer],
+          meta,
+        });
+        acpSessionId = created.sessionId;
+        await options.registry.persistBinding({
+          externalKey,
+          acpSessionId,
+          cwd: options.cwd,
+          userId,
+        });
       }
-    },
-    () => unsubscribe(),
-  );
+    } else {
+      const created = await options.acpClient.newSession({
+        cwd: options.cwd,
+        mcpServers: [options.mcpServer],
+        meta,
+      });
+      acpSessionId = created.sessionId;
+      await options.registry.persistBinding({
+        externalKey,
+        acpSessionId,
+        cwd: options.cwd,
+        userId,
+      });
+    }
+
+    await applyCliOverrides(
+      options.acpClient,
+      acpSessionId,
+      options.cliOverrides,
+    );
+    options.registry.registerActive({
+      externalKey,
+      acpSessionId,
+      cwd: options.cwd,
+      userId,
+      origin,
+    });
+    return acpSessionId;
+  }
+
+  async function runTurn(message: ChannelMessage): Promise<void> {
+    const tag = `${message.meta.subscription.server}:${message.meta.subscription.channel}`;
+    const externalKey = resolveExternalKey(message, options.session);
+    const userId = resolveUserId(message, externalKey);
+    const origin = buildOrigin(message);
+
+    if (options.registry.isShuttingDown) {
+      return;
+    }
+    await options.registry.acquireSlot(externalKey);
+    if (options.registry.isShuttingDown) {
+      return;
+    }
+    options.registry.updateOrigin(externalKey, origin);
+
+    debug(`dequeued → ${tag} session=${externalKey} user=${userId}`);
+    if (options.debug) {
+      debug(`raw → ${JSON.stringify(message.meta)}`);
+    }
+
+    let acpSessionId: string;
+    try {
+      acpSessionId = await ensureAcpSession(externalKey, userId, origin);
+    } catch (error) {
+      const text = error instanceof Error ? error.message : String(error);
+      debug(`session setup failed → ${externalKey}: ${text}`);
+      options.registry.markIdle(externalKey, queue.length(externalKey) > 1);
+      return;
+    }
+
+    try {
+      debug(
+        `invoking agent → ${tag} session=${externalKey} acp=${acpSessionId}`,
+      );
+      const prompt = await toPromptBlocks(message);
+      await options.acpClient.prompt({
+        sessionId: acpSessionId,
+        prompt,
+        meta: { "hooman/origin": origin },
+      });
+      debug(`completed → ${tag} session=${externalKey} acp=${acpSessionId}`);
+    } catch (error) {
+      const text = error instanceof Error ? error.message : String(error);
+      debug(
+        `turn failed → ${tag} session=${externalKey} acp=${acpSessionId}: ${text}`,
+      );
+    } finally {
+      options.registry.markIdle(externalKey, queue.length(externalKey) > 1);
+    }
+  }
 
   const handle = await options.manager.subscribeToChannels(
     channels,
@@ -156,16 +263,25 @@ export async function main(options: RunDaemonOptions): Promise<void> {
       debug(
         `received notification → ${message.meta.subscription.server}:${message.meta.subscription.channel}`,
       );
-      void queue.push(message);
+      queue.push(resolveExternalKey(message, options.session), () =>
+        runTurn(message),
+      );
     },
   );
-  unsubscribe = handle.unsubscribe;
   debug(`subscribed → ${formatSubscriptions(handle.subscriptions)}`);
 
+  const stopper = new Promise<void>((resolve) => {
+    const shutdown = () => resolve();
+    process.once("SIGINT", shutdown);
+    process.once("SIGTERM", shutdown);
+  });
+
   try {
-    await stop();
+    await stopper;
   } finally {
-    stopDownloadProgress();
     debug("stopping daemon");
+    handle.unsubscribe();
+    await queue.drain();
+    await options.registry.shutdown();
   }
 }

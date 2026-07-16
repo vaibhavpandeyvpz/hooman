@@ -62,6 +62,20 @@ const SearchPartialSchema = z.object({
   tavily: z.object({ apiKey: z.string().min(1).optional() }).optional(),
 });
 
+const DaemonSessionsPartialSchema = z.object({
+  max: z.number().int().positive().optional(),
+  timeout: z.number().int().nonnegative().optional(),
+});
+
+const DaemonMcproxyPartialSchema = z.object({
+  port: z.number().int().min(0).max(65535).optional(),
+});
+
+const DaemonPartialSchema = z.object({
+  sessions: DaemonSessionsPartialSchema.optional(),
+  mcproxy: DaemonMcproxyPartialSchema.optional(),
+});
+
 const ToolsPartialSchema = z.object({
   todo: ToolTogglePartialSchema.optional(),
   fetch: ToolTogglePartialSchema.optional(),
@@ -73,6 +87,9 @@ const ToolsPartialSchema = z.object({
 });
 
 const DEFAULT_COMPACTION = { ratio: 0.75, keep: 5 } as const;
+const DEFAULT_DAEMON = {
+  sessions: { max: 10, timeout: 300_000 },
+} as const;
 const DEFAULT_REASONING = "collapsed" as const;
 const DEFAULT_PROMPTS = {
   behaviour: true,
@@ -91,6 +108,7 @@ const ConfigSchema = z
     tools: ToolsPartialSchema.nullish(),
     compaction: CompactionPartialSchema.nullish(),
     reasoning: ReasoningDisplaySchema.nullish(),
+    daemon: DaemonPartialSchema.nullish(),
   })
   .superRefine((input, ctx) => {
     const seenProviders = new Set<string>();
@@ -158,6 +176,16 @@ const ConfigSchema = z
       keep: input.compaction?.keep ?? DEFAULT_COMPACTION.keep,
     },
     reasoning: input.reasoning ?? DEFAULT_REASONING,
+    daemon: {
+      sessions: {
+        max: input.daemon?.sessions?.max ?? DEFAULT_DAEMON.sessions.max,
+        timeout:
+          input.daemon?.sessions?.timeout ?? DEFAULT_DAEMON.sessions.timeout,
+      },
+      mcproxy: {
+        port: input.daemon?.mcproxy?.port,
+      },
+    },
   }));
 
 const ConfigOverlaySchema = z
@@ -170,6 +198,7 @@ const ConfigOverlaySchema = z
     tools: ToolsPartialSchema.optional(),
     compaction: CompactionPartialSchema.optional(),
     reasoning: ReasoningDisplaySchema.optional(),
+    daemon: DaemonPartialSchema.optional(),
   })
   .strict();
 
@@ -196,6 +225,7 @@ export type ReasoningDisplay = ConfigData["reasoning"];
 export type PromptsConfig = ConfigData["prompts"];
 export type SearchConfig = ConfigData["search"];
 export type ToolsConfig = ConfigData["tools"];
+export type DaemonConfig = ConfigData["daemon"];
 export type ConfigOptions = {
   overlayPaths?: readonly string[];
 };
@@ -290,6 +320,10 @@ const defaultConfigData = (): ConfigData => ({
     keep: 5,
   },
   reasoning: DEFAULT_REASONING,
+  daemon: {
+    sessions: { ...DEFAULT_DAEMON.sessions },
+    mcproxy: { port: undefined },
+  },
 });
 
 function clone<T>(value: T): T {
@@ -445,6 +479,10 @@ export class Config {
 
   get reasoning(): ReasoningDisplay {
     return this.data.reasoning;
+  }
+
+  get daemon(): DaemonConfig {
+    return clone(this.data.daemon);
   }
 
   private readJson(path: string, fallback: unknown): unknown {
