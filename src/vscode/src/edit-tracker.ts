@@ -1,5 +1,6 @@
 import * as path from "node:path";
 import * as vscode from "vscode";
+import { lineDiffStats } from "./line-diff-stats";
 import { isPlanFilePath } from "./plan-file";
 
 /** Scheme used to serve pre-edit baselines to VS Code's diff editor. */
@@ -310,27 +311,4 @@ async function restoreFile(
     return;
   }
   await vscode.workspace.fs.writeFile(uri, Buffer.from(baseline, "utf8"));
-}
-
-/**
- * Cheap added/removed line counts: trim the common prefix/suffix and count
- * what remains on each side. Not a minimal diff, but stable and O(n).
- */
-function lineDiffStats(
-  oldText: string,
-  newText: string,
-): { adds: number; removes: number } {
-  const a = oldText.split("\n");
-  const b = newText.split("\n");
-  let start = 0;
-  while (start < a.length && start < b.length && a[start] === b[start]) {
-    start += 1;
-  }
-  let endA = a.length;
-  let endB = b.length;
-  while (endA > start && endB > start && a[endA - 1] === b[endB - 1]) {
-    endA -= 1;
-    endB -= 1;
-  }
-  return { removes: endA - start, adds: endB - start };
 }

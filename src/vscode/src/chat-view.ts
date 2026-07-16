@@ -838,16 +838,16 @@ export class HoomanChatViewProvider
           activeSessionId: this.#sessionId,
         });
         if (!shouldSkipOnboarding()) {
-        if (this.#pendingStartupError) {
-          const failure = this.#pendingStartupError;
-          this.#pendingStartupError = null;
-          this.#post({ type: "error", ...failure });
-          this.#post({
-            type: "sessionLoading",
-            sessionId: failure.sessionId,
-            loading: false,
-          });
-        }
+          if (this.#pendingStartupError) {
+            const failure = this.#pendingStartupError;
+            this.#pendingStartupError = null;
+            this.#post({ type: "error", ...failure });
+            this.#post({
+              type: "sessionLoading",
+              sessionId: failure.sessionId,
+              loading: false,
+            });
+          }
           // Stay on `/` until the user finishes onboarding — do not seed ACP.
           return;
         }
@@ -2473,11 +2473,13 @@ export class HoomanChatViewProvider
     this.#pendingStartupError = { sessionId, message };
     this.#post({ type: "error", sessionId, message });
     this.#post({ type: "sessionLoading", sessionId, loading: false });
-    void vscode.window.showErrorMessage(message, "Show output").then((action) => {
-      if (action === "Show output") {
-        this.outputChannel.show(true);
-      }
-    });
+    void vscode.window
+      .showErrorMessage(message, "Show output")
+      .then((action) => {
+        if (action === "Show output") {
+          this.outputChannel.show(true);
+        }
+      });
   }
 
   async #maybeRevealPlanFileFromUpdate(update: SessionUpdate): Promise<void> {

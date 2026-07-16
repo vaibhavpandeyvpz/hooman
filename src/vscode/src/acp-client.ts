@@ -232,7 +232,6 @@ export class HoomanAcpClient implements vscode.Disposable {
     return agent;
   }
 
-
   dispose(): void {
     this.terminal.dispose();
     this.#onSessionUpdate.dispose();
