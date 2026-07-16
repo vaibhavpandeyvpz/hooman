@@ -2,6 +2,13 @@
 
 All notable changes to the Hooman VS Code extension are documented in this file.
 
+## [1.57.0]
+
+- Add text-based `edit_file` replacement mode with tolerant matching, optional replace-all behavior, and sequential multi-edit application.
+- Improve line-edit boundary handling and file excerpt reporting for empty or end-of-file ranges.
+- Improve VS Code change tracking and ACP launch behavior, including removal of external `npx`/`bunx` execution and clearer diff statistics.
+- Refresh the documentation surface and Product Hunt promotion.
+
 ## [1.56.0]
 
 - Introduce a shared filesystem backend architecture with local and remote backends, richer text-file access, and structured multi-file editing operations.

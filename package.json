@@ -1,6 +1,6 @@
 {
   "name": "hoomanjs",
-  "version": "1.56.0",
+  "version": "1.57.0",
   "description": "Full-stack open-source agentic ecosystem — local-first CLI, VS Code, ACP, daemon channels, and Design mode. BYOK, custom inference endpoints, llama.cpp & MLX.",
   "author": {
     "name": "Vaibhav Pandey",
