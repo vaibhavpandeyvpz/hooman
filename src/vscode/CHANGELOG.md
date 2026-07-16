@@ -2,6 +2,13 @@
 
 All notable changes to the Hooman VS Code extension are documented in this file.
 
+## [1.56.0]
+
+- Introduce a shared filesystem backend architecture with local and remote backends, richer text-file access, and structured multi-file editing operations.
+- Add ACP support for remote filesystem reads and writes so VS Code sessions can use the client's filesystem capabilities through the new backend.
+- Report subagent token usage and costs through ACP session updates, and improve approval and session-mode handling around fresh plans.
+- Refresh filesystem tool locations and tool-kind metadata to match the new editing surface.
+
 ## [1.55.3]
 
 - Resolve model output limits from `models.dev` when `maxTokens` is not explicitly configured.
