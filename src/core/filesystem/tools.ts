@@ -86,10 +86,36 @@ const FileEditSchema = z.discriminatedUnion("mode", [
   z
     .object({
       path: z.string(),
+      mode: z.literal("replace"),
+      old_text: z
+        .string()
+        .min(1)
+        .describe("Small, unique text block to replace."),
+      new_text: z.string().describe("Replacement text."),
+      replace_all: z
+        .boolean()
+        .optional()
+        .describe(
+          "Replace every exact occurrence. A tolerant fallback replaces one unique match.",
+        ),
+      expected_sha256: z.string().optional(),
+    })
+    .strict(),
+  z
+    .object({
+      path: z.string(),
       mode: z.literal("edit"),
       content: z.string(),
-      insert_at: z.number().int().min(1),
-      replace_until: z.number().int().min(1).nullable().optional(),
+      insert_at: z.number().int().min(1).describe("1-based first line."),
+      replace_until: z
+        .number()
+        .int()
+        .min(1)
+        .nullable()
+        .optional()
+        .describe(
+          "Inclusive last line to replace. Omit to insert before insert_at.",
+        ),
       expected_sha256: z.string().optional(),
     })
     .strict(),
@@ -250,11 +276,13 @@ function makeLineExcerpt(
   const totalLines = lines.length;
   const startIndex = Math.max(0, offset - 1);
   const selected = lines.slice(startIndex, startIndex + limit);
+  const hasSelection = selected.length > 0;
+  const emptyBoundary = Math.min(Math.max(1, offset), totalLines);
 
   return {
     content: selected.join("\n"),
-    startLine: startIndex + 1,
-    endLine: startIndex + selected.length,
+    startLine: hasSelection ? startIndex + 1 : emptyBoundary,
+    endLine: hasSelection ? startIndex + selected.length : emptyBoundary,
     totalLines,
     truncated: startIndex + selected.length < totalLines,
   };
@@ -804,8 +832,7 @@ export function createFilesystemTools() {
     tool({
       name: "edit_file",
       description:
-        "Create, overwrite, edit line ranges, rename, or delete one file.",
-      inputSchema: schema.editFile,
+        "Create, overwrite, replace text, edit line ranges, rename, or delete one file. Prefer mode 'replace' with a small unique old_text/new_text block for existing text; use mode 'edit' when exact line positions are more convenient.",
       callback: async (input, context?: ToolContext) => {
         const edit = input as FileEdit;
         const normalized: FileEdit = {
@@ -825,7 +852,7 @@ export function createFilesystemTools() {
     tool({
       name: "edit_multiple_files",
       description:
-        "Apply ordered create, overwrite, line-range edit, rename, or delete operations to multiple files.",
+        "Apply ordered create, overwrite, text-replacement, line-range edit, rename, or delete operations. Operations run sequentially and may target the same file.",
       inputSchema: schema.editMultipleFiles,
       callback: async (input, context?: ToolContext) => {
         const edits = input.edits.map((edit) => ({

@@ -2,6 +2,10 @@ import { createHash } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import type { FsBackend } from "../backend.js";
+import {
+  findReplacementSpan,
+  unescapeModelText,
+} from "../../utils/edit-replace.js";
 import type { EditResult, FileEdit } from "./types.js";
 
 function sha256(content: string): string {
@@ -24,11 +28,11 @@ function applyLineEdit(
   if (edit.content.endsWith("\n")) replacement.pop();
   const until = edit.replace_until;
   if (until !== undefined && until !== null) {
-    if (until < at || until > lines.length)
-      throw new Error(
-        `replace_until must be between ${at} and ${lines.length}.`,
-      );
-    lines.splice(at - 1, until - at + 1, ...replacement);
+    const maxUntil = lines.length + (endsWithNewline ? 1 : 0);
+    if (until < at || until > maxUntil)
+      throw new Error(`replace_until must be between ${at} and ${maxUntil}.`);
+    const lastContentLine = Math.min(until, lines.length);
+    lines.splice(at - 1, Math.max(0, lastContentLine - at + 1), ...replacement);
   } else {
     lines.splice(at - 1, 0, ...replacement);
   }
@@ -79,6 +83,38 @@ export async function applyFileEdit(
     edit.path,
     edit.expected_sha256,
   );
+  if (edit.mode === "replace") {
+    if (edit.old_text.length === 0) {
+      throw new Error(
+        "old_text must not be empty. Use mode 'write' to replace the whole file.",
+      );
+    }
+    let next = original;
+    let replacements = 0;
+    if (edit.replace_all && next.includes(edit.old_text)) {
+      replacements = next.split(edit.old_text).length - 1;
+      next = next.replaceAll(edit.old_text, () => edit.new_text);
+    } else {
+      const match = findReplacementSpan(next, edit.old_text);
+      const replacement =
+        match.text === unescapeModelText(edit.old_text) &&
+        match.text !== edit.old_text
+          ? unescapeModelText(edit.new_text)
+          : edit.new_text;
+      next =
+        next.slice(0, match.index) +
+        replacement +
+        next.slice(match.index + match.text.length);
+      replacements = 1;
+    }
+    await backend.writeTextFile(edit.path, next);
+    return {
+      path: edit.path,
+      mode: edit.mode,
+      changed: next !== original,
+      replacements,
+    };
+  }
   if (edit.mode === "edit") {
     const next = applyLineEdit(original, edit);
     await backend.writeTextFile(edit.path, next);
@@ -116,14 +152,9 @@ export async function applyFileEdits(
   edits: FileEdit[],
 ): Promise<EditResult[]> {
   if (edits.length === 0) throw new Error("At least one edit is required.");
-  const paths = new Set<string>();
+  const results: EditResult[] = [];
   for (const edit of edits) {
-    for (const item of edit.mode === "rename"
-      ? [edit.path, edit.new_path]
-      : [edit.path]) {
-      if (paths.has(item)) throw new Error(`Conflicting edits target ${item}.`);
-      paths.add(item);
-    }
+    results.push(await applyFileEdit(backend, edit));
   }
-  return Promise.all(edits.map((edit) => applyFileEdit(backend, edit)));
+  return results;
 }
