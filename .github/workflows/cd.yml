@@ -63,10 +63,10 @@ jobs:
         run: npm run typecheck
 
       - name: Package
-        run: npx vsce package
+        run: npx vsce package --no-dependencies
 
       - name: Publish to Visual Studio Marketplace
-        run: npx vsce publish --pat "$VSCE_PAT"
+        run: npx vsce publish --no-dependencies --pat "$VSCE_PAT"
         env:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
 

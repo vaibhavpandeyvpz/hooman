@@ -215,7 +215,7 @@
     }
   },
   "scripts": {
-    "clean": "rm -rf ./out",
+    "clean": "node -e \"require('node:fs').rmSync('out', { recursive: true, force: true })\"",
     "vscode:prepublish": "npm run clean && npm run compile",
     "compile": "tsc --noEmit -p ./ && node esbuild.mjs && vite build",
     "watch": "npm run watch:tsc & npm run watch:esbuild & npm run watch:vite",
@@ -224,7 +224,7 @@
     "watch:vite": "vite build --watch",
     "typecheck": "tsc --noEmit -p ./ && tsc --noEmit -p tsconfig.webview.json",
     "lint": "true",
-    "package": "vsce package"
+    "package": "vsce package --no-dependencies"
   },
   "devDependencies": {
     "@agentclientprotocol/sdk": "^1.1.0",
