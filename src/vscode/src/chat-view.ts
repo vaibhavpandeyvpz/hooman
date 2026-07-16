@@ -141,6 +141,8 @@ export class HoomanChatViewProvider
   #sessionsRefreshTimer: NodeJS.Timeout | undefined;
   /** Attachments staged before the webview was ready to receive messages. */
   #pendingComposerAttachments: AttachmentInfo[] = [];
+  /** Startup failure retained until the webview acknowledges readiness. */
+  #pendingStartupError: { sessionId: string; message: string } | null = null;
   /** Sessions with a cancellation notification in flight. */
   #cancellingSessions = new Set<string>();
 
@@ -644,9 +646,7 @@ export class HoomanChatViewProvider
     this.#persistTabs();
     this.#syncStatus();
     void this.#ensureSession(sessionId).catch((error) => {
-      this.outputChannel.warn(
-        `[chat-view] eager session creation failed: ${describe(error)}`,
-      );
+      this.#surfaceStartupError(sessionId, error);
     });
   }
 
@@ -838,6 +838,16 @@ export class HoomanChatViewProvider
           activeSessionId: this.#sessionId,
         });
         if (!shouldSkipOnboarding()) {
+        if (this.#pendingStartupError) {
+          const failure = this.#pendingStartupError;
+          this.#pendingStartupError = null;
+          this.#post({ type: "error", ...failure });
+          this.#post({
+            type: "sessionLoading",
+            sessionId: failure.sessionId,
+            loading: false,
+          });
+        }
           // Stay on `/` until the user finishes onboarding — do not seed ACP.
           return;
         }
@@ -847,10 +857,9 @@ export class HoomanChatViewProvider
           const state = this.#sessions.get(this.#sessionId);
           if (state && !state.loaded) {
             if (this.#isPendingSessionId(this.#sessionId)) {
-              void this.#ensureSession(this.#sessionId).catch((error) => {
-                this.outputChannel.warn(
-                  `[chat-view] eager session creation failed: ${describe(error)}`,
-                );
+              const sessionId = this.#sessionId;
+              void this.#ensureSession(sessionId).catch((error) => {
+                this.#surfaceStartupError(sessionId, error);
               });
             } else {
               void this.#ensureSessionLoaded(this.#sessionId);
@@ -2456,6 +2465,19 @@ export class HoomanChatViewProvider
 
   #post(message: OutboundMessage): void {
     void this.#view?.webview.postMessage(message);
+  }
+
+  #surfaceStartupError(sessionId: string, error: unknown): void {
+    const message = `Failed to start Hooman: ${describe(error)}`;
+    this.outputChannel.error(`[chat-view] ${message}`);
+    this.#pendingStartupError = { sessionId, message };
+    this.#post({ type: "error", sessionId, message });
+    this.#post({ type: "sessionLoading", sessionId, loading: false });
+    void vscode.window.showErrorMessage(message, "Show output").then((action) => {
+      if (action === "Show output") {
+        this.outputChannel.show(true);
+      }
+    });
   }
 
   async #maybeRevealPlanFileFromUpdate(update: SessionUpdate): Promise<void> {

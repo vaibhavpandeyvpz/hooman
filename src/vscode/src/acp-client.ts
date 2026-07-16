@@ -109,14 +109,31 @@ export class HoomanAcpClient implements vscode.Disposable {
       shell,
     });
     this.#process = child;
+    let startupStderr = "";
+    let startupSettled = false;
+    const startupFailure = new Promise<never>((_resolve, reject) => {
+      child.once("error", (error) => {
+        const message = `Hooman ACP agent failed to start: ${error.message}`;
+        this.outputChannel.error(message);
+        if (!startupSettled) {
+          reject(new Error(message, { cause: error }));
+        }
+      });
+      child.once("exit", (code, signal) => {
+        if (!startupSettled) {
+          const detail = startupStderr.trim();
+          reject(
+            new Error(
+              `Hooman ACP agent exited before initialization (code=${code ?? "null"}, signal=${signal ?? "null"})${detail ? `: ${detail}` : ". Check the Hooman output for details."}`,
+            ),
+          );
+        }
+      });
+    });
     child.stderr.on("data", (chunk: Buffer) => {
+      startupStderr = `${startupStderr}${chunk.toString("utf8")}`.slice(-8_192);
       this.outputChannel.debug(
         `[hooman acp] ${chunk.toString("utf8").trimEnd()}`,
-      );
-    });
-    child.on("error", (error) => {
-      this.outputChannel.error(
-        `Hooman ACP agent failed to start: ${error instanceof Error ? error.message : String(error)}`,
       );
     });
     child.on("exit", (code, signal) => {
@@ -189,19 +206,32 @@ export class HoomanAcpClient implements vscode.Disposable {
     this.#connection = clientApp.connect(stream);
     const agent = this.#connection.agent;
 
-    this.#agentInfo = await agent.request(methods.agent.initialize, {
-      protocolVersion: PROTOCOL_VERSION,
-      clientCapabilities: {
-        fs: { readTextFile: true, writeTextFile: true },
-        terminal: true,
-      },
-      clientInfo: { name: "hoomanjs-vscode", version: EXTENSION_VERSION },
-    });
+    try {
+      this.#agentInfo = await Promise.race([
+        agent.request(methods.agent.initialize, {
+          protocolVersion: PROTOCOL_VERSION,
+          clientCapabilities: {
+            fs: { readTextFile: true, writeTextFile: true },
+            terminal: true,
+          },
+          clientInfo: { name: "hoomanjs-vscode", version: EXTENSION_VERSION },
+        }),
+        startupFailure,
+      ]);
+      startupSettled = true;
+    } catch (error) {
+      startupSettled = true;
+      if (!child.killed) {
+        child.kill();
+      }
+      throw error;
+    }
     this.outputChannel.info(
       `Hooman ACP agent ready: ${this.#agentInfo.agentInfo?.name ?? "hooman"} ${this.#agentInfo.agentInfo?.version ?? ""}`,
     );
     return agent;
   }
+
 
   dispose(): void {
     this.terminal.dispose();

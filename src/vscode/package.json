@@ -36,10 +36,7 @@
     "ai"
   ],
   "activationEvents": [
-    "onStartupFinished",
-    "onCustomEditor:hooman.planEditor",
-    "onCustomEditor:hooman.configEditor",
-    "onCustomEditor:hooman.mcpEditor"
+    "onStartupFinished"
   ],
   "main": "./out/extension.js",
   "contributes": {

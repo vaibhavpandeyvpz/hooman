@@ -1,4 +1,3 @@
-import { spawnSync } from "node:child_process";
 import * as vscode from "vscode";
 import { ensureDownloadedCli, type Logger } from "./cli-download";
 
@@ -6,10 +5,7 @@ import { ensureDownloadedCli, type Logger } from "./cli-download";
 const EXTENSION_VERSION = (require("../package.json") as { version: string })
   .version;
 
-/**
- * How to spawn the Hooman CLI: the executable, its arguments, and the
- * environment to run it with.
- */
+/** How to spawn the Hooman CLI. */
 export interface HoomanLaunch {
   command: string;
   args: string[];
@@ -17,36 +13,7 @@ export interface HoomanLaunch {
   shell?: boolean;
 }
 
-/** On Windows, `npx`/`bunx` are `.cmd` shims that `spawn` needs named explicitly. */
-function platformCommand(name: string): string {
-  return process.platform === "win32" ? `${name}.cmd` : name;
-}
-
-/** Whether an executable is resolvable on the current PATH. */
-function onPath(command: string): boolean {
-  const lookup = process.platform === "win32" ? "where" : "which";
-  const result = spawnSync(lookup, [command], {
-    stdio: ["ignore", "pipe", "ignore"],
-  });
-  return result.status === 0;
-}
-
-/** Prefer `bunx` (Bun) then `npx` (Node) as a version-pinned package runner. */
-function firstAvailableRunner(): "npx" | "bunx" | undefined {
-  if (onPath("bunx")) {
-    return "bunx";
-  }
-  if (onPath("npx")) {
-    return "npx";
-  }
-  return undefined;
-}
-
-/**
- * Environment for the Hooman ACP (or other) child process. Always marks the
- * process as the official VS Code host so the agent can detect it without
- * per-session `_meta` flags.
- */
+/** Mark the process as the official VS Code host. */
 function launchEnv(extra?: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   return {
     ...process.env,
@@ -56,24 +23,18 @@ function launchEnv(extra?: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
 }
 
 /**
- * Resolve how to launch the Hooman CLI for a given subcommand (e.g. `["acp"]`
- * or `["mcp", "auth", name]`), following the resolution ladder:
+ * Resolve how to launch the Hooman CLI for a subcommand.
  *
- * 1. An explicit `hooman.acp.command` override — honoured verbatim, with the
- *    subcommand appended after stripping a trailing `acp` from `hooman.acp.args`.
- * 2. `bunx`/`npx` on PATH — run `bunx hoomanjs@<version> …` (or `npx -y …`),
- *    preferring Bun, pinned to this extension's version for compatibility.
- * 3. Otherwise download the prebuilt, self-contained CLI for this platform
- *    (its `node_modules` already includes the native runtimes) and run it with
- *    VS Code's own Node runtime (`process.execPath` + `ELECTRON_RUN_AS_NODE=1`)
- *    — no `node`/`npx` on PATH required.
+ * An explicit override is honoured verbatim. Otherwise the extension uses its
+ * version-matched, checksum-verified release runtime. Package runners are not
+ * suitable for ACP because install output can corrupt the stdout JSON stream,
+ * and their bin resolution differs across npm, Bun, and platforms.
  */
 export async function resolveHoomanLaunch(
   trailingArgs: string[],
   log?: Logger,
 ): Promise<HoomanLaunch> {
   const config = vscode.workspace.getConfiguration("hooman");
-
   const override = (config.get<string>("acp.command") ?? "").trim();
   if (override) {
     const baseArgs = config.get<string[]>("acp.args") ?? ["hoomanjs", "acp"];
@@ -85,24 +46,6 @@ export async function resolveHoomanLaunch(
       command: override,
       args: [...stripped, ...trailingArgs],
       env: launchEnv(),
-    };
-  }
-
-  const runner = firstAvailableRunner();
-  if (runner === "npx") {
-    return {
-      command: platformCommand("npx"),
-      args: ["-y", `hoomanjs@${EXTENSION_VERSION}`, ...trailingArgs],
-      env: launchEnv(),
-      shell: process.platform === "win32",
-    };
-  }
-  if (runner === "bunx") {
-    return {
-      command: platformCommand("bunx"),
-      args: [`hoomanjs@${EXTENSION_VERSION}`, ...trailingArgs],
-      env: launchEnv(),
-      shell: process.platform === "win32",
     };
   }
 

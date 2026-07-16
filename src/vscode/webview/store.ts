@@ -964,6 +964,7 @@ onHostMessage((msg) => {
         msg.sessionId,
         produce((session) => {
           session.busy = false;
+          session.loadingSession = null;
           session.promptStartedAt = null;
           session.activity = { type: "idle" };
           session.download = null;
