@@ -833,6 +833,7 @@ export function createFilesystemTools() {
       name: "edit_file",
       description:
         "Create, overwrite, replace text, edit line ranges, rename, or delete one file. Prefer mode 'replace' with a small unique old_text/new_text block for existing text; use mode 'edit' when exact line positions are more convenient.",
+      inputSchema: schema.editFile,
       callback: async (input, context?: ToolContext) => {
         const edit = input as FileEdit;
         const normalized: FileEdit = {
