@@ -126,6 +126,7 @@ export class HoomanChatViewProvider
    */
   #pendingUpdates: SessionNotification[] = [];
   #sessionCreationQueue: Promise<void> = Promise.resolve();
+  #adoptedSessionIds = new Map<string, string>();
   #creatingPlaceholderSessionId: string | null = null;
   /**
    * Config picks (mode/model/effort) made while `session/new` was still in
@@ -307,6 +308,7 @@ export class HoomanChatViewProvider
     const existing = this.#sessions.get(nextSessionId);
     this.#sessions.delete(previousSessionId);
     this.#sessions.set(nextSessionId, existing ?? state);
+    this.#adoptedSessionIds.set(previousSessionId, nextSessionId);
     this.#tabs = this.#tabs.map((sessionId) =>
       sessionId === previousSessionId ? nextSessionId : sessionId,
     );
@@ -471,7 +473,6 @@ export class HoomanChatViewProvider
     existing.configOptions = [...this.#configOptions];
     existing.commands = [...this.#commands];
     existing.busy = this.#busy;
-    existing.queue = [...this.#queue];
     existing.pendingUpdates = [...this.#pendingUpdates];
     existing.pendingConfigOptions = new Map(this.#pendingConfigOptions);
     existing.liveTerminals = this.#liveTerminals;
@@ -928,30 +929,47 @@ export class HoomanChatViewProvider
       case "editAction":
         await this.#onEditAction(message);
         return;
-      case "queueDelete":
-        this.#queue = this.#queue.filter((item) => item.id !== message.id);
-        this.#postQueue();
-        return;
-      case "queueSendNow": {
-        const index = this.#queue.findIndex((item) => item.id === message.id);
-        if (index === -1) {
+      case "queueDelete": {
+        const state = this.#activeSessionState();
+        if (!state) {
           return;
         }
-        const [item] = this.#queue.splice(index, 1);
+        state.queue = state.queue.filter((item) => item.id !== message.id);
         this.#postQueue();
-        void this.#steerOrRun(item.text, item.attachments ?? []);
+        return;
+      }
+      case "queueSendNow": {
+        const sessionId = this.#sessionId;
+        const state = this.#activeSessionState();
+        const index =
+          state?.queue.findIndex((item) => item.id === message.id) ?? -1;
+        if (!sessionId || !state || index === -1) {
+          return;
+        }
+        const [item] = state.queue.splice(index, 1);
+        if (state.busy) {
+          this.#postQueue(sessionId);
+          if (
+            !(await this.#steer(sessionId, item.text, item.attachments ?? []))
+          ) {
+            state.queue.splice(Math.min(index, state.queue.length), 0, item);
+            this.#postQueue(sessionId);
+          }
+          return;
+        }
+        this.#postQueue(sessionId);
+        void this.#runDequeuedPrompt(sessionId, item, index);
         return;
       }
       case "queueEdit": {
-        const index = this.#queue.findIndex((item) => item.id === message.id);
-        if (index === -1) {
+        const state = this.#activeSessionState();
+        const index =
+          state?.queue.findIndex((item) => item.id === message.id) ?? -1;
+        if (!state || index === -1 || !this.#sessionId) {
           return;
         }
-        const [item] = this.#queue.splice(index, 1);
+        const [item] = state.queue.splice(index, 1);
         this.#postQueue();
-        if (!this.#sessionId) {
-          return;
-        }
         this.#post({
           type: "queueEditText",
           sessionId: this.#sessionId,
@@ -1239,6 +1257,10 @@ export class HoomanChatViewProvider
     if (!sessionId || !this.#isPendingSessionId(sessionId)) {
       return sessionId;
     }
+    const adoptedSessionId = this.#adoptedSessionIds.get(sessionId);
+    if (adoptedSessionId) {
+      return adoptedSessionId;
+    }
     const previousCreation = this.#sessionCreationQueue;
     let finishCreation: (() => void) | undefined;
     this.#sessionCreationQueue = new Promise<void>((resolve) => {
@@ -1246,6 +1268,10 @@ export class HoomanChatViewProvider
     });
     await previousCreation;
     try {
+      const adoptedAfterWait = this.#adoptedSessionIds.get(sessionId);
+      if (adoptedAfterWait) {
+        return adoptedAfterWait;
+      }
       const placeholderState = this.#sessions.get(sessionId);
       if (!placeholderState) {
         return null;
@@ -1314,7 +1340,7 @@ export class HoomanChatViewProvider
     this.#post({
       type: "tabs",
       tabs: this.#tabInfo(),
-      activeSessionId: sessionId,
+      activeSessionId: this.#sessionId,
     });
     this.#post({
       type: "configOptions",
@@ -1358,13 +1384,13 @@ export class HoomanChatViewProvider
     text: string,
     attachments: AttachmentInfo[] = [],
     options?: { echoLocally?: boolean; sessionId?: string },
-  ): Promise<void> {
+  ): Promise<boolean> {
     const promptSessionId = options?.sessionId ?? this.#sessionId;
     const promptState = promptSessionId
       ? this.#sessions.get(promptSessionId)
       : undefined;
     if (!promptSessionId || !promptState || promptState.busy) {
-      return;
+      return false;
     }
     promptState.busy = true;
     if (this.#sessionId === promptSessionId) {
@@ -1392,11 +1418,14 @@ export class HoomanChatViewProvider
         },
       });
     }
+    let resolvedSessionId = promptSessionId;
+    let succeeded = false;
     try {
       const sessionId = await this.#ensureSession(promptSessionId);
       if (!sessionId || this.#isPendingSessionId(sessionId)) {
         throw new Error("Session creation failed.");
       }
+      resolvedSessionId = sessionId;
       const agent = await this.client.ensureStarted();
       const result = await agent.request(methods.agent.session.prompt, {
         sessionId,
@@ -1407,23 +1436,24 @@ export class HoomanChatViewProvider
         sessionId,
         stopReason: result.stopReason,
       });
+      succeeded = true;
     } catch (error) {
       this.#post({
         type: "error",
-        sessionId: promptSessionId,
+        sessionId: resolvedSessionId,
         message: describe(error),
       });
     } finally {
-      if (promptSessionId) {
-        this.#cancellingSessions.delete(promptSessionId);
-      }
-      const state = this.#sessions.get(promptSessionId);
+      this.#cancellingSessions.delete(promptSessionId);
+      this.#cancellingSessions.delete(resolvedSessionId);
+      const state = this.#sessions.get(resolvedSessionId);
       if (state) {
         state.busy = false;
       }
       this.#pendingTurnStarts.delete(promptSessionId);
-      this.#stopAllTerminalPolls(promptSessionId);
-      if (this.#sessionId === promptSessionId) {
+      this.#pendingTurnStarts.delete(resolvedSessionId);
+      this.#stopAllTerminalPolls(resolvedSessionId);
+      if (this.#sessionId === resolvedSessionId) {
         this.#busy = false;
         this.#queue = [...(state?.queue ?? [])];
         this.#postActiveState();
@@ -1435,8 +1465,11 @@ export class HoomanChatViewProvider
           activeSessionId: this.#sessionId,
         });
       }
-      this.#processNextQueued(promptSessionId);
+      if (succeeded) {
+        this.#processNextQueued(resolvedSessionId);
+      }
     }
+    return succeeded;
   }
 
   async #cancel(): Promise<void> {
@@ -1594,18 +1627,30 @@ export class HoomanChatViewProvider
       void this.#prompt(trimmed, attachments);
       return;
     }
-    this.#queue.push({ id: randomUUID(), text: trimmed, attachments });
+    const state = this.#activeSessionState();
+    if (!state) {
+      return;
+    }
+    state.queue.push({ id: randomUUID(), text: trimmed, attachments });
     this.#postQueue();
   }
 
-  #postQueue(): void {
-    if (!this.#sessionId) {
+  #activeSessionState(): SessionHostState | undefined {
+    return this.#sessionId ? this.#sessions.get(this.#sessionId) : undefined;
+  }
+
+  #postQueue(sessionId = this.#sessionId): void {
+    if (!sessionId) {
       return;
+    }
+    const items = [...(this.#sessions.get(sessionId)?.queue ?? [])];
+    if (this.#sessionId === sessionId) {
+      this.#queue = items;
     }
     this.#post({
       type: "queue",
-      sessionId: this.#sessionId,
-      items: this.#queue,
+      sessionId,
+      items,
     });
   }
 
@@ -1616,68 +1661,69 @@ export class HoomanChatViewProvider
       return;
     }
     const [next] = state.queue.splice(0, 1);
-    if (this.#sessionId === sessionId) {
-      this.#queue = [...state.queue];
-      this.#postQueue();
-      void this.#prompt(next.text, next.attachments ?? [], {
-        echoLocally: true,
-      });
-      return;
-    }
-    void this.#prompt(next.text, next.attachments ?? [], {
+    this.#postQueue(sessionId);
+    void this.#runDequeuedPrompt(sessionId, next, 0);
+  }
+
+  async #runDequeuedPrompt(
+    sessionId: string,
+    item: QueuedPromptInfo,
+    restoreIndex: number,
+  ): Promise<void> {
+    const succeeded = await this.#prompt(item.text, item.attachments ?? [], {
       echoLocally: true,
       sessionId,
     });
-  }
-
-  /** For an individual "send now": steer if a turn is active, otherwise run it as a normal turn. */
-  async #steerOrRun(
-    text: string,
-    attachments: AttachmentInfo[],
-  ): Promise<void> {
-    if (this.#busy) {
-      await this.#steer(text, attachments);
-    } else {
-      void this.#prompt(text, attachments, { echoLocally: true });
+    if (succeeded) {
+      return;
     }
+    const state = this.#sessions.get(sessionId);
+    if (!state || state.queue.some((entry) => entry.id === item.id)) {
+      return;
+    }
+    state.queue.splice(Math.min(restoreIndex, state.queue.length), 0, item);
+    this.#postQueue(sessionId);
   }
 
   /** Drain the whole queue into the active turn's steering guidance in one shot. */
   async #steerAllQueued(): Promise<void> {
-    if (!this.#busy || this.#queue.length === 0) {
+    const sessionId = this.#sessionId;
+    const state = this.#activeSessionState();
+    if (!sessionId || !state?.busy || state.queue.length === 0) {
       return;
     }
-    const items = this.#queue;
-    this.#queue = [];
-    this.#postQueue();
-    for (const item of items) {
-      await this.#steer(item.text, item.attachments ?? []);
+    const items = state.queue.splice(0);
+    this.#postQueue(sessionId);
+    for (const [index, item] of items.entries()) {
+      if (!(await this.#steer(sessionId, item.text, item.attachments ?? []))) {
+        state.queue.unshift(...items.slice(index));
+        this.#postQueue(sessionId);
+        return;
+      }
     }
   }
 
   /** Inject guidance into the currently running turn via `_meta["hoomanjs/steer"]`. */
   async #steer(
+    sessionId: string,
     text: string,
     attachments: AttachmentInfo[] = [],
-  ): Promise<void> {
-    if (!this.#sessionId) {
-      return;
-    }
+  ): Promise<boolean> {
     try {
       const agent = await this.client.ensureStarted();
       await agent.request(methods.agent.session.prompt, {
-        sessionId: this.#sessionId,
+        sessionId,
         prompt: await this.#buildPromptBlocks(text, attachments),
         _meta: { "hoomanjs/steer": true },
       });
+      return true;
     } catch (error) {
-      if (this.#sessionId) {
-        this.#post({
-          type: "error",
-          sessionId: this.#sessionId,
-          message: `Failed to steer the active turn: ${describe(error)}`,
-        });
-      }
+      this.#post({
+        type: "error",
+        sessionId,
+        message: `Failed to steer the active turn: ${describe(error)}`,
+      });
+      return false;
     }
   }
 
