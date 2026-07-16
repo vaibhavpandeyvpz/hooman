@@ -20,7 +20,7 @@ type PathProbe = {
 const GUARDED_TOOLS = new Set([
   "read_file",
   "read_multiple_files",
-  "write_file",
+  "edit_multiple_files",
   "edit_file",
   "fetch",
   "create_directory",
@@ -41,7 +41,16 @@ function isStringArray(value: unknown): value is string[] {
 function extractPathProbes(toolName: string, input: ToolInput): PathProbe[] {
   switch (toolName) {
     case "read_file":
-    case "write_file":
+    case "edit_multiple_files": {
+      const edits = Array.isArray(input.edits) ? input.edits : [];
+      return edits.flatMap((edit) => {
+        if (!edit || typeof edit !== "object") return [];
+        const value = edit as Record<string, unknown>;
+        return [value.path, value.new_path]
+          .filter((path): path is string => typeof path === "string")
+          .map((path) => ({ path }));
+      });
+    }
     case "edit_file":
     case "get_file_info":
       return typeof input.path === "string" ? [{ path: input.path }] : [];

@@ -29,8 +29,8 @@ type AgentLike = {
 
 const READ_FILE_TOOL = "read_file";
 const READ_MULTIPLE_FILES_TOOL = "read_multiple_files";
-const WRITE_FILE_TOOL = "write_file";
 const EDIT_FILE_TOOL = "edit_file";
+const EDIT_MULTIPLE_FILES_TOOL = "edit_multiple_files";
 const FETCH_TOOL = "fetch";
 /** Session mode switch; always requires explicit approval (never yolo / always-allow). */
 export const SWITCH_MODE_TOOL = "switch_mode";
@@ -70,7 +70,10 @@ export const INTERNAL_ALWAYS_ALLOWED = new Set([
   // switch_mode is intentionally NOT always-allowed — see intervention.ts.
 ]);
 
-const PLAN_MODE_WRITE_EDIT_TOOLS = [WRITE_FILE_TOOL, EDIT_FILE_TOOL] as const;
+const PLAN_MODE_WRITE_EDIT_TOOLS = [
+  EDIT_FILE_TOOL,
+  EDIT_MULTIPLE_FILES_TOOL,
+] as const;
 
 function toolInputPath(toolInput: unknown): string {
   if (!toolInput || typeof toolInput !== "object") {
@@ -89,7 +92,7 @@ function toolInputSaveAs(toolInput: unknown): string {
 }
 
 /**
- * In plan mode, reject `write_file` / `edit_file` unless the destination path
+ * In plan mode, reject file edits unless their destination paths
  * is under the plans directory, and reject `fetch` with `save_as` entirely.
  * Runs before any “always allow” grant.
  */
@@ -104,11 +107,28 @@ export function planModeWriteEditRejectionMessage(
 
   if ((PLAN_MODE_WRITE_EDIT_TOOLS as readonly string[]).includes(toolName)) {
     const plansRoot = plansPath();
-    const raw = toolInputPath(toolInput);
-    if (raw && isResolvedPathInsideDir(normalizeUserPath(raw), plansRoot)) {
+    const paths =
+      toolName === EDIT_MULTIPLE_FILES_TOOL &&
+      toolInput &&
+      typeof toolInput === "object"
+        ? ((
+            (toolInput as { edits?: unknown }).edits as
+              Array<{ path?: unknown; new_path?: unknown }> | undefined
+          )
+            ?.flatMap((edit) => [edit.path, edit.new_path])
+            .filter(
+              (value): value is string =>
+                typeof value === "string" && value.length > 0,
+            ) ?? [])
+        : [toolInputPath(toolInput)];
+    if (
+      paths.length > 0 &&
+      paths.every((raw) =>
+        isResolvedPathInsideDir(normalizeUserPath(raw), plansRoot),
+      )
+    )
       return null;
-    }
-    return `In plan mode, "${toolName}" was rejected automatically: path must be under the plans directory (${plansRoot}).`;
+    return `In plan mode, "${toolName}" was rejected automatically: every path must be under the plans directory (${plansRoot}).`;
   }
 
   if (toolName === FETCH_TOOL && toolInputSaveAs(toolInput)) {
@@ -192,23 +212,30 @@ function isImplicitPathAllowed(
     return true;
   }
 
-  if (toolName === WRITE_FILE_TOOL || toolName === EDIT_FILE_TOOL) {
-    const raw = toolInputPath(toolInput);
-    if (!raw) {
-      return false;
-    }
-    const resolved = normalizeUserPath(raw);
-    if (isResolvedPathInsideDir(resolved, plans)) {
-      return true;
-    }
-    // Design mode: artifact writes under `.hooman/design/` are the whole point.
-    if (
-      mode === "design" &&
-      isResolvedPathInsideDir(resolved, designArtifactsPath())
-    ) {
-      return true;
-    }
-    return false;
+  if (toolName === EDIT_FILE_TOOL || toolName === EDIT_MULTIPLE_FILES_TOOL) {
+    const paths =
+      toolName === EDIT_MULTIPLE_FILES_TOOL &&
+      toolInput &&
+      typeof toolInput === "object"
+        ? ((
+            (toolInput as { edits?: unknown }).edits as
+              Array<{ path?: unknown; new_path?: unknown }> | undefined
+          )
+            ?.flatMap((edit) => [edit.path, edit.new_path])
+            .filter(
+              (value): value is string =>
+                typeof value === "string" && value.length > 0,
+            ) ?? [])
+        : [toolInputPath(toolInput)];
+    if (paths.length === 0) return false;
+    return paths.every((raw) => {
+      const resolved = normalizeUserPath(raw);
+      return (
+        isResolvedPathInsideDir(resolved, plans) ||
+        (mode === "design" &&
+          isResolvedPathInsideDir(resolved, designArtifactsPath()))
+      );
+    });
   }
 
   return false;

@@ -2,10 +2,6 @@ export { createAskUserTools } from "./ask-user.js";
 export { createDesignPreviewTools } from "./preview.js";
 export { createExportTools } from "./export.js";
 export { createSwitchModeTool } from "./switch-mode.js";
-export {
-  createFilesystemTools,
-  clearReadTimeAgentInstructionState,
-} from "./filesystem.js";
 export { createGrepTools } from "./grep.js";
 export { createFetchTools } from "./fetch.js";
 export { createSleepTools } from "./sleep.js";

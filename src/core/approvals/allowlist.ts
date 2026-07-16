@@ -17,7 +17,7 @@ const SHELL_TOOL = "shell";
 const PATH_TOOL_KEYS: Record<string, readonly string[]> = {
   read_file: ["path"],
   read_multiple_files: ["paths"],
-  write_file: ["path"],
+  edit_multiple_files: ["edits"],
   edit_file: ["path"],
   fetch: ["save_as"],
   create_directory: ["path"],

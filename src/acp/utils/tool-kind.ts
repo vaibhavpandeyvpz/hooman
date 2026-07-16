@@ -8,8 +8,8 @@ import {
 const KNOWN_TOOL_KINDS = new Map<string, ToolKind>([
   ["read_file", "read"],
   ["read_multiple_files", "read"],
-  ["write_file", "edit"],
   ["edit_file", "edit"],
+  ["edit_multiple_files", "edit"],
   ["create_directory", "edit"],
   ["list_directory", "read"],
   ["directory_tree", "read"],

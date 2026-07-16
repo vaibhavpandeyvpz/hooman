@@ -1,4 +1,9 @@
-import { createHash } from "node:crypto";
+import {
+  applyFileEdit,
+  applyFileEdits,
+  type FileEdit,
+  getFsBackend,
+} from "./index.js";
 import fs from "node:fs/promises";
 import path from "node:path";
 import {
@@ -11,17 +16,9 @@ import {
 import { normalizeUserPath } from "../utils/normalize-user-path.js";
 import { resolveAgentInstructionsForFile } from "../prompts/runtime/agents.js";
 import {
-  setFileToolDisplay,
-  type StructuredPatchHunk,
-} from "../state/file-tool-display.js";
-import {
   readAttachmentAsBlocksOrBase64,
   type AttachmentMediaBlocks,
 } from "../utils/attachments.js";
-import {
-  findReplacementSpan,
-  unescapeModelText,
-} from "../utils/edit-replace.js";
 import { getLlmModality } from "../state/llm-modality.js";
 import type { ResolvedLlmMetadata } from "../utils/metadata.js";
 import { z } from "zod";
@@ -68,7 +65,6 @@ export function getTextFsBackend(
 const DEFAULT_READ_LIMIT = 250;
 const DEFAULT_MAX_READ_BYTES = 1024 * 1024;
 const DEFAULT_TREE_DEPTH = 4;
-const SNIPPET_RADIUS = 3;
 const FAST_READ_MAX_BYTES = 10 * 1024 * 1024;
 const STREAM_HIGH_WATER_MARK = 512 * 1024;
 const runtimeResolvedAgentInstructionPaths = new WeakMap<object, Set<string>>();
@@ -78,13 +74,41 @@ type ReadTimeAgentInstructions = {
   content: string;
 };
 
-const EditSchema = z.object({
-  oldText: z
-    .string()
-    .min(1)
-    .describe("Exact text to find. Must match uniquely."),
-  newText: z.string().describe("Replacement text."),
-});
+const FileEditSchema = z.discriminatedUnion("mode", [
+  z
+    .object({
+      path: z.string(),
+      mode: z.literal("write"),
+      content: z.string(),
+      expected_sha256: z.string().optional(),
+    })
+    .strict(),
+  z
+    .object({
+      path: z.string(),
+      mode: z.literal("edit"),
+      content: z.string(),
+      insert_at: z.number().int().min(1),
+      replace_until: z.number().int().min(1).nullable().optional(),
+      expected_sha256: z.string().optional(),
+    })
+    .strict(),
+  z
+    .object({
+      path: z.string(),
+      mode: z.literal("rename"),
+      new_path: z.string(),
+      expected_sha256: z.string().optional(),
+    })
+    .strict(),
+  z
+    .object({
+      path: z.string(),
+      mode: z.literal("delete"),
+      expected_sha256: z.string().optional(),
+    })
+    .strict(),
+]);
 
 type TreeNode = {
   name: string;
@@ -209,32 +233,6 @@ function globToRegExp(pattern: string): RegExp {
 
 function splitLines(content: string): string[] {
   return content.split(/\r?\n/);
-}
-
-function normalizeLineEndings(content: string): string {
-  return content.replaceAll("\r\n", "\n");
-}
-
-function detectLineEndings(content: string): "CRLF" | "LF" {
-  return content.includes("\r\n") ? "CRLF" : "LF";
-}
-
-function restoreLineEndings(
-  content: string,
-  lineEndings: "CRLF" | "LF",
-): string {
-  if (lineEndings === "LF") {
-    return content;
-  }
-
-  return normalizeLineEndings(content).split("\n").join("\r\n");
-}
-
-function countLines(content: string): number {
-  if (content.length === 0) {
-    return 0;
-  }
-  return splitLines(content).length;
 }
 
 function makeLineExcerpt(
@@ -518,169 +516,6 @@ async function readBinaryFile(
   });
 }
 
-function snippetAroundChange(
-  content: string,
-  index: number,
-  replacementLength: number,
-): string {
-  const before = content.slice(0, index);
-  const startLine = Math.max(0, countLines(before) - SNIPPET_RADIUS);
-  const endLine = countLines(before) + replacementLength + SNIPPET_RADIUS;
-  const lines = splitLines(content);
-  return lines.slice(startLine, endLine).join("\n");
-}
-
-function lineNumberForIndex(content: string, index: number): number {
-  let line = 1;
-  for (let i = 0; i < index; i += 1) {
-    if (content[i] === "\n") {
-      line += 1;
-    }
-  }
-
-  return line;
-}
-
-function buildPatchHunk(
-  original: string,
-  oldText: string,
-  newText: string,
-  index: number,
-): StructuredPatchHunk {
-  const originalLines = splitLines(original);
-  const oldLines = splitLines(oldText);
-  const newLines = splitLines(newText);
-  const changedLine = lineNumberForIndex(original, index);
-  const contextStart = Math.max(1, changedLine - SNIPPET_RADIUS);
-  const oldStart = contextStart;
-  const newStart = contextStart;
-  const prefixContext = originalLines.slice(contextStart - 1, changedLine - 1);
-  const oldEnd = changedLine + oldLines.length - 1;
-  const suffixContext = originalLines.slice(
-    oldEnd,
-    Math.min(originalLines.length, oldEnd + SNIPPET_RADIUS),
-  );
-  const lines = [
-    ...prefixContext.map((line) => ` ${line}`),
-    ...oldLines.map((line) => `-${line}`),
-    ...newLines.map((line) => `+${line}`),
-    ...suffixContext.map((line) => ` ${line}`),
-  ];
-
-  return {
-    oldStart,
-    oldLines: prefixContext.length + oldLines.length + suffixContext.length,
-    newStart,
-    newLines: prefixContext.length + newLines.length + suffixContext.length,
-    lines,
-  };
-}
-
-function patchLines(content: string): string[] {
-  return content.length === 0 ? [] : splitLines(content);
-}
-
-function buildContentPatchHunks(
-  original: string,
-  edited: string,
-): StructuredPatchHunk[] {
-  const oldLines = patchLines(original);
-  const newLines = patchLines(edited);
-  let prefix = 0;
-  while (
-    prefix < oldLines.length &&
-    prefix < newLines.length &&
-    oldLines[prefix] === newLines[prefix]
-  ) {
-    prefix += 1;
-  }
-
-  let oldEnd = oldLines.length - 1;
-  let newEnd = newLines.length - 1;
-  while (
-    oldEnd >= prefix &&
-    newEnd >= prefix &&
-    oldLines[oldEnd] === newLines[newEnd]
-  ) {
-    oldEnd -= 1;
-    newEnd -= 1;
-  }
-
-  if (oldEnd < prefix && newEnd < prefix) {
-    return [];
-  }
-
-  const contextStart = Math.max(0, prefix - SNIPPET_RADIUS);
-  const oldSuffixStart = oldEnd + 1;
-  const oldSuffixEnd = Math.min(
-    oldLines.length,
-    oldSuffixStart + SNIPPET_RADIUS,
-  );
-  const prefixContext = oldLines.slice(contextStart, prefix);
-  const removed = oldLines.slice(prefix, oldEnd + 1);
-  const added = newLines.slice(prefix, newEnd + 1);
-  const suffixContext = oldLines.slice(oldSuffixStart, oldSuffixEnd);
-
-  return [
-    {
-      oldStart: contextStart + 1,
-      oldLines: prefixContext.length + removed.length + suffixContext.length,
-      newStart: contextStart + 1,
-      newLines: prefixContext.length + added.length + suffixContext.length,
-      lines: [
-        ...prefixContext.map((line) => ` ${line}`),
-        ...removed.map((line) => `-${line}`),
-        ...added.map((line) => `+${line}`),
-        ...suffixContext.map((line) => ` ${line}`),
-      ],
-    },
-  ];
-}
-
-function applyEdits(
-  original: string,
-  edits: Array<z.infer<typeof EditSchema>>,
-): {
-  content: string;
-  replacements: Array<{
-    index: number;
-    snippet: string;
-    hunk: StructuredPatchHunk;
-  }>;
-} {
-  let current = original;
-  const replacements: Array<{
-    index: number;
-    snippet: string;
-    hunk: StructuredPatchHunk;
-  }> = [];
-
-  for (const edit of edits) {
-    // Compare against the file's normalized (LF) form so line endings never
-    // cause a spurious mismatch. The tolerant matcher returns the exact span
-    // present in the file, which we splice and diff for byte-accurate output.
-    const oldText = normalizeLineEndings(edit.oldText);
-    let newText = normalizeLineEndings(edit.newText);
-    const { index, text: matched } = findReplacementSpan(current, oldText);
-    // If the target only matched after unescaping (the model over-escaped its
-    // JSON tool arguments), the replacement carries the same over-escaping.
-    if (matched !== oldText && matched === unescapeModelText(oldText)) {
-      newText = unescapeModelText(newText);
-    }
-    const previous = current;
-    current =
-      current.slice(0, index) + newText + current.slice(index + matched.length);
-
-    replacements.push({
-      index,
-      snippet: snippetAroundChange(current, index, countLines(newText)),
-      hunk: buildPatchHunk(previous, matched, newText, index),
-    });
-  }
-
-  return { content: current, replacements };
-}
-
 async function walkDirectory(
   dirPath: string,
   options?: {
@@ -818,25 +653,9 @@ function createFilesystemSchema() {
           "Read each path as binary. Images, videos, and documents become multimodal content blocks (when the model supports them); other binaries come back as base64. Offset/limit are ignored when binary is true.",
         ),
     }),
-    writeFile: z.object({
-      path: z.string().describe("File path to write."),
-      content: z.string().describe("Content to write."),
-      append: z.boolean().optional().describe("Append instead of overwrite."),
-      create_parents: z
-        .boolean()
-        .optional()
-        .describe("Create parent directories if needed."),
-    }),
-    editFile: z.object({
-      path: z.string().describe("File path to edit."),
-      edits: z
-        .array(EditSchema)
-        .min(1)
-        .describe("Exact text replacements to apply in order."),
-      dry_run: z
-        .boolean()
-        .optional()
-        .describe("Preview edits without writing the file."),
+    editFile: FileEditSchema,
+    editMultipleFiles: z.object({
+      edits: z.array(FileEditSchema).min(1).max(100),
     }),
     createDirectory: z.object({
       path: z.string().describe("Directory path to create."),
@@ -983,144 +802,44 @@ export function createFilesystemTools() {
       },
     }),
     tool({
-      name: "write_file",
+      name: "edit_file",
       description:
-        "Write text content to a file. Can overwrite or append, and can create parent directories when requested.",
-      inputSchema: schema.writeFile,
+        "Create, overwrite, edit line ranges, rename, or delete one file.",
+      inputSchema: schema.editFile,
       callback: async (input, context?: ToolContext) => {
-        const filePath = normalizeUserPath(input.path);
-        const backend = getTextFsBackend(context?.agent);
-
-        // The host creates the file on write; only manage parents locally.
-        if (!backend?.canWrite && (input.create_parents ?? true)) {
-          await fs.mkdir(path.dirname(filePath), { recursive: true });
-        }
-
-        let oldContent = "";
-        let fileExisted = false;
-        try {
-          oldContent = normalizeLineEndings(
-            backend?.canRead
-              ? await backend.readTextFile(filePath)
-              : await fs.readFile(filePath, "utf8"),
-          );
-          fileExisted = true;
-        } catch {
-          oldContent = "";
-        }
-
-        const newContent = input.append
-          ? `${oldContent}${normalizeLineEndings(input.content)}`
-          : normalizeLineEndings(input.content);
-
-        if (backend?.canWrite) {
-          await backend.writeTextFile(
-            filePath,
-            input.append ? `${oldContent}${input.content}` : input.content,
-          );
-        } else if (input.append) {
-          await fs.appendFile(filePath, input.content, "utf8");
-        } else {
-          await fs.writeFile(filePath, input.content, "utf8");
-        }
-        const structuredPatch = buildContentPatchHunks(oldContent, newContent);
-        if (structuredPatch.length > 0) {
-          if (context) {
-            setFileToolDisplay(
-              context.agent.appState,
-              context.toolUse.toolUseId,
-              {
-                structuredPatch,
-                path: filePath,
-                oldText: fileExisted ? oldContent : null,
-                newText: newContent,
-              },
-            );
-          }
-        }
-
-        return toJsonValue({
-          path: filePath,
-          appended: input.append ?? false,
-          bytes_written: Buffer.byteLength(input.content, "utf8"),
-        });
+        const edit = input as FileEdit;
+        const normalized: FileEdit = {
+          ...edit,
+          path: normalizeUserPath(edit.path),
+          ...(edit.mode === "rename"
+            ? { new_path: normalizeUserPath(edit.new_path) }
+            : {}),
+        } as FileEdit;
+        const result = await applyFileEdit(
+          getFsBackend(context?.agent),
+          normalized,
+        );
+        return toJsonValue(result);
       },
     }),
     tool({
-      name: "edit_file",
+      name: "edit_multiple_files",
       description:
-        "Apply text replacements to a file. Prefer exact matches; whitespace, indentation, and line endings are tolerated when they don't make the target ambiguous. Fails if a target is missing or matches more than one place.",
-      inputSchema: schema.editFile,
+        "Apply ordered create, overwrite, line-range edit, rename, or delete operations to multiple files.",
+      inputSchema: schema.editMultipleFiles,
       callback: async (input, context?: ToolContext) => {
-        const filePath = normalizeUserPath(input.path);
-        const backend = getTextFsBackend(context?.agent);
-
-        // When the host owns the file (incl. unsaved edits) it is authoritative,
-        // so we read through it and skip the local mtime staleness check.
-        let rawOriginal: string;
-        if (backend?.canRead) {
-          rawOriginal = await backend.readTextFile(filePath);
-        } else {
-          const stat = await statFile(filePath);
-          const previousRead = textReadState.get(filePath);
-          rawOriginal = await fs.readFile(filePath, "utf8");
-          const original = normalizeLineEndings(rawOriginal);
-          if (previousRead && stat.mtimeMs > previousRead.mtimeMs) {
-            const fullReadWasUnchanged =
-              !previousRead.isPartial && previousRead.content === original;
-            if (!fullReadWasUnchanged) {
-              throw new Error(
-                "File changed since it was last read. Read the file again before editing.",
-              );
-            }
-          }
-        }
-        const lineEndings = detectLineEndings(rawOriginal);
-        const original = normalizeLineEndings(rawOriginal);
-
-        const edited = applyEdits(original, input.edits);
-        const contentToWrite = restoreLineEndings(edited.content, lineEndings);
-
-        if (!input.dry_run) {
-          if (backend?.canWrite) {
-            await backend.writeTextFile(filePath, contentToWrite);
-          } else {
-            await fs.writeFile(filePath, contentToWrite, "utf8");
-            const updatedStat = await fs.stat(filePath);
-            textReadState.set(filePath, {
-              content: edited.content,
-              mtimeMs: updatedStat.mtimeMs,
-              offset: 1,
-              limit: undefined,
-              isPartial: false,
-            });
-          }
-        }
-
-        if (context) {
-          setFileToolDisplay(
-            context.agent.appState,
-            context.toolUse.toolUseId,
-            {
-              previews: edited.replacements.map((item) => item.snippet),
-              structuredPatch: edited.replacements.map((item) => item.hunk),
-              path: filePath,
-              oldText: original,
-              newText: edited.content,
-            },
-          );
-        }
-
-        return toJsonValue({
-          path: filePath,
-          dry_run: input.dry_run ?? false,
-          edits_applied: input.edits.length,
-          changed: edited.content !== original,
-          sha256_before: createHash("sha256").update(original).digest("hex"),
-          sha256_after: createHash("sha256")
-            .update(edited.content)
-            .digest("hex"),
-        });
+        const edits = input.edits.map((edit) => ({
+          ...edit,
+          path: normalizeUserPath(edit.path),
+          ...(edit.mode === "rename"
+            ? { new_path: normalizeUserPath(edit.new_path) }
+            : {}),
+        })) as FileEdit[];
+        const results = await applyFileEdits(
+          getFsBackend(context?.agent),
+          edits,
+        );
+        return toJsonValue({ edits: results, count: results.length });
       },
     }),
     tool({

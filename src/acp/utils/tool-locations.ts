@@ -3,8 +3,8 @@ import type { ToolCallLocation } from "@agentclientprotocol/sdk";
 const KNOWN_TOOL_LOCATION_KEYS = new Map<string, readonly string[]>([
   ["read_file", ["path"]],
   ["read_multiple_files", ["paths"]],
-  ["write_file", ["path"]],
-  ["edit_file", ["path"]],
+  ["edit_file", ["path", "new_path"]],
+  ["edit_multiple_files", ["edits"]],
   ["create_directory", ["path"]],
   ["list_directory", ["path"]],
   ["directory_tree", ["path"]],
@@ -26,6 +26,18 @@ export function toolCallLocationsFromInput(
     return undefined;
   }
   const o = input as Record<string, unknown>;
+  if (toolName === "edit_multiple_files") {
+    const edits = Array.isArray(o.edits) ? o.edits : [];
+    const paths = edits.flatMap((edit) => {
+      if (!edit || typeof edit !== "object") return [];
+      const operation = edit as Record<string, unknown>;
+      return [operation.path, operation.new_path].filter(
+        (value): value is string =>
+          typeof value === "string" && value.length > 0,
+      );
+    });
+    return paths.length > 0 ? paths.map((path) => ({ path })) : undefined;
+  }
   const paths: string[] = [];
   for (const key of keys) {
     const v = o[key];

@@ -140,7 +140,6 @@ export { PrefixedMcpTool } from "./core/mcp/prefixed-mcp-tool.js";
 export {
   createAskUserTools,
   createFetchTools,
-  createFilesystemTools,
   createGrepTools,
   createSleepTools,
   createThinkingTools,
@@ -183,7 +182,11 @@ export {
   setTextFsBackend,
   type TextFsBackend,
   type TextFsReadOptions,
-} from "./core/tools/filesystem.js";
+} from "./core/filesystem/index.js";
+export {
+  createFilesystemTools,
+  clearReadTimeAgentInstructionState,
+} from "./core/filesystem/tools.js";
 
 export {
   AGENT_SKILLS_STATE_KEY,

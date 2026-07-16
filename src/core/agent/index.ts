@@ -12,6 +12,10 @@ import {
 import { ContextOffloader } from "@strands-agents/sdk/vended-plugins/context-offloader";
 import type { Tool } from "@strands-agents/sdk";
 import { type Config } from "../config.js";
+import {
+  createFilesystemTools,
+  clearReadTimeAgentInstructionState,
+} from "../filesystem/tools.js";
 import type { LlmOptions } from "../models/types.js";
 import { FileMemoryStore } from "../memory/index.js";
 import { ToolBasedModelExtractor } from "../memory/model-extractor.js";
@@ -32,9 +36,7 @@ import {
   createExportTools,
   createTodoTools,
   createFetchTools,
-  createFilesystemTools,
   createGrepTools,
-  clearReadTimeAgentInstructionState,
   createSwitchModeTool,
   createSleepTools,
   createThinkingTools,

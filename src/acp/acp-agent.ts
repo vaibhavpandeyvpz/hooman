@@ -127,7 +127,11 @@ import { getTodoViewState } from "../core/state/todos.js";
 import { UPDATE_TODOS_TOOL_NAME } from "../core/tools/todo.js";
 import { setAskUserBackend } from "../core/tools/ask-user.js";
 import { setBrowserPreviewBackend } from "../core/utils/browser.js";
-import { setTextFsBackend } from "../core/tools/filesystem.js";
+import {
+  RemoteFsBackend,
+  setFsBackend,
+  setTextFsBackend,
+} from "../core/filesystem/index.js";
 import {
   setTerminalBackend,
   type TerminalRunRequest,
@@ -2088,10 +2092,13 @@ export class HoomanAcpAgent {
     if (!caps || (!caps.readTextFile && !caps.writeTextFile)) {
       return;
     }
-    setTextFsBackend(agent, {
+    const backend = {
       canRead: caps.readTextFile === true,
       canWrite: caps.writeTextFile === true,
-      readTextFile: async (filePath, options) => {
+      readTextFile: async (
+        filePath: string,
+        options?: { line?: number; limit?: number },
+      ) => {
         const response = await client.request(methods.client.fs.readTextFile, {
           sessionId,
           path: filePath,
@@ -2100,14 +2107,16 @@ export class HoomanAcpAgent {
         });
         return response.content;
       },
-      writeTextFile: async (filePath, content) => {
+      writeTextFile: async (filePath: string, content: string) => {
         await client.request(methods.client.fs.writeTextFile, {
           sessionId,
           path: filePath,
           content,
         });
       },
-    });
+    };
+    setTextFsBackend(agent, backend);
+    setFsBackend(agent, new RemoteFsBackend(backend));
   }
 
   #subscribeSubagentUsage(
