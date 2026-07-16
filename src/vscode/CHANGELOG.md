@@ -2,6 +2,11 @@
 
 All notable changes to the Hooman VS Code extension are documented in this file.
 
+## [1.58.1]
+
+- Fix diff rendering so line numbers appear in a single column instead of duplicated old/new columns.
+- Correct the `edit_multiple_files` documentation to list `insert` among its supported operations.
+
 ## [1.58.0]
 
 - Show line numbers in chat diffs and surface diffs for multiple filesystem edits.
