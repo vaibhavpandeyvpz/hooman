@@ -24,7 +24,9 @@ import {
   removeAttachment,
   resolveDropped,
   sessionState,
+  setComposerText,
   setConfigOption,
+  state,
   submitPrompt,
 } from "../store";
 import {
@@ -49,9 +51,10 @@ function bytesToBase64(buffer: ArrayBuffer): string {
   return btoa(binary);
 }
 
-async function stageFileObject(file: File): Promise<void> {
+async function stageFileObject(sessionId: string, file: File): Promise<void> {
   const base64 = bytesToBase64(await file.arrayBuffer());
   addDataAttachment(
+    sessionId,
     file.name || "attachment",
     file.type || "application/octet-stream",
     base64,
@@ -73,12 +76,12 @@ function fileUrisFromDrop(dataTransfer: DataTransfer): string[] {
 }
 
 export default function Composer() {
-  const [text, setText] = createSignal("");
   const [slashIndex, setSlashIndex] = createSignal(0);
   const [dragging, setDragging] = createSignal(false);
   let textareaRef: HTMLTextAreaElement | undefined;
 
   const loading = () => isActiveSessionLoading();
+  const text = () => sessionState().composerText;
 
   const matchingCommands = createMemo(() => {
     const value = text();
@@ -119,7 +122,7 @@ export default function Composer() {
     if (draft === null) {
       return;
     }
-    setText(draft);
+    setComposerText(draft);
     clearEditDraft();
     queueMicrotask(() => {
       autoresize();
@@ -131,13 +134,11 @@ export default function Composer() {
     if (loading()) {
       return;
     }
-    const value = text();
-    if (!value.trim() && sessionState().attachments.length === 0) {
+    if (!text().trim() && sessionState().attachments.length === 0) {
       return;
     }
     // While busy this queues instead of starting a new turn immediately.
-    submitPrompt(value);
-    setText("");
+    submitPrompt();
     queueMicrotask(autoresize);
   }
 
@@ -148,7 +149,8 @@ export default function Composer() {
       return;
     }
     const dataTransfer = event.dataTransfer;
-    if (!dataTransfer) {
+    const sessionId = state.activeSessionId;
+    if (!dataTransfer || !sessionId) {
       return;
     }
     // Prefer path-backed URIs (VS Code explorer, some OS drags): the host can
@@ -156,11 +158,11 @@ export default function Composer() {
     // File payloads (plain OS drops), where only the bytes are available.
     const uris = fileUrisFromDrop(dataTransfer);
     if (uris.length > 0) {
-      resolveDropped(uris);
+      resolveDropped(sessionId, uris);
       return;
     }
     for (const file of Array.from(dataTransfer.files)) {
-      void stageFileObject(file);
+      void stageFileObject(sessionId, file);
     }
   }
 
@@ -172,9 +174,13 @@ export default function Composer() {
     if (files.length === 0) {
       return;
     }
+    const sessionId = state.activeSessionId;
+    if (!sessionId) {
+      return;
+    }
     event.preventDefault();
     for (const file of files) {
-      void stageFileObject(file);
+      void stageFileObject(sessionId, file);
     }
   }
 
@@ -182,7 +188,7 @@ export default function Composer() {
     if (loading()) {
       return;
     }
-    setText(`/${name} `);
+    setComposerText(`/${name} `);
     textareaRef?.focus();
   }
 
@@ -207,7 +213,7 @@ export default function Composer() {
         return;
       }
       if (event.key === "Escape") {
-        setText("");
+        setComposerText("");
         return;
       }
     }
@@ -291,7 +297,7 @@ export default function Composer() {
           class="max-h-40 min-h-[22px] w-full resize-none border-none bg-transparent text-[13px] leading-relaxed text-input-foreground outline-none placeholder:text-muted disabled:cursor-not-allowed disabled:opacity-60"
           value={text()}
           onInput={(event) => {
-            setText(event.currentTarget.value);
+            setComposerText(event.currentTarget.value);
             setSlashIndex(0);
             autoresize();
           }}

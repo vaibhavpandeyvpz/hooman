@@ -140,8 +140,8 @@ export class HoomanChatViewProvider
   /** Whether the webview's Sessions panel is open (gates live list refreshes). */
   #sessionsPanelOpen = false;
   #sessionsRefreshTimer: NodeJS.Timeout | undefined;
-  /** Attachments staged before the webview was ready to receive messages. */
-  #pendingComposerAttachments: AttachmentInfo[] = [];
+  /** Attachments staged before the webview was ready, keyed by target session. */
+  #pendingComposerAttachments = new Map<string, AttachmentInfo[]>();
   /** Startup failure retained until the webview acknowledges readiness. */
   #pendingStartupError: { sessionId: string; message: string } | null = null;
   /** Sessions with a cancellation notification in flight. */
@@ -656,10 +656,17 @@ export class HoomanChatViewProvider
     uris: readonly vscode.Uri[],
     options?: { newChat?: boolean },
   ): Promise<void> {
+    if (options?.newChat) {
+      this.newChat();
+    }
+    const sessionId = this.#sessionId;
+    if (!sessionId) {
+      return;
+    }
     const attachments = await this.#resolveUriAttachments(
       uris.map((uri) => uri.toString()),
     );
-    this.#stageComposerAttachments(attachments, options);
+    this.#stageComposerAttachments(sessionId, attachments);
   }
 
   /** Stage an active editor's selection as a ranged composer attachment. */
@@ -674,33 +681,36 @@ export class HoomanChatViewProvider
     const start = selection.start.line + 1;
     const end = selection.end.line + 1;
     const path = editor.document.uri.fsPath;
-    this.#stageComposerAttachments(
-      [
-        {
-          id: randomUUID(),
-          name: `${basename(path)} (${start}-${end})`,
-          kind: "file",
-          path,
-          range: { start, end },
-        },
-      ],
-      options,
-    );
+    if (options?.newChat) {
+      this.newChat();
+    }
+    const sessionId = this.#sessionId;
+    if (!sessionId) {
+      return;
+    }
+    this.#stageComposerAttachments(sessionId, [
+      {
+        id: randomUUID(),
+        name: `${basename(path)} (${start}-${end})`,
+        kind: "file",
+        path,
+        range: { start, end },
+      },
+    ]);
   }
 
   #stageComposerAttachments(
+    requestedSessionId: string,
     attachments: AttachmentInfo[],
-    options?: { newChat?: boolean },
   ): void {
     if (attachments.length === 0) {
       return;
     }
-    if (options?.newChat) {
-      this.#pendingComposerAttachments = attachments;
-      this.newChat();
-    } else {
-      this.#pendingComposerAttachments.push(...attachments);
-    }
+    const sessionId =
+      this.#adoptedSessionIds.get(requestedSessionId) ?? requestedSessionId;
+    const staged = this.#pendingComposerAttachments.get(sessionId) ?? [];
+    staged.push(...attachments);
+    this.#pendingComposerAttachments.set(sessionId, staged);
     this.focus();
     this.#flushPendingComposerAttachments();
   }
@@ -711,8 +721,12 @@ export class HoomanChatViewProvider
     value: string | boolean,
     isBoolean: boolean,
   ): Promise<void> {
+    if (!this.#sessionId) {
+      return;
+    }
     await this.#setConfigOption({
       type: "setConfigOption",
+      sessionId: this.#sessionId,
       configId,
       value,
       boolean: isBoolean,
@@ -721,7 +735,10 @@ export class HoomanChatViewProvider
 
   /** Submit a prompt from host-side UI integrations. */
   submitPrompt(text: string): void {
-    this.#submitOrQueue(text, []);
+    if (!this.#sessionId) {
+      return;
+    }
+    this.#submitOrQueue(this.#sessionId, text, []);
     this.focus();
   }
 
@@ -872,16 +889,20 @@ export class HoomanChatViewProvider
         this.#flushPendingComposerAttachments();
         return;
       case "prompt":
-        this.#submitOrQueue(message.text, message.attachments ?? []);
+        this.#submitOrQueue(
+          message.sessionId,
+          message.text,
+          message.attachments ?? [],
+        );
         return;
       case "revert":
         await this.#revert(message.messageId);
         return;
       case "pickFiles":
-        await this.#pickFiles();
+        await this.#pickFiles(message.sessionId);
         return;
       case "resolveDropped":
-        await this.#resolveDropped(message.uris);
+        await this.#resolveDropped(message.sessionId, message.uris);
         return;
       case "openAttachment":
         await this.#openAttachment(message.attachment);
@@ -890,7 +911,7 @@ export class HoomanChatViewProvider
         await this.#openLink(message.href);
         return;
       case "cancel":
-        await this.#cancel();
+        await this.#cancel(message.sessionId);
         return;
       case "stopShellJob":
         await this.#stopShellJob(message.sessionId, message.jobId);
@@ -1285,7 +1306,12 @@ export class HoomanChatViewProvider
         cwd: placeholderState.cwd,
         mcpServers: [],
       });
-
+      if (!this.#sessions.has(sessionId)) {
+        await agent.request(methods.agent.session.close, {
+          sessionId: response.sessionId,
+        });
+        return null;
+      }
       this.#adoptSession(
         sessionId,
         response.sessionId,
@@ -1313,8 +1339,19 @@ export class HoomanChatViewProvider
     state.configOptions = [...configOptions];
     state.pendingUpdates = [];
     this.#pendingUpdates = [];
+    const pendingAttachments =
+      this.#pendingComposerAttachments.get(placeholderSessionId);
+    if (pendingAttachments) {
+      this.#pendingComposerAttachments.delete(placeholderSessionId);
+      this.#pendingComposerAttachments.set(sessionId, pendingAttachments);
+    }
     this.#replaceSessionId(placeholderSessionId, sessionId);
     this.#post({ type: "clear", sessionId });
+    this.#post({
+      type: "sessionAdopted",
+      previousSessionId: placeholderSessionId,
+      sessionId,
+    });
     if (this.#sessionId === sessionId) {
       this.#configOptions = [...configOptions];
       this.#sessionTitle = state.title;
@@ -1352,22 +1389,24 @@ export class HoomanChatViewProvider
     this.#flushPendingComposerAttachments();
     this.#persistTabs();
     this.#syncStatus();
-    void this.#flushPendingConfigOptions();
+    void this.#flushPendingConfigOptions(sessionId);
   }
 
   /** Apply config picks that were made while session creation was in flight. */
-  async #flushPendingConfigOptions(): Promise<void> {
-    const pending = [...this.#pendingConfigOptions.entries()];
-    this.#pendingConfigOptions.clear();
-    if (this.#sessionId) {
-      const state = this.#sessions.get(this.#sessionId);
-      if (state) {
-        state.pendingConfigOptions.clear();
-      }
+  async #flushPendingConfigOptions(sessionId: string): Promise<void> {
+    const state = this.#sessions.get(sessionId);
+    if (!state) {
+      return;
+    }
+    const pending = [...state.pendingConfigOptions.entries()];
+    state.pendingConfigOptions.clear();
+    if (this.#sessionId === sessionId) {
+      this.#pendingConfigOptions.clear();
     }
     for (const [configId, pick] of pending) {
       await this.#setConfigOption({
         type: "setConfigOption",
+        sessionId,
         configId,
         value: pick.value,
         boolean: pick.boolean,
@@ -1472,9 +1511,13 @@ export class HoomanChatViewProvider
     return succeeded;
   }
 
-  async #cancel(): Promise<void> {
-    const sessionId = this.#sessionId;
-    if (!sessionId || this.#cancellingSessions.has(sessionId)) {
+  async #cancel(requestedSessionId: string): Promise<void> {
+    const sessionId =
+      this.#adoptedSessionIds.get(requestedSessionId) ?? requestedSessionId;
+    if (
+      !this.#sessions.has(sessionId) ||
+      this.#cancellingSessions.has(sessionId)
+    ) {
       return;
     }
     this.#cancellingSessions.add(sessionId);
@@ -1618,21 +1661,24 @@ export class HoomanChatViewProvider
   // ---- Prompt queue & steering ---------------------------------------------
 
   /** Route a submitted prompt: start a turn immediately, or queue it if one is already running. */
-  #submitOrQueue(text: string, attachments: AttachmentInfo[]): void {
+  #submitOrQueue(
+    requestedSessionId: string,
+    text: string,
+    attachments: AttachmentInfo[],
+  ): void {
+    const sessionId =
+      this.#adoptedSessionIds.get(requestedSessionId) ?? requestedSessionId;
+    const state = this.#sessions.get(sessionId);
     const trimmed = text.trim();
-    if (!trimmed && attachments.length === 0) {
+    if (!state || (!trimmed && attachments.length === 0)) {
       return;
     }
-    if (!this.#busy) {
-      void this.#prompt(trimmed, attachments);
-      return;
-    }
-    const state = this.#activeSessionState();
-    if (!state) {
+    if (!state.busy) {
+      void this.#prompt(trimmed, attachments, { sessionId });
       return;
     }
     state.queue.push({ id: randomUUID(), text: trimmed, attachments });
-    this.#postQueue();
+    this.#postQueue(sessionId);
   }
 
   #activeSessionState(): SessionHostState | undefined {
@@ -1730,7 +1776,7 @@ export class HoomanChatViewProvider
   // ---- Attachments ----------------------------------------------------------
 
   /** Native file browser for the composer's paperclip button. */
-  async #pickFiles(): Promise<void> {
+  async #pickFiles(sessionId: string): Promise<void> {
     const uris = await vscode.window.showOpenDialog({
       canSelectMany: true,
       canSelectFiles: true,
@@ -1742,7 +1788,10 @@ export class HoomanChatViewProvider
     if (!uris?.length) {
       return;
     }
-    await this.#resolveDropped(uris.map((uri) => uri.toString()));
+    await this.#resolveDropped(
+      sessionId,
+      uris.map((uri) => uri.toString()),
+    );
   }
 
   /**
@@ -1750,16 +1799,19 @@ export class HoomanChatViewProvider
    * attachment descriptors — stat'ing to distinguish files from folders —
    * and hand them to the webview to stage as composer chips.
    */
-  async #resolveDropped(uriStrings: string[]): Promise<void> {
+  async #resolveDropped(
+    requestedSessionId: string,
+    uriStrings: string[],
+  ): Promise<void> {
     const attachments = await this.#resolveUriAttachments(uriStrings);
-    if (attachments.length > 0) {
-      if (this.#sessionId) {
-        this.#post({
-          type: "attachments",
-          sessionId: this.#sessionId,
-          attachments,
-        });
-      }
+    const sessionId =
+      this.#adoptedSessionIds.get(requestedSessionId) ?? requestedSessionId;
+    if (attachments.length > 0 && this.#sessions.has(sessionId)) {
+      this.#post({
+        type: "attachments",
+        sessionId,
+        attachments,
+      });
     }
   }
 
@@ -1926,26 +1978,35 @@ export class HoomanChatViewProvider
   async #setConfigOption(
     message: Extract<InboundMessage, { type: "setConfigOption" }>,
   ): Promise<void> {
-    if (!this.#sessionId || this.#isPendingSessionId(this.#sessionId)) {
-      // Session creation is still in flight — remember the pick and apply it
-      // once the session exists (see #adoptSession).
-      this.#pendingConfigOptions.set(message.configId, {
+    const requestedSessionId = message.sessionId;
+    const sessionId =
+      this.#adoptedSessionIds.get(requestedSessionId) ?? requestedSessionId;
+    const state = this.#sessions.get(sessionId);
+    if (!state) {
+      return;
+    }
+    if (this.#isPendingSessionId(sessionId)) {
+      const pending = {
         value: message.value,
         boolean: message.boolean ?? false,
-      });
+      };
+      state.pendingConfigOptions.set(message.configId, pending);
+      if (this.#sessionId === sessionId) {
+        this.#pendingConfigOptions.set(message.configId, pending);
+      }
       return;
     }
     try {
       const agent = await this.client.ensureStarted();
       const request: SetSessionConfigOptionRequest = message.boolean
         ? {
-            sessionId: this.#sessionId,
+            sessionId,
             configId: message.configId,
             type: "boolean",
             value: Boolean(message.value),
           }
         : {
-            sessionId: this.#sessionId,
+            sessionId,
             configId: message.configId,
             value: String(message.value),
           };
@@ -1953,27 +2014,22 @@ export class HoomanChatViewProvider
         methods.agent.session.setConfigOption,
         request,
       );
-      this.#configOptions = response.configOptions ?? this.#configOptions;
-      if (this.#sessionId) {
-        const state = this.#sessions.get(this.#sessionId);
-        if (state) {
-          state.configOptions = [...this.#configOptions];
-        }
-        this.#post({
-          type: "configOptions",
-          sessionId: this.#sessionId,
-          configOptions: this.#configOptions,
-        });
+      state.configOptions = response.configOptions ?? state.configOptions;
+      if (this.#sessionId === sessionId) {
+        this.#configOptions = [...state.configOptions];
       }
+      this.#post({
+        type: "configOptions",
+        sessionId,
+        configOptions: state.configOptions,
+      });
       this.#syncStatus();
     } catch (error) {
-      if (this.#sessionId) {
-        this.#post({
-          type: "error",
-          sessionId: this.#sessionId,
-          message: `Failed to set option: ${describe(error)}`,
-        });
-      }
+      this.#post({
+        type: "error",
+        sessionId,
+        message: `Failed to set option: ${describe(error)}`,
+      });
     }
   }
 
@@ -2549,20 +2605,25 @@ export class HoomanChatViewProvider
   }
 
   #flushPendingComposerAttachments(): void {
-    if (
-      !this.#webviewReady ||
-      this.#pendingComposerAttachments.length === 0 ||
-      !this.#sessionId
-    ) {
+    if (!this.#webviewReady) {
       return;
     }
-    const attachments = this.#pendingComposerAttachments;
-    this.#pendingComposerAttachments = [];
-    this.#post({
-      type: "attachments",
-      sessionId: this.#sessionId,
-      attachments,
-    });
+    for (const [requestedSessionId, attachments] of [
+      ...this.#pendingComposerAttachments,
+    ]) {
+      const sessionId =
+        this.#adoptedSessionIds.get(requestedSessionId) ?? requestedSessionId;
+      if (!this.#sessions.has(sessionId)) {
+        this.#pendingComposerAttachments.delete(requestedSessionId);
+        continue;
+      }
+      this.#pendingComposerAttachments.delete(requestedSessionId);
+      this.#post({
+        type: "attachments",
+        sessionId,
+        attachments,
+      });
+    }
   }
 
   /** Session title lives in the view header (not the composer) and the status bar tooltip. */

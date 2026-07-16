@@ -126,6 +126,7 @@ type SessionUiState = {
   download: ModelDownloadInfo | null;
   retry: ModelRetryInfo | null;
   queue: QueuedPromptInfo[];
+  composerText: string;
   editDraft: string | null;
   attachments: AttachmentInfo[];
   loadingSession: string | null;
@@ -175,6 +176,7 @@ function createSessionState(): SessionUiState {
     download: null,
     retry: null,
     queue: [],
+    composerText: "",
     editDraft: null,
     attachments: [],
     loadingSession: null,
@@ -232,6 +234,11 @@ export function onboardingStatus(): string | null {
 }
 
 const runtimes = new Map<string, SessionRuntime>();
+const adoptedSessionIds = new Map<string, string>();
+
+function resolveSessionId(sessionId: string): string {
+  return adoptedSessionIds.get(sessionId) ?? sessionId;
+}
 
 function activeSessionId(): string | null {
   return state.activeSessionId;
@@ -763,6 +770,7 @@ function resolvePermission(
 
 function clearChat(sessionId: string): void {
   ensureSession(sessionId);
+  const current = state.sessions[sessionId];
   const runtime = getRuntime(sessionId);
   runtime.hiddenToolCalls.clear();
   runtime.openStreamId = null;
@@ -771,7 +779,12 @@ function clearChat(sessionId: string): void {
   runtime.openUserItemId = null;
   runtime.pendingPermissions.clear();
   runtime.retryItemId = null;
-  setState("sessions", sessionId, createSessionState());
+  setState("sessions", sessionId, {
+    ...createSessionState(),
+    composerText: current.composerText,
+    editDraft: current.editDraft,
+    attachments: [...current.attachments],
+  });
 }
 
 onHostMessage((msg) => {
@@ -809,6 +822,48 @@ onHostMessage((msg) => {
         );
       }
       break;
+    case "sessionAdopted": {
+      const previous = state.sessions[msg.previousSessionId];
+      const runtime = runtimes.get(msg.previousSessionId);
+      adoptedSessionIds.set(msg.previousSessionId, msg.sessionId);
+      ensureSession(msg.sessionId);
+      if (previous) {
+        setState(
+          "sessions",
+          msg.sessionId,
+          "composerText",
+          previous.composerText,
+        );
+        setState("sessions", msg.sessionId, "editDraft", previous.editDraft);
+        setState("sessions", msg.sessionId, "attachments", [
+          ...previous.attachments,
+        ]);
+        setState(
+          "sessions",
+          produce((sessions) => {
+            delete sessions[msg.previousSessionId];
+          }),
+        );
+      }
+      if (runtime) {
+        runtimes.set(msg.sessionId, runtime);
+        runtimes.delete(msg.previousSessionId);
+      }
+      setState(
+        "tabs",
+        produce((tabs) => {
+          for (const tab of tabs) {
+            if (tab.sessionId === msg.previousSessionId) {
+              tab.sessionId = msg.sessionId;
+            }
+          }
+        }),
+      );
+      if (state.activeSessionId === msg.previousSessionId) {
+        setState("activeSessionId", msg.sessionId);
+      }
+      break;
+    }
     case "route":
       setState("route", msg.route);
       break;
@@ -980,14 +1035,14 @@ onHostMessage((msg) => {
 
 post({ type: "ready" });
 
-export function submitPrompt(text: string): void {
+export function submitPrompt(): void {
   const sessionId = activeSessionId();
   if (!sessionId) {
     return;
   }
   ensureSession(sessionId);
   const session = activeSession();
-  const trimmed = text.trim();
+  const trimmed = session.composerText.trim();
   const attachments = session.attachments.map((attachment) => ({
     ...attachment,
   }));
@@ -997,9 +1052,10 @@ export function submitPrompt(text: string): void {
   if (!session.busy) {
     addUserMessage(sessionId, trimmed, attachments);
   }
+  setState("sessions", sessionId, "composerText", "");
   setState("sessions", sessionId, "attachments", []);
   requestStickToBottom();
-  post({ type: "prompt", text: trimmed, attachments });
+  post({ type: "prompt", sessionId, text: trimmed, attachments });
 }
 
 /**
@@ -1039,7 +1095,7 @@ export function cancelPrompt(): void {
     return;
   }
   setState("sessions", sessionId, "stopping", true);
-  post({ type: "cancel" });
+  post({ type: "cancel", sessionId });
   markUnfinishedToolCallsCancelled(sessionId);
 }
 
@@ -1116,33 +1172,42 @@ export function clearEditDraft(): void {
   setState("sessions", sessionId, "editDraft", null);
 }
 
+export function setComposerText(text: string): void {
+  const sessionId = activeSessionId();
+  if (!sessionId) {
+    return;
+  }
+  setState("sessions", sessionId, "composerText", text);
+}
+
 export function prefillComposer(text: string): void {
   const sessionId = activeSessionId();
   if (!sessionId) {
     return;
   }
-  setState("sessions", sessionId, "editDraft", text);
+  setState("sessions", sessionId, "composerText", text);
 }
 
 export function pickFiles(): void {
-  post({ type: "pickFiles" });
+  const sessionId = activeSessionId();
+  if (sessionId) {
+    post({ type: "pickFiles", sessionId });
+  }
 }
 
-export function resolveDropped(uris: string[]): void {
+export function resolveDropped(sessionId: string, uris: string[]): void {
   if (uris.length > 0) {
-    post({ type: "resolveDropped", uris });
+    post({ type: "resolveDropped", sessionId, uris });
   }
 }
 
 export function addDataAttachment(
+  requestedSessionId: string,
   name: string,
   mimeType: string,
   base64: string,
 ): void {
-  const sessionId = activeSessionId();
-  if (!sessionId) {
-    return;
-  }
+  const sessionId = resolveSessionId(requestedSessionId);
   ensureSession(sessionId);
   const next: AttachmentInfo = {
     id: crypto.randomUUID(),
@@ -1152,7 +1217,7 @@ export function addDataAttachment(
     mimeType,
   };
   setState("sessions", sessionId, "attachments", [
-    ...sessionState().attachments,
+    ...(state.sessions[sessionId]?.attachments ?? []),
     next,
   ]);
 }
@@ -1198,7 +1263,16 @@ export function setConfigOption(
   value: string | boolean,
   isBoolean = false,
 ): void {
-  post({ type: "setConfigOption", configId, value, boolean: isBoolean });
+  const sessionId = activeSessionId();
+  if (sessionId) {
+    post({
+      type: "setConfigOption",
+      sessionId,
+      configId,
+      value,
+      boolean: isBoolean,
+    });
+  }
 }
 
 export function respondToPermission(
@@ -1295,7 +1369,7 @@ function applyRevert(sessionId: string, messageId: string): void {
   setState("sessions", sessionId, "items", (current) =>
     current.slice(0, index),
   );
-  setState("sessions", sessionId, "editDraft", text);
+  setState("sessions", sessionId, "composerText", text);
   if (attachments.length > 0) {
     setState("sessions", sessionId, "attachments", attachments);
   }

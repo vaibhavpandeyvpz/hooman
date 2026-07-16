@@ -195,10 +195,11 @@ export type InboundMessage =
   | { type: "ready" }
   | {
       type: "prompt";
+      sessionId: string;
       text: string;
       attachments?: AttachmentInfo[];
     }
-  | { type: "cancel" }
+  | { type: "cancel"; sessionId: string }
   | { type: "stopShellJob"; sessionId: string; jobId: string }
   | {
       type: "revert";
@@ -207,6 +208,7 @@ export type InboundMessage =
     }
   | {
       type: "setConfigOption";
+      sessionId: string;
       configId: string;
       value: string | boolean;
       boolean?: boolean;
@@ -221,8 +223,8 @@ export type InboundMessage =
   | { type: "queueSendNow"; id: string }
   | { type: "queueEdit"; id: string }
   | { type: "steerQueue" }
-  | { type: "pickFiles" }
-  | { type: "resolveDropped"; uris: string[] }
+  | { type: "pickFiles"; sessionId: string }
+  | { type: "resolveDropped"; sessionId: string; uris: string[] }
   | { type: "openAttachment"; attachment: AttachmentInfo }
   | { type: "openLink"; href: string }
   | { type: "listSessions" }
@@ -275,6 +277,11 @@ export type OutboundMessage =
       type: "tabs";
       tabs: TabInfo[];
       activeSessionId: string | null;
+    }
+  | {
+      type: "sessionAdopted";
+      previousSessionId: string;
+      sessionId: string;
     }
   | {
       type: "configOptions";
