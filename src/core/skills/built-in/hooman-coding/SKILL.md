@@ -35,6 +35,7 @@ Build real understanding before editing; this phase determines the quality of ev
 ## Implement
 
 - **Read before writing**: open a file before editing it. Preserve public behavior unless the user asked for a change or it is clearly wrong.
+- **Use the filesystem contract deliberately**: prefer `edit_file` mode `replace` with a small unique `old_text`/`new_text` block for an existing file; use mode `edit` for line-range changes and `edit_multiple_files` only for ordered multi-file work. Use `expected_sha256` when protecting against a stale read matters. Do not rely on retired `write_file` or legacy batch `edits` shapes.
 - Keep edits **narrow, coherent, and easy to review**. Prefer simple code that fully solves the problem over clever or over-generalized designs. Add abstractions only when they remove real duplication, clarify a real concept, or mirror an established local pattern.
 - **Dependencies**: favor latest stable, maintained releases. Avoid abandoned forks and deprecated APIs unless the project already depends on them or the user directs otherwise.
 - No drive-by changes: no unrelated types, docstrings, formatting-only edits, features, config knobs, feature flags, speculative validation, compatibility shims, or defensive branches for impossible scenarios. Delete old code cleanly instead of aliasing it.

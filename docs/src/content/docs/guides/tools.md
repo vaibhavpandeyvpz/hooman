@@ -11,7 +11,7 @@ Enabled via `tools.filesystem.enabled` (also gates `grep` below).
 
 ### Gitignored paths
 
-Filesystem tools refuse paths that match the repository's `.gitignore` (and nested ignore rules). Denied calls return an access-denied error rather than reading or writing the ignored path. Directory listings and trees also skip ignored entries. This guard applies to `read_file`, `read_multiple_files`, `write_file`, `edit_file`, `create_directory`, `list_directory`, `directory_tree`, `move_file`, `get_file_info`, and `fetch` when `save_as` is set.
+Filesystem tools refuse paths that match the repository's `.gitignore` (and nested ignore rules). Denied calls return an access-denied error rather than reading or writing the ignored path. Directory listings and trees also skip ignored entries. This guard applies to `read_file`, `read_multiple_files`, `edit_file`, `create_directory`, `list_directory`, `directory_tree`, `move_file`, `get_file_info`, and `fetch` when `save_as` is set.
 
 `grep` still follows ripgrep's own ignore behaviour; pass `no_ignore: true` when you intentionally need to search ignored files.
 
@@ -37,26 +37,27 @@ Read multiple files in one call. Defaults to UTF-8 text; pass `binary: true` for
 | `limit`  | integer  | no       | Maximum lines per file (text mode).                   |
 | `binary` | boolean  | no       | Read each path as binary/multimodal content.          |
 
-### `write_file`
-
-Write text content to a file. Can overwrite or append, and can create parent directories when requested.
-
-| Argument         | Type    | Required | Description                          |
-| ---------------- | ------- | -------- | ------------------------------------ |
-| `path`           | string  | yes      | File path to write.                  |
-| `content`        | string  | yes      | Content to write.                    |
-| `append`         | boolean | no       | Append instead of overwrite.         |
-| `create_parents` | boolean | no       | Create parent directories if needed. |
-
 ### `edit_file`
 
-Apply exact text replacements to a file. Whitespace, indentation, and line endings are tolerated when they don't make the target ambiguous. Fails if a target is missing or matches more than one place.
+Create, overwrite, replace text, edit a line range, rename, or delete one file. Each call performs one operation. Use `replace` with a small, unique text block for ordinary changes; use `edit` when line positions are clearer. `expected_sha256` is optional optimistic-concurrency protection for every mode: when provided, it must match the file before the operation proceeds.
 
-| Argument  | Type                     | Required | Description                               |
-| --------- | ------------------------ | -------- | ----------------------------------------- |
-| `path`    | string                   | yes      | File path to edit.                        |
-| `edits`   | `{ oldText, newText }[]` | yes      | Exact text replacements applied in order. |
-| `dry_run` | boolean                  | no       | Preview edits without writing the file.   |
+| Mode | Required arguments | Optional arguments | Description |
+| ---- | ------------------ | ------------------ | ----------- |
+| `write` | `path`, `content` | `expected_sha256` | Create or overwrite a file with text. |
+| `replace` | `path`, `old_text`, `new_text` | `replace_all`, `expected_sha256` | Replace a small, unique exact text block. Set `replace_all` to replace every exact occurrence; otherwise the match must be unique (with a tolerant fallback for line endings/whitespace). |
+| `edit` | `path`, `content`, `insert_at` | `replace_until`, `expected_sha256` | Insert before the 1-indexed `insert_at` line, or replace inclusively through `replace_until`. |
+| `rename` | `path`, `new_path` | `expected_sha256` | Rename or move a file. |
+| `delete` | `path` | `expected_sha256` | Delete a file. |
+
+For several dependent changes, use `edit_multiple_files` to submit ordered operations. Operations execute sequentially and may target the same file.
+
+### `edit_multiple_files`
+
+Apply the same `edit_file` operation shapes to one or more files in order.
+
+| Argument | Type | Required | Description |
+| -------- | ---- | -------- | ----------- |
+| `edits` | `FileEdit[]` | yes | Ordered `write`, `replace`, `edit`, `rename`, or `delete` operations. |
 
 ### `create_directory`
 
@@ -351,7 +352,7 @@ Arguments:
 
 ## Approvals
 
-By default, Hooman asks for approval before running tools that write, execute, or otherwise act with side effects (`shell`, `fetch`, `write_file`, `edit_file`, `create_directory`, `move_file`, `switch_mode`, design tools outside `.hooman/design/`, etc.). Read-only and internal tools — `think`, `update_todos`, `sleep`, `ask_user`, `search_tools`, `activate_tools`, `shell_output`, `shell_stop`, `get_current_time`, `convert_time`, `directory_tree`, `get_file_info`, `list_directory`, `grep`, and `launch_subagent` — are always allowed and never prompt. Filesystem reads under trusted app-home directories (`~/.hooman/projects/<uuid>/attachments`, plans) are implicitly allowed; plan-mode writes under `~/.hooman/projects/<uuid>/plans` are too. In design mode, `write_file` / `edit_file` under `.hooman/design/` are auto-allowed, as are `preview_design`, `stop_design_preview`, and `export_design` when `path` is under that tree.
+By default, Hooman asks for approval before running tools that write, execute, or otherwise act with side effects (`shell`, `fetch`, `edit_file`, `edit_multiple_files`, `create_directory`, `move_file`, `switch_mode`, design tools outside `.hooman/design/`, etc.). Read-only and internal tools — `think`, `update_todos`, `sleep`, `ask_user`, `search_tools`, `activate_tools`, `shell_output`, `shell_stop`, `get_current_time`, `convert_time`, `directory_tree`, `get_file_info`, `list_directory`, `grep`, and `launch_subagent` — are always allowed and never prompt. Filesystem reads under trusted app-home directories (`~/.hooman/projects/<uuid>/attachments`, plans) are implicitly allowed; plan-mode writes under `~/.hooman/projects/<uuid>/plans` are too. In design mode, `edit_file` / `edit_multiple_files` operations under `.hooman/design/` are auto-allowed, as are `preview_design`, `stop_design_preview`, and `export_design` when `path` is under that tree.
 
 When a user approves with "always", Hooman persists a reusable rule to `~/.hooman/allowlist.json`: shell commands are broadened to a command-prefix pattern (e.g. `git log *`), filesystem tools and `fetch` with `save_as` are scoped to the exact resolved path, and argument-less tools are allowed tool-wide. `switch_mode` never offers or persists "always allow".
 

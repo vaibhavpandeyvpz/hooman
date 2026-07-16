@@ -15,7 +15,7 @@ hooman chat
 
 ## Behavior
 
-- Full filesystem tools (`read_file`, `write_file`, `edit_file`, `create_directory`, `move_file`, …)
+- Full filesystem tools (`read_file`, `read_multiple_files`, `edit_file`, `edit_multiple_files`, `create_directory`, `move_file`, …)
 - Shell with background jobs (`shell` / `shell_output` / `shell_stop`)
 - Search, fetch, skills, MCP discovery (`search_tools` / `activate_tools`), subagents, todos
 - `switch_mode` to move into Plan, Ask, or Design when the task calls for it

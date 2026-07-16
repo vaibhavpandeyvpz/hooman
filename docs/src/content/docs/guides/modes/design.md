@@ -78,7 +78,7 @@ Also available in design mode (and every other mode):
 | ------------------------------------------- | --------------------------------------------------------------------------------- |
 | `launch_subagent` (`kind: "design-review"`) | Read-only craft/brand/a11y + pixel review (reads screenshots with `binary: true`) |
 
-Design mode has no `shell`, `create_directory`, or `move_file` — switch to **agent** for those. Prefer `launch_subagent` with `kind: "design-review"` for visual QA (other kinds are available but outside the design workflow). `write_file` / `edit_file` under `.hooman/design/` are auto-approved in design mode (same as preview/export for that tree).
+Design mode has no `shell`, `create_directory`, or `move_file` — switch to **agent** for those. Prefer `launch_subagent` with `kind: "design-review"` for visual QA (other kinds are available but outside the design workflow). `edit_file` / `edit_multiple_files` operations under `.hooman/design/` are auto-approved in design mode (same as preview/export for that tree).
 
 PDF and image-based delivery formats need Chromium once:
 
