@@ -1565,10 +1565,15 @@ export class HoomanAcpAgent {
                     toolCallId: ev.toolUse.toolUseId,
                   });
                 }
+                const resultContent = toolResultToAcpContent(ev.result);
                 const content: Array<ToolCallContent> =
                   terminalId !== undefined
                     ? [{ type: "terminal", terminalId }]
-                    : (diff ?? toolResultToAcpContent(ev.result));
+                    : diff
+                      ? ev.result.status === "success"
+                        ? diff
+                        : [...diff, ...resultContent]
+                      : resultContent;
                 await this.#sendUpdate(client, params.sessionId, {
                   sessionUpdate: "tool_call_update",
                   toolCallId: ev.toolUse.toolUseId,

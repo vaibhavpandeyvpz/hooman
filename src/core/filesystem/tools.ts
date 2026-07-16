@@ -857,9 +857,25 @@ export function createFilesystemTools() {
             ? { new_path: normalizeUserPath(edit.new_path!) }
             : {}),
         })) as FileEdit[];
+        const displays: Array<{
+          path: string;
+          oldText: string | null;
+          newText: string;
+        }> = [];
+        const capture = context
+          ? (display: (typeof displays)[number]) => {
+              displays.push(display);
+              setFileToolDisplay(
+                context.agent.appState,
+                context.toolUse.toolUseId,
+                { files: [...displays] },
+              );
+            }
+          : undefined;
         const results = await applyFileEdits(
           getFsBackend(context?.agent),
           edits,
+          capture,
         );
         return toJsonValue({ edits: results, count: results.length });
       },

@@ -154,6 +154,11 @@ export async function applyFileEdit(
     await backend.writeTextFile(edit.new_path, original);
     await backend.writeTextFile(edit.path, "");
     await fs.rm(edit.path);
+    captureDisplay?.({
+      path: edit.new_path,
+      oldText: null,
+      newText: original,
+    });
     return {
       path: edit.path,
       mode: edit.mode,
@@ -163,17 +168,19 @@ export async function applyFileEdit(
   }
   await backend.writeTextFile(edit.path, "");
   await fs.rm(edit.path);
+  captureDisplay?.({ path: edit.path, oldText: original, newText: "" });
   return { path: edit.path, mode: edit.mode, changed: true };
 }
 
 export async function applyFileEdits(
   backend: FsBackend,
   edits: FileEdit[],
+  captureDisplay?: FileEditDisplayCapture,
 ): Promise<EditResult[]> {
   if (edits.length === 0) throw new Error("At least one edit is required.");
   const results: EditResult[] = [];
   for (const edit of edits) {
-    results.push(await applyFileEdit(backend, edit));
+    results.push(await applyFileEdit(backend, edit, captureDisplay));
   }
   return results;
 }

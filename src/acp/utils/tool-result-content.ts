@@ -9,17 +9,23 @@ import type { FileToolDisplay } from "../../core/state/file-tool-display.js";
 export function fileToolDiffContent(
   display: FileToolDisplay | undefined,
 ): Array<ToolCallContent> | undefined {
-  if (!display || display.path === undefined || display.newText === undefined) {
+  if (!display) {
     return undefined;
   }
-  return [
-    {
-      type: "diff",
-      path: display.path,
-      oldText: display.oldText ?? null,
-      newText: display.newText,
-    },
-  ];
+  const files =
+    display.files ??
+    (display.path !== undefined && display.newText !== undefined
+      ? [
+          {
+            path: display.path,
+            oldText: display.oldText ?? null,
+            newText: display.newText,
+          },
+        ]
+      : []);
+  return files.length > 0
+    ? files.map((file) => ({ type: "diff" as const, ...file }))
+    : undefined;
 }
 
 type ToolResultLike = {

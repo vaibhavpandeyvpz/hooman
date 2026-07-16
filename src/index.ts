@@ -404,6 +404,7 @@ export {
   takeFileToolDisplay,
 } from "./core/state/file-tool-display.js";
 export type {
+  FileToolDiff,
   FileToolDisplay,
   StructuredPatchHunk as FileToolDisplayStructuredPatchHunk,
 } from "./core/state/file-tool-display.js";

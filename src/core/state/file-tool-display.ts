@@ -10,14 +10,23 @@ export type StructuredPatchHunk = {
   lines: string[];
 };
 
+export type FileToolDiff = {
+  /** Absolute path of the file this operation modified. */
+  path: string;
+  /** Full content before the change; `null` when the file was newly created. */
+  oldText: string | null;
+  /** Full content after the change. */
+  newText: string;
+};
+
 export type FileToolDisplay = {
   previews?: string[];
   structuredPatch?: StructuredPatchHunk[];
-  /** Absolute path of the file this tool modified (ACP diffs + follow-along). */
+  /** Ordered per-operation diffs for a batch file tool. */
+  files?: FileToolDiff[];
+  /** Legacy single-file display fields. */
   path?: string;
-  /** Full content before the change; `null` when the file was newly created. */
   oldText?: string | null;
-  /** Full content after the change. */
   newText?: string;
 };
 
