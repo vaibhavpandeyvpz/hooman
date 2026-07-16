@@ -10,10 +10,9 @@ export type FileEdit =
     }
   | {
       path: string;
-      mode: "edit";
+      mode: "insert";
       content: string;
       insert_at: number;
-      replace_until?: number | null;
       expected_sha256?: string;
     }
   | { path: string; mode: "rename"; new_path: string; expected_sha256?: string }

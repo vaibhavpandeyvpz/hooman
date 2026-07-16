@@ -12,9 +12,9 @@ function sha256(content: string): string {
   return createHash("sha256").update(content).digest("hex");
 }
 
-function applyLineEdit(
+function applyInsert(
   original: string,
-  edit: Extract<FileEdit, { mode: "edit" }>,
+  edit: Extract<FileEdit, { mode: "insert" }>,
 ): string {
   const lineEnding = original.includes("\r\n") ? "\r\n" : "\n";
   const endsWithNewline = original.endsWith("\n");
@@ -24,18 +24,9 @@ function applyLineEdit(
   const at = edit.insert_at;
   if (at < 1 || at > lines.length + 1)
     throw new Error(`insert_at must be between 1 and ${lines.length + 1}.`);
-  const replacement = edit.content.replaceAll("\r\n", "\n").split("\n");
-  if (edit.content.endsWith("\n")) replacement.pop();
-  const until = edit.replace_until;
-  if (until !== undefined && until !== null) {
-    const maxUntil = lines.length + (endsWithNewline ? 1 : 0);
-    if (until < at || until > maxUntil)
-      throw new Error(`replace_until must be between ${at} and ${maxUntil}.`);
-    const lastContentLine = Math.min(until, lines.length);
-    lines.splice(at - 1, Math.max(0, lastContentLine - at + 1), ...replacement);
-  } else {
-    lines.splice(at - 1, 0, ...replacement);
-  }
+  const inserted = edit.content.replaceAll("\r\n", "\n").split("\n");
+  if (edit.content.endsWith("\n")) inserted.pop();
+  lines.splice(at - 1, 0, ...inserted);
   return lines.join(lineEnding) + (endsWithNewline ? lineEnding : "");
 }
 
@@ -115,8 +106,8 @@ export async function applyFileEdit(
       replacements,
     };
   }
-  if (edit.mode === "edit") {
-    const next = applyLineEdit(original, edit);
+  if (edit.mode === "insert") {
+    const next = applyInsert(original, edit);
     await backend.writeTextFile(edit.path, next);
     return { path: edit.path, mode: edit.mode, changed: next !== original };
   }

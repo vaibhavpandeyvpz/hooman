@@ -74,67 +74,52 @@ type ReadTimeAgentInstructions = {
   content: string;
 };
 
-const FileEditSchema = z.discriminatedUnion("mode", [
-  z
-    .object({
-      path: z.string(),
-      mode: z.literal("write"),
-      content: z.string(),
-      expected_sha256: z.string().optional(),
-    })
-    .strict(),
-  z
-    .object({
-      path: z.string(),
-      mode: z.literal("replace"),
-      old_text: z
-        .string()
-        .min(1)
-        .describe("Small, unique text block to replace."),
-      new_text: z.string().describe("Replacement text."),
-      replace_all: z
-        .boolean()
-        .optional()
-        .describe(
-          "Replace every exact occurrence. A tolerant fallback replaces one unique match.",
-        ),
-      expected_sha256: z.string().optional(),
-    })
-    .strict(),
-  z
-    .object({
-      path: z.string(),
-      mode: z.literal("edit"),
-      content: z.string(),
-      insert_at: z.number().int().min(1).describe("1-based first line."),
-      replace_until: z
-        .number()
-        .int()
-        .min(1)
-        .nullable()
-        .optional()
-        .describe(
-          "Inclusive last line to replace. Omit to insert before insert_at.",
-        ),
-      expected_sha256: z.string().optional(),
-    })
-    .strict(),
-  z
-    .object({
-      path: z.string(),
-      mode: z.literal("rename"),
-      new_path: z.string(),
-      expected_sha256: z.string().optional(),
-    })
-    .strict(),
-  z
-    .object({
-      path: z.string(),
-      mode: z.literal("delete"),
-      expected_sha256: z.string().optional(),
-    })
-    .strict(),
-]);
+const FileEditSchema = z
+  .object({
+    path: z.string(),
+    mode: z.enum(["write", "replace", "insert", "rename", "delete"]),
+    content: z.string().optional(),
+    old_text: z
+      .string()
+      .min(1)
+      .optional()
+      .describe("Small, unique text block to replace."),
+    new_text: z.string().optional().describe("Replacement text."),
+    replace_all: z
+      .boolean()
+      .optional()
+      .describe(
+        "Replace every exact occurrence. A tolerant fallback replaces one unique match.",
+      ),
+    insert_at: z
+      .number()
+      .int()
+      .min(1)
+      .optional()
+      .describe("1-based first line."),
+    new_path: z.string().optional(),
+    expected_sha256: z.string().optional(),
+  })
+  .strict()
+  .superRefine((edit, ctx) => {
+    const requiredByMode: Partial<
+      Record<(typeof edit)["mode"], Array<keyof typeof edit>>
+    > = {
+      write: ["content"],
+      replace: ["old_text", "new_text"],
+      insert: ["content", "insert_at"],
+      rename: ["new_path"],
+    };
+    for (const field of requiredByMode[edit.mode] ?? []) {
+      if (edit[field] === undefined) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: [field],
+          message: `Required when mode is "${edit.mode}".`,
+        });
+      }
+    }
+  });
 
 type TreeNode = {
   name: string;
@@ -832,7 +817,7 @@ export function createFilesystemTools() {
     tool({
       name: "edit_file",
       description:
-        "Create, overwrite, replace text, edit line ranges, rename, or delete one file. Prefer mode 'replace' with a small unique old_text/new_text block for existing text; use mode 'edit' when exact line positions are more convenient.",
+        "Write a file, replace exact text, insert content before a line, rename, or delete one file. Prefer mode 'replace' for modifying existing text.",
       inputSchema: schema.editFile,
       callback: async (input, context?: ToolContext) => {
         const edit = input as FileEdit;
@@ -853,14 +838,14 @@ export function createFilesystemTools() {
     tool({
       name: "edit_multiple_files",
       description:
-        "Apply ordered create, overwrite, text-replacement, line-range edit, rename, or delete operations. Operations run sequentially and may target the same file.",
+        "Apply ordered write, exact-text replacement, line insertion, rename, or delete operations. Operations run sequentially and may target the same file.",
       inputSchema: schema.editMultipleFiles,
       callback: async (input, context?: ToolContext) => {
         const edits = input.edits.map((edit) => ({
           ...edit,
           path: normalizeUserPath(edit.path),
           ...(edit.mode === "rename"
-            ? { new_path: normalizeUserPath(edit.new_path) }
+            ? { new_path: normalizeUserPath(edit.new_path!) }
             : {}),
         })) as FileEdit[];
         const results = await applyFileEdits(
