@@ -21,12 +21,15 @@ jobs:
         with:
           node-version: "24"
 
+      - name: Update npm
+        run: npm install --global npm@latest
+
       - name: Install root dependencies
-        run: npm ci
+        run: npm ci --allow-remote=all
 
       - name: Install VS Code extension dependencies
         working-directory: src/vscode
-        run: npm ci
+        run: npm ci --allow-remote=all
 
       - name: Typecheck root
         run: npm run typecheck

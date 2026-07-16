@@ -24,8 +24,11 @@ jobs:
           node-version: "24"
           registry-url: "https://registry.npmjs.org"
 
+      - name: Update npm
+        run: npm install --global npm@latest
+
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --allow-remote=all
 
       - name: Build
         run: npm run build
@@ -50,14 +53,18 @@ jobs:
         with:
           node-version: "24"
 
+      - name: Update npm
+        working-directory: .
+        run: npm install --global npm@latest
+
       # Root deps first: extension onboarding imports src/core (zod, etc.),
       # and Node/esbuild resolve those from the repo root, not src/vscode.
       - name: Install root dependencies
         working-directory: .
-        run: npm ci
+        run: npm ci --allow-remote=all
 
       - name: Install VS Code extension dependencies
-        run: npm ci
+        run: npm ci --allow-remote=all
 
       - name: Typecheck
         run: npm run typecheck
@@ -99,9 +106,12 @@ jobs:
         with:
           node-version: "24"
 
+      - name: Update npm
+        run: npm install --global npm@latest
+
       - name: Build (TypeScript -> dist)
         run: |
-          npm ci
+          npm ci --allow-remote=all
           npm run build
 
       - name: Install production dependencies only
@@ -109,7 +119,7 @@ jobs:
         # including the platform-gated native runtimes for THIS os/arch.
         run: |
           rm -rf node_modules
-          npm ci --omit=dev --no-audit --no-fund
+          npm ci --omit=dev --no-audit --no-fund --allow-remote=all
 
       - name: Prune mlex.js on platforms where it cannot run
         # mlex.js has no os/cpu constraints, so npm installs it everywhere, but

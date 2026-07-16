@@ -41,13 +41,13 @@ Read multiple files in one call. Defaults to UTF-8 text; pass `binary: true` for
 
 Create, overwrite, replace text, edit a line range, rename, or delete one file. Each call performs one operation. Use `replace` with a small, unique text block for ordinary changes; use `edit` when line positions are clearer. `expected_sha256` is optional optimistic-concurrency protection for every mode: when provided, it must match the file before the operation proceeds.
 
-| Mode | Required arguments | Optional arguments | Description |
-| ---- | ------------------ | ------------------ | ----------- |
-| `write` | `path`, `content` | `expected_sha256` | Create or overwrite a file with text. |
-| `replace` | `path`, `old_text`, `new_text` | `replace_all`, `expected_sha256` | Replace a small, unique exact text block. Set `replace_all` to replace every exact occurrence; otherwise the match must be unique (with a tolerant fallback for line endings/whitespace). |
-| `edit` | `path`, `content`, `insert_at` | `replace_until`, `expected_sha256` | Insert before the 1-indexed `insert_at` line, or replace inclusively through `replace_until`. |
-| `rename` | `path`, `new_path` | `expected_sha256` | Rename or move a file. |
-| `delete` | `path` | `expected_sha256` | Delete a file. |
+| Mode      | Required arguments             | Optional arguments                 | Description                                                                                                                                                                               |
+| --------- | ------------------------------ | ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `write`   | `path`, `content`              | `expected_sha256`                  | Create or overwrite a file with text.                                                                                                                                                     |
+| `replace` | `path`, `old_text`, `new_text` | `replace_all`, `expected_sha256`   | Replace a small, unique exact text block. Set `replace_all` to replace every exact occurrence; otherwise the match must be unique (with a tolerant fallback for line endings/whitespace). |
+| `edit`    | `path`, `content`, `insert_at` | `replace_until`, `expected_sha256` | Insert before the 1-indexed `insert_at` line, or replace inclusively through `replace_until`.                                                                                             |
+| `rename`  | `path`, `new_path`             | `expected_sha256`                  | Rename or move a file.                                                                                                                                                                    |
+| `delete`  | `path`                         | `expected_sha256`                  | Delete a file.                                                                                                                                                                            |
 
 For several dependent changes, use `edit_multiple_files` to submit ordered operations. Operations execute sequentially and may target the same file.
 
@@ -55,9 +55,9 @@ For several dependent changes, use `edit_multiple_files` to submit ordered opera
 
 Apply the same `edit_file` operation shapes to one or more files in order.
 
-| Argument | Type | Required | Description |
-| -------- | ---- | -------- | ----------- |
-| `edits` | `FileEdit[]` | yes | Ordered `write`, `replace`, `edit`, `rename`, or `delete` operations. |
+| Argument | Type         | Required | Description                                                           |
+| -------- | ------------ | -------- | --------------------------------------------------------------------- |
+| `edits`  | `FileEdit[]` | yes      | Ordered `write`, `replace`, `edit`, `rename`, or `delete` operations. |
 
 ### `create_directory`
 

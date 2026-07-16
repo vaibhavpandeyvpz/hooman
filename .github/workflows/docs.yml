@@ -30,9 +30,12 @@ jobs:
         with:
           node-version: "24"
 
+      - name: Update npm
+        run: npm install --global npm@latest
+
       - name: Install dependencies
         working-directory: docs
-        run: npm ci
+        run: npm ci --allow-remote=all
 
       - name: Build site
         working-directory: docs
