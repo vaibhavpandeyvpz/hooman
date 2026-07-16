@@ -19,6 +19,7 @@ import {
   readAttachmentAsBlocksOrBase64,
   type AttachmentMediaBlocks,
 } from "../utils/attachments.js";
+import { setFileToolDisplay } from "../state/file-tool-display.js";
 import { getLlmModality } from "../state/llm-modality.js";
 import type { ResolvedLlmMetadata } from "../utils/metadata.js";
 import { z } from "zod";
@@ -831,6 +832,14 @@ export function createFilesystemTools() {
         const result = await applyFileEdit(
           getFsBackend(context?.agent),
           normalized,
+          context
+            ? (display) =>
+                setFileToolDisplay(
+                  context.agent.appState,
+                  context.toolUse.toolUseId,
+                  display,
+                )
+            : undefined,
         );
         return toJsonValue(result);
       },

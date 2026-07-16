@@ -8,6 +8,14 @@ import {
 } from "../../utils/edit-replace.js";
 import type { EditResult, FileEdit } from "./types.js";
 
+export type FileEditDisplay = {
+  path: string;
+  oldText: string | null;
+  newText: string;
+};
+
+export type FileEditDisplayCapture = (display: FileEditDisplay) => void;
+
 function sha256(content: string): string {
   return createHash("sha256").update(content).digest("hex");
 }
@@ -46,13 +54,21 @@ async function sourceContent(
 export async function applyFileEdit(
   backend: FsBackend,
   edit: FileEdit,
+  captureDisplay?: FileEditDisplayCapture,
 ): Promise<EditResult> {
   if (edit.mode === "write") {
     let prior: string | undefined;
+    let baselineKnown = false;
     try {
       prior = await backend.readTextFile(edit.path);
-    } catch {
-      /* creating */
+      baselineKnown = true;
+    } catch (error) {
+      baselineKnown =
+        backend.kind === "local" &&
+        typeof error === "object" &&
+        error !== null &&
+        "code" in error &&
+        error.code === "ENOENT";
     }
     if (
       prior !== undefined &&
@@ -63,11 +79,15 @@ export async function applyFileEdit(
     if (backend.kind === "local")
       await fs.mkdir(path.dirname(edit.path), { recursive: true });
     await backend.writeTextFile(edit.path, edit.content);
-    return {
-      path: edit.path,
-      mode: edit.mode,
-      changed: prior !== edit.content,
-    };
+    const changed = prior !== edit.content;
+    if (changed && baselineKnown) {
+      captureDisplay?.({
+        path: edit.path,
+        oldText: prior ?? null,
+        newText: edit.content,
+      });
+    }
+    return { path: edit.path, mode: edit.mode, changed };
   }
   const original = await sourceContent(
     backend,
@@ -99,17 +119,25 @@ export async function applyFileEdit(
       replacements = 1;
     }
     await backend.writeTextFile(edit.path, next);
+    const changed = next !== original;
+    if (changed) {
+      captureDisplay?.({ path: edit.path, oldText: original, newText: next });
+    }
     return {
       path: edit.path,
       mode: edit.mode,
-      changed: next !== original,
+      changed,
       replacements,
     };
   }
   if (edit.mode === "insert") {
     const next = applyInsert(original, edit);
     await backend.writeTextFile(edit.path, next);
-    return { path: edit.path, mode: edit.mode, changed: next !== original };
+    const changed = next !== original;
+    if (changed) {
+      captureDisplay?.({ path: edit.path, oldText: original, newText: next });
+    }
+    return { path: edit.path, mode: edit.mode, changed };
   }
   if (edit.mode === "rename") {
     try {
