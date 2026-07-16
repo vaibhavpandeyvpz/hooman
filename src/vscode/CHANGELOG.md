@@ -2,6 +2,12 @@
 
 All notable changes to the Hooman VS Code extension are documented in this file.
 
+## [1.57.1]
+
+- Fix the `edit_file` tool schema so its supported operation modes are described correctly.
+- Align filesystem tool documentation with the current editing API and remove stale `write_file` references.
+- Improve npm lockfile reproducibility and CI/CD installation and packaging behavior.
+
 ## [1.57.0]
 
 - Add text-based `edit_file` replacement mode with tolerant matching, optional replace-all behavior, and sequential multi-edit application.
