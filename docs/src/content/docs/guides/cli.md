@@ -84,7 +84,11 @@ hooman exec "Summarize this repo" --yolo
 
 Run a long-lived daemon that **always** subscribes to MCP servers advertising the `hooman/channel` capability, and multiplexes every distinct conversation over one supervised ACP agent process (`hooman acp`) instead of one shared agent. Each channel's `hooman/session` (falling back to `--session`, then a stable `server:channel` key) maps to its own ACP session, so unrelated conversations run and get approved concurrently while messages for the same conversation stay strictly ordered. See [MCP Channels](/hooman/guides/mcp/channels/) for the full automation model.
 
-Accepts `-s/--session` (fallback conversation id, not `--continue` — daemon owns many ACP sessions, so "latest session" has no single meaning), `-m/--mode`, `--effort`, `--model`, `--yolo`, `--session-idle <seconds>`, `--max-active-sessions <count>`, `--mcp-proxy-port <port>`, and `--debug` for raw notification payloads.
+![Hooman daemon dashboard](/hooman/screenshots/daemon-command.png)
+
+When stdout is an interactive terminal, `hooman daemon` renders a live kanban-style dashboard instead of a scrolling log: **Idle** (sessions holding a slot with no active turn), **In progress** (queued, waiting for a slot, setting up, generating, running a tool, or awaiting approval), and **Disposed** (the 10 most recently closed sessions, with a reason — idle timeout, pool pressure, shutdown, or an ACP child restart). Each card shows the conversation identity, current activity, a truncated prompt/output preview, and live token/context/cost usage. The header tracks channel/MCP/ACP-child health, pool occupancy, and aggregate usage. Use `←`/`→` to switch lanes on narrow terminals, `l` to toggle a diagnostics drawer, and `q` or Ctrl+C to stop the daemon gracefully. Pass `--no-dashboard`, or run with stdout redirected/piped (services, CI, `launchd`/`systemd`), to keep the original plain-text log output instead.
+
+Accepts `-s/--session` (fallback conversation id, not `--continue` — daemon owns many ACP sessions, so "latest session" has no single meaning), `-m/--mode`, `--effort`, `--model`, `--yolo`, `--session-idle <seconds>`, `--max-active-sessions <count>`, `--mcp-proxy-port <port>`, `--debug` for raw notification payloads, and `--no-dashboard` to force plain-log output in a TTY.
 
 ```bash
 hooman daemon
@@ -93,6 +97,7 @@ hooman daemon --mode agent --model "Claude Sonnet" --effort medium
 hooman daemon --yolo
 hooman daemon --session-idle 600 --max-active-sessions 16
 hooman daemon --debug
+hooman daemon --no-dashboard
 ```
 
 ## Session mode

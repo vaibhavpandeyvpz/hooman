@@ -37,7 +37,7 @@ Main surfaces:
 - `src/onboarding/` — Ink first-run setup UI (`hooman setup`)
 - `src/configure/` — configuration UI used from chat
 - `src/exec/` — exec-mode approvals and questions
-- `src/daemon/` — daemon command support
+- `src/daemon/` — daemon command support (`dashboard/` observable store + types, `ui/` Ink dashboard rendered on an interactive TTY; `--no-dashboard` or a non-TTY stdout falls back to plain stderr logs)
 - `src/acp/` — ACP server implementation
 - `src/vscode/` — self-contained VS Code extension package; excluded from the root TypeScript build
 - `docs/` — self-contained docs package; excluded from the root TypeScript build
@@ -191,6 +191,7 @@ Component rules:
   - `acp` uses stdout for JSON-RPC
   - `exec` uses stdout for agent output
   - `chat` owns the Ink frame
+  - `daemon` owns the Ink frame too when stdout is an interactive TTY (its dashboard); otherwise (piped/redirected/non-TTY, or `--no-dashboard`) it stays plain-log like the other commands
     Avoid stray `console.*` output in shared/runtime paths; see `src/core/utils/logging.ts` and how it is applied in `src/cli.ts`.
 - `reference/` is for reading only unless the task explicitly targets vendored reference material.
 

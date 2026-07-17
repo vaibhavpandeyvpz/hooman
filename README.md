@@ -18,6 +18,7 @@
   <p>
     <img src="docs/public/screenshots/ask-mode.png" alt="Hooman CLI" width="480" />
     <img src="docs/public/screenshots/agent-mode.png" alt="Hooman in VS Code" width="640" />
+    <img src="docs/public/screenshots/daemon-command.png" alt="Hooman daemon dashboard" width="640" />
   </p>
   <p>
     <strong><a href="https://vaibhavpandey.com/hooman/">Website</a></strong> ·
@@ -34,7 +35,7 @@ Hooman is a mature, local-first AI agent runtime for teams that want the full st
 | --------------- | --------------------------------------------------------------------------------------------------------------------------- |
 | `hooman chat`   | Stateful Ink TUI with modes, slash commands, and live cost/context                                                          |
 | `hooman exec`   | One-shot agent runs for scripts and CI                                                                                      |
-| `hooman daemon` | Channel-driven MCP automation (Slack, Telegram, cron, …)                                                                    |
+| `hooman daemon` | Channel-driven MCP automation (Slack, Telegram, cron, …) with a live terminal dashboard                                     |
 | `hooman acp`    | ACP agent over stdio — powers the [VS Code extension](https://vaibhavpandey.com/hooman/guides/vscode/) and editors like Zed |
 | Design mode     | HTML → preview → Figma / Sketch / PDF / PPTX                                                                                |
 
