@@ -2,6 +2,16 @@
 
 All notable changes to the Hooman VS Code extension are documented in this file.
 
+## [1.59.0]
+
+- Introduce a multi-plexed, ACP-powered daemon mode that hosts concurrent agent sessions behind a single process.
+- Add an ACP client for the daemon (`src/daemon/acp-client.ts`) so the daemon can spawn and manage per-session ACP agents over stdio.
+- Add an MCP HTTP proxy server (`src/daemon/mcproxy/`) that exposes daemon-managed sessions as a streamable HTTP MCP endpoint.
+- Add a session registry and session store (`src/daemon/session-registry.ts`, `src/daemon/session-store.ts`) for tracking, resuming, and persisting daemon-hosted sessions.
+- Add attachment handling (`src/daemon/attachments.ts`) for files referenced by daemon sessions.
+- Update the daemon CLI command (`hooman daemon`) to start the ACP-backed, multi-session server and accept origin and session options.
+- Extend ACP meta types and approvals for daemon origin attribution and permission flow.
+
 ## [1.58.1]
 
 - Fix diff rendering so line numbers appear in a single column instead of duplicated old/new columns.
