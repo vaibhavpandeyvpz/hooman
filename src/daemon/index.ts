@@ -18,6 +18,7 @@ import type {
 } from "../core/mcp/index.js";
 import type { AcpDaemonClient } from "./acp-client.js";
 import { attachmentPathsToAcpBlocks } from "./attachments.js";
+import type { DaemonDashboardStore } from "./dashboard/store.js";
 import type { DaemonMcpProxyServer } from "./mcproxy/index.js";
 import { KeyedTurnQueue } from "./queue.js";
 import type { DaemonSessionRegistry } from "./session-registry.js";
@@ -39,11 +40,9 @@ export type RunDaemonOptions = {
   session?: string;
   cliOverrides: DaemonCliOverrides;
   debug?: boolean;
+  /** When set, diagnostics route into the dashboard instead of raw stderr writes. */
+  dashboard?: DaemonDashboardStore;
 };
-
-function debug(text: string): void {
-  stderr.write(`[daemon] ${text}\n`);
-}
 
 function resolveExternalKey(
   message: ChannelMessage,
@@ -132,8 +131,18 @@ async function applyCliOverrides(
 }
 
 export async function main(options: RunDaemonOptions): Promise<void> {
+  const dashboard = options.dashboard;
+  function debug(text: string): void {
+    if (dashboard) {
+      dashboard.addDiagnostic(text);
+    } else {
+      stderr.write(`[daemon] ${text}\n`);
+    }
+  }
+
   const channels = [HOOMAN_CHANNEL];
   debug(`starting daemon for channel(s): ${channels.join(", ")}`);
+  dashboard?.setChannels(channels);
 
   const queue = new KeyedTurnQueue();
 
@@ -225,6 +234,13 @@ export async function main(options: RunDaemonOptions): Promise<void> {
     if (options.debug) {
       debug(`raw → ${JSON.stringify(message.meta)}`);
     }
+    dashboard?.onDequeued(
+      externalKey,
+      userId,
+      origin,
+      message.prompt,
+      queue.length(externalKey),
+    );
 
     let acpSessionId: string;
     try {
@@ -232,26 +248,33 @@ export async function main(options: RunDaemonOptions): Promise<void> {
     } catch (error) {
       const text = error instanceof Error ? error.message : String(error);
       debug(`session setup failed → ${externalKey}: ${text}`);
-      options.registry.markIdle(externalKey, queue.length(externalKey) > 1);
+      dashboard?.onSessionSetupFailed(externalKey, text);
+      // No runtime was ever registered for this attempt, so `markIdle` would
+      // find nothing and the acquired slot would leak — release it directly.
+      options.registry.releaseFailedSlot(externalKey);
       return;
     }
+    dashboard?.onSessionReady(externalKey, acpSessionId);
 
     try {
       debug(
         `invoking agent → ${tag} session=${externalKey} acp=${acpSessionId}`,
       );
       const prompt = await toPromptBlocks(message);
-      await options.acpClient.prompt({
+      const response = await options.acpClient.prompt({
         sessionId: acpSessionId,
         prompt,
         meta: { "hooman/origin": origin },
       });
-      debug(`completed → ${tag} session=${externalKey} acp=${acpSessionId}`);
+      debug(
+        `completed → ${tag} session=${externalKey} acp=${acpSessionId} stopReason=${response.stopReason}`,
+      );
     } catch (error) {
       const text = error instanceof Error ? error.message : String(error);
       debug(
         `turn failed → ${tag} session=${externalKey} acp=${acpSessionId}: ${text}`,
       );
+      dashboard?.onPromptFailed(externalKey, text);
     } finally {
       options.registry.markIdle(externalKey, queue.length(externalKey) > 1);
     }
@@ -263,9 +286,9 @@ export async function main(options: RunDaemonOptions): Promise<void> {
       debug(
         `received notification → ${message.meta.subscription.server}:${message.meta.subscription.channel}`,
       );
-      queue.push(resolveExternalKey(message, options.session), () =>
-        runTurn(message),
-      );
+      const key = resolveExternalKey(message, options.session);
+      queue.push(key, () => runTurn(message));
+      dashboard?.onEnqueued(key, queue.length(key));
     },
   );
   debug(`subscribed → ${formatSubscriptions(handle.subscriptions)}`);
@@ -280,6 +303,7 @@ export async function main(options: RunDaemonOptions): Promise<void> {
     await stopper;
   } finally {
     debug("stopping daemon");
+    dashboard?.setDraining(true);
     handle.unsubscribe();
     await queue.drain();
     await options.registry.shutdown();

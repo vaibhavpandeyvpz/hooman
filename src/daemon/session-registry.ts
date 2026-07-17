@@ -19,13 +19,36 @@ type Runtime = {
 
 type Waiter = { key: string; resolve: () => void };
 
+/** Why a runtime session's pool slot was released. */
+export type DaemonDisposeReason =
+  "idle_timeout" | "pool_pressure" | "shutdown" | "child_exit";
+
+export type DaemonRegistryEvent =
+  | { type: "slot_waiting"; externalKey: string }
+  | { type: "slot_acquired"; externalKey: string }
+  | {
+      type: "active";
+      externalKey: string;
+      acpSessionId: string;
+      userId?: string;
+    }
+  | { type: "idle"; externalKey: string }
+  | {
+      type: "disposed";
+      externalKey: string;
+      acpSessionId: string;
+      reason: DaemonDisposeReason;
+    };
+
 export type DaemonSessionRegistryOptions = {
   /** Bound on concurrently active ACP sessions. Must be a positive integer. */
   maxActiveSessions: number;
   /** Ordinary idle-close delay after a session becomes non-busy. `0` disables it (pressure eviction still applies). */
   idleTimeoutMs: number;
-  /** Called to close an ACP session (idle timeout, pool pressure, or shutdown). Must not throw. */
+  /** Called to close an ACP session (idle timeout, pool pressure, or shutdown). May throw; cleanup still runs. */
   onClose: (externalKey: string, acpSessionId: string) => Promise<void>;
+  /** Notified on every pool/lifecycle transition, for dashboard/diagnostics consumers. */
+  onEvent?: (event: DaemonRegistryEvent) => void;
 };
 
 /**
@@ -87,16 +110,63 @@ export class DaemonSessionRegistry {
     }
     if (this.#activeKeys.size < this.options.maxActiveSessions) {
       this.#activeKeys.add(externalKey);
+      this.options.onEvent?.({ type: "slot_acquired", externalKey });
       return;
     }
+    this.options.onEvent?.({ type: "slot_waiting", externalKey });
     const waiterPromise = new Promise<void>((resolve) => {
       this.#waiters.push({ key: externalKey, resolve });
     });
     const idleKey = this.#pickIdleLru();
     if (idleKey) {
-      void this.#closeRuntime(idleKey);
+      void this.#closeRuntime(idleKey, "pool_pressure");
     }
     await waiterPromise;
+    this.options.onEvent?.({ type: "slot_acquired", externalKey });
+  }
+
+  /**
+   * Releases a pool slot acquired via {@link acquireSlot} when session setup
+   * fails *before* a runtime was ever registered — otherwise the key would
+   * stay parked in `#activeKeys` forever (no runtime for `markIdle` to find),
+   * slowly exhausting the pool across repeated failures.
+   */
+  public releaseFailedSlot(externalKey: string): void {
+    if (this.#runtime.has(externalKey)) {
+      return;
+    }
+    if (!this.#activeKeys.delete(externalKey)) {
+      return;
+    }
+    const waiter = this.#waiters.shift();
+    if (waiter) {
+      this.#activeKeys.add(waiter.key);
+      waiter.resolve();
+    }
+  }
+
+  /**
+   * Drops every runtime entry (but keeps pool slots reserved) after the
+   * shared ACP child process exits unexpectedly. `hasRuntime()` then returns
+   * `false` for every key, so the next turn for each falls back to
+   * `resumeSession()` against the persisted ACP session ID on the fresh
+   * child, instead of silently prompting a runtime the new child never
+   * created.
+   */
+  public invalidateRuntimes(): void {
+    for (const runtime of this.#runtime.values()) {
+      if (runtime.idleTimer) {
+        clearTimeout(runtime.idleTimer);
+      }
+      this.options.onEvent?.({
+        type: "disposed",
+        externalKey: runtime.externalKey,
+        acpSessionId: runtime.acpSessionId,
+        reason: "child_exit",
+      });
+    }
+    this.#runtime.clear();
+    this.#reverse.clear();
   }
 
   /** Registers a newly created/resumed active session and marks it busy for the in-flight turn. */
@@ -119,6 +189,12 @@ export class DaemonSessionRegistry {
       idleTimer: null,
     });
     this.#reverse.set(binding.acpSessionId, binding.externalKey);
+    this.options.onEvent?.({
+      type: "active",
+      externalKey: binding.externalKey,
+      acpSessionId: binding.acpSessionId,
+      userId: binding.userId,
+    });
   }
 
   /** Persists the external-key → ACP-session-ID binding (create, or replacement after a missing-session resume failure). */
@@ -190,15 +266,16 @@ export class DaemonSessionRegistry {
     if (hasQueuedWork) {
       return;
     }
+    this.options.onEvent?.({ type: "idle", externalKey });
     if (this.#waiters.length > 0) {
-      void this.#closeRuntime(externalKey);
+      void this.#closeRuntime(externalKey, "pool_pressure");
       return;
     }
     if (this.options.idleTimeoutMs > 0) {
       runtime.idleTimer = setTimeout(() => {
         runtime.idleTimer = null;
         if (!runtime.busy && !runtime.closing) {
-          void this.#closeRuntime(externalKey);
+          void this.#closeRuntime(externalKey, "idle_timeout");
         }
       }, this.options.idleTimeoutMs);
       runtime.idleTimer.unref?.();
@@ -218,7 +295,10 @@ export class DaemonSessionRegistry {
     return best?.externalKey;
   }
 
-  async #closeRuntime(externalKey: string): Promise<void> {
+  async #closeRuntime(
+    externalKey: string,
+    reason: DaemonDisposeReason,
+  ): Promise<void> {
     const runtime = this.#runtime.get(externalKey);
     if (!runtime || runtime.closing) {
       return;
@@ -228,14 +308,26 @@ export class DaemonSessionRegistry {
       clearTimeout(runtime.idleTimer);
       runtime.idleTimer = null;
     }
-    await this.options.onClose(externalKey, runtime.acpSessionId);
-    this.#runtime.delete(externalKey);
-    this.#reverse.delete(runtime.acpSessionId);
-    this.#activeKeys.delete(externalKey);
-    const waiter = this.#waiters.shift();
-    if (waiter) {
-      this.#activeKeys.add(waiter.key);
-      waiter.resolve();
+    try {
+      await this.options.onClose(externalKey, runtime.acpSessionId);
+    } catch {
+      /* `onClose` is documented not to throw, but cleanup below must still
+       * run so the slot and waiter queue never leak on a misbehaving caller. */
+    } finally {
+      this.#runtime.delete(externalKey);
+      this.#reverse.delete(runtime.acpSessionId);
+      this.#activeKeys.delete(externalKey);
+      this.options.onEvent?.({
+        type: "disposed",
+        externalKey,
+        acpSessionId: runtime.acpSessionId,
+        reason,
+      });
+      const waiter = this.#waiters.shift();
+      if (waiter) {
+        this.#activeKeys.add(waiter.key);
+        waiter.resolve();
+      }
     }
   }
 
@@ -247,8 +339,23 @@ export class DaemonSessionRegistry {
       waiter.resolve();
     }
     await Promise.all(
-      [...this.#runtime.keys()].map((key) => this.#closeRuntime(key)),
+      [...this.#runtime.keys()].map((key) =>
+        this.#closeRuntime(key, "shutdown"),
+      ),
     );
+  }
+
+  /** Snapshot pool occupancy for dashboard/diagnostics consumers. */
+  public poolStats(): {
+    active: number;
+    max: number;
+    waiting: number;
+  } {
+    return {
+      active: this.#activeKeys.size,
+      max: this.options.maxActiveSessions,
+      waiting: this.#waiters.length,
+    };
   }
 
   public get isShuttingDown(): boolean {

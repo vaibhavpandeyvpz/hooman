@@ -19,9 +19,17 @@ export class KeyedTurnQueue {
     };
     state.length += 1;
     this.#tails.set(key, state);
+    // Swallow task rejections here: `state.tail` is chained with `.then()`,
+    // so a rejected tail would skip every subsequent `.then()` callback for
+    // this key, permanently poisoning the queue instead of just failing one
+    // turn. Callers that care about per-task failure (e.g. `runTurn`) already
+    // catch their own errors; this is a backstop against anything that slips
+    // past that.
     state.tail = state.tail.then(async () => {
       try {
         await task();
+      } catch {
+        /* ignore: never poison the chain for this key */
       } finally {
         state.length -= 1;
         if (state.length === 0) {

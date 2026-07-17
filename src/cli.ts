@@ -34,8 +34,10 @@ import { runAcpStdio } from "./acp/index.js";
 import { main as daemon, type DaemonCliOverrides } from "./daemon/index.js";
 import { AcpDaemonClient } from "./daemon/acp-client.js";
 import { createDaemonPermissionHandler } from "./daemon/approvals.js";
+import { DaemonDashboardStore } from "./daemon/dashboard/store.js";
 import { startDaemonMcpProxy } from "./daemon/mcproxy/index.js";
 import { DaemonSessionRegistry } from "./daemon/session-registry.js";
+import { launchDaemonDashboard } from "./daemon/ui/index.js";
 import {
   flushAgentMemory,
   runWithAgentMemoryScope,
@@ -576,6 +578,7 @@ type DaemonCliFlags = CliSessionModeOption & {
   maxActiveSessions?: string;
   mcpProxyPort?: string;
   debug?: boolean;
+  dashboard?: boolean;
 };
 
 /** Parses a daemon numeric CLI override, throwing on a non-finite/negative value. */
@@ -616,9 +619,19 @@ daemonCommand
     "--debug",
     "Log each MCP channel notification payload to the console.",
   )
+  .option(
+    "--no-dashboard",
+    "Disable the interactive terminal dashboard and use plain log output.",
+  )
   .action(async (options: DaemonCliFlags) => {
+    const useDashboard =
+      options.dashboard !== false && Boolean(process.stdout.isTTY);
     // Same as `exec`: console chatter joins the daemon's stderr diagnostics.
-    redirectLogs();
+    // In dashboard mode raw stderr writes would garble the Ink frame, so
+    // diagnostics route into the dashboard's drawer instead (wired below).
+    if (!useDashboard) {
+      redirectLogs();
+    }
     const config = createSessionConfig();
     applyCliModelAndEffort(config, options);
 
@@ -649,6 +662,9 @@ daemonCommand
       yolo: options.yolo,
     };
 
+    const dashboard = useDashboard ? new DaemonDashboardStore() : undefined;
+    dashboard?.setPoolMax(maxActiveSessions);
+
     const manager = createMcpManager(createRuntimeMcpConfig());
     let acpClient!: AcpDaemonClient;
     const registry = new DaemonSessionRegistry({
@@ -659,8 +675,42 @@ daemonCommand
           await acpClient.closeSession(acpSessionId);
         } catch {}
       },
+      onEvent: dashboard
+        ? (event) => {
+            dashboard.setPoolStats(registry.poolStats());
+            switch (event.type) {
+              case "slot_waiting":
+                dashboard.onWaitingSlot(event.externalKey);
+                break;
+              case "idle":
+                dashboard.onIdle(event.externalKey);
+                break;
+              case "disposed":
+                dashboard.onDisposed(event.externalKey, event.reason);
+                break;
+              default:
+                break;
+            }
+          }
+        : undefined,
     });
     await registry.hydrate();
+
+    const dashboardHandle = dashboard
+      ? launchDaemonDashboard(dashboard, () => {
+          // Simulates the same SIGINT the terminal would send on Ctrl+C, so
+          // the dashboard's `q`/Ctrl+C key drives the exact shutdown path
+          // `daemon()`'s stopper promise already listens for.
+          process.kill(process.pid, "SIGINT");
+        })
+      : undefined;
+    const mcpRefreshTimer = dashboard
+      ? setInterval(
+          () => dashboard.setMcpServerCount(manager.clients.size),
+          2000,
+        )
+      : undefined;
+    mcpRefreshTimer?.unref?.();
 
     try {
       const proxy = await startDaemonMcpProxy(manager, { port: mcpProxyPort });
@@ -668,8 +718,29 @@ daemonCommand
         cliPath: fileURLToPath(import.meta.url),
         cwd: process.cwd(),
         onPermissionRequest: createDaemonPermissionHandler(manager, registry),
-        onSessionUpdate: () => {},
-        onChildStderr: (line) => process.stderr.write(`[daemon:acp] ${line}\n`),
+        onSessionUpdate: (notification) => {
+          if (!dashboard) {
+            return;
+          }
+          const externalKey = registry.externalKeyForAcpSession(
+            notification.sessionId,
+          );
+          if (externalKey) {
+            dashboard.onAcpUpdate(externalKey, notification);
+          }
+        },
+        onChildStderr: (line) => {
+          if (dashboard) {
+            dashboard.addDiagnostic(`[acp] ${line}`);
+          } else {
+            process.stderr.write(`[daemon:acp] ${line}\n`);
+          }
+        },
+        onChildConnected: () => dashboard?.setAcpChildState("connected"),
+        onChildExit: () => {
+          dashboard?.setAcpChildState("reconnecting");
+          registry.invalidateRuntimes();
+        },
       });
       try {
         await daemon({
@@ -681,12 +752,17 @@ daemonCommand
           session: options.session,
           cliOverrides,
           debug: Boolean(options.debug),
+          dashboard,
         });
       } finally {
         await acpClient.close();
         await proxy.close();
       }
     } finally {
+      if (mcpRefreshTimer) {
+        clearInterval(mcpRefreshTimer);
+      }
+      dashboardHandle?.stop();
       try {
         await manager.disconnect();
       } catch {}

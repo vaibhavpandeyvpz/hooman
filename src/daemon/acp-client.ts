@@ -40,6 +40,10 @@ export type AcpDaemonClientOptions = {
   onSessionUpdate: AcpSessionUpdateHandler;
   /** Raw child stderr lines, for daemon diagnostics. */
   onChildStderr?: (line: string) => void;
+  /** The `hooman acp` child process (re)connected and completed `initialize`. */
+  onChildConnected?: () => void;
+  /** The child process exited; a future call lazily respawns it. */
+  onChildExit?: () => void;
 };
 
 /**
@@ -100,6 +104,7 @@ export class AcpDaemonClient {
       this.#connection = null;
       this.#starting = null;
       this.#agentInfo = undefined;
+      this.options.onChildExit?.();
     });
 
     const stream = ndJsonStream(
@@ -125,6 +130,7 @@ export class AcpDaemonClient {
       protocolVersion: PROTOCOL_VERSION,
       clientCapabilities: {},
     });
+    this.options.onChildConnected?.();
     return agent;
   }
 
