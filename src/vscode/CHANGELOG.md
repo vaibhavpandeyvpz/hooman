@@ -2,6 +2,14 @@
 
 All notable changes to the Hooman VS Code extension are documented in this file.
 
+## [1.60.0]
+
+- Add an interactive CLI dashboard for `hooman daemon` so the multi-plexed daemon shows live session status, the active lane, log drawers, and footer hints directly in the terminal.
+- Render the dashboard from a new reactive store (`src/daemon/dashboard/store.ts`) that mirrors session-registry events (slot waiting, idle, disposed) and pool stats.
+- Auto-enable the dashboard on interactive terminals and add `--no-dashboard` to fall back to plain logs for piped or redirected output.
+- Route daemon diagnostics through the dashboard drawer in dashboard mode so raw stderr writes no longer garble the Ink frame.
+- Refresh daemon-related docs and skills to cover the dashboard and `hooman-channels` workflow.
+
 ## [1.59.0]
 
 - Introduce a multi-plexed, ACP-powered daemon mode that hosts concurrent agent sessions behind a single process.
