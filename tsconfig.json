@@ -23,5 +23,5 @@
     "noPropertyAccessFromIndexSignature": false
   },
   "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.d.ts"],
-  "exclude": ["src/vscode/**"]
+  "exclude": ["src/desktop/**", "src/vscode/**"]
 }

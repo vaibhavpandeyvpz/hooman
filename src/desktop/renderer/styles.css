@@ -1,0 +1,54 @@
+@import "tailwindcss";
+
+@theme {
+  --color-hooman-primary: #0091cd;
+  --color-hooman-secondary: #56a0d3;
+  --color-hooman-warning: #ecb731;
+  --color-hooman-error: #ee4c58;
+  --color-hooman-success: #8ec06c;
+  --color-hooman-info: #c4dff6;
+  --color-hooman-muted: #9ba5a8;
+
+  /* shadcn/Radix primitive tokens (src/desktop/renderer/components/ui) — dark-only,
+     mapped onto the Hooman brand palette above rather than shadcn's default neutral theme. */
+  --color-background: #0b1120;
+  --color-foreground: #e2e8f0;
+  --color-card: #0f172a;
+  --color-card-foreground: #e2e8f0;
+  --color-popover: #0f172a;
+  --color-popover-foreground: #e2e8f0;
+  --color-primary: #0091cd;
+  --color-primary-foreground: #ffffff;
+  --color-secondary: #1e293b;
+  --color-secondary-foreground: #e2e8f0;
+  --color-muted: #1e293b;
+  --color-muted-foreground: #9ba5a8;
+  --color-accent: #1e293b;
+  --color-accent-foreground: #e2e8f0;
+  --color-destructive: #ee4c58;
+  --color-destructive-foreground: #ffffff;
+  --color-border: #1e293b;
+  --color-input: #1e293b;
+  --color-ring: #56a0d3;
+  --radius: 0.375rem;
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+@keyframes blip {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(0.85);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-blip {
+  animation: blip 1.1s ease-in-out infinite;
+}

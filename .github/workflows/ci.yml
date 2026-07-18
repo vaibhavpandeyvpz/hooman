@@ -48,6 +48,38 @@ jobs:
         working-directory: src/vscode
         run: npm run compile
 
+  desktop:
+    name: Desktop
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Update npm
+        run: npm install --global npm@latest
+
+      - name: Install dependencies
+        run: npm ci --allow-remote=all
+
+      - name: Typecheck desktop app
+        run: npm run desktop:typecheck
+
+      - name: Build desktop app (main + renderer)
+        run: npm run desktop:build
+
+      # Linux-only smoke: stages a Node runtime + production dependency
+      # closure and verifies it speaks ACP/management RPC in isolation, with
+      # no display required.
+      - name: Stage and verify runtime (Linux)
+        run: |
+          npm run desktop:stage-runtime
+          npm run desktop:verify-runtime
+
   install-unix:
     name: Install script (${{ matrix.os }})
     strategy:

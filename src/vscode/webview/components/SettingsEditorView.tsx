@@ -713,99 +713,146 @@ function SkillsModeView(props: {
   const skills = () => props.state;
   const [query, setQuery] = createSignal(skills().query ?? "");
   const [source, setSource] = createSignal("");
+  const [tab, setTab] = createSignal<"installed" | "search">(
+    skills().results.length > 0 || skills().searched ? "search" : "installed",
+  );
+
+  const runSearch = () => {
+    setTab("search");
+    sendSkillsViewAction({ type: "search", query: query() });
+  };
+
   return (
     <div class="mx-auto flex max-w-6xl flex-col gap-5">
-      <Section
-        title="Search and install"
-        icon={<Search size={15} class="text-accent" />}
-      >
-        <div class="flex items-stretch gap-2">
-          <input
-            class={`${inputClass} min-w-0 flex-1`}
-            placeholder="Search skills catalog"
-            value={query()}
-            onInput={(event) => setQuery(event.currentTarget.value)}
-          />
-          <button
-            type="button"
-            class={`${primaryButtonClass} shrink-0`}
-            onClick={() =>
-              sendSkillsViewAction({ type: "search", query: query() })
-            }
-          >
-            <Search size={14} /> Search
-          </button>
-        </div>
-        <div class="mt-3 flex items-stretch gap-2">
-          <input
-            class={`${inputClass} min-w-0 flex-1`}
-            placeholder="owner/repo, GitHub URL, or local path"
-            value={source()}
-            onInput={(event) => setSource(event.currentTarget.value)}
-          />
-          <button
-            type="button"
-            class={`${primaryButtonClass} shrink-0`}
-            onClick={() =>
-              sendSkillsViewAction({ type: "installSource", source: source() })
-            }
-          >
-            <Plus size={14} /> Install from source
-          </button>
-        </div>
-        <Show when={skills().busy && skills().busyMessage}>
-          <div class="mt-3 rounded-lg border border-border bg-panel/40 px-3 py-2 text-sm text-muted">
-            {skills().busyMessage}
-          </div>
-        </Show>
-        <Show
-          when={skills().results.length > 0}
-          fallback={
-            <Show when={!skills().busy && skills().searched}>
-              <div class="mt-4 rounded-lg border border-border bg-panel/25 px-4 py-3 text-sm text-muted">
-                No skills found for “{skills().query}”.
-              </div>
-            </Show>
-          }
+      <div class="flex w-fit items-center gap-1 rounded-lg border border-border bg-panel/30 p-1">
+        <button
+          type="button"
+          class={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+            tab() === "installed"
+              ? "bg-button text-button-foreground"
+              : "text-muted hover:text-foreground"
+          }`}
+          onClick={() => setTab("installed")}
         >
-          <div class="mt-4 space-y-3">
-            <For each={skills().results}>
-              {(result) => <SkillSearchCard result={result} />}
-            </For>
-          </div>
-        </Show>
-      </Section>
+          <Plug size={13} /> Installed
+          <Show when={skills().installed.length > 0}>
+            <span class="text-[10px] opacity-80">
+              ({skills().installed.length})
+            </span>
+          </Show>
+        </button>
+        <button
+          type="button"
+          class={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+            tab() === "search"
+              ? "bg-button text-button-foreground"
+              : "text-muted hover:text-foreground"
+          }`}
+          onClick={() => setTab("search")}
+        >
+          <Search size={13} /> Search
+        </button>
+      </div>
 
-      <Section
-        title="Installed skills"
-        icon={<Plug size={15} class="text-accent" />}
-      >
-        <Show
-          when={skills().installed.length > 0}
-          fallback={
-            <div class="rounded-lg border border-border bg-panel/25 px-4 py-3 text-sm text-muted">
-              No skills are installed yet.
-            </div>
-          }
+      <Show when={tab() === "search"}>
+        <Section
+          title="Search and install"
+          icon={<Search size={15} class="text-accent" />}
         >
-          <div class="space-y-3">
-            <For each={skills().installed}>
-              {(skill) => (
-                <InstalledSkillCard
-                  skill={skill}
-                  onRemove={() =>
-                    sendSkillsViewAction({
-                      type: "remove",
-                      folder: skill.folder,
-                      displayName: skill.name,
-                    })
-                  }
-                />
-              )}
-            </For>
+          <div class="flex items-stretch gap-2">
+            <input
+              class={`${inputClass} min-w-0 flex-1`}
+              placeholder="Search skills catalog"
+              value={query()}
+              onInput={(event) => setQuery(event.currentTarget.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") runSearch();
+              }}
+            />
+            <button
+              type="button"
+              class={`${primaryButtonClass} shrink-0`}
+              onClick={runSearch}
+            >
+              <Search size={14} /> Search
+            </button>
           </div>
-        </Show>
-      </Section>
+          <div class="mt-3 flex items-stretch gap-2">
+            <input
+              class={`${inputClass} min-w-0 flex-1`}
+              placeholder="owner/repo, GitHub URL, or local path"
+              value={source()}
+              onInput={(event) => setSource(event.currentTarget.value)}
+            />
+            <button
+              type="button"
+              class={`${primaryButtonClass} shrink-0`}
+              onClick={() =>
+                sendSkillsViewAction({
+                  type: "installSource",
+                  source: source(),
+                })
+              }
+            >
+              <Plus size={14} /> Install from source
+            </button>
+          </div>
+          <Show when={skills().busy && skills().busyMessage}>
+            <div class="mt-3 rounded-lg border border-border bg-panel/40 px-3 py-2 text-sm text-muted">
+              {skills().busyMessage}
+            </div>
+          </Show>
+          <Show
+            when={skills().results.length > 0}
+            fallback={
+              <Show when={!skills().busy && skills().searched}>
+                <div class="mt-4 rounded-lg border border-border bg-panel/25 px-4 py-3 text-sm text-muted">
+                  No skills found for “{skills().query}”.
+                </div>
+              </Show>
+            }
+          >
+            <div class="mt-4 space-y-3">
+              <For each={skills().results}>
+                {(result) => <SkillSearchCard result={result} />}
+              </For>
+            </div>
+          </Show>
+        </Section>
+      </Show>
+
+      <Show when={tab() === "installed"}>
+        <Section
+          title="Installed skills"
+          icon={<Plug size={15} class="text-accent" />}
+        >
+          <Show
+            when={skills().installed.length > 0}
+            fallback={
+              <div class="rounded-lg border border-border bg-panel/25 px-4 py-3 text-sm text-muted">
+                No skills are installed yet.
+              </div>
+            }
+          >
+            <div class="space-y-3">
+              <For each={skills().installed}>
+                {(skill) => (
+                  <InstalledSkillCard
+                    skill={skill}
+                    onRemove={() =>
+                      sendSkillsViewAction({
+                        type: "remove",
+                        folder: skill.folder,
+                        displayName: skill.name,
+                      })
+                    }
+                  />
+                )}
+              </For>
+            </div>
+          </Show>
+        </Section>
+      </Show>
     </div>
   );
 }

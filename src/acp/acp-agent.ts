@@ -256,10 +256,10 @@ type SessionRecord = {
   pendingPersistEffort: { provider: string; effort: string | undefined } | null;
   /**
    * Current turn's token usage (additive shape), mirroring the CLI TUI's
-   * `StatusBar` meter: input/cached-input are the latest request's values,
-   * output tokens accumulate across every request in the turn. Reset at the
-   * start of each `prompt()` call. Distinct from the context-window
-   * utilization sent as `usage_update.used`.
+   * `StatusBar` meter: every field accumulates across every request in the
+   * turn. Reset at the start of each `prompt()` call. Distinct from the
+   * context-window utilization sent as `usage_update.used`, which reflects
+   * only the latest request.
    */
   lastTurnUsage: Usage;
   /**
@@ -340,19 +340,26 @@ function createEmptyUsage(): Usage {
 
 /**
  * Build the per-turn token meter from a single request's usage, mirroring the
- * CLI TUI (`src/chat/app.tsx`): input/cached-input reflect just the latest
- * request (each request resends the full context, so those aren't additive
- * — the context gauge already reflects overall window consumption), while
- * output tokens accumulate across every model request in the turn (`prev`),
- * since each request's thinking/tool-call/final-text generation produces new,
- * non-overlapping tokens. `source` must already be in the additive shape (see
- * `toAdditiveUsage`), where cache reads are not part of `inputTokens`.
+ * CLI TUI (`src/chat/app.tsx`): every field accumulates across every model
+ * request in the turn (`prev`). Each request's `usage` is a fresh,
+ * non-cumulative report from the provider (e.g. Anthropic's
+ * `input_tokens`/`cache_read_input_tokens`/`cache_creation_input_tokens` each
+ * describe only that call's own prompt breakdown), so every request
+ * genuinely bills new input/cache tokens even when the underlying
+ * conversation content overlaps — mirroring Strands' own `accumulateUsage`
+ * (see `strands-usage-accumulate.ts`). This is distinct from the
+ * context-window gauge (`lastContextTokens`), which uses the latest request's
+ * usage alone to show current window consumption. `source` must already be
+ * in the additive shape (see `toAdditiveUsage`), where cache reads are not
+ * part of `inputTokens`.
  */
 function lastTurnUsage(prev: Usage, source: Usage): Usage {
-  const inputTokens = source.inputTokens ?? 0;
+  const inputTokens = (prev.inputTokens ?? 0) + (source.inputTokens ?? 0);
   const outputTokens = (prev.outputTokens ?? 0) + (source.outputTokens ?? 0);
-  const cacheRead = source.cacheReadInputTokens ?? 0;
-  const cacheWrite = source.cacheWriteInputTokens ?? 0;
+  const cacheRead =
+    (prev.cacheReadInputTokens ?? 0) + (source.cacheReadInputTokens ?? 0);
+  const cacheWrite =
+    (prev.cacheWriteInputTokens ?? 0) + (source.cacheWriteInputTokens ?? 0);
   return {
     inputTokens,
     outputTokens,
@@ -1687,9 +1694,9 @@ export class HoomanAcpAgent {
    *   clients should not render a used/size percentage.
    * - `cost`: cumulative session USD, only while every priced request had
    *   resolved rates — otherwise omitted rather than reporting a lowball.
-   * - `_meta["hoomanjs/tokens"]`: this turn's token totals — input/cached-
-   *   input from the latest request, output summed across the turn
-   *   (mirroring the CLI TUI's per-turn `in`/`cin`/`out` meter).
+   * - `_meta["hoomanjs/tokens"]`: this turn's token totals, summed across
+   *   every model request in the turn (mirroring the CLI TUI's per-turn
+   *   `in`/`cin`/`out` meter — see `lastTurnUsage`).
    */
   #sendUsageUpdate(
     client: AgentContext,

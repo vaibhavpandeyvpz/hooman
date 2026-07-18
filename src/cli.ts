@@ -31,6 +31,7 @@ import {
 import { configure } from "./configure/index.js";
 import { onboard } from "./onboarding/index.js";
 import { runAcpStdio } from "./acp/index.js";
+import { runManagementStdio } from "./desktop/management/management-agent.js";
 import { main as daemon, type DaemonCliOverrides } from "./daemon/index.js";
 import { AcpDaemonClient } from "./daemon/acp-client.js";
 import { createDaemonPermissionHandler } from "./daemon/approvals.js";
@@ -851,6 +852,17 @@ program
     // corrupt the protocol stream, so everything goes to stderr.
     redirectLogs();
     await runAcpStdio();
+  });
+
+program
+  .command("management")
+  .description(
+    "Run the versioned configuration/MCP/skills management RPC on stdio for first-party clients (internal; not a stable public interface).",
+  )
+  .action(async () => {
+    // Same stdout discipline as `acp`: stdout is the JSON-RPC channel.
+    redirectLogs();
+    await runManagementStdio();
   });
 
 // Default Strands SDK logger for every command (warn+ on stderr); the

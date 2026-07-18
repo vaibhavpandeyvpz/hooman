@@ -1530,13 +1530,18 @@ export function ChatApp({
                     latencyMs?: number;
                   };
                   const lat = metricsData.latencyMs ?? 0;
-                  // Token meter: input/cached-input show the latest request's
-                  // usage (each request resends the full context, so those
-                  // aren't additive — the context gauge already reflects
-                  // overall window consumption). Output tokens are additive
-                  // across every model request in the turn (thinking + tool
-                  // calls + final text each generate new, non-overlapping
-                  // tokens), so they're summed rather than overwritten.
+                  // Token meter: every field is additive across every model
+                  // request in the turn. Each request's `usage` is a fresh,
+                  // non-cumulative report from the provider (e.g. Anthropic's
+                  // `input_tokens`/`cache_read_input_tokens`/
+                  // `cache_creation_input_tokens` each describe only that
+                  // call's own prompt breakdown), so every request genuinely
+                  // bills new input/cache tokens even when the underlying
+                  // conversation content overlaps — mirroring Strands'
+                  // `accumulateUsage` (see `strands-usage-accumulate.ts`).
+                  // This is distinct from the context-window gauge, which
+                  // uses the latest request's usage alone to show current
+                  // window consumption.
                   const inputTokens = u.inputTokens ?? 0;
                   const outputTokens = u.outputTokens ?? 0;
                   const cacheRead = u.cacheReadInputTokens ?? 0;
@@ -1554,18 +1559,25 @@ export function ChatApp({
                         Math.max((Date.now() - genStart) / 1000, 0.001)
                       : undefined;
                   setUsage((prev) => {
+                    const totalInputTokens = prev.inputTokens + inputTokens;
                     const totalOutputTokens = prev.outputTokens + outputTokens;
+                    const totalCacheRead =
+                      (prev.cacheReadInputTokens ?? 0) + cacheRead;
+                    const totalCacheWrite =
+                      (prev.cacheWriteInputTokens ?? 0) + cacheWrite;
                     return {
-                      inputTokens,
+                      inputTokens: totalInputTokens,
                       outputTokens: totalOutputTokens,
                       totalTokens:
-                        inputTokens +
-                        cacheRead +
-                        cacheWrite +
+                        totalInputTokens +
+                        totalCacheRead +
+                        totalCacheWrite +
                         totalOutputTokens,
-                      ...(hasCacheRead && { cacheReadInputTokens: cacheRead }),
+                      ...(hasCacheRead && {
+                        cacheReadInputTokens: totalCacheRead,
+                      }),
                       ...(hasCacheWrite && {
-                        cacheWriteInputTokens: cacheWrite,
+                        cacheWriteInputTokens: totalCacheWrite,
                       }),
                       latencyMs: prev.latencyMs + lat,
                       tokensPerSecond,

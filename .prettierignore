@@ -1,3 +1,7 @@
 reference/
 src/vscode/media/chat.css
 src/vscode/media/chat.js
+src/desktop/dist/
+src/desktop/release/
+src/desktop/resources/runtime/
+packages/*/dist/

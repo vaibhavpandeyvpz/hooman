@@ -1,0 +1,6 @@
+{
+  "name": "hooman-desktop",
+  "private": true,
+  "type": "module",
+  "main": "dist/main/main.js"
+}

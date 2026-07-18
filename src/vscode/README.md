@@ -29,7 +29,7 @@ Hooman adds a native chat panel to your activity bar, powered by the [Hooman CLI
 - **Composer controls** for session mode (Agent / Plan / Ask / Design), model, reasoning effort, and a separate **Yolo** toggle (auto-approve tool calls), plus `/` slash-command autocomplete (`/compact`, `/init`). Design mode previews HTML via Simple Browser.
 - **Inline permission prompts**: the agent asks before running destructive tools; approve or reject right in the panel (Yolo auto-approves — except `switch_mode`, which always prompts).
 - **Status bar item** showing the current model and mode, with a spinner while a turn runs and a quick menu for all session controls.
-- **Token-usage footer** with the latest request's input / cached / output token counts, plus a context-window gauge and cumulative session cost when the agent can resolve the model's metadata (from the LLM config's `metadata` block or the models.dev catalog).
+- **Token-usage footer** with the current turn's input / cached / output token totals (summed across every model request in the turn), plus a context-window gauge and cumulative session cost when the agent can resolve the model's metadata (from the LLM config's `metadata` block or the models.dev catalog).
 - **Model download strip**: when a local llama.cpp model downloads its GGUF weights on first use, a progress strip above the composer shows percent, size, speed, and ETA.
 - **Native settings editors** for `config.json` and `mcp.json`, plus a **Skills** panel; `instructions.md` opens in the default Markdown editor.
 - **First-run setup**: when `~/.hooman/config.json` is missing, the panel runs the same setup wizard as `hooman setup` before chat starts.
