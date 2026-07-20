@@ -1,7 +1,13 @@
 import { randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { tool } from "@strands-agents/sdk";
+import {
+  Message,
+  TextBlock,
+  ToolResultBlock,
+  ToolUseBlock,
+  tool,
+} from "@strands-agents/sdk";
 import type { JSONValue, ToolContext } from "@strands-agents/sdk";
 import { z } from "zod";
 import { formatModeNames } from "../modes/definitions.js";
@@ -156,6 +162,127 @@ async function leavePlanMode(
   return { planFile: planPath, preview, truncated };
 }
 
+type ModeTransitionAgent = ToolContext["agent"];
+
+export type ModeTransitionResult = {
+  status: "ok";
+  mode: KnownSessionMode;
+  previous_mode: string;
+  already_active: boolean;
+  reason: string | null;
+  hint: string;
+  plan_file?: string;
+  reused?: boolean;
+  enter_reason?: string | null;
+  entered_at?: string;
+  exited_plan?: boolean;
+  preview?: string;
+  truncated?: boolean;
+};
+
+export async function transitionSessionMode(
+  agent: ModeTransitionAgent,
+  nextMode: KnownSessionMode,
+  options: { reason?: string; fresh?: boolean } = {},
+): Promise<ModeTransitionResult> {
+  const previousMode = getModeState(agent).mode;
+  const activePlanFile = getPlanState(agent).planFile;
+  if (
+    previousMode === nextMode &&
+    !(nextMode === "plan" && options.fresh === true) &&
+    !(nextMode === "plan" && !activePlanFile)
+  ) {
+    return {
+      status: "ok",
+      mode: nextMode,
+      previous_mode: previousMode,
+      already_active: true,
+      reason: options.reason?.trim() || null,
+      hint: `Already in ${nextMode} mode. Continue with the task; do not ask the user to approve a mode switch.`,
+    };
+  }
+
+  let plan: Awaited<ReturnType<typeof ensurePlanDocument>> | null = null;
+  let leftPlan: Awaited<ReturnType<typeof leavePlanMode>> | null = null;
+
+  if (previousMode === "plan" && nextMode !== "plan") {
+    leftPlan = await leavePlanMode(agent);
+  }
+  if (nextMode === "plan") {
+    plan = await ensurePlanDocument(agent, options);
+  }
+
+  setSessionMode(agent, nextMode);
+
+  return {
+    status: "ok",
+    mode: nextMode,
+    previous_mode: previousMode,
+    already_active: plan?.alreadyActive === true,
+    reason: options.reason?.trim() || null,
+    hint:
+      previousMode === "plan" && nextMode === "plan" && options.fresh
+        ? "Fresh plan approved and created. Continue planning in the new plan document."
+        : `Mode switch approved and applied (${previousMode} → ${nextMode}). Continue with the task.`,
+    ...(plan
+      ? {
+          plan_file: plan.planFile,
+          reused: plan.reused,
+          enter_reason: plan.enterReason,
+          entered_at: plan.enteredAt,
+        }
+      : {}),
+    ...(leftPlan
+      ? {
+          exited_plan: true,
+          plan_file: leftPlan.planFile,
+          preview: leftPlan.preview,
+          truncated: leftPlan.truncated,
+        }
+      : {}),
+  };
+}
+
+export function appendSyntheticModeTransition(
+  agent: Pick<ModeTransitionAgent, "messages">,
+  result: ModeTransitionResult,
+): void {
+  const toolUseId = `synthetic-switch-mode-${randomUUID()}`;
+  const targetName = result.mode;
+  const input = {
+    mode: result.mode,
+    reason: result.reason ?? "User selected this mode outside the model turn.",
+  };
+  agent.messages.push(
+    new Message({
+      role: "user",
+      content: [new TextBlock(`Switch the session to ${targetName} mode.`)],
+    }),
+    new Message({
+      role: "assistant",
+      content: [new ToolUseBlock({ toolUseId, name: SWITCH_MODE_TOOL, input })],
+    }),
+    new Message({
+      role: "user",
+      content: [
+        new ToolResultBlock({
+          toolUseId,
+          status: "success",
+          content: [new TextBlock(JSON.stringify(result))],
+        }),
+      ],
+    }),
+    new Message({
+      role: "assistant",
+      content: [
+        new TextBlock(
+          `${targetName} mode is now active. I will continue in ${targetName} mode without requesting another switch.`,
+        ),
+      ],
+    }),
+  );
+}
+
 export function createSwitchModeTool() {
   return tool({
     name: SWITCH_MODE_TOOL,
@@ -180,69 +307,12 @@ Pass fresh: true when entering plan, or while already in plan, to start a brand-
         );
       }
 
-      const agent = context.agent;
-      const previousMode = getModeState(agent).mode;
-      const nextMode = input.mode as KnownSessionMode;
-
-      const activePlanFile = getPlanState(agent).planFile;
-      if (
-        previousMode === nextMode &&
-        !(nextMode === "plan" && input.fresh === true) &&
-        !(nextMode === "plan" && !activePlanFile)
-      ) {
-        return toJsonValue({
-          status: "ok",
-          mode: nextMode,
-          previous_mode: previousMode,
-          already_active: true,
-          reason: input.reason?.trim() || null,
-          hint: `Already in ${nextMode} mode. Continue with the task; do not ask the user to approve a mode switch.`,
-        });
-      }
-
-      let plan: Awaited<ReturnType<typeof ensurePlanDocument>> | null = null;
-      let leftPlan: Awaited<ReturnType<typeof leavePlanMode>> | null = null;
-
-      if (previousMode === "plan" && nextMode !== "plan") {
-        leftPlan = await leavePlanMode(agent);
-      }
-
-      if (nextMode === "plan") {
-        plan = await ensurePlanDocument(agent, {
-          reason: input.reason,
-          fresh: input.fresh,
-        });
-      }
-
-      setSessionMode(agent, nextMode);
-
-      return toJsonValue({
-        status: "ok",
-        mode: nextMode,
-        previous_mode: previousMode,
-        already_active: plan?.alreadyActive === true,
-        reason: input.reason?.trim() || null,
-        hint:
-          previousMode === "plan" && nextMode === "plan" && input.fresh
-            ? "Fresh plan approved and created. Continue planning in the new plan document."
-            : `Mode switch approved and applied (${previousMode} → ${nextMode}). Continue with the task.`,
-        ...(plan
-          ? {
-              plan_file: plan.planFile,
-              reused: plan.reused,
-              enter_reason: plan.enterReason,
-              entered_at: plan.enteredAt,
-            }
-          : {}),
-        ...(leftPlan
-          ? {
-              exited_plan: true,
-              plan_file: leftPlan.planFile,
-              preview: leftPlan.preview,
-              truncated: leftPlan.truncated,
-            }
-          : {}),
-      });
+      const result = await transitionSessionMode(
+        context.agent,
+        input.mode as KnownSessionMode,
+        { reason: input.reason, fresh: input.fresh },
+      );
+      return toJsonValue(result);
     },
   });
 }

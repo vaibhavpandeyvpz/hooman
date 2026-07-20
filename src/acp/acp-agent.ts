@@ -52,9 +52,15 @@ import { MODE_DEFINITIONS } from "../core/modes/definitions.js";
 import {
   DEFAULT_SESSION_MODE,
   isKnownSessionMode,
+  type KnownSessionMode,
   type SessionMode,
 } from "../core/modes/schema.js";
 import { getModeState, setSessionMode } from "../core/state/session-mode.js";
+import {
+  appendSyntheticModeTransition,
+  transitionSessionMode,
+  type ModeTransitionResult,
+} from "../core/tools/switch-mode.js";
 import { isYoloEnabled, setYoloEnabled } from "../core/state/yolo.js";
 import { setLlmModality } from "../core/state/llm-modality.js";
 import {
@@ -246,8 +252,10 @@ type SessionRecord = {
   subagentUsageUnsub: (() => void) | null;
   /** `messageId` shared by all `agent_message_chunk`/`agent_thought_chunk` updates for the in-flight assistant message. */
   currentAssistantMessageId: string | null;
-  /** Re-apply the mode tool surface at the next turn boundary (deferred mid-turn). */
-  pendingModeReapply: boolean;
+  /** Serializes concurrent mode/config RPCs that can touch plan lifecycle state. */
+  modeTransitionExclusive: Promise<void>;
+  /** Synthetic mode changes queued while a turn is active. */
+  pendingModeTransitions: ModeTransitionResult[];
   /** Rebuild the model at the next turn boundary (deferred mid-turn). */
   pendingModelRebuild: boolean;
   /** Persist this default model to shared config after a deferred rebuild. */
@@ -1016,7 +1024,7 @@ export class HoomanAcpAgent {
         message: `Unknown mode "${params.modeId}"`,
       });
     }
-    if (this.#transitionMode(rec, params.modeId)) {
+    if (await this.#transitionMode(rec, params.modeId)) {
       // Keep the (superseding) config-options `mode` value in sync too, since
       // Clients may read either surface (see Session Config Options spec).
       await this.#syncCurrentMode(client, params.sessionId, rec);
@@ -1077,7 +1085,7 @@ export class HoomanAcpAgent {
           message: `Unknown mode "${value}"`,
         });
       }
-      if (this.#transitionMode(rec, value)) {
+      if (await this.#transitionMode(rec, value)) {
         // Keep the legacy `modes` surface in sync too (see Session Config
         // Options spec: "Agents SHOULD keep both in sync").
         await this.#syncCurrentMode(client, params.sessionId, rec);
@@ -1132,20 +1140,44 @@ export class HoomanAcpAgent {
   }
 
   /**
-   * Switch the session mode. Records it immediately (so state reads are
-   * correct), but defers the tool-surface rebuild to the next turn boundary
-   * when a turn is streaming, avoiding a mid-turn tool-surface swap. Returns
-   * whether the mode actually changed.
+   * Switch the session mode and record an equivalent tool exchange in model
+   * history. History injection is deferred to the turn boundary while a turn
+   * is streaming so the live message list is not mutated mid-invocation.
    */
-  #transitionMode(rec: SessionRecord, mode: SessionMode): boolean {
-    if (resolveSessionMode(getModeState(rec.agent).mode) === mode) {
-      return false;
+  async #transitionMode(
+    rec: SessionRecord,
+    mode: SessionMode,
+  ): Promise<boolean> {
+    const previous = rec.modeTransitionExclusive;
+    let release!: () => void;
+    rec.modeTransitionExclusive = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await previous;
+    try {
+      const result = await transitionSessionMode(
+        rec.agent,
+        mode as KnownSessionMode,
+        {
+          reason: "User selected this mode from the ACP client.",
+        },
+      );
+      if (result.already_active) {
+        return false;
+      }
+      if (this.#isTurnActive(rec)) {
+        rec.pendingModeTransitions.push(result);
+      } else {
+        appendSyntheticModeTransition(rec.agent, result);
+        await getAgentSessionManager(rec.agent)?.saveSnapshot({
+          target: rec.agent,
+          isLatest: true,
+        });
+      }
+      return true;
+    } finally {
+      release();
     }
-    setSessionMode(rec.agent, mode);
-    if (this.#isTurnActive(rec)) {
-      rec.pendingModeReapply = true;
-    }
-    return true;
   }
 
   /**
@@ -1305,7 +1337,7 @@ export class HoomanAcpAgent {
   }
 
   /**
-   * Apply settings changes deferred during a turn (mode tool-surface + model
+   * Apply settings changes deferred during a turn (mode history + model
    * rebuild). Runs at the turn boundary before the next turn may start.
    */
   async #flushPendingSettings(
@@ -1313,8 +1345,16 @@ export class HoomanAcpAgent {
     client: AgentContext,
     sessionId: string,
   ): Promise<void> {
-    if (rec.pendingModeReapply) {
-      rec.pendingModeReapply = false;
+    if (rec.pendingModeTransitions.length > 0) {
+      for (const result of rec.pendingModeTransitions.splice(0)) {
+        appendSyntheticModeTransition(rec.agent, result);
+      }
+      await getAgentSessionManager(rec.agent)
+        ?.saveSnapshot({
+          target: rec.agent,
+          isLatest: true,
+        })
+        .catch(() => undefined);
     }
     if (rec.pendingModelRebuild) {
       rec.pendingModelRebuild = false;
@@ -2088,7 +2128,8 @@ export class HoomanAcpAgent {
       shellJobUnsub: null,
       subagentUsageUnsub: null,
       currentAssistantMessageId: null,
-      pendingModeReapply: false,
+      modeTransitionExclusive: Promise.resolve(),
+      pendingModeTransitions: [],
       pendingModelRebuild: false,
       pendingPersistModel: null,
       pendingPersistEffort: null,

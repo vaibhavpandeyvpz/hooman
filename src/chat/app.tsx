@@ -48,7 +48,11 @@ import {
   REASONING_EFFORT_OFF,
   withReasoningEffort,
 } from "../core/utils/reasoning-effort.js";
-import { formatModeNames, isKnownSessionMode } from "../core/modes/index.js";
+import {
+  formatModeNames,
+  isKnownSessionMode,
+  type KnownSessionMode,
+} from "../core/modes/index.js";
 import type { Registry } from "../core/skills/index.js";
 import { takeFileToolDisplay } from "../core/state/file-tool-display.js";
 import { ChatApprovalController } from "./approvals.js";
@@ -64,11 +68,11 @@ import {
   type ShellJobViewState,
 } from "../core/state/shell-jobs.js";
 import { getShellJobManager, type ShellJobInfo } from "../core/shell/index.js";
+import { getModeState, type SessionMode } from "../core/state/session-mode.js";
 import {
-  getModeState,
-  setSessionMode,
-  type SessionMode,
-} from "../core/state/session-mode.js";
+  appendSyntheticModeTransition,
+  transitionSessionMode,
+} from "../core/tools/switch-mode.js";
 import { isYoloEnabled, setYoloEnabled } from "../core/state/yolo.js";
 import {
   getAgentConversationManager,
@@ -1187,11 +1191,21 @@ export function ChatApp({
         });
         return;
       }
-      const prev = getModeState(agent).mode;
-      if (prev === mode) {
+      const result = await transitionSessionMode(
+        agent,
+        mode as KnownSessionMode,
+        {
+          reason: "User selected this mode from the CLI.",
+        },
+      );
+      if (result.already_active) {
         return;
       }
-      setSessionMode(agent, mode);
+      appendSyntheticModeTransition(agent, result);
+      await getAgentSessionManager(agent)?.saveSnapshot({
+        target: agent,
+        isLatest: true,
+      });
       bumpSessionChrome();
     },
     [agent, appendLine, bumpSessionChrome],
