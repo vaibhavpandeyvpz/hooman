@@ -1,9 +1,6 @@
+import { existsSync } from "node:fs";
+import * as path from "node:path";
 import * as vscode from "vscode";
-import { ensureDownloadedCli, type Logger } from "./cli-download";
-
-/** Version of this extension; the CLI is resolved to the same version. */
-const EXTENSION_VERSION = (require("../package.json") as { version: string })
-  .version;
 
 /** How to spawn the Hooman CLI. */
 export interface HoomanLaunch {
@@ -22,17 +19,25 @@ function launchEnv(extra?: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   };
 }
 
+/** Resolve the CLI entry bundled beside the compiled extension. */
+function bundledCliPath(): string {
+  const cliPath = path.resolve(__dirname, "../runtime/dist/cli.js");
+  if (!existsSync(cliPath)) {
+    throw new Error(
+      `The bundled Hooman CLI is missing (${cliPath}). Reinstall the extension or set hooman.acp.command to a local CLI.`,
+    );
+  }
+  return cliPath;
+}
+
 /**
  * Resolve how to launch the Hooman CLI for a subcommand.
  *
- * An explicit override is honoured verbatim. Otherwise the extension uses its
- * version-matched, checksum-verified release runtime. Package runners are not
- * suitable for ACP because install output can corrupt the stdout JSON stream,
- * and their bin resolution differs across npm, Bun, and platforms.
+ * An explicit override is honoured verbatim. Otherwise the extension runs the
+ * version-matched CLI packaged in its platform-specific VSIX.
  */
 export async function resolveHoomanLaunch(
   trailingArgs: string[],
-  log?: Logger,
 ): Promise<HoomanLaunch> {
   const config = vscode.workspace.getConfiguration("hooman");
   const override = (config.get<string>("acp.command") ?? "").trim();
@@ -49,10 +54,9 @@ export async function resolveHoomanLaunch(
     };
   }
 
-  const { cliPath } = await ensureDownloadedCli(EXTENSION_VERSION, log);
   return {
     command: process.execPath,
-    args: [cliPath, ...trailingArgs],
+    args: [bundledCliPath(), ...trailingArgs],
     env: launchEnv({ ELECTRON_RUN_AS_NODE: "1" }),
   };
 }

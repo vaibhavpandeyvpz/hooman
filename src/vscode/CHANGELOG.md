@@ -2,6 +2,11 @@
 
 All notable changes to the Hooman VS Code extension are documented in this file.
 
+## Unreleased
+
+- Package a version-matched Hooman CLI directly in platform-specific Marketplace VSIX files for macOS, Linux, and Windows, eliminating the post-install runtime download.
+- Use the bundled CLI by default while preserving `hooman.acp.command` and `hooman.acp.args` as explicit local/development overrides.
+
 ## [1.60.0]
 
 - Add an interactive CLI dashboard for `hooman daemon` so the multi-plexed daemon shows live session status, the active lane, log drawers, and footer hints directly in the terminal.

@@ -55,12 +55,12 @@ Hooman adds a native chat panel to your activity bar, powered by the [Hooman CLI
 
 ## Extension settings
 
-By default the extension runs the agent through `npx`, resolving the [`hoomanjs`](https://www.npmjs.com/package/hoomanjs) package on demand. If you'd rather pin a specific binary or a local build, point these settings at it:
+The Marketplace installs a platform-specific VSIX containing a version-matched Hooman CLI, so the agent starts without downloading a runtime or requiring Node on `PATH`. To use a globally installed binary or a local build instead, set these overrides:
 
-| Setting              | Default               | Purpose                                |
-| -------------------- | --------------------- | -------------------------------------- |
-| `hooman.acp.command` | `npx`                 | Executable used to launch the agent.   |
-| `hooman.acp.args`    | `["hoomanjs", "acp"]` | Arguments passed to the command above. |
+| Setting              | Default               | Purpose                                      |
+| -------------------- | --------------------- | -------------------------------------------- |
+| `hooman.acp.command` | `""` (bundled CLI)    | Optional executable override for the agent.  |
+| `hooman.acp.args`    | `["hoomanjs", "acp"]` | Arguments used only with a command override. |
 
 Example using a globally installed or locally built CLI:
 
@@ -76,8 +76,8 @@ Everything else — providers, models, API keys, MCP servers, skills — is Hoom
 ## Troubleshooting
 
 - **Nothing happens / the panel says the agent failed to start**: run **Hooman: Show Output Channel**. It logs the spawned process's stderr and connection activity — check here first.
-- **First prompt is slow**: `npx` may be downloading `hoomanjs` on first use. Subsequent launches use the cache.
-- **Wrong or no model**: the agent uses your `~/.hooman/config.json`. Verify it works in a terminal with `npx hoomanjs exec "hello"`.
+- **Bundled CLI is missing**: reinstall the Marketplace extension, or set `hooman.acp.command` and `hooman.acp.args` to a local CLI while developing.
+- **Wrong or no model**: the agent uses your `~/.hooman/config.json`. Verify the same configuration with the standalone Hooman CLI.
 
 ## Development
 
@@ -86,12 +86,13 @@ The extension lives in [`src/vscode/`](https://github.com/vaibhavpandeyvpz/hooma
 ```bash
 cd src/vscode
 npm install
-npm run compile   # typecheck + esbuild (extension host) + vite build (webview)
-npm run watch     # rebuild all three on save
-npm run package   # -> hoomanjs-vscode-<version>.vsix (fully bundled, no node_modules)
+npm run compile    # typecheck + esbuild (extension host) + vite build (webview)
+npm run watch      # rebuild all three on save
+npm run stage:cli  # copy the built root CLI + installed runtime dependencies
+npm run package    # package the extension after staging; CI adds --target <platform>
 ```
 
-To debug, open the repository root in VS Code (after running `npm install` in `src/vscode/` at least once) and press **F5** — the root [`.vscode/launch.json`](https://github.com/vaibhavpandeyvpz/hooman/blob/main/.vscode/launch.json) and [`.vscode/tasks.json`](https://github.com/vaibhavpandeyvpz/hooman/blob/main/.vscode/tasks.json) point at `src/vscode` so there's no need to `cd` in or open it as a separate workspace.
+To debug the bundled default, build the root package, run `npm run stage:cli` in `src/vscode/`, then open the repository root in VS Code and press **F5**. Alternatively, set `hooman.acp.command` and `hooman.acp.args` in the Extension Development Host to launch a local CLI directly. The root [`.vscode/launch.json`](https://github.com/vaibhavpandeyvpz/hooman/blob/main/.vscode/launch.json) and [`.vscode/tasks.json`](https://github.com/vaibhavpandeyvpz/hooman/blob/main/.vscode/tasks.json) point at `src/vscode`, so there is no need to open it as a separate workspace.
 
 Architecture in brief: one `hooman acp` process serves the panel for the extension's lifetime, with every chat session multiplexed over it as an ACP session. The extension implements the client-side ACP `fs/*` capabilities against VS Code's workspace APIs (so the agent sees dirty buffers and edits are undo-able) and `terminal/*` via child processes (for byte-accurate output). The panel UI is a SolidJS + Tailwind webview bundled by Vite; the extension host is bundled by esbuild. See the [full VS Code guide](https://vaibhavpandey.com/hooman/guides/vscode/) and [`AGENTS.md`](https://github.com/vaibhavpandeyvpz/hooman/blob/main/AGENTS.md) for the breakdown.
 

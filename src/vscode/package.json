@@ -198,7 +198,7 @@
         "hooman.acp.command": {
           "type": "string",
           "default": "",
-          "description": "Executable used to launch the Hooman ACP agent. Leave empty (default) to auto-resolve: use `npx`/`bunx hoomanjs@<version>` when available, otherwise download a prebuilt, self-contained CLI and run it with VS Code's own Node runtime — no `node`/`npx` on your PATH required. Set to an absolute path (e.g. `node` or a `hooman` binary) to override, e.g. for local development."
+          "description": "Executable used to launch the Hooman ACP agent. Leave empty (default) to use the version-matched CLI bundled with this platform-specific extension. Set an executable such as `node` or a `hooman` binary to override the bundled CLI, for example during local development."
         },
         "hooman.acp.args": {
           "type": "array",
@@ -224,6 +224,7 @@
     "watch:vite": "vite build --watch",
     "typecheck": "tsc --noEmit -p ./ && tsc --noEmit -p tsconfig.webview.json",
     "lint": "true",
+    "stage:cli": "node scripts/stage-cli.mjs",
     "package": "vsce package --no-dependencies"
   },
   "devDependencies": {

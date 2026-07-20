@@ -38,47 +38,8 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-  vscode:
-    name: Publish VS Code extension
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: src/vscode
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: "24"
-
-      - name: Update npm
-        working-directory: .
-        run: npm install --global npm@latest
-
-      # Root deps first: extension onboarding imports src/core (zod, etc.),
-      # and Node/esbuild resolve those from the repo root, not src/vscode.
-      - name: Install root dependencies
-        working-directory: .
-        run: npm ci --allow-remote=all
-
-      - name: Install VS Code extension dependencies
-        run: npm ci --allow-remote=all
-
-      - name: Typecheck
-        run: npm run typecheck
-
-      - name: Package
-        run: npx vsce package --no-dependencies
-
-      - name: Publish to Visual Studio Marketplace
-        run: npx vsce publish --no-dependencies --pat "$VSCE_PAT"
-        env:
-          VSCE_PAT: ${{ secrets.VSCE_PAT }}
-
-  cli-bundles:
-    name: Build ${{ matrix.target }}
+  platform-bundles:
+    name: Build ${{ matrix.target }} bundles
     runs-on: ${{ matrix.runner }}
     defaults:
       run:
@@ -109,58 +70,123 @@ jobs:
       - name: Update npm
         run: npm install --global npm@latest
 
-      - name: Build (TypeScript -> dist)
+      - name: Build CLI
         run: |
           npm ci --allow-remote=all
+          npm run typecheck
           npm run build
 
-      - name: Install production dependencies only
-        # A clean production install so node_modules carries only runtime deps,
-        # including the platform-gated native runtimes for THIS os/arch.
+      - name: Install and verify VS Code extension
+        working-directory: src/vscode
+        run: |
+          npm ci --allow-remote=all
+          npm run typecheck
+          npm run compile
+
+      - name: Install production CLI dependencies
         run: |
           rm -rf node_modules
           npm ci --omit=dev --no-audit --no-fund --allow-remote=all
 
-      - name: Prune mlex.js on platforms where it cannot run
-        # mlex.js has no os/cpu constraints, so npm installs it everywhere, but
-        # it only works on Apple Silicon. Drop it elsewhere to avoid shipping a
-        # useless native binary.
+      - name: Prune MLX outside Apple Silicon
         if: matrix.target != 'darwin-arm64'
         run: rm -rf node_modules/mlex.js
 
-      - name: Package tarball
-        # Ship dist/ + node_modules/ + package.json as siblings: the CLI reads
-        # ../package.json relative to dist/cli.js at startup, and Node resolves
-        # node_modules from the same root.
+      - name: Stage CLI in extension
+        working-directory: src/vscode
+        run: |
+          npm run stage:cli
+          test -f runtime/dist/cli.js
+          test -f runtime/package.json
+
+      - name: Package CLI tarball
         run: |
           VERSION="$(node -p "require('./package.json').version")"
           mkdir -p dist-bundles
           tar -czf "dist-bundles/hoomanjs-cli-${VERSION}-${{ matrix.target }}.tar.gz" \
             dist node_modules package.json
 
-      - name: Upload bundle artifact
+      - name: Package platform-specific VSIX
+        working-directory: src/vscode
+        run: |
+          VERSION="$(node -p "require('./package.json').version")"
+          mkdir -p dist-vsix
+          VSIX="dist-vsix/hoomanjs-vscode-${VERSION}-${{ matrix.target }}.vsix"
+          npx vsce package \
+            --target "${{ matrix.target }}" \
+            --no-dependencies \
+            --out "$VSIX"
+          test -f "$VSIX"
+          unzip -l "$VSIX" > dist-vsix/contents.txt
+          grep -q 'extension/runtime/dist/cli.js' dist-vsix/contents.txt
+          grep -q 'extension/runtime/package.json' dist-vsix/contents.txt
+          grep -q 'extension/runtime/node_modules/node-llama-cpp/' dist-vsix/contents.txt
+          node runtime/dist/cli.js --help > /dev/null
+
+      - name: Upload CLI bundle artifact
         uses: actions/upload-artifact@v4
         with:
-          name: bundle-${{ matrix.target }}
+          name: cli-bundle-${{ matrix.target }}
           path: dist-bundles/*.tar.gz
           if-no-files-found: error
 
+      - name: Upload VSIX artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vscode-${{ matrix.target }}
+          path: src/vscode/dist-vsix/*.vsix
+          if-no-files-found: error
+
+  vscode:
+    name: Publish VS Code extensions
+    needs: platform-bundles
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Download all VSIX packages
+        uses: actions/download-artifact@v4
+        with:
+          path: dist-vsix
+          pattern: vscode-*
+          merge-multiple: true
+
+      - name: Verify platform package set
+        run: |
+          VERSION="$(node -p "require('./src/vscode/package.json').version")"
+          for target in darwin-arm64 darwin-x64 linux-x64 linux-arm64 win32-x64; do
+            test -f "dist-vsix/hoomanjs-vscode-${VERSION}-${target}.vsix"
+          done
+
+      - name: Publish to Visual Studio Marketplace
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+        run: |
+          for vsix in dist-vsix/*.vsix; do
+            npx --yes @vscode/vsce publish --packagePath "$vsix" --pat "$VSCE_PAT"
+          done
+
   github-release:
     name: Create GitHub release
-    needs: cli-bundles
+    needs: platform-bundles
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          # Full history so the changelog can diff against the previous tag.
           fetch-depth: 0
 
-      - name: Download all bundles
+      - name: Download all CLI bundles
         uses: actions/download-artifact@v4
         with:
           path: dist-bundles
-          pattern: bundle-*
+          pattern: cli-bundle-*
           merge-multiple: true
 
       - name: Compute checksums

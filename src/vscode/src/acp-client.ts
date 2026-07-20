@@ -95,10 +95,7 @@ export class HoomanAcpClient implements vscode.Disposable {
   }
 
   async #start(): Promise<ClientContext> {
-    const { command, args, env, shell } = await resolveHoomanLaunch(
-      ["acp"],
-      this.outputChannel,
-    );
+    const { command, args, env, shell } = await resolveHoomanLaunch(["acp"]);
     this.outputChannel.info(
       `Starting Hooman ACP agent: ${command} ${args.join(" ")}`,
     );
