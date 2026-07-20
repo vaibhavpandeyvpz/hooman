@@ -2,10 +2,11 @@
 
 All notable changes to the Hooman VS Code extension are documented in this file.
 
-## Unreleased
+## [1.61.0]
 
 - Package a version-matched Hooman CLI directly in platform-specific Marketplace VSIX files for macOS, Linux, and Windows, eliminating the post-install runtime download.
 - Use the bundled CLI by default while preserving `hooman.acp.command` and `hooman.acp.args` as explicit local/development overrides.
+- Record synthetic mode-switch tool exchanges in conversation history when the user changes session mode from the CLI or ACP client, keeping the model aware of the transition.
 
 ## [1.60.0]
 
