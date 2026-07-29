@@ -76,6 +76,26 @@ const BUILTIN_SUBAGENT_KINDS: readonly SubagentKindConfig[] = [
     readOnly: true,
     inheritBasePrompt: true,
   },
+  {
+    id: "security-auditor",
+    name: "Security Auditor",
+    promptPath: "agents/security-auditor.md",
+    description:
+      "audits scoped code, configuration, architecture, or evidence for candidate security findings",
+    allowedTools: DEFAULT_ALLOWED_TOOLS,
+    readOnly: true,
+    inheritBasePrompt: true,
+  },
+  {
+    id: "security-validator",
+    name: "Security Validator",
+    promptPath: "agents/security-validator.md",
+    description:
+      "independently validates and deduplicates candidate security findings and remediation claims",
+    allowedTools: DEFAULT_ALLOWED_TOOLS,
+    readOnly: true,
+    inheritBasePrompt: true,
+  },
 ];
 
 function promptContext(config: Config): Record<string, unknown> {

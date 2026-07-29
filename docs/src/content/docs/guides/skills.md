@@ -14,9 +14,17 @@ plus bundled built-in skills shipped with Hooman.
 
 At runtime, Hooman uses the Strands `AgentSkills` plugin to load:
 
-- bundled built-in skills (e.g. `hooman-coding`, `hooman-design`, `hooman-config`, `hooman-mcp`, `hooman-channels`, `hooman-skills`)
+- bundled built-in skills (e.g. `hooman-coding`, `hooman-cybersec`, `hooman-design`, `hooman-config`, `hooman-mcp`, `hooman-channels`, `hooman-skills`)
 - user-installed skills under `~/.hooman/skills`
 - project-local skills under `<cwd>/.hooman/skills` when that directory exists
+
+## Cybersecurity workflow
+
+`hooman-cybersec` provides a model-agnostic, human-supervised workflow for cybersecurity tasks. It requires an authorization and risk gate, then routes work through separate offensive, defensive, application-security, standards, and reporting guidance.
+
+For scoped reviews, Hooman also provides read-only `security-auditor` and `security-validator` subagents. The auditor identifies evidence-backed candidates; the validator independently challenges reachability, impact, duplicates, and remediation claims. Parent agents retain responsibility for any approved mutation or active validation.
+
+The workflow does not provide an execution sandbox. Treat host execution and external interaction as operational actions subject to normal tool visibility and approval controls.
 
 Each skills folder is treated as a parent directory of skill subdirectories, where every skill lives in its own folder containing a `SKILL.md`.
 
