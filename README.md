@@ -55,6 +55,30 @@ irm https://raw.githubusercontent.com/vaibhavpandeyvpz/hooman/main/install.ps1 |
 
 Or skip the installer and run `npx hoomanjs` / `bunx hoomanjs`, or install with `npm i -g hoomanjs` / `bun add -g hoomanjs`. On first run (when `~/.hooman/config.json` is missing), a **setup** wizard asks for an inference provider and search; then chat starts. Re-run anytime with `hooman setup`. Full walkthrough: [Getting Started](https://vaibhavpandey.com/hooman/getting-started/).
 
+### Docker
+
+The multi-architecture image includes Node.js 24, the latest npm, Bun/`bunx`, uv/`uvx`, Go, Git, ripgrep, native build tools, and Playwright Chromium for JavaScript, Python, Go, and browser-based workflows. `hooman chat` is the default command.
+
+```bash
+docker run --rm -it \
+  --ipc=host \
+  -v hooman-data:/home/hooman/.hooman \
+  -v "$PWD:/workspace" \
+  ghcr.io/vaibhavpandeyvpz/hooman:latest
+```
+
+Run `setup` once to create `config.json` in the `hooman-data` volume. To use existing host configuration instead, mount it read-write with `-v "$HOME/.hooman:/home/hooman/.hooman"`. The container runs as the non-root `hooman` user (UID/GID 1000), and its working directory is `/workspace`; mount a project there so Hooman can operate on it.
+
+Pass another CLI command after the image name when needed:
+
+```bash
+docker run --rm ghcr.io/vaibhavpandeyvpz/hooman:latest --version
+docker run --rm -it -v hooman-data:/home/hooman/.hooman ghcr.io/vaibhavpandeyvpz/hooman:latest setup
+docker run --rm -i -v hooman-data:/home/hooman/.hooman -v "$PWD:/workspace" ghcr.io/vaibhavpandeyvpz/hooman:latest exec "Summarize this repository"
+```
+
+Release tags publish `latest`, the full version, and major/minor tags; the current `main` branch publishes `edge`. Alpine is not used because Hooman's Playwright browser features require glibc and do not support Alpine's musl runtime.
+
 ## Why Hooman
 
 - **Full-stack, not single-surface** — CLI, VS Code, ACP, daemon channels, and Design mode share one runtime and one local config.

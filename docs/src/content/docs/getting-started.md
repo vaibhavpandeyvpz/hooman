@@ -14,6 +14,10 @@ Everything — configuration, API keys, sessions, skills — lives in a single `
     <strong style="font-size: 1.05rem;">Terminal / CLI →</strong>
     <p style="margin: 0.5rem 0 0; color: var(--sl-color-gray-2);"><code>curl | bash</code>, <code>npx</code>, or <code>bunx</code> — no clone, no build.</p>
   </a>
+  <a href="/hooman/guides/docker/" class="hooman-path-card">
+    <strong style="font-size: 1.05rem;">Docker →</strong>
+    <p style="margin: 0.5rem 0 0; color: var(--sl-color-gray-2);">A multi-architecture GHCR image with Node.js, Bun, uv, Go, and Chromium included.</p>
+  </a>
   <a href="/hooman/quickstart-vscode/" class="hooman-path-card">
     <strong style="font-size: 1.05rem;">VS Code →</strong>
     <p style="margin: 0.5rem 0 0; color: var(--sl-color-gray-2);">A native chat panel in the activity bar, from the Marketplace.</p>
@@ -30,6 +34,7 @@ By default Hooman's first-run **setup** wizard offers local [llama.cpp](/hooman/
 ## What's next
 
 - [CLI quickstart](/hooman/quickstart-cli/) — install, first-run setup, and your first `hooman chat` session.
+- [Docker](/hooman/guides/docker/) — run the multi-architecture image with persistent configuration and mounted projects.
 - [VS Code quickstart](/hooman/quickstart-vscode/) — install the extension and complete setup in the activity bar.
 - [CLI reference](/hooman/guides/cli/) — `chat`, `setup`, `exec`, `daemon`, and `/config` in depth.
 - [Modes](/hooman/guides/modes/) — Agent, Plan, Ask, and Design.

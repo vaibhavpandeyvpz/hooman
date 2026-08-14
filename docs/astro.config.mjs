@@ -45,6 +45,7 @@ export default defineConfig({
           items: [
             { label: "Getting Started", slug: "getting-started" },
             { label: "CLI", slug: "quickstart-cli" },
+            { label: "Docker", slug: "guides/docker" },
             { label: "VS Code", slug: "quickstart-vscode" },
           ],
         },

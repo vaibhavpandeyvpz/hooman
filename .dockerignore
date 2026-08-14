@@ -1,0 +1,13 @@
+.git
+.github
+.hooman
+.vscode
+dist
+dist-bundles
+docs
+node_modules
+reference
+src/vscode
+*.log
+.env
+.env.*
