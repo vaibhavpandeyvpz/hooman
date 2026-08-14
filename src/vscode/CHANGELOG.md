@@ -2,6 +2,13 @@
 
 All notable changes to the Hooman VS Code extension are documented in this file.
 
+## [1.62.0]
+
+- Add a multi-architecture Docker image for Hooman with Node.js, npm, Bun, uv/uvx, Go, native build tools, and Playwright Chromium.
+- Publish Docker images to GHCR from `main` and version tags, including `edge`, semver, SHA, provenance, and SBOM metadata.
+- Run the container as a dedicated non-root `hooman` user with persistent configuration and workspace volumes; `hooman chat` is the default command.
+- Add Docker usage guidance covering setup, mounts, host networking, MCP runtimes, daemon operation, image tags, and local builds.
+
 ## [1.61.0]
 
 - Package a version-matched Hooman CLI directly in platform-specific Marketplace VSIX files for macOS, Linux, and Windows, eliminating the post-install runtime download.
