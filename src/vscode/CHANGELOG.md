@@ -2,6 +2,10 @@
 
 All notable changes to the Hooman VS Code extension are documented in this file.
 
+## [1.62.1]
+
+- Fix OAuth URL handling on Windows by quoting the URL passed to `cmd /c start` and using `windowsVerbatimArguments`, preventing query-string `&` characters from being interpreted as command separators and truncating the authorization URL.
+
 ## [1.62.0]
 
 - Add a multi-architecture Docker image for Hooman with Node.js, npm, Bun, uv/uvx, Go, native build tools, and Playwright Chromium.
