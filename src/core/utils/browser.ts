@@ -7,17 +7,31 @@ export async function openExternalBrowser(url: string): Promise<void> {
     throw new Error("Browser URL is required.");
   }
 
+  // On Windows, `cmd /c start` re-parses its command line itself: unquoted
+  // `&`, `|`, `^`, etc. are cmd.exe metacharacters (e.g. command separators),
+  // and OAuth/query-string URLs almost always contain `&`. Node's default
+  // Windows argv escaping only quotes args that contain spaces, so a bare
+  // URL like `...?a=1&b=2` reaches cmd.exe unquoted and gets silently split
+  // at the first `&`, truncating the URL. Quoting both the `start` title arg
+  // and the URL ourselves, combined with `windowsVerbatimArguments: true`
+  // (which disables Node's own quoting so ours is passed through as-is),
+  // keeps the whole URL intact.
   const command =
     platform() === "darwin"
-      ? { bin: "open", args: [target] }
+      ? { bin: "open", args: [target], verbatim: false }
       : platform() === "win32"
-        ? { bin: "cmd", args: ["/c", "start", "", target] }
-        : { bin: "xdg-open", args: [target] };
+        ? {
+            bin: "cmd",
+            args: ["/c", "start", '""', `"${target}"`],
+            verbatim: true,
+          }
+        : { bin: "xdg-open", args: [target], verbatim: false };
 
   await new Promise<void>((resolve, reject) => {
     const child = spawn(command.bin, command.args, {
       stdio: "ignore",
       detached: true,
+      windowsVerbatimArguments: command.verbatim,
     });
     child.once("error", reject);
     child.once("spawn", () => {
