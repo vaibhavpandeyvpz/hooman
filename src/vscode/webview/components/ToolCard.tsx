@@ -13,12 +13,15 @@ import {
   ChevronRight,
   Circle,
   CircleSlash,
+  FileText,
   LoaderCircle,
   Wrench,
   X,
 } from "lucide-solid";
 import type { ToolCallStatusUi, TranscriptItem } from "../store";
+import { openLink } from "../store";
 import { toolDetailText, toolInputText, truncate } from "../lib/tool-format";
+import { parseFilePath } from "../lib/markdown";
 import DiffCard from "./DiffCard";
 
 const STATUS_CLASS: Record<ToolCallStatusUi, string> = {
@@ -59,6 +62,21 @@ export default function ToolCard(props: {
     () => diffs().length === 0 && toolInputText(props.item.rawInput).length > 0,
   );
   const detail = createMemo(() => toolDetailText(props.item.content));
+  const targetFilePath = createMemo(() => {
+    const raw = props.item.rawInput;
+    if (raw && typeof raw === "object") {
+      const o = raw as Record<string, unknown>;
+      const p = o.path ?? o.filePath ?? o.file ?? o.target;
+      if (typeof p === "string" && p.trim()) {
+        return p.trim();
+      }
+    }
+    const parsed = parseFilePath(props.item.title);
+    if (parsed) {
+      return parsed.rawPath;
+    }
+    return null;
+  });
 
   // Keep the output expanded while streaming live terminal output or when
   // the tool failed; otherwise leave collapse state to the user.
@@ -88,6 +106,22 @@ export default function ToolCard(props: {
         </span>
         <Wrench size={13} class="shrink-0 text-muted" />
         <span class="min-w-0 flex-1 truncate">{props.item.title}</span>
+        <Show when={targetFilePath()}>
+          {(path) => (
+            <button
+              type="button"
+              class="inline-flex shrink-0 items-center gap-1 rounded border border-border/80 bg-panel px-1.5 py-0.5 text-[11px] font-mono text-accent hover:border-accent hover:underline max-w-[200px] truncate cursor-pointer transition-colors"
+              title={`Open ${path()} in editor`}
+              onClick={(e) => {
+                e.stopPropagation();
+                openLink(path());
+              }}
+            >
+              <FileText size={10} class="shrink-0 text-muted" />
+              <span class="truncate">{path()}</span>
+            </button>
+          )}
+        </Show>
       </div>
       <Show when={hasInput()}>
         <div class="mt-1 max-h-24 overflow-y-auto whitespace-pre-wrap break-all rounded bg-code-bg px-2 py-1 font-mono text-[11.5px] scroll-thin">

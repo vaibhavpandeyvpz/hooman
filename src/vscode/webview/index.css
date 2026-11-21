@@ -320,6 +320,36 @@ body {
   color: var(--color-accent);
 }
 
+.file-mention-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.08rem 0.35rem;
+  margin: 0 0.15rem;
+  border-radius: 4px;
+  border: 1px solid color-mix(in srgb, var(--color-border) 80%, transparent);
+  background: color-mix(in srgb, var(--color-panel) 85%, var(--color-code-bg));
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+  color: var(--color-foreground);
+  text-decoration: none;
+  cursor: pointer;
+  vertical-align: baseline;
+  transition: all 0.12s ease;
+  user-select: none;
+}
+
+.file-mention-pill:hover {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+  background: var(--color-list-hover-bg, var(--color-panel));
+  text-decoration: underline;
+}
+
+.file-mention-pill:active {
+  transform: translateY(1px);
+}
+
 .markdown-body > *:first-child {
   margin-top: 0;
 }

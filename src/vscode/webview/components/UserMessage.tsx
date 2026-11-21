@@ -2,6 +2,7 @@ import { For, Show } from "solid-js";
 import { Folder, FileText, Image as ImageIcon, Undo2 } from "lucide-solid";
 import type { AttachmentInfo } from "../../src/shared/protocol";
 import { openAttachment, revertTurn } from "../store";
+import { Markdown } from "../lib/markdown";
 
 export default function UserMessage(props: {
   text: string;
@@ -15,7 +16,7 @@ export default function UserMessage(props: {
     <div class="flex w-full flex-col items-end">
       <div class="max-w-[92%] rounded-md border border-border bg-input px-3.5 py-2 text-[13px] leading-relaxed">
         <Show when={props.text}>
-          <div class="whitespace-pre-wrap break-words">{props.text}</div>
+          <Markdown class="whitespace-pre-wrap break-words">{props.text}</Markdown>
         </Show>
         <Show when={props.attachments?.length}>
           <div class={`flex flex-wrap gap-1 ${props.text ? "mt-1.5" : ""}`}>

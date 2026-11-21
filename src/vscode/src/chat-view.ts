@@ -2267,37 +2267,108 @@ export class HoomanChatViewProvider
    */
   async #openLink(href: string): Promise<void> {
     try {
-      const parsed = vscode.Uri.parse(href);
-      if (parsed.scheme === "file") {
-        await openFile(parsed);
+      const trimmed = href.trim().replace(/^['"`<([{\s]+|['"`>)\]},;:\s]+$/g, "");
+      if (!trimmed) {
         return;
       }
-      const external =
-        /^[a-z][a-z0-9+.-]*:\/\//i.test(href) || href.startsWith("mailto:");
-      if (external) {
-        // `vscode.open`-style URIs (vscode://, command:) are also better left
-        // to the platform handler / VS Code's own URI dispatch.
-        await vscode.env.openExternal(parsed);
+
+      const externalMatch =
+        /^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed) || trimmed.startsWith("mailto:");
+      if (externalMatch && !trimmed.toLowerCase().startsWith("file://")) {
+        await vscode.env.openExternal(vscode.Uri.parse(trimmed));
         return;
       }
-      const clean = href.split(/[?#]/)[0] || href;
-      const target = isAbsolute(clean)
-        ? clean
-        : join(
-            this.#cwd ||
-              vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ||
-              defaultCwd(),
-            clean,
-          );
+
+      let line: number | undefined;
+      let col: number | undefined;
+      let clean = trimmed;
+
+      if (clean.toLowerCase().startsWith("file://")) {
+        try {
+          const parsedFileUri = vscode.Uri.parse(clean);
+          clean = parsedFileUri.fsPath;
+          if (parsedFileUri.fragment) {
+            const fragMatch = parsedFileUri.fragment.match(/^(?:L)?(\d+)(?:-L?(\d+))?$/i);
+            if (fragMatch) {
+              line = parseInt(fragMatch[1], 10);
+            }
+          }
+        } catch {
+          clean = clean.replace(/^file:\/\//i, "");
+        }
+      }
+
+      const hashMatch = clean.match(/#(?:L)?(\d+)(?:-L?(\d+))?$/i);
+      if (hashMatch) {
+        if (line === undefined) {
+          line = parseInt(hashMatch[1], 10);
+        }
+        clean = clean.slice(0, hashMatch.index);
+      }
+
+      const colonMatch = clean.match(/:(\d+)(?::(\d+))?$/);
+      if (colonMatch) {
+        if (line === undefined) {
+          line = parseInt(colonMatch[1], 10);
+          if (colonMatch[2]) {
+            col = parseInt(colonMatch[2], 10);
+          }
+        }
+        clean = clean.slice(0, colonMatch.index);
+      }
+
+      clean = clean.trim();
+      if (!clean) {
+        return;
+      }
+
+      let target = clean;
+      if (isAbsolute(clean)) {
+        target = clean;
+      } else {
+        const root =
+          this.#cwd ||
+          vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ||
+          defaultCwd();
+        const candidate = join(root, clean);
+        let exists = false;
+        try {
+          await vscode.workspace.fs.stat(vscode.Uri.file(candidate));
+          exists = true;
+        } catch {
+          exists = false;
+        }
+
+        if (exists) {
+          target = candidate;
+        } else {
+          let foundInWs = false;
+          for (const folder of vscode.workspace.workspaceFolders ?? []) {
+            const wsCandidate = join(folder.uri.fsPath, clean);
+            try {
+              await vscode.workspace.fs.stat(vscode.Uri.file(wsCandidate));
+              target = wsCandidate;
+              foundInWs = true;
+              break;
+            } catch {
+              // try next
+            }
+          }
+          if (!foundInWs) {
+            target = candidate;
+          }
+        }
+      }
+
       const uri = vscode.Uri.file(target);
       let isDirectory = false;
       try {
         const stat = await vscode.workspace.fs.stat(uri);
         isDirectory = (stat.type & vscode.FileType.Directory) !== 0;
       } catch {
-        // Doesn't exist on disk — fall through and let `vscode.open` surface
-        // the error rather than silently doing nothing.
+        // Doesn't exist on disk — fall through and let openFile surface the error
       }
+
       if (isDirectory) {
         try {
           await vscode.commands.executeCommand("revealInExplorer", uri);
@@ -2306,7 +2377,18 @@ export class HoomanChatViewProvider
         }
         return;
       }
-      await openFile(uri);
+
+      const range =
+        line !== undefined
+          ? new vscode.Range(
+              Math.max(0, line - 1),
+              Math.max(0, (col ?? 1) - 1),
+              Math.max(0, line - 1),
+              Math.max(0, (col ?? 1) - 1),
+            )
+          : undefined;
+
+      await openFile(uri, { selection: range });
     } catch (error) {
       if (this.#sessionId) {
         this.#post({
