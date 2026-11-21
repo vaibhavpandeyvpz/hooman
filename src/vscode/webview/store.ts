@@ -8,15 +8,19 @@ import type {
 import type {
   AttachmentInfo,
   CommandInfo,
+  CommandSearchResult,
   ContextUsageInfo,
   CostInfo,
   EditInfo,
+  FileSearchResult,
   ModelDownloadInfo,
   ModelRetryInfo,
   OutboundMessage,
   PermissionOptionInfo,
   PlanEditorStateInfo,
+  ProjectSearchResult,
   QueuedPromptInfo,
+  SearchScope,
   SessionRowInfo,
   ShellJobInfo,
   TabInfo,
@@ -154,8 +158,15 @@ interface State {
   sessions: Record<string, SessionUiState>;
   sessionsOpen: boolean;
   persistedSessions: SessionRowInfo[];
+  searchResults: {
+    query: string;
+    scope: SearchScope;
+    commands?: CommandSearchResult[];
+    files?: FileSearchResult[];
+    projects?: ProjectSearchResult[];
+  } | null;
   onboardingPhase:
-    "idle" | "listing" | "writing" | "validated" | "done" | "error";
+    | "idle" | "listing" | "writing" | "validated" | "done" | "error";
   onboardingMessage: string | null;
 }
 
@@ -207,6 +218,7 @@ const [state, setState] = createStore<State>({
   sessions: {},
   sessionsOpen: false,
   persistedSessions: [],
+  searchResults: null,
   onboardingPhase: "idle",
   onboardingMessage: null,
 });
@@ -986,6 +998,32 @@ onHostMessage((msg) => {
     case "sessions":
       setState("persistedSessions", msg.sessions);
       break;
+    case "searchResults":
+      if (msg.scope === "conversations" && msg.conversations) {
+        setState("persistedSessions", msg.conversations);
+      }
+      setState("searchResults", {
+        query: msg.query,
+        scope: msg.scope,
+        commands: msg.commands,
+        files: msg.files,
+        projects: msg.projects,
+      });
+      break;
+    case "sessionRenamed":
+      setState(
+        "persistedSessions",
+        (row) => row.sessionId === msg.sessionId,
+        "title",
+        msg.title,
+      );
+      setState(
+        "tabs",
+        (tab) => tab.sessionId === msg.sessionId,
+        "title",
+        msg.title,
+      );
+      break;
     case "showSessions":
       setState("sessionsOpen", true);
       break;
@@ -1337,6 +1375,62 @@ export function newChatFromPanel(): void {
 
 export function forkChatFromPanel(): void {
   post({ type: "forkChat" });
+}
+
+export function searchItems(query: string, scope: SearchScope): void {
+  post({ type: "searchItems", query, scope });
+}
+
+export function renameSessionRow(sessionId: string, title: string): void {
+  setState(
+    "persistedSessions",
+    (row) => row.sessionId === sessionId,
+    "title",
+    title,
+  );
+  setState(
+    "tabs",
+    (tab) => tab.sessionId === sessionId,
+    "title",
+    title,
+  );
+  post({ type: "renameSession", sessionId, title });
+}
+
+export function togglePinSessionRow(sessionId: string): void {
+  setState(
+    "persistedSessions",
+    (row) => row.sessionId === sessionId,
+    "pinned",
+    (p) => !p,
+  );
+  post({ type: "togglePinSession", sessionId });
+}
+
+export function toggleArchiveSessionRow(sessionId: string): void {
+  setState(
+    "persistedSessions",
+    (row) => row.sessionId === sessionId,
+    "archived",
+    (a) => !a,
+  );
+  post({ type: "toggleArchiveSession", sessionId });
+}
+
+export function createNewProjectAction(): void {
+  post({ type: "createNewProject" });
+}
+
+export function openProjectAction(projectPath: string): void {
+  post({ type: "openProject", projectPath });
+}
+
+export function openFileAction(filePath: string): void {
+  post({ type: "openFile", filePath });
+}
+
+export function executeCommandAction(commandId: string): void {
+  post({ type: "executeCommand", commandId });
 }
 
 /**

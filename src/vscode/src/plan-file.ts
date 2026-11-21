@@ -40,10 +40,21 @@ export async function openFile(
     viewColumn?: vscode.ViewColumn;
     preview?: boolean;
     provider?: PlanEditorProvider;
+    selection?: vscode.Range;
   },
 ): Promise<void> {
   if (isPlanFileUri(uri)) {
     await openPlanFile(uri, options);
+    return;
+  }
+  if (options?.selection) {
+    const doc = await vscode.workspace.openTextDocument(uri);
+    await vscode.window.showTextDocument(doc, {
+      selection: options.selection,
+      preserveFocus: options.preserveFocus ?? false,
+      preview: options?.preview ?? true,
+      viewColumn: options?.viewColumn,
+    });
     return;
   }
   await vscode.commands.executeCommand("vscode.open", uri, {

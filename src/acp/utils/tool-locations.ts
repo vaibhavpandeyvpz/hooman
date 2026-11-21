@@ -3,6 +3,10 @@ import type { ToolCallLocation } from "@agentclientprotocol/sdk";
 const KNOWN_TOOL_LOCATION_KEYS = new Map<string, readonly string[]>([
   ["read_file", ["path"]],
   ["read_multiple_files", ["paths"]],
+  ["write_file", ["path"]],
+  ["create_file", ["path"]],
+  ["save_file", ["path"]],
+  ["delete_file", ["path"]],
   ["edit_file", ["path", "new_path"]],
   ["edit_multiple_files", ["edits"]],
   ["create_directory", ["path"]],

@@ -122,6 +122,7 @@ import {
   type SessionConfig,
 } from "../core/session-config.js";
 import { acpSessionsRootPath } from "./utils/paths.js";
+import { setSessionTitle, TITLE_STATE_KEY } from "../core/state/session-title.js";
 import { inferToolKind } from "./utils/tool-kind.js";
 import {
   fileToolDiffContent,
@@ -211,6 +212,21 @@ export interface StopShellJobRequest {
 
 export interface StopShellJobResponse {
   stopped: boolean;
+}
+
+export interface RenameSessionRequest {
+  sessionId: string;
+  title: string;
+}
+
+export interface TogglePinSessionRequest {
+  sessionId: string;
+  pinned?: boolean;
+}
+
+export interface ToggleArchiveSessionRequest {
+  sessionId: string;
+  archived?: boolean;
 }
 
 /** In-memory state for one active session. */
@@ -604,6 +620,11 @@ export class HoomanAcpAgent {
           cwd: entry.cwd,
           title: entry.title ?? null,
           updatedAt: entry.updatedAt,
+          _meta: {
+            pinned: Boolean(entry.pinned),
+            archived: Boolean(entry.archived),
+            createdAt: entry.createdAt,
+          },
         });
       }
     }
@@ -635,6 +656,80 @@ export class HoomanAcpAgent {
     await new FlatFileStorage(this.#snapshotsRoot).deleteSession({
       sessionId: params.sessionId,
     });
+  }
+
+  async renameSession(params: RenameSessionRequest): Promise<{ ok: boolean }> {
+    await this.#storeReady;
+    await patchSessionEntry(this.#acpRoot, params.sessionId, { title: params.title });
+    const record = this.#sessions.get(params.sessionId);
+    if (record?.agent) {
+      setSessionTitle(record.agent, params.title);
+    }
+    try {
+      const storage = new FlatFileStorage(this.#snapshotsRoot);
+      const snapshot = await storage.loadSnapshot({
+        location: {
+          sessionId: params.sessionId,
+          scope: "agent",
+          scopeId: "default",
+        },
+        snapshotId: "latest",
+      });
+      if (snapshot) {
+        const data =
+          snapshot.data && typeof snapshot.data === "object" && !Array.isArray(snapshot.data)
+            ? (snapshot.data as Record<string, unknown>)
+            : null;
+        const state =
+          data?.state && typeof data.state === "object" && !Array.isArray(data.state)
+            ? (data.state as Record<string, unknown>)
+            : null;
+        if (state) {
+          state[TITLE_STATE_KEY] = params.title;
+          await storage.saveSnapshot({
+            location: {
+              sessionId: params.sessionId,
+              scope: "agent",
+              scopeId: "default",
+            },
+            snapshotId: "latest",
+            isLatest: true,
+            snapshot,
+          });
+        }
+      }
+    } catch {
+      // Best-effort snapshot title update
+    }
+    return { ok: true };
+  }
+
+  async togglePinSession(
+    params: TogglePinSessionRequest,
+  ): Promise<{ pinned: boolean }> {
+    await this.#storeReady;
+    const entry = await readSessionEntry(this.#acpRoot, params.sessionId);
+    const nextPinned =
+      params.pinned !== undefined ? params.pinned : !(entry?.pinned ?? false);
+    await patchSessionEntry(this.#acpRoot, params.sessionId, {
+      pinned: nextPinned,
+    });
+    return { pinned: nextPinned };
+  }
+
+  async toggleArchiveSession(
+    params: ToggleArchiveSessionRequest,
+  ): Promise<{ archived: boolean }> {
+    await this.#storeReady;
+    const entry = await readSessionEntry(this.#acpRoot, params.sessionId);
+    const nextArchived =
+      params.archived !== undefined
+        ? params.archived
+        : !(entry?.archived ?? false);
+    await patchSessionEntry(this.#acpRoot, params.sessionId, {
+      archived: nextArchived,
+    });
+    return { archived: nextArchived };
   }
 
   async newSession(params: NewSessionRequest): Promise<NewSessionResponse> {
@@ -2561,6 +2656,21 @@ export function createAcpApp(agent: HoomanAcpAgent): AgentApp {
       "_hoomanjs/stop_shell_job",
       (params) => params as StopShellJobRequest,
       (ctx) => agent.stopShellJob(ctx.params),
+    )
+    .onRequest(
+      "_hoomanjs/rename_session",
+      (params) => params as RenameSessionRequest,
+      (ctx) => agent.renameSession(ctx.params),
+    )
+    .onRequest(
+      "_hoomanjs/toggle_pin_session",
+      (params) => params as TogglePinSessionRequest,
+      (ctx) => agent.togglePinSession(ctx.params),
+    )
+    .onRequest(
+      "_hoomanjs/toggle_archive_session",
+      (params) => params as ToggleArchiveSessionRequest,
+      (ctx) => agent.toggleArchiveSession(ctx.params),
     )
     .onRequest(methods.agent.session.setMode, (ctx) =>
       agent.setSessionMode(ctx.params, ctx.client),
