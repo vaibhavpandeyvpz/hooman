@@ -64,6 +64,10 @@ export type SessionIndexEntry = {
   sessionMode?: SessionMode;
   /** Persisted named LLM (`config.llms[].name`) selected via `session/set_config_option`. */
   model?: string;
+  /** Pinned by user to stay at the top of the session list. */
+  pinned?: boolean;
+  /** Hidden from standard list unless archived filter is active. */
+  archived?: boolean;
 };
 
 /** One line of `sessions.jsonl`: a partial patch or a delete tombstone. */

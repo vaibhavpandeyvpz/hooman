@@ -137,16 +137,40 @@ export interface QueuedPromptInfo {
   attachments?: AttachmentInfo[];
 }
 
+export type SearchScope = "conversations" | "commands" | "files" | "projects";
+
+export interface CommandSearchResult {
+  id: string;
+  title: string;
+  category?: string;
+}
+
+export interface FileSearchResult {
+  path: string;
+  name: string;
+  relativePath: string;
+}
+
+export interface ProjectSearchResult {
+  path: string;
+  name: string;
+}
+
 /** One persisted session row for the webview's Sessions panel. */
 export interface SessionRowInfo {
   sessionId: string;
   cwd: string;
   title: string;
   updatedAt?: string;
+  createdAt?: string;
   /** Currently active in the chat panel. */
   current: boolean;
   /** This open session currently has a turn running. */
   busy: boolean;
+  pinned?: boolean;
+  archived?: boolean;
+  projectName?: string;
+  matchSnippet?: string;
 }
 
 /** One open chat tab in the webview. */
@@ -236,6 +260,18 @@ export type InboundMessage =
   | { type: "activateTab"; sessionId: string }
   | { type: "closeTab"; sessionId: string }
   | { type: "deleteSession"; sessionId: string; title: string }
+  | { type: "renameSession"; sessionId: string; title: string }
+  | { type: "togglePinSession"; sessionId: string }
+  | { type: "toggleArchiveSession"; sessionId: string }
+  | {
+      type: "searchItems";
+      query: string;
+      scope: SearchScope;
+    }
+  | { type: "executeCommand"; commandId: string }
+  | { type: "openFile"; filePath: string }
+  | { type: "openProject"; projectPath: string }
+  | { type: "createNewProject" }
   | { type: "newChat" }
   | { type: "forkChat" }
   | { type: "pickModel" }
@@ -335,6 +371,20 @@ export type OutboundMessage =
   | { type: "download"; sessionId: string; download: ModelDownloadInfo | null }
   | { type: "retry"; sessionId: string; retry: ModelRetryInfo | null }
   | { type: "sessions"; sessions: SessionRowInfo[] }
+  | {
+      type: "searchResults";
+      query: string;
+      scope: SearchScope;
+      conversations?: SessionRowInfo[];
+      commands?: CommandSearchResult[];
+      files?: FileSearchResult[];
+      projects?: ProjectSearchResult[];
+    }
+  | {
+      type: "sessionRenamed";
+      sessionId: string;
+      title: string;
+    }
   | { type: "showSessions" }
   | {
       type: "sessionLoading";

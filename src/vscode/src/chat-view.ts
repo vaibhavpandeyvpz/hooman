@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, extname, isAbsolute, join } from "node:path";
 import * as vscode from "vscode";
@@ -24,12 +24,23 @@ import {
 import type { PermissionPrompts } from "./permissions";
 import { isPlanFilePath, openFile, openPlanFile } from "./plan-file";
 import type { HoomanStatusBar } from "./status-bar";
+import { sessionsPath } from "../../core/utils/paths";
+import {
+  projectPath,
+  projectRegistryPath,
+  projectsPath,
+} from "../../core/utils/project-registry";
 import type {
   AttachmentInfo,
   CommandInfo,
+  CommandSearchResult,
+  FileSearchResult,
   InboundMessage,
   OutboundMessage,
+  ProjectSearchResult,
   QueuedPromptInfo,
+  SearchScope,
+  SessionRowInfo,
   TabInfo,
 } from "./shared/protocol";
 
@@ -797,13 +808,19 @@ export class HoomanChatViewProvider
         sessions: response.sessions.map((info) => {
           const current = info.sessionId === this.#sessionId;
           const state = this.#sessions.get(info.sessionId);
+          const meta = (info as unknown as { _meta?: Record<string, unknown> })._meta;
+          const cwdBasename = basename(info.cwd || "");
           return {
             sessionId: info.sessionId,
             cwd: info.cwd,
             title: info.title ?? info.sessionId,
             updatedAt: info.updatedAt ?? undefined,
+            createdAt: typeof meta?.createdAt === "string" ? meta.createdAt : undefined,
             current,
             busy: state?.busy ?? false,
+            pinned: Boolean(meta?.pinned),
+            archived: Boolean(meta?.archived),
+            projectName: cwdBasename || "project",
           };
         }),
       });
@@ -1028,6 +1045,47 @@ export class HoomanChatViewProvider
         }
         return;
       }
+      case "renameSession":
+        await this.#renameSession(message.sessionId, message.title);
+        return;
+      case "togglePinSession":
+        await this.#togglePinSession(message.sessionId);
+        return;
+      case "toggleArchiveSession":
+        await this.#toggleArchiveSession(message.sessionId);
+        return;
+      case "searchItems":
+        await this.#handleSearchItems(message.query, message.scope);
+        return;
+      case "createNewProject":
+        await this.#createNewProject();
+        return;
+      case "openProject":
+        await vscode.commands.executeCommand(
+          "vscode.openFolder",
+          vscode.Uri.file(message.projectPath),
+        );
+        return;
+      case "openFile": {
+        try {
+          const doc = await vscode.workspace.openTextDocument(message.filePath);
+          await vscode.window.showTextDocument(doc);
+        } catch (err) {
+          this.outputChannel.warn(
+            `[chat-view] failed to open file: ${describe(err)}`,
+          );
+        }
+        return;
+      }
+      case "executeCommand":
+        try {
+          await vscode.commands.executeCommand(message.commandId);
+        } catch (err) {
+          this.outputChannel.warn(
+            `[chat-view] failed to run command: ${describe(err)}`,
+          );
+        }
+        return;
       case "newChat":
         this.newChat();
         return;
@@ -1219,6 +1277,348 @@ export class HoomanChatViewProvider
         sessionId: sourceSessionId,
         message: `Failed to fork session: ${describe(error)}`,
       });
+    }
+  }
+
+  async #renameSession(sessionId: string, title: string): Promise<void> {
+    try {
+      const agent = await this.client.ensureStarted();
+      await agent.request("_hoomanjs/rename_session", {
+        sessionId,
+        title,
+      });
+    } catch (error) {
+      this.outputChannel.warn(
+        `[chat-view] rename_session RPC failed: ${describe(error)}`,
+      );
+    }
+    const state = this.#sessions.get(sessionId);
+    if (state) {
+      state.title = title;
+    }
+    if (sessionId === this.#sessionId) {
+      this.#setTitle(title);
+    }
+    this.#post({
+      type: "sessionRenamed",
+      sessionId,
+      title,
+    });
+    await this.#postSessions();
+  }
+
+  async #togglePinSession(sessionId: string): Promise<void> {
+    try {
+      const agent = await this.client.ensureStarted();
+      await agent.request("_hoomanjs/toggle_pin_session", { sessionId });
+      await this.#postSessions();
+    } catch (error) {
+      this.outputChannel.warn(
+        `[chat-view] toggle_pin_session RPC failed: ${describe(error)}`,
+      );
+    }
+  }
+
+  async #toggleArchiveSession(sessionId: string): Promise<void> {
+    try {
+      const agent = await this.client.ensureStarted();
+      await agent.request("_hoomanjs/toggle_archive_session", { sessionId });
+      await this.#postSessions();
+    } catch (error) {
+      this.outputChannel.warn(
+        `[chat-view] toggle_archive_session RPC failed: ${describe(error)}`,
+      );
+    }
+  }
+
+  async #createNewProject(): Promise<void> {
+    const uris = await vscode.window.showOpenDialog({
+      canSelectFiles: false,
+      canSelectFolders: true,
+      canSelectMany: false,
+      openLabel: "Open / Create Project",
+    });
+    if (uris && uris[0]) {
+      await vscode.commands.executeCommand("vscode.openFolder", uris[0]);
+    }
+  }
+
+  #sessionContentCache = new Map<
+    string,
+    { mtimeMs: number; messages: { role: string; text: string }[] }
+  >();
+
+  async #loadSessionMessages(
+    sessionId: string,
+    cwd?: string,
+  ): Promise<{ role: string; text: string }[]> {
+    const candidateDirs: string[] = [];
+    if (cwd) {
+      try {
+        candidateDirs.push(join(projectPath(cwd), "sessions", sessionId));
+      } catch {}
+    }
+    try {
+      candidateDirs.push(join(sessionsPath(), sessionId));
+    } catch {}
+    try {
+      const pRoot = projectsPath();
+      const pDirs = await readdir(pRoot).catch(() => []);
+      for (const pDir of pDirs) {
+        candidateDirs.push(join(pRoot, pDir, "sessions", sessionId));
+      }
+    } catch {}
+
+    let snapshotPath: string | null = null;
+    let fileMtime = 0;
+    for (const dir of candidateDirs) {
+      const p = join(dir, "snapshot_latest.json");
+      try {
+        const s = await stat(p);
+        snapshotPath = p;
+        fileMtime = s.mtimeMs;
+        break;
+      } catch {}
+    }
+
+    if (!snapshotPath) {
+      return [];
+    }
+
+    const cached = this.#sessionContentCache.get(sessionId);
+    if (cached && cached.mtimeMs === fileMtime) {
+      return cached.messages;
+    }
+
+    try {
+      const raw = await readFile(snapshotPath, "utf8");
+      const data = JSON.parse(raw);
+      const rawMsgs = data?.data?.messages ?? [];
+      const messages: { role: string; text: string }[] = [];
+      for (const msg of rawMsgs) {
+        const role = String(msg?.role || "user");
+        let text = "";
+        const content = msg?.content;
+        if (typeof content === "string") {
+          text = content;
+        } else if (Array.isArray(content)) {
+          text = content
+            .map((c: unknown) => {
+              if (typeof c === "string") return c;
+              if (c && typeof c === "object") {
+                const obj = c as Record<string, unknown>;
+                if (typeof obj.text === "string") return obj.text;
+                if (typeof obj.content === "string") return obj.content;
+              }
+              return "";
+            })
+            .filter(Boolean)
+            .join(" ");
+        } else if (typeof msg?.text === "string") {
+          text = msg.text;
+        }
+        if (text.trim()) {
+          messages.push({ role, text: text.trim() });
+        }
+      }
+      this.#sessionContentCache.set(sessionId, {
+        mtimeMs: fileMtime,
+        messages,
+      });
+      return messages;
+    } catch {
+      return [];
+    }
+  }
+
+  async #searchConversations(
+    query: string,
+  ): Promise<(SessionRowInfo & { matchSnippet?: string })[]> {
+    const agent = await this.client.ensureStarted();
+    const response = await agent.request(methods.agent.session.list, {});
+    const sessions = response.sessions;
+    const needle = query.trim().toLowerCase();
+
+    const results: (SessionRowInfo & { matchSnippet?: string; score: number })[] = [];
+
+    for (const info of sessions) {
+      const current = info.sessionId === this.#sessionId;
+      const state = this.#sessions.get(info.sessionId);
+      const meta = (info as unknown as { _meta?: Record<string, unknown> })._meta;
+      const title = info.title ?? info.sessionId;
+      const cwdBasename = basename(info.cwd || "");
+      const rowInfo: SessionRowInfo = {
+        sessionId: info.sessionId,
+        cwd: info.cwd,
+        title,
+        updatedAt: info.updatedAt ?? undefined,
+        createdAt: typeof meta?.createdAt === "string" ? meta.createdAt : undefined,
+        current,
+        busy: state?.busy ?? false,
+        pinned: Boolean(meta?.pinned),
+        archived: Boolean(meta?.archived),
+        projectName: cwdBasename || "project",
+      };
+
+      if (!needle) {
+        results.push({ ...rowInfo, score: 0 });
+        continue;
+      }
+
+      let score = 0;
+      let matchSnippet: string | undefined;
+
+      // 1. Check title
+      const titleLower = title.toLowerCase();
+      if (titleLower.includes(needle)) {
+        score += 100;
+      }
+
+      // 2. Check chat history
+      const messages = await this.#loadSessionMessages(info.sessionId, info.cwd);
+      for (const msg of messages) {
+        const msgLower = msg.text.toLowerCase();
+        const idx = msgLower.indexOf(needle);
+        if (idx !== -1) {
+          score += 50;
+          if (!matchSnippet) {
+            const start = Math.max(0, idx - 35);
+            const end = Math.min(msg.text.length, idx + needle.length + 35);
+            let snip = msg.text.slice(start, end).replace(/\s+/g, " ");
+            if (start > 0) snip = "…" + snip;
+            if (end < msg.text.length) snip = snip + "…";
+            matchSnippet = snip;
+          }
+        }
+      }
+
+      if (score > 0) {
+        results.push({ ...rowInfo, score, matchSnippet });
+      }
+    }
+
+    results.sort((a, b) => {
+      if (a.pinned !== b.pinned) return (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0);
+      if (b.score !== a.score) return b.score - a.score;
+      return String(b.updatedAt ?? "").localeCompare(String(a.updatedAt ?? ""));
+    });
+
+    return results;
+  }
+
+  async #searchCommands(query: string): Promise<CommandSearchResult[]> {
+    const all = await vscode.commands.getCommands(true);
+    const needle = query.trim().toLowerCase();
+    return all
+      .filter((id) => !needle || id.toLowerCase().includes(needle))
+      .slice(0, 50)
+      .map((id) => {
+        const parts = id.split(".");
+        const category = parts.length > 1 ? parts[0] : undefined;
+        const title = id
+          .split(".")
+          .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+          .join(": ");
+        return { id, title, category };
+      });
+  }
+
+  async #searchFiles(query: string): Promise<FileSearchResult[]> {
+    const pattern = query.trim() ? `**/*${query.trim()}*` : "**/*";
+    const uris = await vscode.workspace.findFiles(
+      pattern,
+      "**/{node_modules,.git,dist,out,build}/**",
+      50,
+    );
+    return uris.map((uri) => ({
+      path: uri.fsPath,
+      name: basename(uri.fsPath),
+      relativePath: vscode.workspace.asRelativePath(uri),
+    }));
+  }
+
+  async #searchProjects(query: string): Promise<ProjectSearchResult[]> {
+    const projects: ProjectSearchResult[] = [];
+    const needle = query.trim().toLowerCase();
+    const seen = new Set<string>();
+
+    for (const folder of vscode.workspace.workspaceFolders ?? []) {
+      const p = folder.uri.fsPath;
+      if (!seen.has(p)) {
+        seen.add(p);
+        if (
+          !needle ||
+          p.toLowerCase().includes(needle) ||
+          folder.name.toLowerCase().includes(needle)
+        ) {
+          projects.push({ path: p, name: folder.name });
+        }
+      }
+    }
+
+    try {
+      const regPath = projectRegistryPath();
+      const raw = await readFile(regPath, "utf8");
+      const parsed = JSON.parse(raw);
+      if (parsed?.projects && typeof parsed.projects === "object") {
+        for (const p of Object.keys(parsed.projects)) {
+          if (!seen.has(p)) {
+            seen.add(p);
+            const name = basename(p);
+            if (
+              !needle ||
+              p.toLowerCase().includes(needle) ||
+              name.toLowerCase().includes(needle)
+            ) {
+              projects.push({ path: p, name });
+            }
+          }
+        }
+      }
+    } catch {}
+
+    return projects;
+  }
+
+  async #handleSearchItems(query: string, scope: SearchScope): Promise<void> {
+    try {
+      if (scope === "conversations") {
+        const conversations = await this.#searchConversations(query);
+        this.#post({
+          type: "searchResults",
+          query,
+          scope,
+          conversations,
+        });
+      } else if (scope === "commands") {
+        const commands = await this.#searchCommands(query);
+        this.#post({
+          type: "searchResults",
+          query,
+          scope,
+          commands,
+        });
+      } else if (scope === "files") {
+        const files = await this.#searchFiles(query);
+        this.#post({
+          type: "searchResults",
+          query,
+          scope,
+          files,
+        });
+      } else if (scope === "projects") {
+        const projects = await this.#searchProjects(query);
+        this.#post({
+          type: "searchResults",
+          query,
+          scope,
+          projects,
+        });
+      }
+    } catch (error) {
+      this.outputChannel.warn(
+        `[chat-view] searchItems (${scope}) failed: ${describe(error)}`,
+      );
     }
   }
 
